@@ -267,15 +267,47 @@ void GLCamera::moveForward(float iDist)
 	updateViewMatrix();
 }
 
+void GLCamera::moveForwardPlanar(float iDist)
+{
+	QVector3D planarForward(_viewDir.x(), _viewDir.y(), 0.0f);
+	if (planarForward.lengthSquared() <= 1.0e-8f)
+		return;
+
+	_position = _position + planarForward.normalized() * iDist;
+	updateViewMatrix();
+}
+
 void GLCamera::moveUpward(float iDist)
 {
 	_position = _position + (_upVector * iDist);
 	updateViewMatrix();
 }
 
+void GLCamera::moveWorldUp(float iDist)
+{
+	_position = _position + QVector3D(0.0f, 0.0f, iDist);
+	updateViewMatrix();
+}
+
 void GLCamera::moveAcross(float iDist)
 {
 	_position = _position + (_rightVector * iDist);
+	updateViewMatrix();
+}
+
+void GLCamera::moveAcrossPlanar(float iDist)
+{
+	QVector3D planarRight(_rightVector.x(), _rightVector.y(), 0.0f);
+	if (planarRight.lengthSquared() <= 1.0e-8f)
+	{
+		const QVector3D planarForward(_viewDir.x(), _viewDir.y(), 0.0f);
+		planarRight = QVector3D::crossProduct(planarForward, QVector3D(0.0f, 0.0f, 1.0f));
+	}
+
+	if (planarRight.lengthSquared() <= 1.0e-8f)
+		return;
+
+	_position = _position + planarRight.normalized() * iDist;
 	updateViewMatrix();
 }
 

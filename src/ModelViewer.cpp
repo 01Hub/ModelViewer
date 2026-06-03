@@ -1918,8 +1918,12 @@ void ModelViewer::updateDisplayList()
 	// computed by setDisplayList() above — no need to wait for the tree
 	// rebuild.  Skip when the mesh store is empty (e.g. the initial show
 	// before any file is loaded) to avoid fitting an empty / sentinel sphere.
-	if (shouldAutoFit && !_glWidget->getMeshStore().empty())
+	if (shouldAutoFit &&
+		!_glWidget->getMeshStore().empty() &&
+		_glWidget->cameraMode() == GLCamera::CameraMode::Orbit)
+	{
 		_glWidget->fitAll();
+	}
 
 	
 }

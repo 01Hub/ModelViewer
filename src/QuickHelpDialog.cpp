@@ -330,10 +330,11 @@ void QuickHelpDialog::setupKeyboardShortcutsTab()
 	// View Navigation
 	QStringList navHeaders = { tr("Key"), tr("Action") };
 	QList<QStringList> navRows = {
-		{tr("W, A, S, D"), tr("Navigate in current camera mode:<br/>"
+		{tr("W, A, S, D / Arrow Keys"), tr("Navigate in current camera mode:<br/>"
 							 "• <b>Orbit Mode:</b> Pan view (W=up, S=down, A=left, D=right)<br/>"
 							 "• <b>Fly/First Person:</b> Move forward/backward/left/right")},
 		{tr("Q, E"), tr("Move up/down (Fly mode only)")},
+		{tr("Shift"), tr("Hold while navigating to move faster in Fly/First Person modes")},
 		{tr("I, K"), tr("Rotate view around X-axis (up/down)")},
 		{tr("J, L"), tr("Rotate view around Y-axis (left/right)")},
 		{tr("M, N"), tr("Rotate view around Z-axis (clockwise/counter-clockwise)")},
@@ -380,7 +381,9 @@ void QuickHelpDialog::setupKeyboardShortcutsTab()
 	content += createSection(tr("Tips"),
 		tr("<ul>"
 			"<li>Hold keys continuously for smooth navigation</li>"
-			"<li>Camera mode affects how W/A/S/D keys behave</li>"
+			"<li>W/A/S/D and the Arrow keys both support navigation</li>"
+			"<li>Camera mode affects how movement keys behave</li>"
+			"<li>Hold Shift in Fly or First Person mode to sprint</li>"
 			"<li>In First Person mode, pitch is limited to ±60 degrees</li>"
 			"<li>In Fly mode, pitch is limited to ±89 degrees</li>"
 			"</ul>"));
@@ -463,9 +466,10 @@ void QuickHelpDialog::setupCameraModesTab()
 			"<li>Camera moves freely through 3D space</li>"
 			"<li>Mouse controls look direction</li>"
 			"<li>No restrictions on viewing angle</li>"
-			"<li><b>W/S:</b> Move forward/backward in viewing direction</li>"
-			"<li><b>A/D:</b> Strafe left/right</li>"
+			"<li><b>W/S</b> or <b>Up/Down:</b> Move forward/backward in viewing direction</li>"
+			"<li><b>A/D</b> or <b>Left/Right:</b> Strafe left/right</li>"
 			"<li><b>Q/E:</b> Move down/up vertically</li>"
+			"<li><b>Shift:</b> Move faster while navigating</li>"
 			"<li><b>Mouse:</b> Look around (pitch limited to ±89°)</li>"
 			"</ul>"));
 
@@ -476,8 +480,9 @@ void QuickHelpDialog::setupCameraModesTab()
 			"<li>Similar to Fly mode but with constraints</li>"
 			"<li>Pitch restricted to ±60° (more natural for ground movement)</li>"
 			"<li>Typically used for walking simulations</li>"
-			"<li><b>W/S:</b> Move forward/backward</li>"
-			"<li><b>A/D:</b> Strafe left/right</li>"
+			"<li><b>W/S</b> or <b>Up/Down:</b> Walk forward/backward on the ground plane</li>"
+			"<li><b>A/D</b> or <b>Left/Right:</b> Strafe left/right on the ground plane</li>"
+			"<li><b>Shift:</b> Move faster while navigating</li>"
 			"<li><b>Mouse:</b> Look around (pitch limited to ±60°)</li>"
 			"<li>Note: No vertical Q/E movement in this mode</li>"
 			"</ul>"));

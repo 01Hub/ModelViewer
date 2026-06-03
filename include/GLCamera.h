@@ -119,8 +119,11 @@ public:
 
 	void move(float iDX, float iDY, float iDZ);
 	void moveForward(float iDist);
+	void moveForwardPlanar(float iDist);
 	void moveUpward(float iDist);
+	void moveWorldUp(float iDist);
 	void moveAcross(float iDist);
+	void moveAcrossPlanar(float iDist);
 	void setZoom(float iFactor);
 	float getZoom() const { return _zoomValue; }
 	void setView(ViewProjection iProj);

@@ -117,6 +117,7 @@ public:
 	void setViewMode(ViewMode mode);
 	void setProjection(ViewProjection proj);
 	void setCameraMode(GLCamera::CameraMode mode);
+	GLCamera::CameraMode cameraMode() const;
 
 	void setMultiView(bool active) { _multiViewActive = active; }
 	void setRotationActive(bool active);
@@ -750,6 +751,7 @@ private:
 
 	float highestModelZ();
 	float lowestModelZ();
+	bool positionGameplayCameraForScene(GLCamera::CameraMode mode);
 
 	QList<int> sweepSelect(const QPoint& pixel, bool addToSelection = false);  // Sweep selection using rubber band
 	unsigned int colorToIndex(const QColor& color);

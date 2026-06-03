@@ -2540,20 +2540,106 @@ void GLWidget::performWindowZoom()
 
 void GLWidget::setProjection(ViewProjection proj)
 {
-	_projection = proj;	
+	_projection = proj;
+	if (!_primaryCamera || _primaryCamera->getMode() == GLCamera::CameraMode::Orbit)
+	{
+		_previousProjection = (proj == ViewProjection::PERSPECTIVE)
+			? GLCamera::ProjectionType::PERSPECTIVE
+			: GLCamera::ProjectionType::ORTHOGRAPHIC;
+	}
 	resizeGL(width(), height());
+}
+
+GLCamera::CameraMode GLWidget::cameraMode() const
+{
+	return _primaryCamera ? _primaryCamera->getMode() : GLCamera::CameraMode::Orbit;
+}
+
+bool GLWidget::positionGameplayCameraForScene(GLCamera::CameraMode mode)
+{
+	if (!_primaryCamera ||
+		(mode != GLCamera::CameraMode::Fly && mode != GLCamera::CameraMode::FirstPerson))
+	{
+		return false;
+	}
+
+	const std::vector<int>& visibleIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+	if (_meshStore.empty() || visibleIds.empty())
+		return false;
+
+	const QVector3D center = _boundingSphere.getCenter();
+	const float radius = std::max(_boundingSphere.getRadius(), 0.001f);
+	const float lowestZ = lowestModelZ();
+	const float highestZ = highestModelZ();
+	const float modelHeight = std::max(highestZ - lowestZ, radius * 2.0f);
+
+	QVector3D horizontalViewDir = _primaryCamera->getViewDir();
+	horizontalViewDir.setZ(0.0f);
+	if (horizontalViewDir.lengthSquared() <= 1.0e-8f)
+		horizontalViewDir = QVector3D(-1.0f, 1.0f, 0.0f);
+	horizontalViewDir.normalize();
+
+	QVector3D eye;
+	QVector3D target = center;
+	if (mode == GLCamera::CameraMode::Fly)
+	{
+		const float flyDistance = std::max(radius * 2.25f, _viewRange * 0.9f);
+		const float flyLift = std::clamp(modelHeight * 0.35f, radius * 0.25f, radius * 1.25f);
+		const float targetLift = std::clamp(modelHeight * 0.10f, 0.0f, radius * 0.35f);
+
+		eye = center - horizontalViewDir * flyDistance + QVector3D(0.0f, 0.0f, flyLift);
+		target.setZ(center.z() + targetLift);
+	}
+	else
+	{
+		const float eyeHeight = std::clamp(modelHeight * 0.18f, radius * 0.12f, radius * 0.45f);
+		const float walkDistance = std::max(radius * 2.6f, modelHeight * 0.75f);
+		const float targetHeight = std::clamp(lowestZ + modelHeight * 0.33f, lowestZ + eyeHeight * 0.8f, highestZ);
+
+		eye = center - horizontalViewDir * walkDistance;
+		eye.setZ(lowestZ + eyeHeight);
+		target.setZ(targetHeight);
+	}
+
+	QVector3D viewDir = target - eye;
+	if (viewDir.lengthSquared() <= 1.0e-8f)
+		viewDir = QVector3D(0.0f, 1.0f, 0.0f);
+	viewDir.normalize();
+
+	const QVector3D worldUp(0.0f, 0.0f, 1.0f);
+	QVector3D rightDir = QVector3D::crossProduct(viewDir, worldUp);
+	if (rightDir.lengthSquared() <= 1.0e-8f)
+		rightDir = QVector3D(1.0f, 0.0f, 0.0f);
+	rightDir.normalize();
+	QVector3D upDir = QVector3D::crossProduct(rightDir, viewDir).normalized();
+
+	_primaryCamera->setMode(mode);
+	_primaryCamera->setZoom(1.0f);
+	_primaryCamera->setView(eye, viewDir, upDir, rightDir);
+	_primaryCamera->setYawPitchFromViewDir();
+	_primaryCamera->updateFlyView();
+
+	_currentTranslation = _primaryCamera->getPosition();
+	_currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
+	return true;
 }
 
 void GLWidget::setCameraMode(GLCamera::CameraMode mode)
 {
+	const std::vector<int>& visibleIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+	const bool hasVisibleScene = !_meshStore.empty() && !visibleIds.empty();
+
 	if (mode == GLCamera::CameraMode::Fly || mode == GLCamera::CameraMode::FirstPerson)
 	{
 		const bool comingFromOrbit = _primaryCamera->getMode() == GLCamera::CameraMode::Orbit;
-		QVector3D orbitEye = _primaryCamera->getPosition()
-			- _primaryCamera->getViewDir().normalized() * _primaryCamera->getOrbitDistance();
+		QVector3D orbitEye = _primaryCamera->getPosition();
+		const GLCamera::ProjectionType orbitProjection = comingFromOrbit
+			? _primaryCamera->getProjectionType()
+			: _previousProjection;
 
 		if (comingFromOrbit)
 		{
+			_previousProjection = orbitProjection;
 			const QVector3D viewDir = _primaryCamera->getViewDir().normalized();
 			const QVector3D center = _boundingSphere.getCenter();
 			const float desiredDist = std::max(_primaryCamera->getOrbitDistance(),
@@ -2563,8 +2649,8 @@ void GLWidget::setCameraMode(GLCamera::CameraMode mode)
 
 		if (_primaryCamera->getProjectionType() != GLCamera::ProjectionType::PERSPECTIVE)
 		{
-			_previousProjection = GLCamera::ProjectionType::ORTHOGRAPHIC;
 			setProjection(ViewProjection::PERSPECTIVE);
+			_previousProjection = orbitProjection;
 		}
 
 		// setMode syncs yaw/pitch from the current viewDir, resets up/right vectors
@@ -2573,9 +2659,17 @@ void GLWidget::setCameraMode(GLCamera::CameraMode mode)
 		// Drop any zoom scale accumulated in Orbit mode; Fly uses real position instead
 		_primaryCamera->setZoom(1.0f);
 
-		// Continue from the actual orbit eye position to avoid a visible jump.
-		_primaryCamera->setPosition(orbitEye);
-		_currentTranslation = _primaryCamera->getPosition();
+		// Spawn gameplay cameras around the loaded model instead of inheriting the orbit pivot.
+		if (comingFromOrbit && positionGameplayCameraForScene(mode))
+		{
+			_currentTranslation = _primaryCamera->getPosition();
+		}
+		else
+		{
+			// Continue from the actual orbit eye position to avoid a visible jump.
+			_primaryCamera->setPosition(orbitEye);
+			_currentTranslation = _primaryCamera->getPosition();
+		}
 	}
 	else if (mode == GLCamera::CameraMode::Orbit)
 	{
@@ -2589,10 +2683,20 @@ void GLWidget::setCameraMode(GLCamera::CameraMode mode)
 
 		_primaryCamera->setMode(mode);
 		setProjection(_previousProjection == GLCamera::ProjectionType::PERSPECTIVE ? ViewProjection::PERSPECTIVE : ViewProjection::ORTHOGRAPHIC);
+		_currentTranslation = _primaryCamera->getPosition();
+		_currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
+		_currentViewRange = _viewRange;
 	}
 
-	resizeGL(width(), height());
-	update();
+	if (hasVisibleScene)
+	{
+		fitAll();
+	}
+	else
+	{
+		resizeGL(width(), height());
+		update();
+	}
 }
 
 void GLWidget::setRotationActive(bool active)
@@ -2677,8 +2781,20 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 	triggerShadowRecomputation();
 	updateFloorPlane();
 
-	if (_autoFitViewOnUpdate)
+	if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
+		_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+	{
+		if (_primaryCamera->getProjectionType() != GLCamera::ProjectionType::PERSPECTIVE)
+		{
+			setProjection(ViewProjection::PERSPECTIVE);
+		}
+
+		positionGameplayCameraForScene(_primaryCamera->getMode());
+	}
+	else if (_autoFitViewOnUpdate)
+	{
 		fitAll();
+	}
 
 	update();
 
@@ -10914,54 +11030,107 @@ void GLWidget::performKeyboardNav()
 	if (isGltfCameraActive())
 		return;
 
-	if (_keys.empty() == false && QApplication::keyboardModifiers() == Qt::NoModifier)
+	const Qt::KeyboardModifiers modifiers = QApplication::keyboardModifiers();
+	const bool allowGameplayModifiers = (modifiers == Qt::NoModifier || modifiers == Qt::ShiftModifier);
+
+	if (_keys.empty() == false && allowGameplayModifiers)
 	{
-		float factor = _viewRange * 0.01f;
+		const float sceneScale = std::max(_boundingSphere.getRadius(), 0.001f);
+		float factor = std::max(sceneScale * 0.02f, _viewRange * 0.01f);
+		if (modifiers & Qt::ShiftModifier)
+			factor *= 3.0f;
+
 		// https://forum.qt.io/topic/28327/big-issue-with-qt-key-inputs-for-gaming/4
 		if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly || _primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
 		{
-			if (_keys.contains(Qt::Key_W))
-				_primaryCamera->moveForward(factor);
-			if (_keys.contains(Qt::Key_S))
-				_primaryCamera->moveForward(-factor);
-			if (_keys.contains(Qt::Key_A))
-				_primaryCamera->moveAcross(factor);
-			if (_keys.contains(Qt::Key_D))
-				_primaryCamera->moveAcross(-factor);
-
-			if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly)
+			const bool firstPerson = _primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson;
+			if (firstPerson)
 			{
+				if (_keys.contains(Qt::Key_W) || _keys.contains(Qt::Key_Up))
+					_primaryCamera->moveForwardPlanar(factor);
+				if (_keys.contains(Qt::Key_S) || _keys.contains(Qt::Key_Down))
+					_primaryCamera->moveForwardPlanar(-factor);
+				if (_keys.contains(Qt::Key_A) || _keys.contains(Qt::Key_Left))
+					_primaryCamera->moveAcrossPlanar(-factor);
+				if (_keys.contains(Qt::Key_D) || _keys.contains(Qt::Key_Right))
+					_primaryCamera->moveAcrossPlanar(factor);
+			}
+			else
+			{
+				if (_keys.contains(Qt::Key_W) || _keys.contains(Qt::Key_Up))
+					_primaryCamera->moveForward(factor);
+				if (_keys.contains(Qt::Key_S) || _keys.contains(Qt::Key_Down))
+					_primaryCamera->moveForward(-factor);
+				if (_keys.contains(Qt::Key_A) || _keys.contains(Qt::Key_Left))
+					_primaryCamera->moveAcross(-factor);
+				if (_keys.contains(Qt::Key_D) || _keys.contains(Qt::Key_Right))
+					_primaryCamera->moveAcross(factor);
 				if (_keys.contains(Qt::Key_Q))
-					_primaryCamera->moveUpward(-factor);
+					_primaryCamera->moveWorldUp(-factor);
 				if (_keys.contains(Qt::Key_E))
-					_primaryCamera->moveUpward(factor);
+					_primaryCamera->moveWorldUp(factor);
 			}
 		}
 		else
 		{
 			// Use Orbit-style orthographic nav (as before)
-			if (_keys.contains(Qt::Key_A))
+			if (_keys.contains(Qt::Key_A) || _keys.contains(Qt::Key_Left))
 				_primaryCamera->moveAcross(factor);
-			if (_keys.contains(Qt::Key_D))
+			if (_keys.contains(Qt::Key_D) || _keys.contains(Qt::Key_Right))
 				_primaryCamera->moveAcross(-factor);
-			if (_keys.contains(Qt::Key_W))
+			if (_keys.contains(Qt::Key_W) || _keys.contains(Qt::Key_Up))
 				_primaryCamera->moveUpward(-factor);
-			if (_keys.contains(Qt::Key_S))
+			if (_keys.contains(Qt::Key_S) || _keys.contains(Qt::Key_Down))
 				_primaryCamera->moveUpward(factor);
 		}
 
-		if (_keys.contains(Qt::Key_J))
-			_primaryCamera->rotateY(2.0f);
-		if (_keys.contains(Qt::Key_L))
-			_primaryCamera->rotateY(-2.0f);
-		if (_keys.contains(Qt::Key_I))
-			_primaryCamera->rotateX(2.0f);
-		if (_keys.contains(Qt::Key_K))
-			_primaryCamera->rotateX(-2.0f);
-		if (_keys.contains(Qt::Key_M))
-			_primaryCamera->rotateZ(2.0f);
-		if (_keys.contains(Qt::Key_N))
-			_primaryCamera->rotateZ(-2.0f);
+		if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
+			_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+		{
+			bool updatedLook = false;
+			if (_keys.contains(Qt::Key_J))
+			{
+				_primaryCamera->getYaw() += 2.0f;
+				updatedLook = true;
+			}
+			if (_keys.contains(Qt::Key_L))
+			{
+				_primaryCamera->getYaw() -= 2.0f;
+				updatedLook = true;
+			}
+			if (_keys.contains(Qt::Key_I))
+			{
+				_primaryCamera->getPitch() += 2.0f;
+				updatedLook = true;
+			}
+			if (_keys.contains(Qt::Key_K))
+			{
+				_primaryCamera->getPitch() -= 2.0f;
+				updatedLook = true;
+			}
+
+			if (updatedLook)
+			{
+				const float pitchLimit = (_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson) ? 60.0f : 89.0f;
+				_primaryCamera->getPitch() = std::clamp(_primaryCamera->getPitch(), -pitchLimit, pitchLimit);
+				_primaryCamera->updateFlyView();
+			}
+		}
+		else
+		{
+			if (_keys.contains(Qt::Key_J))
+				_primaryCamera->rotateY(2.0f);
+			if (_keys.contains(Qt::Key_L))
+				_primaryCamera->rotateY(-2.0f);
+			if (_keys.contains(Qt::Key_I))
+				_primaryCamera->rotateX(2.0f);
+			if (_keys.contains(Qt::Key_K))
+				_primaryCamera->rotateX(-2.0f);
+			if (_keys.contains(Qt::Key_M))
+				_primaryCamera->rotateZ(2.0f);
+			if (_keys.contains(Qt::Key_N))
+				_primaryCamera->rotateZ(-2.0f);
+		}
 		if (_keys.contains(Qt::Key_X) || _keys.contains(Qt::Key_Z))
 		{
 			if(_primaryCamera->getMode() == GLCamera::CameraMode::Orbit)
@@ -11918,6 +12087,11 @@ void GLWidget::animateToRotation(const QQuaternion& targetRotation)
 	}
 
 	_primaryCamera->setView(curPos, viewDir, upDir, rightDir);
+	if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
+		_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+	{
+		_primaryCamera->setYawPitchFromViewDir();
+	}
 
 	if (qFuzzyCompare(_slerpStep, 1.0f))
 	{
@@ -11934,6 +12108,8 @@ void GLWidget::animateToRotation(const QQuaternion& targetRotation)
 			const float targetDistance = shiftFactor * _viewBoundingSphereDia;
 			const QVector3D targetEye = _boundingSphere.getCenter() - targetViewDir * targetDistance;
 			_primaryCamera->setView(targetEye, targetViewDir, targetUpDir, targetRightDir);
+			_primaryCamera->setYawPitchFromViewDir();
+			_primaryCamera->updateFlyView();
 		}
 		else
 		{
