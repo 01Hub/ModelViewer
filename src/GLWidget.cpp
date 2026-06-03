@@ -2,6 +2,7 @@
 #include "ClippingPlanesEditor.h"
 #include "Cone.h"
 #include "Cube.h"
+#include "FloorPlane.h"
 #include "GltfCameraData.h"
 #include "GLWidget.h"
 #include <QtMath>
@@ -4775,7 +4776,7 @@ void GLWidget::loadFloor()
 	}
 
 	const float groundExtent = groundPlaneExtent();
-	_floorPlane = new Plane(_fgShader.get(), _floorCenter, groundExtent, groundExtent, 1, 1, floorPlaneCoeff, 1, 1);
+	_floorPlane = new FloorPlane(_fgShader.get(), _floorCenter, groundExtent, groundExtent, 1, 1, floorPlaneCoeff, 1, 1);
 
 	// Use helper to apply common material/texture settings
 	applyFloorPlaneMaterialSettings();
@@ -4805,8 +4806,38 @@ void GLWidget::applyFloorPlaneMaterialSettings()
 
 void GLWidget::syncFloorPlaneAlbedoTexture()
 {
-	if (_floorPlane == nullptr || _floorTexImage.isNull())
+	if (_floorPlane == nullptr)
 		return;
+
+	GLMaterial material = _floorPlane->getMaterial();
+	const GLuint oldAlbedoTex = static_cast<GLuint>(material.albedoTextureId());
+	const GLuint oldDiffuseTex = static_cast<GLuint>(material.diffuseTextureId());
+
+	if (!_floorTextureDisplayed || _floorTexImage.isNull())
+	{
+		if (oldAlbedoTex != 0)
+		{
+			glDeleteTextures(1, &oldAlbedoTex);
+		}
+		if (oldDiffuseTex != 0 && oldDiffuseTex != oldAlbedoTex)
+		{
+			glDeleteTextures(1, &oldDiffuseTex);
+		}
+
+		GLMaterial::Texture resetAlbedo;
+		resetAlbedo.type = "albedo";
+		GLMaterial::Texture resetDiffuse;
+		resetDiffuse.type = "diffuse";
+
+		material.setTexture(GLMaterial::TextureType::Albedo, resetAlbedo);
+		material.setTexture(GLMaterial::TextureType::Diffuse, resetDiffuse);
+		material.setAlbedoMap(QString());
+		material.setAlbedoTextureId(0);
+		material.setDiffuseMap(QString());
+		material.setDiffuseTextureId(0);
+		_floorPlane->setMaterial(material);
+		return;
+	}
 
 	const TextureSamplerSettings samplers{
 		GL_REPEAT,
@@ -4819,11 +4850,13 @@ void GLWidget::syncFloorPlaneAlbedoTexture()
 	if (newFloorTex == 0)
 		return;
 
-	GLMaterial material = _floorPlane->getMaterial();
-	const GLuint oldFloorTex = static_cast<GLuint>(material.albedoTextureId());
-	if (oldFloorTex != 0)
+	if (oldAlbedoTex != 0)
 	{
-		glDeleteTextures(1, &oldFloorTex);
+		glDeleteTextures(1, &oldAlbedoTex);
+	}
+	if (oldDiffuseTex != 0 && oldDiffuseTex != oldAlbedoTex)
+	{
+		glDeleteTextures(1, &oldDiffuseTex);
 	}
 
 	GLMaterial::Texture albedoTexture = material.texture(GLMaterial::TextureType::Albedo);
@@ -4837,6 +4870,14 @@ void GLWidget::syncFloorPlaneAlbedoTexture()
 	albedoTexture.magFilter = samplers.magFilter;
 	albedoTexture.imageData = _floorTexImage;
 	material.setTexture(GLMaterial::TextureType::Albedo, albedoTexture);
+	material.setAlbedoMap("generated://floor-albedo");
+	material.setAlbedoTextureId(static_cast<int>(newFloorTex));
+
+	GLMaterial::Texture resetDiffuse;
+	resetDiffuse.type = "diffuse";
+	material.setTexture(GLMaterial::TextureType::Diffuse, resetDiffuse);
+	material.setDiffuseMap(QString());
+	material.setDiffuseTextureId(0);
 	_floorPlane->setMaterial(material);
 }
 
@@ -5922,7 +5963,7 @@ void GLWidget::drawFloor(const bool& drawReflection)
 		glActiveTexture(GL_TEXTURE0);
 	};
 
-	auto configureGroundPass = [this, &bindFloorSharedSamplerState](bool reflectedPass, bool textureEnabled)
+	auto configureGroundSharedState = [this, &bindFloorSharedSamplerState]()
 	{
 		_fgShader->bind();
 		bindFloorSharedSamplerState();
@@ -5930,8 +5971,6 @@ void GLWidget::drawFloor(const bool& drawReflection)
 		_fgShader->setUniformValue("envMapEnabled", false);
 		_fgShader->setUniformValue("floorRendering", true);
 		_fgShader->setUniformValue("groundMode", static_cast<int>(_groundMode));
-		_fgShader->setUniformValue("isReflectedPass", reflectedPass);
-		_fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_BLINN_PHONG));
 		_fgShader->setUniformValue("topColor", QVector4D(_bgTopColor.red(), _bgTopColor.green(), _bgTopColor.blue(), _bgTopColor.alpha()));
 		_fgShader->setUniformValue("botColor", QVector4D(_bgBotColor.red(), _bgBotColor.green(), _bgBotColor.blue(), _bgBotColor.alpha()));
 		_fgShader->setUniformValue("screenSize", QVector2D(width(), height()));
@@ -5939,6 +5978,13 @@ void GLWidget::drawFloor(const bool& drawReflection)
 		_fgShader->setUniformValue("gradientStyle", _gradientStyle);
 		_fgShader->setUniformValue("floorSize", groundPlaneExtent());
 		_fgShader->setUniformValue("groundReferenceSize", _floorSize);
+	};
+
+	auto configureGroundPass = [this, &configureGroundSharedState](bool reflectedPass, bool textureEnabled)
+	{
+		configureGroundSharedState();
+		_fgShader->setUniformValue("isReflectedPass", reflectedPass);
+		_fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_BLINN_PHONG));
 		_fgShader->setUniformValue("floorTextureEnabled", textureEnabled);
 	};
 
