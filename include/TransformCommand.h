@@ -60,6 +60,12 @@ public:
         const QVector3D& newScale,
         const QString& text = QObject::tr("Transform"));
 
+    TransformCommand(ModelViewer* viewer,
+        GLWidget* glWidget,
+        const QMap<QUuid, TransformState>& oldStates,
+        const QMap<QUuid, TransformState>& newStates,
+        const QString& text = QObject::tr("Transform"));
+
     void undo() override;
     void redo() override;
 

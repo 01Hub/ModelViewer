@@ -26,6 +26,7 @@
 #include "GLLights.h"
 #include "KTX2Loader.h"
 #include "SelectionManager.h"
+#include "TransformGizmo.h"
 
 /* Custom OpenGL Viewer Widget */
 
@@ -39,7 +40,6 @@ class Cube;
 class Cone;
 class Sphere;
 class ViewCubeMesh;
-
 class AssImpModelLoader;
 
 class ModelViewer;
@@ -166,6 +166,7 @@ public:
 	void setHatchTexture(const QString& path);
 
 	void showAxis(bool show);
+	void showTransformGizmoForSelection(bool show);
 
 	void showShadows(bool show);
 	void showSelfShadows(bool show);
@@ -684,8 +685,15 @@ private:
 	void drawFaceNormals();
 	void drawAxis();
 	void drawCornerAxis(CornerAxisPosition position);
+	void drawTransformGizmo(GLCamera* camera);
 	void drawViewCube();
 	void drawViewCubeLabels(const QMatrix4x4& viewMatrix, const QMatrix4x4& projectionMatrix, float cubeScale);
+	BoundingSphere computeTransformGizmoSelectionSphere() const;
+	QVector3D computeTransformGizmoPivot() const;
+	void syncTransformGizmoToSelection();
+	bool beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle, const QPoint& pixel);
+	void updateTransformGizmoTranslationDrag(const QPoint& pixel);
+	void finishTransformGizmoTranslationDrag(bool commit);
 	void drawLights();
 
 	void bindIBLTextures();
@@ -1155,6 +1163,16 @@ private:
 
 	Cone* _axisCone;
 	ViewCubeMesh* _viewCube = nullptr;
+	TransformGizmo* _transformGizmo = nullptr;
+	bool _transformGizmoRequested = false;
+	bool _transformGizmoTranslating = false;
+	QPoint _transformGizmoDragStartPixel;
+	QVector3D _transformGizmoDragAxis = QVector3D(0.0f, 0.0f, 0.0f);
+	QVector3D _transformGizmoStartPivot = QVector3D(0.0f, 0.0f, 0.0f);
+	float _transformGizmoDragScale = 1.0f;
+	QMap<int, TransformState> _transformGizmoStartStates;
+	QVector3D _transformGizmoCurrentTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
+	bool _transformGizmoLoggedTranslationUpdate = false;
 	int _viewCubeHoveredRegionId = -1;
 	bool _customViewAnimationActive = false;
 	bool _showViewCubeOverride = true;

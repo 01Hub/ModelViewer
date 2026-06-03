@@ -7,6 +7,7 @@
 #include "GLWidget.h"
 #include <QtMath>
 #include "SelectionManager.h"
+#include "TransformGizmo.h"
 #include "LanguageManager.h"
 #include "MainWindow.h"
 #include "MaterialVariantsPanel.h"
@@ -484,16 +485,18 @@ _clippingPlaneXY(nullptr),
 _clippingPlaneYZ(nullptr),
 _clippingPlaneZX(nullptr),
 _floorPlane(nullptr),
-_gridPlane(nullptr),
-_skyBox(nullptr),
-_axisCone(nullptr),
-_lightCube(nullptr),
-_assimpModelLoader(nullptr)
+	_gridPlane(nullptr),
+	_skyBox(nullptr),
+	_axisCone(nullptr),
+	_transformGizmo(nullptr),
+	_lightCube(nullptr),
+	_assimpModelLoader(nullptr)
 {
     setFocusPolicy(Qt::StrongFocus);
     setMouseTracking(true);  // Enable mouseMoveEvent for hover highlighting
 
     _viewer = static_cast<ModelViewer*>(parent);
+	_transformGizmo = new TransformGizmo(this);
 
 
 	// Setup the view toolbar
@@ -1009,6 +1012,11 @@ GLWidget::~GLWidget()
 			delete _gridPlane;
 		if (_axisCone)
 			delete _axisCone;
+		if (_transformGizmo)
+		{
+			delete _transformGizmo;
+			_transformGizmo = nullptr;
+		}
 		if (_viewCube)
 			delete _viewCube;
 		if (_skyBox)
@@ -3354,6 +3362,15 @@ void GLWidget::showAxis(bool show)
 	_showAxis = show;
 	_fgShader->bind();
 	_fgShader->setUniformValue("showAxis", _showAxis);
+	update();
+}
+
+void GLWidget::showTransformGizmoForSelection(bool show)
+{
+	if (!show && _transformGizmoTranslating)
+		finishTransformGizmoTranslationDrag(false);
+	_transformGizmoRequested = show;
+	syncTransformGizmoToSelection();
 	update();
 }
 
@@ -5882,6 +5899,7 @@ void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
 		botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _gradientStyle);
 	render(_primaryCamera);
+	drawTransformGizmo(_primaryCamera);
 	if(_userShowCornerAxisOverride)
 		drawCornerAxis(_cornerAxisPosition);
 }
@@ -6957,6 +6975,254 @@ void GLWidget::drawAxis()
 
 	_axisVAO.release();
 	_axisShader->release();
+}
+
+void GLWidget::drawTransformGizmo(GLCamera* camera)
+{
+	if (!_transformGizmo || !_transformGizmoRequested)
+		return;
+
+	syncTransformGizmoToSelection();
+	if (!_transformGizmo->isVisible())
+		return;
+
+	const BoundingSphere selectionSphere = computeTransformGizmoSelectionSphere();
+	const float selectionRadius = selectionSphere.getRadius() > 0.0f
+		? selectionSphere.getRadius()
+		: _boundingSphere.getRadius();
+	const float fallbackScale = (std::max)(selectionRadius * 0.9f, 0.01f);
+	_transformGizmo->render(_axisShader.get(), _axisCone, camera, _viewMatrix, _projectionMatrix, fallbackScale);
+}
+
+BoundingSphere GLWidget::computeTransformGizmoSelectionSphere() const
+{
+	if (!_viewer)
+		return BoundingSphere();
+
+	const std::vector<int> selectedIds = _viewer->getSelectedIDs();
+	BoundingSphere combinedSphere;
+	bool hasSphere = false;
+
+	for (int id : selectedIds)
+	{
+		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+			continue;
+
+		TriangleMesh* mesh = _meshStore[id];
+		if (!mesh)
+			continue;
+
+		if (!hasSphere)
+		{
+			combinedSphere = mesh->getBoundingSphere();
+			hasSphere = true;
+		}
+		else
+		{
+			combinedSphere.addSphere(mesh->getBoundingSphere());
+		}
+	}
+
+	return hasSphere ? combinedSphere : BoundingSphere();
+}
+
+QVector3D GLWidget::computeTransformGizmoPivot() const
+{
+	return computeTransformGizmoSelectionSphere().getCenter();
+}
+
+void GLWidget::syncTransformGizmoToSelection()
+{
+	if (!_transformGizmo)
+		return;
+
+	if (!_transformGizmoRequested || !_viewer)
+	{
+		if (_transformGizmoTranslating)
+			finishTransformGizmoTranslationDrag(false);
+		_transformGizmo->setVisible(false);
+		return;
+	}
+
+	const std::vector<int> selectedIds = _viewer->getSelectedIDs();
+	if (selectedIds.empty())
+	{
+		if (_transformGizmoTranslating)
+			finishTransformGizmoTranslationDrag(false);
+		_transformGizmo->setVisible(false);
+		return;
+	}
+
+	_transformGizmo->setPivot(computeTransformGizmoPivot());
+	_transformGizmo->setVisible(true);
+}
+
+bool GLWidget::beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle, const QPoint& pixel)
+{
+	if (!_transformGizmoRequested || !_transformGizmo || !_viewer)
+		return false;
+
+	QVector3D axis;
+	switch (handle)
+	{
+	case TransformGizmo::Handle::TranslateX:
+		axis = QVector3D(1.0f, 0.0f, 0.0f);
+		break;
+	case TransformGizmo::Handle::TranslateY:
+		axis = QVector3D(0.0f, 1.0f, 0.0f);
+		break;
+	case TransformGizmo::Handle::TranslateZ:
+		axis = QVector3D(0.0f, 0.0f, 1.0f);
+		break;
+	default:
+		return false;
+	}
+
+	_transformGizmoTranslating = true;
+	_transformGizmoDragStartPixel = pixel;
+	_transformGizmoDragAxis = axis;
+	const BoundingSphere selectionSphere = computeTransformGizmoSelectionSphere();
+	_transformGizmoStartPivot = selectionSphere.getCenter();
+	const float selectionRadius = selectionSphere.getRadius() > 0.0f
+		? selectionSphere.getRadius()
+		: _boundingSphere.getRadius();
+	_transformGizmoDragScale = (std::max)(selectionRadius * 0.9f, 0.01f);
+	_transformGizmoStartStates.clear();
+	_transformGizmoCurrentTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
+	_transformGizmoLoggedTranslationUpdate = false;
+
+	for (int id : _viewer->getSelectedIDs())
+	{
+		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+			continue;
+
+		if (TriangleMesh* mesh = _meshStore[id])
+		{
+			_transformGizmoStartStates[id] = TransformState(
+				mesh->getTranslation(),
+				mesh->getRotation(),
+				mesh->getScaling());
+		}
+	}
+
+	if (_viewer->tabWidgetVizAttribs->currentWidget() == _viewer->transformationsPage)
+	{
+		_viewer->objectTransformPanel->setTranslationValues(QVector3D(0.0f, 0.0f, 0.0f));
+	}
+
+	return !_transformGizmoStartStates.isEmpty();
+}
+
+void GLWidget::updateTransformGizmoTranslationDrag(const QPoint& pixel)
+{
+	if (!_transformGizmoTranslating || !_viewer || _transformGizmoStartStates.isEmpty())
+		return;
+
+	const QRect viewport(0, 0, width(), height());
+	const QVector3D pivotScreen3 = _transformGizmoStartPivot.project(_viewMatrix, _projectionMatrix, viewport);
+	const QVector3D axisEndWorld = _transformGizmoStartPivot + (_transformGizmoDragAxis * _transformGizmoDragScale);
+	const QVector3D axisEndScreen3 = axisEndWorld.project(_viewMatrix, _projectionMatrix, viewport);
+
+	const QVector2D pivotScreen(pivotScreen3.x(), pivotScreen3.y());
+	const QVector2D axisScreen = QVector2D(axisEndScreen3.x(), axisEndScreen3.y()) - pivotScreen;
+	const float axisScreenLength = axisScreen.length();
+	if (axisScreenLength <= 1.0e-4f)
+		return;
+
+	const QVector2D axisScreenDir = axisScreen / axisScreenLength;
+	const QVector2D mouseDelta = QVector2D(pixel.x() - _transformGizmoDragStartPixel.x(),
+		_transformGizmoDragStartPixel.y() - pixel.y());
+	const float projectedPixels = QVector2D::dotProduct(mouseDelta, axisScreenDir);
+	const float worldDistance = (projectedPixels / axisScreenLength) * _transformGizmoDragScale;
+	_transformGizmoCurrentTranslationDelta = _transformGizmoDragAxis * worldDistance;
+
+	for (auto it = _transformGizmoStartStates.begin(); it != _transformGizmoStartStates.end(); ++it)
+	{
+		const int id = it.key();
+		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+			continue;
+
+		if (TriangleMesh* mesh = _meshStore[id])
+		{
+			const TransformState& startState = it.value();
+			mesh->setTranslation(startState.translation + _transformGizmoCurrentTranslationDelta);
+			mesh->setRotation(startState.rotation);
+			mesh->setScaling(startState.scale);
+		}
+	}
+
+	if (_viewer->tabWidgetVizAttribs->currentWidget() == _viewer->transformationsPage)
+	{
+		_viewer->objectTransformPanel->setTranslationValues(_transformGizmoCurrentTranslationDelta);
+	}
+
+	update();
+}
+
+void GLWidget::finishTransformGizmoTranslationDrag(bool commit)
+{
+	if (!_transformGizmoTranslating)
+		return;
+
+	_transformGizmoTranslating = false;
+
+	if (!_viewer || _transformGizmoStartStates.isEmpty())
+		return;
+
+	QMap<QUuid, TransformState> oldStatesByUuid;
+	QMap<QUuid, TransformState> newStatesByUuid;
+
+	for (auto it = _transformGizmoStartStates.begin(); it != _transformGizmoStartStates.end(); ++it)
+	{
+		const int id = it.key();
+		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+			continue;
+
+		TriangleMesh* mesh = _meshStore[id];
+		if (!mesh)
+			continue;
+
+		const QUuid uuid = getUuidByIndex(id);
+		if (uuid.isNull())
+			continue;
+
+		oldStatesByUuid.insert(uuid, it.value());
+		newStatesByUuid.insert(uuid, TransformState(
+			mesh->getTranslation(),
+			mesh->getRotation(),
+			mesh->getScaling()));
+	}
+
+	const bool moved = _transformGizmoCurrentTranslationDelta.lengthSquared() > 1.0e-8f;
+
+	if (commit && moved && !oldStatesByUuid.isEmpty())
+	{
+		_viewer->getUndoStack()->push(new TransformCommand(
+			_viewer, this, oldStatesByUuid, newStatesByUuid, tr("Translate Selection")));
+	}
+	else
+	{
+		for (auto it = _transformGizmoStartStates.begin(); it != _transformGizmoStartStates.end(); ++it)
+		{
+			const int id = it.key();
+			if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+				continue;
+
+			if (TriangleMesh* mesh = _meshStore[id])
+			{
+				const TransformState& startState = it.value();
+				mesh->setTranslation(startState.translation);
+				mesh->setRotation(startState.rotation);
+				mesh->setScaling(startState.scale);
+			}
+		}
+		update();
+	}
+
+	_transformGizmoStartStates.clear();
+	_transformGizmoCurrentTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
+	_transformGizmoLoggedTranslationUpdate = false;
+	_viewer->updateTransformationValues();
 }
 
 void GLWidget::drawCornerAxis(CornerAxisPosition position)
@@ -8059,7 +8325,6 @@ int GLWidget::processSelection(const QPoint& pixel)
 	for (size_t i = 0; i < res.size(); i += 4)
 	{
 		QColor col = QColor::fromRgbF(res[i + 0], res[i + 1], res[i + 2], res[i + 3]);
-		//qDebug() << "ReadPixel Color" << col;
 		unsigned int colId = colorToIndex(col);
 		if (colId != 0)
 			voteCount[colId - 1]++;
@@ -10600,6 +10865,21 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 	if (e->button() & Qt::LeftButton)
 	{
 		const QPoint clickPoint(e->position().x(), e->position().y());
+		const BoundingSphere selectionSphere = computeTransformGizmoSelectionSphere();
+		const float selectionRadius = selectionSphere.getRadius() > 0.0f
+			? selectionSphere.getRadius()
+			: _boundingSphere.getRadius();
+		const float gizmoScale = (std::max)(selectionRadius * 0.9f, 0.01f);
+		if (_transformGizmoRequested && _transformGizmo &&
+			_transformGizmo->activateHandleAt(clickPoint, _primaryCamera, _viewMatrix, _projectionMatrix,
+				QRect(0, 0, width(), height()), gizmoScale))
+		{
+			beginTransformGizmoTranslationDrag(_transformGizmo->activeHandle(), clickPoint);
+			update();
+			return;
+		}
+		if (_transformGizmo)
+			_transformGizmo->clearInteraction();
 		if (!(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
 			&& !_windowZoomActive && !_viewRotating && !_viewPanning && !_viewZooming
 			&& handleViewCubeClick(clickPoint))
@@ -10642,6 +10922,13 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 
 void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 {
+	if ((e->button() & Qt::LeftButton) && _transformGizmoTranslating)
+	{
+		finishTransformGizmoTranslationDrag(true);
+		update();
+		return;
+	}
+
 	if (e->button() & Qt::LeftButton)
 	{
         _rubberBand->hide();
@@ -10720,6 +11007,14 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	float dt = (currentTime - _lastMouseTime) / 1000.0f; // seconds
 
 	QPoint downPoint(e->position().x(), e->position().y());
+	if (_transformGizmoTranslating && (e->buttons() & Qt::LeftButton))
+	{
+		updateTransformGizmoTranslationDrag(e->pos());
+		_lastMousePos = currentPos;
+		_lastMouseTime = currentTime;
+		return;
+	}
+
 	if (e->buttons() == Qt::LeftButton && !_viewPanning && !_viewZooming)
 	{
 		if (!(e->modifiers() & Qt::ControlModifier) && !_viewRotating && !_viewPanning && !_viewZooming)
@@ -10925,10 +11220,36 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		}
 	}
 
+	// Hover highlight feedback for the transform gizmo.
+	bool gizmoHovered = false;
+	if (e->buttons() == Qt::NoButton)
+	{
+		const BoundingSphere selectionSphere = computeTransformGizmoSelectionSphere();
+		const float selectionRadius = selectionSphere.getRadius() > 0.0f
+			? selectionSphere.getRadius()
+			: _boundingSphere.getRadius();
+		const float gizmoScale = (std::max)(selectionRadius * 0.9f, 0.01f);
+		if (_transformGizmoRequested && _transformGizmo &&
+			_transformGizmo->updateHover(e->pos(), _primaryCamera, _viewMatrix, _projectionMatrix,
+				QRect(0, 0, width(), height()), gizmoScale))
+		{
+			gizmoHovered = true;
+			update();
+		}
+		else if (_transformGizmo)
+		{
+			const bool hadHover = (_transformGizmo->hoveredHandle() != TransformGizmo::Handle::None);
+			_transformGizmo->updateHover(QPoint(-1, -1), _primaryCamera, _viewMatrix, _projectionMatrix,
+				QRect(0, 0, width(), height()), gizmoScale);
+			if (hadHover)
+				update();
+		}
+	}
+
 	// Hover highlight feedback (visual preview, independent of actual selection)
 	if (e->buttons() == Qt::NoButton && _selectionManager->getHoverMode() != HoverHighlightMode::Disabled)
 	{
-		if (!_showViewCubeOverride || !viewCubeScreenRect().contains(e->pos()))
+		if (!gizmoHovered && (!_showViewCubeOverride || !viewCubeScreenRect().contains(e->pos())))
 		{
 			// Compute hovered mesh (SelectionManager will emit hoverChanged signal if it changed)
 			_selectionManager->hoverSelect(e->pos());

@@ -3289,6 +3289,7 @@ void ModelViewer::showTransformationsPage()
 {
 	controlstabWidget->setCurrentWidget(controlstabWidgetPage2);
 	tabWidgetVizAttribs->setCurrentWidget(transformationsPage);
+	_glWidget->showTransformGizmoForSelection(true);
 	updateTransformationValues();
 }
 
@@ -3321,6 +3322,15 @@ void ModelViewer::handleTreeWidgetSelectionChanged()
 	// Notify panels connected to GLWidget::selectionChanged (e.g. TextureDebugPanel).
 	// An empty list correctly clears the panel when nothing is selected in the tree.
 	_glWidget->broadcastSelectionChanged(QList<int>(selectedVec.begin(), selectedVec.end()));
+
+	if (selectedVec.empty())
+	{
+		_glWidget->showTransformGizmoForSelection(false);
+	}
+	else if (tabWidgetVizAttribs->currentWidget() == transformationsPage)
+	{
+		_glWidget->showTransformGizmoForSelection(true);
+	}
 }
 
 void ModelViewer::handleTreeWidgetMeshRenamed(const QUuid& uuid, const QString& newName)
@@ -3974,7 +3984,12 @@ void ModelViewer::on_tabWidgetVizAttribs_currentChanged(int index)
 {
 	if (index == 1) // Transformations tab
 	{
+		_glWidget->showTransformGizmoForSelection(true);
 		updateTransformationValues();
+	}
+	else
+	{
+		_glWidget->showTransformGizmoForSelection(false);
 	}
 }
 

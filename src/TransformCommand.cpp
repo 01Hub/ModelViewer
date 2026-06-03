@@ -37,6 +37,17 @@ TransformCommand::TransformCommand(ModelViewer* viewer,
     }
 }
 
+TransformCommand::TransformCommand(ModelViewer* viewer,
+    GLWidget* glWidget,
+    const QMap<QUuid, TransformState>& oldStates,
+    const QMap<QUuid, TransformState>& newStates,
+    const QString& text)
+    : ModelViewerCommand(viewer, glWidget, text),
+      _oldStates(oldStates),
+      _newStates(newStates)
+{
+}
+
 void TransformCommand::undo()
 {
     if (!_viewer || !_glWidget)
