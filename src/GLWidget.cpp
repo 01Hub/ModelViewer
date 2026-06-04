@@ -883,6 +883,7 @@ _floorPlane(nullptr),
 	_reflectionsEnabled = false;
 	_floorSize = 10.0f;
 	_floorSizeFactor = 5.0f;
+	_floorPlaneZ = -0.5f;
 	_groundMode = GroundMode::None;
 	_floorTextureDisplayed = true;
 	_floorTexRepeatS = _floorTexRepeatT = 1;
@@ -3198,11 +3199,11 @@ void GLWidget::updateFloorPlane()
 	// Use helper to set main light position (now consistent with loadFloor)
 	updateMainLightPosition(halfObjectSize);
 
-	float floorPlaneZ = groundPlaneZ();
+	_floorPlaneZ = groundPlaneZ();
 	const float groundExtent = groundPlaneExtent();
 	if (_floorPlane && _fgShader)
 	{
-		_floorPlane->setPlane(_fgShader.get(), _floorCenter, groundExtent, groundExtent, 1, 1, floorPlaneZ, _floorTexRepeatS, _floorTexRepeatT);
+		_floorPlane->setPlane(_fgShader.get(), _floorCenter, groundExtent, groundExtent, 1, 1, _floorPlaneZ, _floorTexRepeatS, _floorTexRepeatT);
 		applyFloorPlaneMaterialSettings();
 	}
 
@@ -4956,6 +4957,7 @@ void GLWidget::loadFloor()
 	float floorPlaneCoeff = _meshStore.empty()
 		? -_floorSize - (_floorSize * 0.05f)
 		: lowestModelZ() - (_floorSize * _floorOffsetPercent) - computeFloorDepthBias(workspaceExtent, _floorSize);
+	_floorPlaneZ = floorPlaneCoeff;
 
 	// FIX: Delete old floor plane to prevent memory leak
 	if (_floorPlane != nullptr)
@@ -6208,19 +6210,12 @@ void GLWidget::drawFloor(const bool& drawReflection)
 
 	QMatrix4x4 model;
 
-	// calculate zFighting offset based on model size
-	float zFightingOffset = std::min((_boundingSphere.getRadius() / 100.0f), 0.001f);		
-	// Position the model just below the floor plane to avoid Z-fighting
-	const float workspaceExtent = static_cast<float>(std::max({
-		_boundingBox.getXSize(),
-		_boundingBox.getYSize(),
-		_boundingBox.getZSize()
-	}));
-	float floorPos = lowestModelZ() - (_floorSize * _floorOffsetPercent) - computeFloorDepthBias(workspaceExtent, _floorSize);
-	float floorGap = fabs(floorPos - lowestModelZ());
-	float offset = (((lowestModelZ()) - floorGap) * 2.0f) - zFightingOffset; // Add offset to avoid Z fighting;	
+	// Mirror the scene across the actual floor plane. Using live animated bounds
+	// to derive this offset makes reflected animated parts appear to bob the
+	// entire reflection up and down as their runtime AABBs change frame to frame.
+	const float floorPos = _floorPlaneZ;
+	model.translate(0.0f, 0.0f, 2.0f * floorPos);
 	model.scale(1.0f, 1.0f, -1.0f);
-	model.translate(0.0f, 0.0f, -offset);
 
 	_fgShader->bind();
 	bindFloorSharedSamplerState();
@@ -6270,7 +6265,7 @@ void GLWidget::drawGrid()
 	_gridShader->setUniformValue("screenCenter", _floorCenter);
 	_gridShader->setUniformValue("groundReferenceSize", _floorSize);
 	_gridShader->setUniformValue("floorSize", groundPlaneExtent());
-	_gridShader->setUniformValue("gridPlaneZ", groundPlaneZ());
+	_gridShader->setUniformValue("gridPlaneZ", _floorPlaneZ);
 	_gridShader->setUniformValue("opacity", 0.95f);
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_BLEND);

@@ -30,6 +30,10 @@ void FloorPlane::render()
 		_prog->setUniformValue("modelViewMatrix", modelViewMatrix);
 	if (_prog->uniformLocation("normalMatrix") >= 0)
 		_prog->setUniformValue("normalMatrix", modelViewMatrix.normalMatrix());
+	if (_prog->uniformLocation("hasSkinning") >= 0)
+		_prog->setUniformValue("hasSkinning", false);
+	if (_prog->uniformLocation("jointCount") >= 0)
+		_prog->setUniformValue("jointCount", 0);
 
 	setupTextures();
 	setupUniforms();

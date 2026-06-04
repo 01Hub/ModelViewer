@@ -1066,6 +1066,7 @@ private:
 	float                    _floorSize;
 	float 					 _floorSizeFactor;
 	float					 _floorOffsetPercent;
+	float                    _floorPlaneZ;
 	QVector3D                _floorCenter;
 
 	std::unique_ptr<ShaderProgram> _textShader;
