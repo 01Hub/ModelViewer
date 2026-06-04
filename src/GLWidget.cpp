@@ -3537,9 +3537,17 @@ void GLWidget::showTransformGizmoForSelection(bool show)
 {
 	if (!show && _transformGizmoTranslating)
 		finishTransformGizmoTranslationDrag(false);
+	if (!show && _transformGizmoScaling)
+		finishTransformGizmoScaleDrag(false);
 	if (!show && _transformGizmoRotating)
 		finishTransformGizmoRotationDrag(false);
 	_transformGizmoRequested = show;
+	if (show)
+		MainWindow::showStatusMessage(
+			tr("Transform gizmo active: drag the corner box handle to scale uniformly"),
+			5000);
+	else
+		MainWindow::showStatusMessage(QString(), 0);
 	syncTransformGizmoToSelection();
 	update();
 }
@@ -7217,6 +7225,8 @@ void GLWidget::syncTransformGizmoToSelection()
 	{
 		if (_transformGizmoTranslating)
 			finishTransformGizmoTranslationDrag(false);
+		if (_transformGizmoScaling)
+			finishTransformGizmoScaleDrag(false);
 		if (_transformGizmoRotating)
 			finishTransformGizmoRotationDrag(false);
 		_transformGizmo->setVisible(false);
@@ -7228,13 +7238,15 @@ void GLWidget::syncTransformGizmoToSelection()
 	{
 		if (_transformGizmoTranslating)
 			finishTransformGizmoTranslationDrag(false);
+		if (_transformGizmoScaling)
+			finishTransformGizmoScaleDrag(false);
 		if (_transformGizmoRotating)
 			finishTransformGizmoRotationDrag(false);
 		_transformGizmo->setVisible(false);
 		return;
 	}
 
-	if (_transformGizmoRotating)
+	if (_transformGizmoRotating || _transformGizmoScaling)
 		_transformGizmo->setPivot(_transformGizmoStartPivot);
 	else
 		_transformGizmo->setPivot(computeTransformGizmoPivot());
@@ -7249,6 +7261,8 @@ bool GLWidget::beginTransformGizmoDrag(TransformGizmo::Handle handle, const QPoi
 	case TransformGizmo::Handle::TranslateY:
 	case TransformGizmo::Handle::TranslateZ:
 		return beginTransformGizmoTranslationDrag(handle, pixel);
+	case TransformGizmo::Handle::UniformScale:
+		return beginTransformGizmoScaleDrag(handle, pixel, true);
 	case TransformGizmo::Handle::RotateXY:
 	case TransformGizmo::Handle::RotateYZ:
 	case TransformGizmo::Handle::RotateZX:
@@ -7280,6 +7294,8 @@ bool GLWidget::beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle,
 	}
 
 	_transformGizmoTranslating = true;
+	_transformGizmoScaling = false;
+	_transformGizmoUniformScaling = false;
 	_transformGizmoRotating = false;
 	_transformGizmoDragStartPixel = pixel;
 	_transformGizmoDragAxis = axis;
@@ -7293,6 +7309,7 @@ bool GLWidget::beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle,
 	_transformGizmoStartCenters.clear();
 	_transformGizmoStartMatrices.clear();
 	_transformGizmoCurrentTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
+	_transformGizmoCurrentScaleDelta = QVector3D(1.0f, 1.0f, 1.0f);
 	_transformGizmoCurrentRotationDelta = QVector3D(0.0f, 0.0f, 0.0f);
 	_transformGizmoLoggedTranslationUpdate = false;
 
@@ -7445,6 +7462,246 @@ void GLWidget::finishTransformGizmoTranslationDrag(bool commit)
 	_viewer->updateTransformationValues();
 }
 
+bool GLWidget::beginTransformGizmoScaleDrag(TransformGizmo::Handle handle, const QPoint& pixel, bool uniformScale)
+{
+	if (!_transformGizmoRequested || !_transformGizmo || !_viewer)
+		return false;
+
+	QVector3D axis;
+	switch (handle)
+	{
+	case TransformGizmo::Handle::TranslateX:
+		axis = QVector3D(1.0f, 0.0f, 0.0f);
+		break;
+	case TransformGizmo::Handle::TranslateY:
+		axis = QVector3D(0.0f, 1.0f, 0.0f);
+		break;
+	case TransformGizmo::Handle::TranslateZ:
+		axis = QVector3D(0.0f, 0.0f, 1.0f);
+		break;
+	case TransformGizmo::Handle::UniformScale:
+		axis = QVector3D(1.0f, 1.0f, 1.0f).normalized();
+		break;
+	default:
+		return false;
+	}
+
+	_transformGizmoScaling = true;
+	_transformGizmoUniformScaling = uniformScale;
+	_transformGizmoTranslating = false;
+	_transformGizmoRotating = false;
+	_transformGizmoDragStartPixel = pixel;
+	_transformGizmoDragAxis = axis;
+	const BoundingSphere selectionSphere = computeTransformGizmoSelectionSphere();
+	_transformGizmoStartPivot = selectionSphere.getCenter();
+	const float selectionRadius = selectionSphere.getRadius() > 0.0f
+		? selectionSphere.getRadius()
+		: _boundingSphere.getRadius();
+	_transformGizmoDragScale = (std::max)(selectionRadius * 0.9f, 0.01f);
+	_transformGizmoStartStates.clear();
+	_transformGizmoStartCenters.clear();
+	_transformGizmoStartMatrices.clear();
+	_transformGizmoCurrentTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
+	_transformGizmoCurrentScaleDelta = QVector3D(1.0f, 1.0f, 1.0f);
+	_transformGizmoCurrentRotationDelta = QVector3D(0.0f, 0.0f, 0.0f);
+
+	for (int id : _viewer->getSelectedIDs())
+	{
+		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+			continue;
+
+		if (TriangleMesh* mesh = _meshStore[id])
+		{
+			_transformGizmoStartStates[id] = TransformState(
+				mesh->getTranslation(),
+				mesh->getRotation(),
+				mesh->getScaling(),
+				mesh->getRotationQuaternion());
+			_transformGizmoStartCenters[id] = mesh->getBoundingSphere().getCenter();
+			_transformGizmoStartMatrices[id] = mesh->getTransformation();
+		}
+	}
+
+	if (_viewer->tabWidgetVizAttribs->currentWidget() == _viewer->transformationsPage)
+	{
+		_viewer->objectTransformPanel->setScaleValues(QVector3D(1.0f, 1.0f, 1.0f));
+	}
+
+	return !_transformGizmoStartStates.isEmpty();
+}
+
+void GLWidget::updateTransformGizmoScaleDrag(const QPoint& pixel)
+{
+	if (!_transformGizmoScaling || !_viewer || _transformGizmoStartStates.isEmpty())
+		return;
+
+	const QRect viewport = getViewportFromPoint(pixel);
+	const GLCamera* camera = getCameraForPoint(pixel);
+	if (!camera)
+		return;
+
+	const QMatrix4x4 viewMatrix = camera->getViewMatrix();
+	const QMatrix4x4 projectionMatrix = camera->getProjectionMatrix();
+	const QVector3D pivotScreen3 = _transformGizmoStartPivot.project(viewMatrix, projectionMatrix, viewport);
+	const QVector3D axisEndWorld = _transformGizmoStartPivot + (_transformGizmoDragAxis * _transformGizmoDragScale);
+	const QVector3D axisEndScreen3 = axisEndWorld.project(viewMatrix, projectionMatrix, viewport);
+
+	const QVector2D pivotScreen(pivotScreen3.x(), pivotScreen3.y());
+	const QVector2D axisScreen = QVector2D(axisEndScreen3.x(), axisEndScreen3.y()) - pivotScreen;
+	const float axisScreenLength = axisScreen.length();
+	if (axisScreenLength <= 1.0e-4f)
+		return;
+
+	const QVector2D axisScreenDir = axisScreen / axisScreenLength;
+	const QVector2D mouseDelta = QVector2D(pixel.x() - _transformGizmoDragStartPixel.x(),
+		_transformGizmoDragStartPixel.y() - pixel.y());
+	const float projectedPixels = QVector2D::dotProduct(mouseDelta, axisScreenDir);
+	const float uniformFactor = (std::max)(0.01f, 1.0f + (projectedPixels / axisScreenLength));
+
+	if (_transformGizmoUniformScaling)
+	{
+		_transformGizmoCurrentScaleDelta = QVector3D(uniformFactor, uniformFactor, uniformFactor);
+	}
+	else if (_transformGizmoDragAxis.x() > 0.5f)
+	{
+		_transformGizmoCurrentScaleDelta = QVector3D(uniformFactor, 1.0f, 1.0f);
+	}
+	else if (_transformGizmoDragAxis.y() > 0.5f)
+	{
+		_transformGizmoCurrentScaleDelta = QVector3D(1.0f, uniformFactor, 1.0f);
+	}
+	else
+	{
+		_transformGizmoCurrentScaleDelta = QVector3D(1.0f, 1.0f, uniformFactor);
+	}
+
+	for (auto it = _transformGizmoStartStates.begin(); it != _transformGizmoStartStates.end(); ++it)
+	{
+		const int id = it.key();
+		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+			continue;
+
+		if (TriangleMesh* mesh = _meshStore[id])
+		{
+			const TransformState& startState = it.value();
+			QVector3D scaledTranslation = startState.translation;
+			QVector3D scaledScale = startState.scale;
+
+			if (_transformGizmoUniformScaling)
+			{
+				scaledTranslation = _transformGizmoStartPivot +
+					(startState.translation - _transformGizmoStartPivot) * uniformFactor;
+				scaledScale = startState.scale * uniformFactor;
+			}
+			else if (_transformGizmoDragAxis.x() > 0.5f)
+			{
+				scaledTranslation.setX(_transformGizmoStartPivot.x() +
+					(startState.translation.x() - _transformGizmoStartPivot.x()) * uniformFactor);
+				scaledScale.setX(startState.scale.x() * uniformFactor);
+			}
+			else if (_transformGizmoDragAxis.y() > 0.5f)
+			{
+				scaledTranslation.setY(_transformGizmoStartPivot.y() +
+					(startState.translation.y() - _transformGizmoStartPivot.y()) * uniformFactor);
+				scaledScale.setY(startState.scale.y() * uniformFactor);
+			}
+			else
+			{
+				scaledTranslation.setZ(_transformGizmoStartPivot.z() +
+					(startState.translation.z() - _transformGizmoStartPivot.z()) * uniformFactor);
+				scaledScale.setZ(startState.scale.z() * uniformFactor);
+			}
+
+			mesh->setTranslation(scaledTranslation);
+			if (startState.hasExactRotation)
+				mesh->setRotationQuaternion(startState.rotationQuat, startState.rotation);
+			else
+				mesh->setRotation(startState.rotation);
+			mesh->setScaling(scaledScale);
+		}
+	}
+
+	if (_viewer->tabWidgetVizAttribs->currentWidget() == _viewer->transformationsPage)
+	{
+		_viewer->objectTransformPanel->setScaleValues(_transformGizmoCurrentScaleDelta);
+	}
+
+	update();
+}
+
+void GLWidget::finishTransformGizmoScaleDrag(bool commit)
+{
+	if (!_transformGizmoScaling)
+		return;
+
+	_transformGizmoScaling = false;
+	_transformGizmoUniformScaling = false;
+
+	if (!_viewer || _transformGizmoStartStates.isEmpty())
+		return;
+
+	QMap<QUuid, TransformState> oldStatesByUuid;
+	QMap<QUuid, TransformState> newStatesByUuid;
+
+	for (auto it = _transformGizmoStartStates.begin(); it != _transformGizmoStartStates.end(); ++it)
+	{
+		const int id = it.key();
+		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+			continue;
+
+		TriangleMesh* mesh = _meshStore[id];
+		if (!mesh)
+			continue;
+
+		const QUuid uuid = getUuidByIndex(id);
+		if (uuid.isNull())
+			continue;
+
+		oldStatesByUuid.insert(uuid, it.value());
+		newStatesByUuid.insert(uuid, TransformState(
+			mesh->getTranslation(),
+			mesh->getRotation(),
+			mesh->getScaling(),
+			mesh->getRotationQuaternion()));
+	}
+
+	const QVector3D scaleDelta = _transformGizmoCurrentScaleDelta - QVector3D(1.0f, 1.0f, 1.0f);
+	const bool scaled = scaleDelta.lengthSquared() > 1.0e-8f;
+
+	if (commit && scaled && !oldStatesByUuid.isEmpty())
+	{
+		_viewer->getUndoStack()->push(new TransformCommand(
+			_viewer, this, oldStatesByUuid, newStatesByUuid, tr("Scale Selection"), false));
+	}
+	else
+	{
+		for (auto it = _transformGizmoStartStates.begin(); it != _transformGizmoStartStates.end(); ++it)
+		{
+			const int id = it.key();
+			if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+				continue;
+
+			if (TriangleMesh* mesh = _meshStore[id])
+			{
+				const TransformState& startState = it.value();
+				mesh->setTranslation(startState.translation);
+				if (startState.hasExactRotation)
+					mesh->setRotationQuaternion(startState.rotationQuat, startState.rotation);
+				else
+					mesh->setRotation(startState.rotation);
+				mesh->setScaling(startState.scale);
+			}
+		}
+		update();
+	}
+
+	_transformGizmoStartStates.clear();
+	_transformGizmoStartCenters.clear();
+	_transformGizmoStartMatrices.clear();
+	_transformGizmoCurrentScaleDelta = QVector3D(1.0f, 1.0f, 1.0f);
+	_viewer->updateTransformationValues();
+}
+
 bool GLWidget::beginTransformGizmoRotationDrag(TransformGizmo::Handle handle, const QPoint& pixel)
 {
 	if (!_transformGizmoRequested || !_transformGizmo || !_viewer)
@@ -7488,6 +7745,8 @@ bool GLWidget::beginTransformGizmoRotationDrag(TransformGizmo::Handle handle, co
 	startVector.normalize();
 
 	_transformGizmoRotating = true;
+	_transformGizmoScaling = false;
+	_transformGizmoUniformScaling = false;
 	_transformGizmoTranslating = false;
 	_transformGizmoDragStartPixel = pixel;
 	_transformGizmoRotationPlaneNormal = axis;
@@ -7498,6 +7757,7 @@ bool GLWidget::beginTransformGizmoRotationDrag(TransformGizmo::Handle handle, co
 	_transformGizmoStartMatrices.clear();
 	_transformGizmoCurrentRotationDelta = QVector3D(0.0f, 0.0f, 0.0f);
 	_transformGizmoCurrentTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
+	_transformGizmoCurrentScaleDelta = QVector3D(1.0f, 1.0f, 1.0f);
 
 	for (int id : _viewer->getSelectedIDs())
 	{
@@ -11325,7 +11585,8 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 			? selectionSphere.getRadius()
 			: _boundingSphere.getRadius();
 		const float gizmoScale = (std::max)(selectionRadius * 0.9f, 0.01f);
-		if (_transformGizmoRequested && _transformGizmo &&
+		if (!(e->modifiers() & Qt::ControlModifier) &&
+			_transformGizmoRequested && _transformGizmo &&
 			_transformGizmo->activateHandleAt(clickPoint, _primaryCamera, _viewMatrix, _projectionMatrix,
 				QRect(0, 0, width(), height()), gizmoScale))
 		{
@@ -11382,6 +11643,12 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 	if ((e->button() & Qt::LeftButton) && _transformGizmoTranslating)
 	{
 		finishTransformGizmoTranslationDrag(true);
+		update();
+		return;
+	}
+	if ((e->button() & Qt::LeftButton) && _transformGizmoScaling)
+	{
+		finishTransformGizmoScaleDrag(true);
 		update();
 		return;
 	}
@@ -11473,6 +11740,13 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	if (_transformGizmoTranslating && (e->buttons() & Qt::LeftButton))
 	{
 		updateTransformGizmoTranslationDrag(e->pos());
+		_lastMousePos = currentPos;
+		_lastMouseTime = currentTime;
+		return;
+	}
+	if (_transformGizmoScaling && (e->buttons() & Qt::LeftButton))
+	{
+		updateTransformGizmoScaleDrag(e->pos());
 		_lastMousePos = currentPos;
 		_lastMouseTime = currentTime;
 		return;
@@ -11699,7 +11973,8 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 			? selectionSphere.getRadius()
 			: _boundingSphere.getRadius();
 		const float gizmoScale = (std::max)(selectionRadius * 0.9f, 0.01f);
-		if (_transformGizmoRequested && _transformGizmo &&
+		if (!(e->modifiers() & Qt::ControlModifier) &&
+			_transformGizmoRequested && _transformGizmo &&
 			_transformGizmo->updateHover(e->pos(), _primaryCamera, _viewMatrix, _projectionMatrix,
 				QRect(0, 0, width(), height()), gizmoScale))
 		{

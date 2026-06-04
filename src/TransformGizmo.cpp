@@ -18,7 +18,9 @@ constexpr int kArcSegments = 32;
 constexpr float kQuarterTurnRadians = 1.57079632679f;
 constexpr float kAxisHitPixels = 10.0f;
 constexpr float kArcHitPixels = 12.0f;
+constexpr float kScaleHitPixels = 14.0f;
 constexpr float kArrowBaseScale = 0.86f;
+constexpr float kScaleCorner = 0.26f;
 
 float distancePointToSegment(const QVector2D& p, const QVector2D& a, const QVector2D& b)
 {
@@ -71,7 +73,9 @@ TransformGizmo::TransformGizmo(QObject* parent)
 	  _axesVertexBuffer(QOpenGLBuffer::VertexBuffer),
 	  _axesColorBuffer(QOpenGLBuffer::VertexBuffer),
 	  _arcsVertexBuffer(QOpenGLBuffer::VertexBuffer),
-	  _arcsColorBuffer(QOpenGLBuffer::VertexBuffer)
+	  _arcsColorBuffer(QOpenGLBuffer::VertexBuffer),
+	  _scaleVertexBuffer(QOpenGLBuffer::VertexBuffer),
+	  _scaleColorBuffer(QOpenGLBuffer::VertexBuffer)
 {
 }
 
@@ -152,6 +156,7 @@ void TransformGizmo::render(ShaderProgram* axisShader, Cone* axisCone, const GLC
 	glDisable(GL_DEPTH_TEST);
 
 	drawAxes(axisShader, axisCone, viewMatrix, projectionMatrix, worldScale);
+	drawScaleHandle(axisShader, viewMatrix, projectionMatrix, worldScale);
 	drawArcs(axisShader, viewMatrix, projectionMatrix, worldScale);
 
 	if (depthWasEnabled)
@@ -238,6 +243,51 @@ TransformGizmo::Handle TransformGizmo::hitTest(const QPoint& pixel, const GLCame
 		}
 	}
 
+	const QVector3D scalePointsWorld[] = {
+		_pivot + QVector3D(kScaleCorner * worldScale, 0.0f, 0.0f),
+		_pivot + QVector3D(kScaleCorner * worldScale, kScaleCorner * worldScale, 0.0f),
+		_pivot + QVector3D(0.0f, kScaleCorner * worldScale, 0.0f),
+
+		_pivot + QVector3D(0.0f, kScaleCorner * worldScale, 0.0f),
+		_pivot + QVector3D(0.0f, kScaleCorner * worldScale, kScaleCorner * worldScale),
+		_pivot + QVector3D(0.0f, 0.0f, kScaleCorner * worldScale),
+
+		_pivot + QVector3D(kScaleCorner * worldScale, 0.0f, 0.0f),
+		_pivot + QVector3D(kScaleCorner * worldScale, 0.0f, kScaleCorner * worldScale),
+		_pivot + QVector3D(0.0f, 0.0f, kScaleCorner * worldScale),
+
+		_pivot + QVector3D(kScaleCorner * worldScale, kScaleCorner * worldScale, 0.0f),
+		_pivot + QVector3D(kScaleCorner * worldScale, kScaleCorner * worldScale, kScaleCorner * worldScale),
+		_pivot + QVector3D(0.0f, kScaleCorner * worldScale, kScaleCorner * worldScale),
+
+		_pivot + QVector3D(kScaleCorner * worldScale, 0.0f, kScaleCorner * worldScale),
+		_pivot + QVector3D(kScaleCorner * worldScale, kScaleCorner * worldScale, kScaleCorner * worldScale),
+
+		_pivot + QVector3D(kScaleCorner * worldScale, kScaleCorner * worldScale, 0.0f),
+		_pivot + QVector3D(kScaleCorner * worldScale, kScaleCorner * worldScale, kScaleCorner * worldScale)
+	};
+
+	const int scaleSegmentIndices[][2] = {
+		{0, 1}, {1, 2},
+		{3, 4}, {4, 5},
+		{6, 7}, {7, 8},
+		{9, 10}, {11, 10}, {12, 13}, {14, 15}
+	};
+
+	for (const auto& segment : scaleSegmentIndices)
+	{
+		const QVector3D a3 = projectToScreen(scalePointsWorld[segment[0]], viewMatrix, projectionMatrix, viewport);
+		const QVector3D b3 = projectToScreen(scalePointsWorld[segment[1]], viewMatrix, projectionMatrix, viewport);
+		const QVector2D a(a3.x(), a3.y());
+		const QVector2D b(b3.x(), b3.y());
+		const float distance = distancePointToSegment(screenPoint, a, b);
+		if (distance <= kScaleHitPixels && distance < bestDistance)
+		{
+			bestDistance = distance;
+			bestHandle = Handle::UniformScale;
+		}
+	}
+
 	return bestHandle;
 }
 
@@ -316,6 +366,57 @@ void TransformGizmo::ensureInitialized()
 	_arcsColorBuffer.allocate(arcColors.data(), static_cast<int>(arcColors.size() * sizeof(float)));
 
 	_arcsVao.release();
+
+	std::vector<float> scaleVertices = {
+		kScaleCorner, 0.0f, 0.0f,   kScaleCorner, kScaleCorner, 0.0f,
+		kScaleCorner, kScaleCorner, 0.0f,   0.0f, kScaleCorner, 0.0f,
+
+		0.0f, kScaleCorner, 0.0f,   0.0f, kScaleCorner, kScaleCorner,
+		0.0f, kScaleCorner, kScaleCorner,   0.0f, 0.0f, kScaleCorner,
+
+		kScaleCorner, 0.0f, 0.0f,   kScaleCorner, 0.0f, kScaleCorner,
+		kScaleCorner, 0.0f, kScaleCorner,   0.0f, 0.0f, kScaleCorner,
+
+		kScaleCorner, kScaleCorner, 0.0f,   kScaleCorner, kScaleCorner, kScaleCorner,
+		0.0f, kScaleCorner, kScaleCorner,   kScaleCorner, kScaleCorner, kScaleCorner,
+		kScaleCorner, 0.0f, kScaleCorner,   kScaleCorner, kScaleCorner, kScaleCorner
+	};
+	const QVector3D xyColor(1.0f, 1.0f, 0.0f);
+	const QVector3D yzColor(0.0f, 1.0f, 1.0f);
+	const QVector3D zxColor(1.0f, 0.0f, 1.0f);
+	const QVector3D white(1.0f, 1.0f, 1.0f);
+	std::vector<float> scaleColors;
+	scaleColors.reserve(scaleVertices.size());
+	const QVector3D vertexColors[] = {
+		xyColor, xyColor, xyColor, xyColor,
+		yzColor, yzColor, yzColor, yzColor,
+		zxColor, zxColor, zxColor, zxColor,
+		xyColor, white,
+		yzColor, white,
+		zxColor, white
+	};
+	for (const QVector3D& color : vertexColors)
+	{
+		scaleColors.push_back(color.x());
+		scaleColors.push_back(color.y());
+		scaleColors.push_back(color.z());
+	}
+	_scaleVertexCount = static_cast<int>(scaleVertices.size() / 3);
+
+	_scaleVao.create();
+	_scaleVao.bind();
+
+	_scaleVertexBuffer.create();
+	_scaleVertexBuffer.bind();
+	_scaleVertexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+	_scaleVertexBuffer.allocate(scaleVertices.data(), static_cast<int>(scaleVertices.size() * sizeof(float)));
+
+	_scaleColorBuffer.create();
+	_scaleColorBuffer.bind();
+	_scaleColorBuffer.setUsagePattern(QOpenGLBuffer::DynamicDraw);
+	_scaleColorBuffer.allocate(scaleColors.data(), static_cast<int>(scaleColors.size() * sizeof(float)));
+
+	_scaleVao.release();
 
 	_initialized = true;
 }
@@ -471,6 +572,56 @@ void TransformGizmo::drawArcs(ShaderProgram* axisShader, const QMatrix4x4& viewM
 	axisShader->release();
 }
 
+void TransformGizmo::drawScaleHandle(ShaderProgram* axisShader, const QMatrix4x4& viewMatrix,
+                                     const QMatrix4x4& projectionMatrix, float worldScale)
+{
+	QMatrix4x4 model;
+	model.translate(_pivot);
+	model.scale(worldScale);
+
+	axisShader->bind();
+	axisShader->setUniformValue("projectionMatrix", projectionMatrix);
+	axisShader->setUniformValue("renderCone", false);
+	axisShader->setUniformValue("modelViewMatrix", viewMatrix * model);
+
+	const QColor xyResolved = resolveHandleColor(Handle::UniformScale, QColor::fromRgbF(1.0f, 1.0f, 0.0f));
+	const QColor yzResolved = resolveHandleColor(Handle::UniformScale, QColor::fromRgbF(0.0f, 1.0f, 1.0f));
+	const QColor zxResolved = resolveHandleColor(Handle::UniformScale, QColor::fromRgbF(1.0f, 0.0f, 1.0f));
+	const QColor whiteResolved = resolveHandleColor(Handle::UniformScale, QColor::fromRgbF(1.0f, 1.0f, 1.0f));
+	std::vector<float> scaleColors;
+	scaleColors.reserve(static_cast<size_t>(_scaleVertexCount) * 3);
+	const QColor vertexColors[] = {
+		xyResolved, xyResolved, xyResolved, xyResolved,
+		yzResolved, yzResolved, yzResolved, yzResolved,
+		zxResolved, zxResolved, zxResolved, zxResolved,
+		xyResolved, whiteResolved,
+		yzResolved, whiteResolved,
+		zxResolved, whiteResolved
+	};
+	for (const QColor& color : vertexColors)
+	{
+		scaleColors.push_back(color.redF());
+		scaleColors.push_back(color.greenF());
+		scaleColors.push_back(color.blueF());
+	}
+
+	_scaleVao.bind();
+	_scaleVertexBuffer.bind();
+	axisShader->enableAttributeArray("vertexPosition");
+	axisShader->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
+
+	_scaleColorBuffer.bind();
+	_scaleColorBuffer.write(0, scaleColors.data(), static_cast<int>(scaleColors.size() * sizeof(float)));
+	axisShader->enableAttributeArray("vertexColor");
+	axisShader->setAttributeBuffer("vertexColor", GL_FLOAT, 0, 3);
+
+	glLineWidth((_hoveredHandle == Handle::UniformScale || _activeHandle == Handle::UniformScale) ? 5.0f : 3.0f);
+	glDrawArrays(GL_LINES, 0, _scaleVertexCount);
+	glLineWidth(1.0f);
+	_scaleVao.release();
+	axisShader->release();
+}
+
 void TransformGizmo::releaseResources()
 {
 	if (_axesVertexBuffer.isCreated())
@@ -486,6 +637,12 @@ void TransformGizmo::releaseResources()
 		_arcsColorBuffer.destroy();
 	if (_arcsVao.isCreated())
 		_arcsVao.destroy();
+	if (_scaleVertexBuffer.isCreated())
+		_scaleVertexBuffer.destroy();
+	if (_scaleColorBuffer.isCreated())
+		_scaleColorBuffer.destroy();
+	if (_scaleVao.isCreated())
+		_scaleVao.destroy();
 
 	_initialized = false;
 }

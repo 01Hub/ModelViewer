@@ -24,6 +24,7 @@ public:
 		TranslateX,
 		TranslateY,
 		TranslateZ,
+		UniformScale,
 		RotateXY,
 		RotateYZ,
 		RotateZX
@@ -65,6 +66,8 @@ private:
 	void drawAxes(ShaderProgram* axisShader, Cone* axisCone,
 	              const QMatrix4x4& viewMatrix, const QMatrix4x4& projectionMatrix,
 	              float worldScale);
+	void drawScaleHandle(ShaderProgram* axisShader, const QMatrix4x4& viewMatrix,
+	                     const QMatrix4x4& projectionMatrix, float worldScale);
 	void drawArcs(ShaderProgram* axisShader, const QMatrix4x4& viewMatrix,
 	              const QMatrix4x4& projectionMatrix, float worldScale);
 	void releaseResources();
@@ -83,6 +86,10 @@ private:
 	QOpenGLBuffer _arcsVertexBuffer;
 	QOpenGLBuffer _arcsColorBuffer;
 
+	QOpenGLVertexArrayObject _scaleVao;
+	QOpenGLBuffer _scaleVertexBuffer;
+	QOpenGLBuffer _scaleColorBuffer;
+
 	int _arcVertexCount = 0;
 	int _xyArcOffset = 0;
 	int _yzArcOffset = 0;
@@ -90,4 +97,5 @@ private:
 	int _xyArcCount = 0;
 	int _yzArcCount = 0;
 	int _zxArcCount = 0;
+	int _scaleVertexCount = 0;
 };
