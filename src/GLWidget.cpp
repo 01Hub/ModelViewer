@@ -69,6 +69,173 @@ struct ViewCubeStyle
 
 const ViewCubeStyle kViewCubeStyle;
 
+bool convertPixelToRay(const QPoint& pixel, const QRect& viewport, int widgetHeight,
+	const QMatrix4x4& view, const QMatrix4x4& projection,
+	QVector3D& orig, QVector3D& dir)
+{
+	if (viewport.width() <= 0 || viewport.height() <= 0)
+	{
+		orig = QVector3D(0, 0, 0);
+		dir = QVector3D(0, 0, 0);
+		return false;
+	}
+
+	const int yInverted = widgetHeight - pixel.y() - 1;
+	const float ndcX = (2.0f * (pixel.x() - viewport.x())) / viewport.width() - 1.0f;
+	const float ndcY = (2.0f * (yInverted - viewport.y())) / viewport.height() - 1.0f;
+
+	const QVector4D nearNdc(ndcX, ndcY, -1.0f, 1.0f);
+	const QVector4D farNdc(ndcX, ndcY, 1.0f, 1.0f);
+	const QMatrix4x4 inv = (projection * view).inverted();
+
+	QVector4D nearWorld = inv * nearNdc;
+	QVector4D farWorld = inv * farNdc;
+	if (qFuzzyIsNull(nearWorld.w()) || qFuzzyIsNull(farWorld.w()))
+	{
+		orig = QVector3D(0, 0, 0);
+		dir = QVector3D(0, 0, 0);
+		return false;
+	}
+
+	nearWorld /= nearWorld.w();
+	farWorld /= farWorld.w();
+	orig = nearWorld.toVector3D();
+	const QVector3D rawDir = farWorld.toVector3D() - orig;
+	dir = rawDir.isNull() ? QVector3D(0, 0, 0) : rawDir.normalized();
+	return !dir.isNull();
+}
+
+bool intersectRayPlane(const QVector3D& rayOrigin, const QVector3D& rayDir,
+	const QVector3D& planePoint, const QVector3D& planeNormal,
+	QVector3D& outPoint)
+{
+	const float denom = QVector3D::dotProduct(rayDir, planeNormal);
+	if (std::abs(denom) <= 1.0e-6f)
+		return false;
+
+	const float t = QVector3D::dotProduct(planePoint - rayOrigin, planeNormal) / denom;
+	if (t < 0.0f)
+		return false;
+
+	outPoint = rayOrigin + rayDir * t;
+	return true;
+}
+
+QVector3D rotatePointAroundAxis(const QVector3D& point, const QVector3D& pivot,
+	const QVector3D& axis, float angleDegrees)
+{
+	QMatrix4x4 rot;
+	rot.setToIdentity();
+	rot.translate(pivot);
+	rot.rotate(angleDegrees, axis);
+	rot.translate(-pivot);
+	return rot.map(point);
+}
+
+QMatrix4x4 buildMeshRotationMatrix(const QVector3D& rotation)
+{
+	QMatrix4x4 matrix;
+	matrix.setToIdentity();
+	matrix.rotate(rotation.x(), QVector3D(1.0f, 0.0f, 0.0f));
+	matrix.rotate(rotation.y(), QVector3D(0.0f, 1.0f, 0.0f));
+	matrix.rotate(rotation.z(), QVector3D(0.0f, 0.0f, 1.0f));
+	return matrix;
+}
+
+float normalizeDegrees180(float degrees)
+{
+	float normalized = std::fmod(degrees + 180.0f, 360.0f);
+	if (normalized < 0.0f)
+		normalized += 360.0f;
+	normalized -= 180.0f;
+
+	if (std::abs(normalized) < 1.0e-4f)
+		return 0.0f;
+	if (std::abs(normalized - 180.0f) < 1.0e-4f || std::abs(normalized + 180.0f) < 1.0e-4f)
+		return 180.0f;
+
+	return normalized;
+}
+
+QVector3D normalizeEulerDegrees(const QVector3D& rotation)
+{
+	return QVector3D(
+		normalizeDegrees180(rotation.x()),
+		normalizeDegrees180(rotation.y()),
+		normalizeDegrees180(rotation.z()));
+}
+
+float eulerCanonicalScore(const QVector3D& rotation)
+{
+	return std::abs(rotation.x()) + std::abs(rotation.y()) + std::abs(rotation.z());
+}
+
+QVector3D canonicalizeMeshEuler(const QVector3D& rotation)
+{
+	const QVector3D primary = normalizeEulerDegrees(rotation);
+	const QVector3D alternate = normalizeEulerDegrees(
+		QVector3D(rotation.x() + 180.0f, 180.0f - rotation.y(), rotation.z() + 180.0f));
+
+	if (eulerCanonicalScore(alternate) + 1.0e-4f < eulerCanonicalScore(primary))
+		return alternate;
+
+	return primary;
+}
+
+QVector3D rotationMatrixToMeshEuler(const QMatrix4x4& matrix)
+{
+	const float m00 = matrix(0, 0);
+	const float m01 = matrix(0, 1);
+	const float m02 = matrix(0, 2);
+	const float m10 = matrix(1, 0);
+	const float m11 = matrix(1, 1);
+	const float m12 = matrix(1, 2);
+	const float m22 = matrix(2, 2);
+
+	const float yRadians = std::asin(std::clamp(m02, -1.0f, 1.0f));
+	const float cosY = std::cos(yRadians);
+
+	float xRadians = 0.0f;
+	float zRadians = 0.0f;
+	if (std::abs(cosY) > 1.0e-6f)
+	{
+		xRadians = std::atan2(-m12, m22);
+		zRadians = std::atan2(-m01, m00);
+	}
+	else
+	{
+		xRadians = std::atan2(m10, m11);
+		zRadians = 0.0f;
+	}
+
+	return canonicalizeMeshEuler(QVector3D(
+		qRadiansToDegrees(xRadians),
+		qRadiansToDegrees(yRadians),
+		qRadiansToDegrees(zRadians)));
+}
+
+QVector3D extractMeshRotationFromMatrix(const QMatrix4x4& matrix)
+{
+	QVector3D col0(matrix(0, 0), matrix(1, 0), matrix(2, 0));
+	QVector3D col1(matrix(0, 1), matrix(1, 1), matrix(2, 1));
+	QVector3D col2(matrix(0, 2), matrix(1, 2), matrix(2, 2));
+
+	const float sx = col0.length();
+	const float sy = col1.length();
+	const float sz = col2.length();
+
+	if (sx > 1.0e-8f) col0 /= sx;
+	if (sy > 1.0e-8f) col1 /= sy;
+	if (sz > 1.0e-8f) col2 /= sz;
+
+	QMatrix4x4 rotationOnly;
+	rotationOnly.setToIdentity();
+	rotationOnly(0, 0) = col0.x(); rotationOnly(1, 0) = col0.y(); rotationOnly(2, 0) = col0.z();
+	rotationOnly(0, 1) = col1.x(); rotationOnly(1, 1) = col1.y(); rotationOnly(2, 1) = col1.z();
+	rotationOnly(0, 2) = col2.x(); rotationOnly(1, 2) = col2.y(); rotationOnly(2, 2) = col2.z();
+	return rotationMatrixToMeshEuler(rotationOnly);
+}
+
 struct ViewCubeLabelFace
 {
 	QString text;
@@ -3369,6 +3536,8 @@ void GLWidget::showTransformGizmoForSelection(bool show)
 {
 	if (!show && _transformGizmoTranslating)
 		finishTransformGizmoTranslationDrag(false);
+	if (!show && _transformGizmoRotating)
+		finishTransformGizmoRotationDrag(false);
 	_transformGizmoRequested = show;
 	syncTransformGizmoToSelection();
 	update();
@@ -7012,14 +7181,18 @@ BoundingSphere GLWidget::computeTransformGizmoSelectionSphere() const
 		if (!mesh)
 			continue;
 
+		BoundingSphere stableSphere = mesh->getBoundingSphere();
+		stableSphere.setCenter(mesh->getStableTransformCenter());
+		stableSphere.setRadius(mesh->getStableTransformRadius());
+
 		if (!hasSphere)
 		{
-			combinedSphere = mesh->getBoundingSphere();
+			combinedSphere = stableSphere;
 			hasSphere = true;
 		}
 		else
 		{
-			combinedSphere.addSphere(mesh->getBoundingSphere());
+			combinedSphere.addSphere(stableSphere);
 		}
 	}
 
@@ -7040,6 +7213,8 @@ void GLWidget::syncTransformGizmoToSelection()
 	{
 		if (_transformGizmoTranslating)
 			finishTransformGizmoTranslationDrag(false);
+		if (_transformGizmoRotating)
+			finishTransformGizmoRotationDrag(false);
 		_transformGizmo->setVisible(false);
 		return;
 	}
@@ -7049,12 +7224,34 @@ void GLWidget::syncTransformGizmoToSelection()
 	{
 		if (_transformGizmoTranslating)
 			finishTransformGizmoTranslationDrag(false);
+		if (_transformGizmoRotating)
+			finishTransformGizmoRotationDrag(false);
 		_transformGizmo->setVisible(false);
 		return;
 	}
 
-	_transformGizmo->setPivot(computeTransformGizmoPivot());
+	if (_transformGizmoRotating)
+		_transformGizmo->setPivot(_transformGizmoStartPivot);
+	else
+		_transformGizmo->setPivot(computeTransformGizmoPivot());
 	_transformGizmo->setVisible(true);
+}
+
+bool GLWidget::beginTransformGizmoDrag(TransformGizmo::Handle handle, const QPoint& pixel)
+{
+	switch (handle)
+	{
+	case TransformGizmo::Handle::TranslateX:
+	case TransformGizmo::Handle::TranslateY:
+	case TransformGizmo::Handle::TranslateZ:
+		return beginTransformGizmoTranslationDrag(handle, pixel);
+	case TransformGizmo::Handle::RotateXY:
+	case TransformGizmo::Handle::RotateYZ:
+	case TransformGizmo::Handle::RotateZX:
+		return beginTransformGizmoRotationDrag(handle, pixel);
+	default:
+		return false;
+	}
 }
 
 bool GLWidget::beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle, const QPoint& pixel)
@@ -7079,6 +7276,7 @@ bool GLWidget::beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle,
 	}
 
 	_transformGizmoTranslating = true;
+	_transformGizmoRotating = false;
 	_transformGizmoDragStartPixel = pixel;
 	_transformGizmoDragAxis = axis;
 	const BoundingSphere selectionSphere = computeTransformGizmoSelectionSphere();
@@ -7088,7 +7286,10 @@ bool GLWidget::beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle,
 		: _boundingSphere.getRadius();
 	_transformGizmoDragScale = (std::max)(selectionRadius * 0.9f, 0.01f);
 	_transformGizmoStartStates.clear();
+	_transformGizmoStartCenters.clear();
+	_transformGizmoStartMatrices.clear();
 	_transformGizmoCurrentTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
+	_transformGizmoCurrentRotationDelta = QVector3D(0.0f, 0.0f, 0.0f);
 	_transformGizmoLoggedTranslationUpdate = false;
 
 	for (int id : _viewer->getSelectedIDs())
@@ -7102,6 +7303,8 @@ bool GLWidget::beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle,
 				mesh->getTranslation(),
 				mesh->getRotation(),
 				mesh->getScaling());
+			_transformGizmoStartCenters[id] = mesh->getBoundingSphere().getCenter();
+			_transformGizmoStartMatrices[id] = mesh->getTransformation();
 		}
 	}
 
@@ -7220,8 +7423,231 @@ void GLWidget::finishTransformGizmoTranslationDrag(bool commit)
 	}
 
 	_transformGizmoStartStates.clear();
+	_transformGizmoStartCenters.clear();
+	_transformGizmoStartMatrices.clear();
 	_transformGizmoCurrentTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
 	_transformGizmoLoggedTranslationUpdate = false;
+	_viewer->updateTransformationValues();
+}
+
+bool GLWidget::beginTransformGizmoRotationDrag(TransformGizmo::Handle handle, const QPoint& pixel)
+{
+	if (!_transformGizmoRequested || !_transformGizmo || !_viewer)
+		return false;
+
+	QVector3D axis;
+	switch (handle)
+	{
+	case TransformGizmo::Handle::RotateXY:
+		axis = QVector3D(0.0f, 0.0f, 1.0f);
+		break;
+	case TransformGizmo::Handle::RotateYZ:
+		axis = QVector3D(1.0f, 0.0f, 0.0f);
+		break;
+	case TransformGizmo::Handle::RotateZX:
+		axis = QVector3D(0.0f, 1.0f, 0.0f);
+		break;
+	default:
+		return false;
+	}
+
+	const QRect viewport = getViewportFromPoint(pixel);
+	const GLCamera* camera = getCameraForPoint(pixel);
+	if (!camera)
+		return false;
+
+	QVector3D rayOrigin;
+	QVector3D rayDir;
+	if (!convertPixelToRay(pixel, viewport, height(), camera->getViewMatrix(), camera->getProjectionMatrix(), rayOrigin, rayDir))
+		return false;
+
+	const BoundingSphere selectionSphere = computeTransformGizmoSelectionSphere();
+	const QVector3D pivot = selectionSphere.getCenter();
+	QVector3D hitPoint;
+	if (!intersectRayPlane(rayOrigin, rayDir, pivot, axis, hitPoint))
+		return false;
+
+	QVector3D startVector = hitPoint - pivot;
+	if (startVector.lengthSquared() <= 1.0e-8f)
+		return false;
+	startVector.normalize();
+
+	_transformGizmoRotating = true;
+	_transformGizmoTranslating = false;
+	_transformGizmoDragStartPixel = pixel;
+	_transformGizmoRotationPlaneNormal = axis;
+	_transformGizmoRotationStartVector = startVector;
+	_transformGizmoStartPivot = pivot;
+	_transformGizmoStartStates.clear();
+	_transformGizmoStartCenters.clear();
+	_transformGizmoStartMatrices.clear();
+	_transformGizmoCurrentRotationDelta = QVector3D(0.0f, 0.0f, 0.0f);
+	_transformGizmoCurrentTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
+
+	for (int id : _viewer->getSelectedIDs())
+	{
+		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+			continue;
+
+		if (TriangleMesh* mesh = _meshStore[id])
+		{
+			_transformGizmoStartStates[id] = TransformState(
+				mesh->getTranslation(),
+				mesh->getRotation(),
+				mesh->getScaling());
+			_transformGizmoStartCenters[id] = mesh->getBoundingSphere().getCenter();
+			_transformGizmoStartMatrices[id] = mesh->getTransformation();
+		}
+	}
+
+	if (_viewer->tabWidgetVizAttribs->currentWidget() == _viewer->transformationsPage)
+	{
+		_viewer->objectTransformPanel->setRotationValues(QVector3D(0.0f, 0.0f, 0.0f));
+	}
+
+	return !_transformGizmoStartStates.isEmpty();
+}
+
+void GLWidget::updateTransformGizmoRotationDrag(const QPoint& pixel)
+{
+	if (!_transformGizmoRotating || !_viewer || _transformGizmoStartStates.isEmpty())
+		return;
+
+	const QRect viewport = getViewportFromPoint(pixel);
+	const GLCamera* camera = getCameraForPoint(pixel);
+	if (!camera)
+		return;
+
+	QVector3D rayOrigin;
+	QVector3D rayDir;
+	if (!convertPixelToRay(pixel, viewport, height(), camera->getViewMatrix(), camera->getProjectionMatrix(), rayOrigin, rayDir))
+		return;
+
+	QVector3D hitPoint;
+	if (!intersectRayPlane(rayOrigin, rayDir, _transformGizmoStartPivot,
+		_transformGizmoRotationPlaneNormal, hitPoint))
+		return;
+
+	QVector3D currentVector = hitPoint - _transformGizmoStartPivot;
+	if (currentVector.lengthSquared() <= 1.0e-8f)
+		return;
+	currentVector.normalize();
+
+	const QVector3D crossVec = QVector3D::crossProduct(_transformGizmoRotationStartVector, currentVector);
+	const float sinAngle = QVector3D::dotProduct(_transformGizmoRotationPlaneNormal, crossVec);
+	const float cosAngle = QVector3D::dotProduct(_transformGizmoRotationStartVector, currentVector);
+	const float angleDegrees = qRadiansToDegrees(std::atan2(sinAngle, cosAngle));
+
+	if (_transformGizmoRotationPlaneNormal.x() > 0.5f)
+		_transformGizmoCurrentRotationDelta = QVector3D(angleDegrees, 0.0f, 0.0f);
+	else if (_transformGizmoRotationPlaneNormal.y() > 0.5f)
+		_transformGizmoCurrentRotationDelta = QVector3D(0.0f, angleDegrees, 0.0f);
+	else
+		_transformGizmoCurrentRotationDelta = QVector3D(0.0f, 0.0f, angleDegrees);
+
+	for (auto it = _transformGizmoStartStates.begin(); it != _transformGizmoStartStates.end(); ++it)
+	{
+		const int id = it.key();
+		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+			continue;
+
+		if (TriangleMesh* mesh = _meshStore[id])
+		{
+			const TransformState& startState = it.value();
+			QMatrix4x4 deltaMatrix;
+			deltaMatrix.setToIdentity();
+			deltaMatrix.translate(_transformGizmoStartPivot);
+			deltaMatrix.rotate(angleDegrees, _transformGizmoRotationPlaneNormal);
+			deltaMatrix.translate(-_transformGizmoStartPivot);
+
+			QMatrix4x4 rotationOnlyMatrix;
+			rotationOnlyMatrix.setToIdentity();
+			rotationOnlyMatrix.rotate(angleDegrees, _transformGizmoRotationPlaneNormal);
+			const QMatrix4x4 startMatrix = _transformGizmoStartMatrices.value(id, mesh->getTransformation());
+			const QMatrix4x4 combinedMatrix = deltaMatrix * startMatrix;
+			const QVector3D exactTranslation(
+				combinedMatrix(0, 3),
+				combinedMatrix(1, 3),
+				combinedMatrix(2, 3));
+
+			mesh->setTranslation(exactTranslation);
+			mesh->setRotation(extractMeshRotationFromMatrix(rotationOnlyMatrix * startMatrix));
+			mesh->setScaling(startState.scale);
+		}
+	}
+
+	if (_viewer->tabWidgetVizAttribs->currentWidget() == _viewer->transformationsPage)
+	{
+		_viewer->objectTransformPanel->setRotationValues(_transformGizmoCurrentRotationDelta);
+	}
+
+	update();
+}
+
+void GLWidget::finishTransformGizmoRotationDrag(bool commit)
+{
+	if (!_transformGizmoRotating)
+		return;
+
+	_transformGizmoRotating = false;
+
+	if (!_viewer || _transformGizmoStartStates.isEmpty())
+		return;
+
+	QMap<QUuid, TransformState> oldStatesByUuid;
+	QMap<QUuid, TransformState> newStatesByUuid;
+
+	for (auto it = _transformGizmoStartStates.begin(); it != _transformGizmoStartStates.end(); ++it)
+	{
+		const int id = it.key();
+		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+			continue;
+
+		TriangleMesh* mesh = _meshStore[id];
+		if (!mesh)
+			continue;
+
+		const QUuid uuid = getUuidByIndex(id);
+		if (uuid.isNull())
+			continue;
+
+		oldStatesByUuid.insert(uuid, it.value());
+		newStatesByUuid.insert(uuid, TransformState(
+			mesh->getTranslation(),
+			mesh->getRotation(),
+			mesh->getScaling()));
+	}
+
+	const bool moved = _transformGizmoCurrentRotationDelta.lengthSquared() > 1.0e-8f;
+
+	if (commit && moved && !oldStatesByUuid.isEmpty())
+	{
+		_viewer->getUndoStack()->push(new TransformCommand(
+			_viewer, this, oldStatesByUuid, newStatesByUuid, tr("Rotate Selection")));
+	}
+	else
+	{
+		for (auto it = _transformGizmoStartStates.begin(); it != _transformGizmoStartStates.end(); ++it)
+		{
+			const int id = it.key();
+			if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+				continue;
+
+			if (TriangleMesh* mesh = _meshStore[id])
+			{
+				const TransformState& startState = it.value();
+				mesh->setTranslation(startState.translation);
+				mesh->setRotation(startState.rotation);
+				mesh->setScaling(startState.scale);
+			}
+		}
+		update();
+	}
+
+	_transformGizmoStartStates.clear();
+	_transformGizmoStartCenters.clear();
+	_transformGizmoStartMatrices.clear();
+	_transformGizmoCurrentRotationDelta = QVector3D(0.0f, 0.0f, 0.0f);
 	_viewer->updateTransformationValues();
 }
 
@@ -10874,9 +11300,11 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 			_transformGizmo->activateHandleAt(clickPoint, _primaryCamera, _viewMatrix, _projectionMatrix,
 				QRect(0, 0, width(), height()), gizmoScale))
 		{
-			beginTransformGizmoTranslationDrag(_transformGizmo->activeHandle(), clickPoint);
-			update();
-			return;
+			if (beginTransformGizmoDrag(_transformGizmo->activeHandle(), clickPoint))
+			{
+				update();
+				return;
+			}
 		}
 		if (_transformGizmo)
 			_transformGizmo->clearInteraction();
@@ -10925,6 +11353,12 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 	if ((e->button() & Qt::LeftButton) && _transformGizmoTranslating)
 	{
 		finishTransformGizmoTranslationDrag(true);
+		update();
+		return;
+	}
+	if ((e->button() & Qt::LeftButton) && _transformGizmoRotating)
+	{
+		finishTransformGizmoRotationDrag(true);
 		update();
 		return;
 	}
@@ -11010,6 +11444,13 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	if (_transformGizmoTranslating && (e->buttons() & Qt::LeftButton))
 	{
 		updateTransformGizmoTranslationDrag(e->pos());
+		_lastMousePos = currentPos;
+		_lastMouseTime = currentTime;
+		return;
+	}
+	if (_transformGizmoRotating && (e->buttons() & Qt::LeftButton))
+	{
+		updateTransformGizmoRotationDrag(e->pos());
 		_lastMousePos = currentPos;
 		_lastMouseTime = currentTime;
 		return;

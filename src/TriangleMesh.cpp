@@ -1737,7 +1737,7 @@ void TriangleMesh::resetTransformations()
 	_rotateX = _rotateY = _rotateZ = 0.0f;
 	_scaleX = _scaleY = _scaleZ = 1.0f;
 
-	_transformation.setToIdentity();
+	rebuildAbsoluteTransformation();
 
 	_trsfPoints.clear();
 	_trsfNormals.clear();
@@ -1770,14 +1770,11 @@ QVector3D TriangleMesh::getTranslation() const
 
 void TriangleMesh::setTranslation(const QVector3D& trans)
 {
-	_transX = trans.x() - _transX;
-	_transY = trans.y() - _transY;
-	_transZ = trans.z() - _transZ;
-	_transformation.translate(_transX, _transY, _transZ);
-	setupTransformation();
 	_transX = trans.x();
 	_transY = trans.y();
 	_transZ = trans.z();
+	rebuildAbsoluteTransformation();
+	setupTransformation();
 }
 
 QVector3D TriangleMesh::getRotation() const
@@ -1787,16 +1784,11 @@ QVector3D TriangleMesh::getRotation() const
 
 void TriangleMesh::setRotation(const QVector3D& rota)
 {
-	_rotateX = rota.x() - _rotateX;
-	_rotateY = rota.y() - _rotateY;
-	_rotateZ = rota.z() - _rotateZ;
-	_transformation.rotate(_rotateX, QVector3D(1.0f, 0.0f, 0.0f));
-	_transformation.rotate(_rotateY, QVector3D(0.0f, 1.0f, 0.0f));
-	_transformation.rotate(_rotateZ, QVector3D(0.0f, 0.0f, 1.0f));
-	setupTransformation();
 	_rotateX = rota.x();
 	_rotateY = rota.y();
 	_rotateZ = rota.z();
+	rebuildAbsoluteTransformation();
+	setupTransformation();
 }
 
 QVector3D TriangleMesh::getScaling() const
@@ -1806,21 +1798,62 @@ QVector3D TriangleMesh::getScaling() const
 
 void TriangleMesh::setScaling(const QVector3D& scale)
 {
-	_scaleX = scale.x() / _scaleX;
-	_scaleY = scale.y() / _scaleY;
-	_scaleZ = scale.z() / _scaleZ;
-	_transformation.scale(_scaleX, _scaleY, _scaleZ);
-	setupTransformation();
 	_scaleX = scale.x();
 	_scaleY = scale.y();
 	_scaleZ = scale.z();
+	rebuildAbsoluteTransformation();
+	setupTransformation();
 	
 	applyScaledVolumeProperties();
+}
+
+void TriangleMesh::rebuildAbsoluteTransformation()
+{
+	_transformation.setToIdentity();
+	_transformation.translate(_transX, _transY, _transZ);
+	_transformation.rotate(_rotateX, QVector3D(1.0f, 0.0f, 0.0f));
+	_transformation.rotate(_rotateY, QVector3D(0.0f, 1.0f, 0.0f));
+	_transformation.rotate(_rotateZ, QVector3D(0.0f, 0.0f, 1.0f));
+	_transformation.scale(_scaleX, _scaleY, _scaleZ);
 }
 
 QMatrix4x4 TriangleMesh::getTransformation() const
 {
 	return _transformation;
+}
+
+QVector3D TriangleMesh::getStableTransformCenter() const
+{
+	const Point localCenter = _localBoundingBox.center();
+	const QVector3D center(
+		static_cast<float>(localCenter.getX()),
+		static_cast<float>(localCenter.getY()),
+		static_cast<float>(localCenter.getZ()));
+	return combinedRenderTransform().map(center);
+}
+
+float TriangleMesh::getStableTransformRadius() const
+{
+	const Point localCenterPoint = _localBoundingBox.center();
+	const QVector3D localCenter(
+		static_cast<float>(localCenterPoint.getX()),
+		static_cast<float>(localCenterPoint.getY()),
+		static_cast<float>(localCenterPoint.getZ()));
+
+	float localRadius = 0.0f;
+	for (size_t i = 0; i < _points.size(); i += 3)
+	{
+		const QVector3D point(_points[i], _points[i + 1], _points[i + 2]);
+		localRadius = (std::max)(localRadius, (point - localCenter).length());
+	}
+
+	const QMatrix4x4 combined = combinedRenderTransform();
+	const QVector3D col0(combined(0, 0), combined(1, 0), combined(2, 0));
+	const QVector3D col1(combined(0, 1), combined(1, 1), combined(2, 1));
+	const QVector3D col2(combined(0, 2), combined(1, 2), combined(2, 2));
+	const float maxScale = (std::max)(col0.length(), (std::max)(col1.length(), col2.length()));
+
+	return localRadius * maxScale;
 }
 
 QMatrix4x4 TriangleMesh::getSceneRenderTransform() const

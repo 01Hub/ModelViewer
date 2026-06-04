@@ -53,6 +53,8 @@ public:
 
 	virtual BoundingSphere getBoundingSphere() const { return _boundingSphere; }
 	virtual BoundingBox getBoundingBox() const { return _boundingBox; }
+	QVector3D getStableTransformCenter() const;
+	float getStableTransformRadius() const;
 
 	virtual QOpenGLVertexArrayObject& getVAO();
 	virtual QString getName() const
@@ -358,6 +360,7 @@ protected: // methods
 	void buildTriangles();
     void computeBounds();
     void deleteBuffers();
+	void rebuildAbsoluteTransformation();
 
     virtual void setupTransformation();
 	virtual void setupTextures();

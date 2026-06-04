@@ -691,9 +691,13 @@ private:
 	BoundingSphere computeTransformGizmoSelectionSphere() const;
 	QVector3D computeTransformGizmoPivot() const;
 	void syncTransformGizmoToSelection();
+	bool beginTransformGizmoDrag(TransformGizmo::Handle handle, const QPoint& pixel);
 	bool beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle, const QPoint& pixel);
 	void updateTransformGizmoTranslationDrag(const QPoint& pixel);
 	void finishTransformGizmoTranslationDrag(bool commit);
+	bool beginTransformGizmoRotationDrag(TransformGizmo::Handle handle, const QPoint& pixel);
+	void updateTransformGizmoRotationDrag(const QPoint& pixel);
+	void finishTransformGizmoRotationDrag(bool commit);
 	void drawLights();
 
 	void bindIBLTextures();
@@ -1166,12 +1170,18 @@ private:
 	TransformGizmo* _transformGizmo = nullptr;
 	bool _transformGizmoRequested = false;
 	bool _transformGizmoTranslating = false;
+	bool _transformGizmoRotating = false;
 	QPoint _transformGizmoDragStartPixel;
 	QVector3D _transformGizmoDragAxis = QVector3D(0.0f, 0.0f, 0.0f);
 	QVector3D _transformGizmoStartPivot = QVector3D(0.0f, 0.0f, 0.0f);
 	float _transformGizmoDragScale = 1.0f;
 	QMap<int, TransformState> _transformGizmoStartStates;
+	QMap<int, QVector3D> _transformGizmoStartCenters;
+	QMap<int, QMatrix4x4> _transformGizmoStartMatrices;
 	QVector3D _transformGizmoCurrentTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
+	QVector3D _transformGizmoRotationPlaneNormal = QVector3D(0.0f, 0.0f, 1.0f);
+	QVector3D _transformGizmoRotationStartVector = QVector3D(1.0f, 0.0f, 0.0f);
+	QVector3D _transformGizmoCurrentRotationDelta = QVector3D(0.0f, 0.0f, 0.0f);
 	bool _transformGizmoLoggedTranslationUpdate = false;
 	int _viewCubeHoveredRegionId = -1;
 	bool _customViewAnimationActive = false;
