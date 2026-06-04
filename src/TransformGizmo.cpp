@@ -187,8 +187,11 @@ TransformGizmo::Handle TransformGizmo::hitTest(const QPoint& pixel, const GLCame
 	{
 		const QVector3D endScreen3 = projectToScreen(axis.endpoint, viewMatrix, projectionMatrix, viewport);
 		const QVector2D endScreen(endScreen3.x(), endScreen3.y());
-		const QVector2D segmentEnd = pivotScreen + ((endScreen - pivotScreen) * kArrowBaseScale);
-		const float distance = distancePointToSegment(screenPoint, pivotScreen, segmentEnd);
+		const QVector2D arrowBase = pivotScreen + ((endScreen - pivotScreen) * kArrowBaseScale);
+		const float shaftDistance = distancePointToSegment(screenPoint, pivotScreen, arrowBase);
+		const float arrowDistance = distancePointToSegment(screenPoint, arrowBase, endScreen);
+		const float tipDistance = (screenPoint - endScreen).length();
+		const float distance = (std::min)(shaftDistance, (std::min)(arrowDistance, tipDistance));
 		if (distance <= kAxisHitPixels && distance < bestDistance)
 		{
 			bestDistance = distance;
