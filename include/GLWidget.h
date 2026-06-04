@@ -238,7 +238,7 @@ public:
 	void setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale);
 	void bakeTransformation(const std::vector<int>& ids);
 	void resetTransformation(const std::vector<int>& ids);
-	void applyTransforms(const QMap<int, TransformState>& transforms);
+	void applyTransforms(const QMap<int, TransformState>& transforms, bool fitView = true);
 
 	void setSkyBoxTextureFolder(QString folder);
 	bool loadCubemapFromSingleHDR(const QString& filePath);

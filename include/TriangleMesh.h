@@ -9,6 +9,7 @@
 #include "GltfVariantData.h"
 
 #include <QMap>
+#include <QQuaternion>
 #include <QVariant>
 #include <QVector3D>
 
@@ -102,6 +103,8 @@ public:
 
 	QVector3D getRotation() const;
 	void setRotation(const QVector3D& rota);
+	QQuaternion getRotationQuaternion() const;
+	void setRotationQuaternion(const QQuaternion& quat, const QVector3D& displayEuler);
 
 	QVector3D getScaling() const;
 	void setScaling(const QVector3D& scale);
@@ -494,6 +497,7 @@ protected:
 	float _rotateX;
 	float _rotateY;
 	float _rotateZ;
+	QQuaternion _rotationQuat;
 
 	float _scaleX;
 	float _scaleY;

@@ -8,7 +8,21 @@
 #include <atomic>
 #include <iostream>
 #include <QApplication>
+#include <QQuaternion>
 #include <QVector3D>
+
+namespace
+{
+QQuaternion meshEulerToQuaternion(const QVector3D& rotation)
+{
+	QMatrix4x4 matrix;
+	matrix.setToIdentity();
+	matrix.rotate(rotation.x(), QVector3D(1.0f, 0.0f, 0.0f));
+	matrix.rotate(rotation.y(), QVector3D(0.0f, 1.0f, 0.0f));
+	matrix.rotate(rotation.z(), QVector3D(0.0f, 0.0f, 1.0f));
+	return QQuaternion::fromRotationMatrix(matrix.toGenericMatrix<3, 3>()).normalized();
+}
+}
 
 TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Drawable(prog),
 _nVerts(0),
@@ -25,6 +39,7 @@ _baseAttenuationDistance(std::numeric_limits<float>::infinity())
 	_transX = _transY = _transZ = 0.0f;
 	_rotateX = _rotateY = _rotateZ = 0.0f;
 	_scaleX = _scaleY = _scaleZ = 1.0f;
+	_rotationQuat = QQuaternion();
 	_transformation.setToIdentity();
 	_sceneRenderTransform.setToIdentity();
 
@@ -1736,6 +1751,7 @@ void TriangleMesh::resetTransformations()
 	_transX = _transY = _transZ = 0.0f;
 	_rotateX = _rotateY = _rotateZ = 0.0f;
 	_scaleX = _scaleY = _scaleZ = 1.0f;
+	_rotationQuat = QQuaternion();
 
 	rebuildAbsoluteTransformation();
 
@@ -1787,6 +1803,22 @@ void TriangleMesh::setRotation(const QVector3D& rota)
 	_rotateX = rota.x();
 	_rotateY = rota.y();
 	_rotateZ = rota.z();
+	_rotationQuat = meshEulerToQuaternion(rota);
+	rebuildAbsoluteTransformation();
+	setupTransformation();
+}
+
+QQuaternion TriangleMesh::getRotationQuaternion() const
+{
+	return _rotationQuat;
+}
+
+void TriangleMesh::setRotationQuaternion(const QQuaternion& quat, const QVector3D& displayEuler)
+{
+	_rotationQuat = quat.normalized();
+	_rotateX = displayEuler.x();
+	_rotateY = displayEuler.y();
+	_rotateZ = displayEuler.z();
 	rebuildAbsoluteTransformation();
 	setupTransformation();
 }
@@ -1811,9 +1843,7 @@ void TriangleMesh::rebuildAbsoluteTransformation()
 {
 	_transformation.setToIdentity();
 	_transformation.translate(_transX, _transY, _transZ);
-	_transformation.rotate(_rotateX, QVector3D(1.0f, 0.0f, 0.0f));
-	_transformation.rotate(_rotateY, QVector3D(0.0f, 1.0f, 0.0f));
-	_transformation.rotate(_rotateZ, QVector3D(0.0f, 0.0f, 1.0f));
+	_transformation.rotate(_rotationQuat);
 	_transformation.scale(_scaleX, _scaleY, _scaleZ);
 }
 

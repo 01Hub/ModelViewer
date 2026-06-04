@@ -23,6 +23,8 @@ TransformCommand::TransformCommand(ModelViewer* viewer,
             oldState.translation = mesh->getTranslation();
             oldState.rotation = mesh->getRotation();
             oldState.scale = mesh->getScaling();
+            oldState.rotationQuat = mesh->getRotationQuaternion();
+            oldState.hasExactRotation = true;
 
             _oldStates[uuid] = oldState;
 
@@ -41,10 +43,12 @@ TransformCommand::TransformCommand(ModelViewer* viewer,
     GLWidget* glWidget,
     const QMap<QUuid, TransformState>& oldStates,
     const QMap<QUuid, TransformState>& newStates,
-    const QString& text)
+    const QString& text,
+    bool fitView)
     : ModelViewerCommand(viewer, glWidget, text),
       _oldStates(oldStates),
-      _newStates(newStates)
+      _newStates(newStates),
+      _fitView(fitView)
 {
 }
 
@@ -127,7 +131,7 @@ void TransformCommand::applyTransformStates(const QMap<QUuid, TransformState>& s
     // Apply all transformations efficiently (one update at end)
     if (!indexedStates.isEmpty())
     {
-        _glWidget->applyTransforms(indexedStates);
+        _glWidget->applyTransforms(indexedStates, _fitView);
         _viewer->syncLightPositionUiToScene();
         _glWidget->update();
 

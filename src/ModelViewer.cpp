@@ -49,6 +49,8 @@
 #include <QTabBar>
 #include <QTabWidget>
 #include <QScrollArea>
+#include <QtMath>
+#include <cmath>
 
 QString ModelViewer::_lastOpenedDir;
 QString ModelViewer::_lastSelectedFilter;
@@ -185,6 +187,92 @@ bool paintDetachedNavigationOverlayCheckBox(QCheckBox* box, QPaintEvent* event)
 	painter.setPen(labelColor);
 	painter.drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft, box->text());
 	return true;
+}
+
+QMatrix4x4 buildWorldRotationDeltaMatrix(const QVector3D& rotation)
+{
+	QMatrix4x4 matrix;
+	matrix.setToIdentity();
+	matrix.rotate(rotation.x(), QVector3D(1.0f, 0.0f, 0.0f));
+	matrix.rotate(rotation.y(), QVector3D(0.0f, 1.0f, 0.0f));
+	matrix.rotate(rotation.z(), QVector3D(0.0f, 0.0f, 1.0f));
+	return matrix;
+}
+
+QVector3D canonicalizeEulerFromRotationMatrix(const QMatrix4x4& rotationOnly)
+{
+	auto normalizeDegrees180 = [](float degrees) {
+		float normalized = std::fmod(degrees + 180.0f, 360.0f);
+		if (normalized < 0.0f)
+			normalized += 360.0f;
+		normalized -= 180.0f;
+		if (std::abs(normalized) < 1.0e-4f)
+			return 0.0f;
+		if (std::abs(normalized - 180.0f) < 1.0e-4f || std::abs(normalized + 180.0f) < 1.0e-4f)
+			return 180.0f;
+		return normalized;
+	};
+	auto canonicalizeEuler = [&](const QVector3D& euler) {
+		const QVector3D primary(
+			normalizeDegrees180(euler.x()),
+			normalizeDegrees180(euler.y()),
+			normalizeDegrees180(euler.z()));
+		const QVector3D alternate(
+			normalizeDegrees180(euler.x() + 180.0f),
+			normalizeDegrees180(180.0f - euler.y()),
+			normalizeDegrees180(euler.z() + 180.0f));
+		const float primaryScore = std::abs(primary.x()) + std::abs(primary.y()) + std::abs(primary.z());
+		const float alternateScore = std::abs(alternate.x()) + std::abs(alternate.y()) + std::abs(alternate.z());
+		return (alternateScore + 1.0e-4f < primaryScore) ? alternate : primary;
+	};
+
+	const float m00 = rotationOnly(0, 0);
+	const float m01 = rotationOnly(0, 1);
+	const float m02 = rotationOnly(0, 2);
+	const float m10 = rotationOnly(1, 0);
+	const float m11 = rotationOnly(1, 1);
+	const float m12 = rotationOnly(1, 2);
+	const float m22 = rotationOnly(2, 2);
+	const float yRadians = std::asin(std::clamp(m02, -1.0f, 1.0f));
+	const float cosY = std::cos(yRadians);
+
+	float xRadians = 0.0f;
+	float zRadians = 0.0f;
+	if (std::abs(cosY) > 1.0e-6f)
+	{
+		xRadians = std::atan2(-m12, m22);
+		zRadians = std::atan2(-m01, m00);
+	}
+	else
+	{
+		xRadians = std::atan2(m10, m11);
+		zRadians = 0.0f;
+	}
+
+	return canonicalizeEuler(QVector3D(
+		qRadiansToDegrees(xRadians),
+		qRadiansToDegrees(yRadians),
+		qRadiansToDegrees(zRadians)));
+}
+
+QVector3D computeSelectionCog(GLWidget* widget, const std::vector<int>& ids)
+{
+	QVector3D center(0.0f, 0.0f, 0.0f);
+	int count = 0;
+	for (int id : ids)
+	{
+		TriangleMesh* mesh = widget ? widget->getMeshByIndex(id) : nullptr;
+		if (!mesh)
+			continue;
+
+		center += mesh->getStableTransformCenter();
+		++count;
+	}
+
+	if (count > 0)
+		center /= static_cast<float>(count);
+
+	return center;
 }
 }
 
@@ -667,6 +755,78 @@ void ModelViewer::setTransformation()
 			uuids.append(uuid);
 	}
 
+	if (ids.size() > 1)
+	{
+		QMap<QUuid, TransformState> oldStates;
+		QMap<QUuid, TransformState> newStates;
+		const QVector3D pivot = computeSelectionCog(_glWidget, ids);
+		const QMatrix4x4 rotationDelta = buildWorldRotationDeltaMatrix(rotate);
+		const bool hasTranslationDelta = translate.lengthSquared() > 1.0e-8f;
+		const bool hasRotationDelta = rotate.lengthSquared() > 1.0e-8f;
+		const bool hasScaleDelta =
+			std::abs(scale.x() - 1.0f) > 1.0e-8f ||
+			std::abs(scale.y() - 1.0f) > 1.0e-8f ||
+			std::abs(scale.z() - 1.0f) > 1.0e-8f;
+
+		for (int id : ids)
+		{
+			TriangleMesh* mesh = _glWidget->getMeshByIndex(id);
+			if (!mesh)
+				continue;
+
+			const QUuid uuid = _glWidget->getUuidByIndex(id);
+			if (uuid.isNull())
+				continue;
+
+			const QVector3D startTranslation = mesh->getTranslation();
+			const QVector3D startRotation = mesh->getRotation();
+			const QVector3D startScale = mesh->getScaling();
+			const QQuaternion startQuat = mesh->getRotationQuaternion();
+			oldStates.insert(uuid, TransformState(startTranslation, startRotation, startScale, startQuat));
+
+			QVector3D newTranslation = startTranslation;
+			QVector3D newScale = QVector3D(
+				startScale.x() * scale.x(),
+				startScale.y() * scale.y(),
+				startScale.z() * scale.z());
+			QQuaternion newQuat = startQuat;
+			QVector3D displayRotation = startRotation;
+
+			QVector3D offset = startTranslation - pivot;
+			if (hasScaleDelta)
+			{
+				offset = QVector3D(offset.x() * scale.x(), offset.y() * scale.y(), offset.z() * scale.z());
+			}
+			if (hasRotationDelta)
+			{
+				const QQuaternion deltaQuat =
+					QQuaternion::fromRotationMatrix(rotationDelta.toGenericMatrix<3, 3>()).normalized();
+				offset = rotationDelta.map(offset);
+				newQuat = (deltaQuat * startQuat).normalized();
+				QMatrix4x4 displayRotationMatrix;
+				displayRotationMatrix.setToIdentity();
+				displayRotationMatrix.rotate(newQuat);
+				displayRotation = canonicalizeEulerFromRotationMatrix(displayRotationMatrix);
+			}
+			newTranslation = pivot + offset + translate;
+
+			newStates.insert(uuid, TransformState(newTranslation, displayRotation, newScale, newQuat));
+		}
+
+		if (!oldStates.isEmpty() && (hasTranslationDelta || hasRotationDelta || hasScaleDelta))
+		{
+			_undoStack->push(new TransformCommand(
+				this, _glWidget, oldStates, newStates, tr("Transform Selection"), false));
+		}
+
+		objectTransformPanel->setTranslationValues(QVector3D(0.0f, 0.0f, 0.0f));
+		objectTransformPanel->setRotationValues(QVector3D(0.0f, 0.0f, 0.0f));
+		objectTransformPanel->setScaleValues(QVector3D(1.0f, 1.0f, 1.0f));
+		_glWidget->update();
+		QApplication::restoreOverrideCursor();
+		return;
+	}
+
 	// Create and push transform command
 	// redo() will be called automatically and will apply the transformation
 	_undoStack->push(new TransformCommand(
@@ -795,6 +955,14 @@ void ModelViewer::updateTransformationValues()
 		QList<QUuid> selected = treeWidgetModel->selectedMeshUuids();
 		if (!selected.isEmpty())
 		{
+			if (selected.size() > 1)
+			{
+				objectTransformPanel->setTranslationValues(QVector3D(0.0f, 0.0f, 0.0f));
+				objectTransformPanel->setRotationValues(QVector3D(0.0f, 0.0f, 0.0f));
+				objectTransformPanel->setScaleValues(QVector3D(1.0f, 1.0f, 1.0f));
+				return;
+			}
+
 			TriangleMesh* mesh = _glWidget->getMeshByUuid(selected.at(0));
 			if (mesh)
 			{

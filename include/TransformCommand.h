@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ModelViewerCommand.h"
+#include <QQuaternion>
 #include <QVector3D>
 #include <QMap>
 #include <QSet>
@@ -14,11 +15,15 @@ struct TransformState
     QVector3D translation;
     QVector3D rotation;
     QVector3D scale;
+    QQuaternion rotationQuat;
+    bool hasExactRotation = false;
 
     TransformState()
         : translation(0, 0, 0)
         , rotation(0, 0, 0)
         , scale(1, 1, 1)
+        , rotationQuat()
+        , hasExactRotation(false)
     {
     }
 
@@ -26,6 +31,17 @@ struct TransformState
         : translation(trans)
         , rotation(rot)
         , scale(scl)
+        , rotationQuat()
+        , hasExactRotation(false)
+    {
+    }
+
+    TransformState(const QVector3D& trans, const QVector3D& rot, const QVector3D& scl, const QQuaternion& quat)
+        : translation(trans)
+        , rotation(rot)
+        , scale(scl)
+        , rotationQuat(quat)
+        , hasExactRotation(true)
     {
     }
 };
@@ -64,7 +80,8 @@ public:
         GLWidget* glWidget,
         const QMap<QUuid, TransformState>& oldStates,
         const QMap<QUuid, TransformState>& newStates,
-        const QString& text = QObject::tr("Transform"));
+        const QString& text = QObject::tr("Transform"),
+        bool fitView = true);
 
     void undo() override;
     void redo() override;
@@ -105,6 +122,7 @@ private:
     QMap<QUuid, TransformState> _oldStates;  // Transform states before command
     QMap<QUuid, TransformState> _newStates;  // Transform states after command
     mutable QSet<QUuid> _bakedMeshes;                // Meshes that have been baked
+    bool _fitView = true;
 
     /**
      * @brief Apply transformation states to meshes
