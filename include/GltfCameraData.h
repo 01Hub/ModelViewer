@@ -37,6 +37,7 @@ struct GltfCameraEntry
     // update can look the node up directly in worldTransforms without
     // any extra string massaging.
     QString         nodeName;
+    int             nodeIndex       = -1;
 
     GltfCameraType  type            = GltfCameraType::Perspective;
 

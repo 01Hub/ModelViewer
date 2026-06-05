@@ -311,6 +311,22 @@ QUuid resolveRuntimeNodeUuid(const GLWidget::RuntimeAnimationFileState& runtime,
 	return QUuid();
 }
 
+SceneNode* findSceneNodeByAiChildPath(SceneNode* aiRootNode, const QVector<int>& aiChildPath)
+{
+	if (!aiRootNode)
+		return nullptr;
+
+	SceneNode* current = aiRootNode;
+	for (int childIndex : aiChildPath)
+	{
+		if (childIndex < 0 || childIndex >= current->children.size())
+			return nullptr;
+		current = current->children.at(childIndex);
+	}
+
+	return current;
+}
+
 QVector3D sampleVec3Keys(const QVector<GltfAnimationVec3Key>& keys, double timeSeconds, const QVector3D& fallback)
 {
 	if (keys.isEmpty())
@@ -9549,6 +9565,45 @@ void GLWidget::syncFileNodeTransforms(const QString& sourceFile)
 	runtime.meshUuidsByMaterialIndex.clear();
 	runtime.nodeUuidByName.clear();
 	runtime.nodeUuidByIndex.clear();
+	runtime.nodeIndexByUuid.clear();
+
+	SceneNode* aiRootNode = fileNode->children.isEmpty() ? nullptr : fileNode->children.first();
+	for (const GltfAnimationNodeBinding& binding : runtime.data.nodeBindings)
+	{
+		SceneNode* targetNode = nullptr;
+		if (binding.hasAiChildPath)
+			targetNode = findSceneNodeByAiChildPath(aiRootNode, binding.aiChildPath);
+
+		if (!targetNode && !binding.nodeName.isEmpty())
+		{
+			std::function<SceneNode*(SceneNode*)> findByName = [&](SceneNode* node) -> SceneNode*
+			{
+				if (!node)
+					return nullptr;
+				if (node->name == binding.nodeName)
+					return node;
+				for (SceneNode* child : node->children)
+				{
+					if (SceneNode* match = findByName(child))
+						return match;
+				}
+				return nullptr;
+			};
+
+			for (SceneNode* child : fileNode->children)
+			{
+				targetNode = findByName(child);
+				if (targetNode)
+					break;
+			}
+		}
+
+		if (targetNode && binding.nodeIndex >= 0 && !runtime.nodeUuidByIndex.contains(binding.nodeIndex))
+		{
+			runtime.nodeUuidByIndex.insert(binding.nodeIndex, targetNode->nodeUuid);
+			runtime.nodeIndexByUuid.insert(targetNode->nodeUuid, binding.nodeIndex);
+		}
+	}
 
 	std::function<void(SceneNode*)> collect = [&](SceneNode* node)
 	{
@@ -9558,15 +9613,6 @@ void GLWidget::syncFileNodeTransforms(const QString& sourceFile)
 		runtime.defaultNodeTransformsByUuid.insert(node->nodeUuid, decomposeNodeTransform(node->localTransform));
 		if (!node->name.isEmpty() && !runtime.nodeUuidByName.contains(node->name))
 			runtime.nodeUuidByName.insert(node->name, node->nodeUuid);
-		for (const GltfAnimationNodeBinding& binding : runtime.data.nodeBindings)
-		{
-			if (binding.nodeIndex >= 0 &&
-				binding.nodeName == node->name &&
-				!runtime.nodeUuidByIndex.contains(binding.nodeIndex))
-			{
-				runtime.nodeUuidByIndex.insert(binding.nodeIndex, node->nodeUuid);
-			}
-		}
 		for (const QUuid& uuid : node->meshUuids)
 		{
 			if (TriangleMesh* mesh = getMeshByUuid(uuid))
@@ -9956,15 +10002,7 @@ void GLWidget::resetAnimationPose(const QString& sourceFile)
 			if (!node)
 				return;
 
-			int nodeIndex = -1;
-			for (const GltfAnimationNodeVisibilityState& nodeState : runtime.data.nodeVisibilityStates)
-			{
-				if (nodeState.nodeName == node->name)
-				{
-					nodeIndex = nodeState.nodeIndex;
-					break;
-				}
-			}
+			const int nodeIndex = runtime.nodeIndexByUuid.value(node->nodeUuid, -1);
 
 			const bool visible = nodeIndex < 0 ? true : evalVisible(nodeIndex);
 			if (!visible)
@@ -10257,7 +10295,7 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 			if (_activeGltfCameraIndex < camData.cameras.size())
 			{
 				const GltfCameraEntry& cam = camData.cameras[_activeGltfCameraIndex];
-				const QUuid cameraNodeUuid = resolveRuntimeNodeUuid(runtime, -1, cam.nodeName);
+				const QUuid cameraNodeUuid = resolveRuntimeNodeUuid(runtime, cam.nodeIndex, cam.nodeName);
 				if (!cameraNodeUuid.isNull() && worldTransformsByNodeUuid.contains(cameraNodeUuid))
 				{
 					const QMatrix4x4& world = worldTransformsByNodeUuid.value(cameraNodeUuid);
@@ -10335,15 +10373,7 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 			if (!node)
 				return;
 
-			int nodeIndex = -1;
-			for (const GltfAnimationNodeVisibilityState& nodeState : runtime.data.nodeVisibilityStates)
-			{
-				if (nodeState.nodeName == node->name)
-				{
-					nodeIndex = nodeState.nodeIndex;
-					break;
-				}
-			}
+			const int nodeIndex = runtime.nodeIndexByUuid.value(node->nodeUuid, -1);
 
 			const bool visible = nodeIndex < 0 ? true : evalVisible(nodeIndex);
 			if (!visible)

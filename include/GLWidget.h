@@ -476,6 +476,7 @@ public:
 		// references into stable SceneNode UUIDs for the currently loaded file.
 		QHash<QString, QUuid> nodeUuidByName;
 		QHash<int, QUuid> nodeUuidByIndex;
+		QHash<QUuid, int> nodeIndexByUuid;
 	};
 
 signals:

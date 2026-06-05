@@ -2921,7 +2921,12 @@ void AssImpModelLoader::parseSceneAnimations()
 		if (sceneIdx >= 0 && sceneIdx < scenes.size())
 			rootNodeIndices = scenes[sceneIdx].toObject().value("nodes").toArray();
 
-		struct NodeFrame { aiNode* aiNodePtr; int gltfNodeIdx; };
+		struct NodeFrame
+		{
+			aiNode* aiNodePtr;
+			int gltfNodeIdx;
+			QVector<int> aiChildPath;
+		};
 		QVector<NodeFrame> stack;
 		aiNode* aiRoot = _scene->mRootNode;
 		if (rootNodeIndices.size() == 1)
@@ -2932,16 +2937,16 @@ void AssImpModelLoader::parseSceneAnimations()
 			const QString aiRootName = QString::fromUtf8(aiRoot->mName.C_Str());
 
 			if (aiRootName == gltfRootName || aiRoot->mNumMeshes > 0 || aiRoot->mNumChildren == 0)
-				stack.append({ aiRoot, rootGltfIdx });
+				stack.append({ aiRoot, rootGltfIdx, {} });
 			else if (aiRoot->mNumMeshes == 0 && aiRoot->mNumChildren == 1)
-				stack.append({ aiRoot->mChildren[0], rootGltfIdx });
+				stack.append({ aiRoot->mChildren[0], rootGltfIdx, { 0 } });
 		}
 		else
 		{
 			for (int i = rootNodeIndices.size() - 1; i >= 0; --i)
 			{
 				if (i < static_cast<int>(aiRoot->mNumChildren))
-					stack.append({ aiRoot->mChildren[i], rootNodeIndices[i].toInt() });
+					stack.append({ aiRoot->mChildren[i], rootNodeIndices[i].toInt(), { i } });
 			}
 		}
 
@@ -2958,7 +2963,11 @@ void AssImpModelLoader::parseSceneAnimations()
 				frame.aiNodePtr->mName = aiString(aiNodeName.toUtf8().constData());
 			}
 			if (frame.gltfNodeIdx < _animationData.nodeBindings.size())
+			{
 				_animationData.nodeBindings[frame.gltfNodeIdx].nodeName = aiNodeName;
+				_animationData.nodeBindings[frame.gltfNodeIdx].hasAiChildPath = true;
+				_animationData.nodeBindings[frame.gltfNodeIdx].aiChildPath = frame.aiChildPath;
+			}
 			if (frame.gltfNodeIdx < _animationData.nodeVisibilityStates.size())
 				_animationData.nodeVisibilityStates[frame.gltfNodeIdx].nodeName = aiNodeName;
 			for (GltfAnimationLightBinding& binding : _animationData.lightBindings)
@@ -2971,7 +2980,11 @@ void AssImpModelLoader::parseSceneAnimations()
 			for (int childOffset = childIndices.size() - 1; childOffset >= 0; --childOffset)
 			{
 				if (childOffset < static_cast<int>(frame.aiNodePtr->mNumChildren))
-					stack.append({ frame.aiNodePtr->mChildren[childOffset], childIndices[childOffset].toInt() });
+				{
+					QVector<int> childPath = frame.aiChildPath;
+					childPath.append(childOffset);
+					stack.append({ frame.aiNodePtr->mChildren[childOffset], childIndices[childOffset].toInt(), childPath });
+				}
 			}
 		}
 	}
@@ -3359,6 +3372,71 @@ void AssImpModelLoader::parseSceneCameras()
 
     _cameraData.sourceFile = QString::fromStdString(_path);
 
+    QVector<int> cameraNodeIndexByOrdinal;
+    if (_scene->mRootNode)
+    {
+        QJsonDocument doc;
+        QVector<QByteArray> bufferData;
+        if (loadAnimationJsonAndBuffer(QString::fromStdString(_path), doc, bufferData) && doc.isObject())
+        {
+            const QJsonObject root = doc.object();
+            const QJsonArray nodes = root.value("nodes").toArray();
+            const QJsonArray scenes = root.value("scenes").toArray();
+
+            const int sceneIdx = root.value("scene").toInt(0);
+            QJsonArray rootNodeIndices;
+            if (sceneIdx >= 0 && sceneIdx < scenes.size())
+                rootNodeIndices = scenes[sceneIdx].toObject().value("nodes").toArray();
+
+            struct NodeFrame
+            {
+                aiNode* aiNodePtr;
+                int gltfNodeIdx;
+            };
+            QVector<NodeFrame> stack;
+            aiNode* aiRoot = _scene->mRootNode;
+
+            if (rootNodeIndices.size() == 1)
+            {
+                const int rootGltfIdx = rootNodeIndices[0].toInt();
+                const QString gltfRootName = (rootGltfIdx >= 0 && rootGltfIdx < nodes.size())
+                    ? nodes[rootGltfIdx].toObject().value("name").toString() : QString();
+                const QString aiRootName = QString::fromUtf8(aiRoot->mName.C_Str());
+
+                if (aiRootName == gltfRootName || aiRoot->mNumMeshes > 0 || aiRoot->mNumChildren == 0)
+                    stack.append({ aiRoot, rootGltfIdx });
+                else if (aiRoot->mNumMeshes == 0 && aiRoot->mNumChildren == 1)
+                    stack.append({ aiRoot->mChildren[0], rootGltfIdx });
+            }
+            else
+            {
+                for (int i = rootNodeIndices.size() - 1; i >= 0; --i)
+                {
+                    if (i < static_cast<int>(aiRoot->mNumChildren))
+                        stack.append({ aiRoot->mChildren[i], rootNodeIndices[i].toInt() });
+                }
+            }
+
+            while (!stack.isEmpty())
+            {
+                const NodeFrame frame = stack.takeLast();
+                if (!frame.aiNodePtr || frame.gltfNodeIdx < 0 || frame.gltfNodeIdx >= nodes.size())
+                    continue;
+
+                const QJsonObject nodeObj = nodes[frame.gltfNodeIdx].toObject();
+                if (nodeObj.contains("camera"))
+                    cameraNodeIndexByOrdinal.append(frame.gltfNodeIdx);
+
+                const QJsonArray childIndices = nodeObj.value("children").toArray();
+                for (int childOffset = childIndices.size() - 1; childOffset >= 0; --childOffset)
+                {
+                    if (childOffset < static_cast<int>(frame.aiNodePtr->mNumChildren))
+                        stack.append({ frame.aiNodePtr->mChildren[childOffset], childIndices[childOffset].toInt() });
+                }
+            }
+        }
+    }
+
     for (unsigned int i = 0; i < _scene->mNumCameras; ++i)
     {
         const aiCamera* cam = _scene->mCameras[i];
@@ -3371,6 +3449,8 @@ void AssImpModelLoader::parseSceneCameras()
         // that references the camera.  That node name is the key used by the
         // animation runtime's worldTransforms map, so store it directly.
         entry.nodeName = entry.name;
+        if (static_cast<int>(i) < cameraNodeIndexByOrdinal.size())
+            entry.nodeIndex = cameraNodeIndexByOrdinal.at(static_cast<int>(i));
 
         // Projection type: orthographic when mOrthographicWidth > 0
         if (cam->mOrthographicWidth > 0.0f)
