@@ -1,7 +1,69 @@
 #include "XCAFDocProcessor.hxx"
 #include "BRepToAssimpConverter.h"
 #include "MainWindow.h"
+#include <algorithm>
 #include <map>
+#include <TDF_Tool.hxx>
+
+namespace
+{
+std::string trimmedName(const std::string& value)
+{
+    const std::size_t first = value.find_first_not_of(" \t\r\n");
+    if (first == std::string::npos)
+        return std::string();
+
+    const std::size_t last = value.find_last_not_of(" \t\r\n");
+    return value.substr(first, last - first + 1);
+}
+
+std::string labelAttributeName(const TDF_Label& label)
+{
+    if (label.IsNull())
+        return std::string();
+
+    Handle(TDataStd_Name) nameAttr;
+    if (!label.FindAttribute(TDataStd_Name::GetID(), nameAttr))
+        return std::string();
+
+    return trimmedName(TCollection_AsciiString(nameAttr->Get()).ToCString());
+}
+
+std::string labelEntryName(const TDF_Label& label, const std::string& prefix)
+{
+    if (label.IsNull())
+        return prefix;
+
+    TCollection_AsciiString entry;
+    TDF_Tool::Entry(label, entry);
+    const std::string entryText = trimmedName(entry.ToCString());
+    if (entryText.empty())
+        return prefix;
+
+    return prefix + "_" + entryText;
+}
+
+std::string resolvedLabelName(const TDF_Label& primary,
+                              const TDF_Label& secondary,
+                              const std::string& fallbackPrefix)
+{
+    const std::string primaryName = labelAttributeName(primary);
+    if (!primaryName.empty() && primaryName != "Unnamed")
+        return primaryName;
+
+    const std::string secondaryName = labelAttributeName(secondary);
+    if (!secondaryName.empty() && secondaryName != "Unnamed")
+        return secondaryName;
+
+    if (!primary.IsNull())
+        return labelEntryName(primary, fallbackPrefix);
+
+    if (!secondary.IsNull())
+        return labelEntryName(secondary, fallbackPrefix);
+
+    return fallbackPrefix;
+}
+}
 
 void XCAFDocProcessor::initializeDocumentProcessing()
 {
@@ -71,16 +133,7 @@ void XCAFDocProcessor::traverseXCAFAssembly(
 	outShapes.push_back(shape);
 
 	// 6) Extract the name from the *definition* label (defLabel), falling back to the instance label only if needed
-	Handle(TDataStd_Name) nameAttr;
-	std::string name = "Unnamed";
-	if (defLabel.FindAttribute(TDataStd_Name::GetID(), nameAttr))
-	{
-		name = TCollection_AsciiString(nameAttr->Get()).ToCString();
-	}
-	else if (label.FindAttribute(TDataStd_Name::GetID(), nameAttr))
-	{
-		name = TCollection_AsciiString(nameAttr->Get()).ToCString();
-	}
+	std::string name = resolvedLabelName(defLabel, label, "Part");
 
 	// 7) Add instance number to the name (e.g., Wheel.1, Wheel.2)
 	// --- Extract Instance Number from the label ---
@@ -130,12 +183,7 @@ void XCAFDocProcessor::traverseXCAFAssembly(
     int totalMeshes)
 { 
     // 1) Extract the name from the TDF_Label
-    Handle(TDataStd_Name) nameAttr;
-    std::string nodeName = "Unnamed";
-    if (label.FindAttribute(TDataStd_Name::GetID(), nameAttr))
-    {
-        nodeName = TCollection_AsciiString(nameAttr->Get()).ToCString();
-    }
+    std::string nodeName = resolvedLabelName(label, TDF_Label(), "Assembly");
 
     // 2) Assembly? Recurse its components (cycle-safe)
     if (shapeTool->IsAssembly(label))
@@ -188,11 +236,8 @@ void XCAFDocProcessor::traverseXCAFAssembly(
         shapeTool->GetComponents(defLabel, comps);
 
         // Extract the name for the sub-assembly
-        std::string subAssemblyName = "SubAssembly";
-        if (defLabel.FindAttribute(TDataStd_Name::GetID(), nameAttr))
-        {
-            subAssemblyName = TCollection_AsciiString(nameAttr->Get()).ToCString();
-        }
+        std::string subAssemblyName =
+            resolvedLabelName(defLabel, label, "SubAssembly");
         // Create a node for the sub-assembly.
         // Pre-allocate its children array to the exact component count.
         aiNode* subAssemblyNode = new aiNode();
@@ -217,11 +262,7 @@ void XCAFDocProcessor::traverseXCAFAssembly(
     //shape.Move(loc);
 
     // 7) Extract the name for the leaf node
-    std::string leafNodeName = "Unnamed";
-    if (defLabel.FindAttribute(TDataStd_Name::GetID(), nameAttr))
-    {
-        leafNodeName = TCollection_AsciiString(nameAttr->Get()).ToCString();
-    }
+    std::string leafNodeName = resolvedLabelName(defLabel, label, "Part");
 
     // 8) Convert the shape into a sub-scene with enhanced color extraction
     aiScene* subScene = BRepToAssimpConverter::convert(shape, colorTool, shapeTool, defLabel, label, meshIndex, nodeName);
