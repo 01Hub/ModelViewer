@@ -3,53 +3,32 @@
 
 // Adpated from https://learnopengl.com/
 
-in vec3 g_position;
-in vec3 g_normal;
-in vec4 g_color;
-in vec4 g_rawVertexColor;
-in vec2 g_texCoord0;
-in vec2 g_texCoord1;
-in vec2 g_texCoord2;
-in vec2 g_texCoord3;
-in vec3 g_tangent;
-in vec3 g_bitangent;
-in vec3 g_worldTangent;
-in vec3 g_worldBitangent;
-in vec3 g_reflectionPosition;
-in vec3 g_reflectionNormal;
-in vec3 g_tangentLightPos;
-in vec3 g_tangentViewPos;
-in vec3 g_tangentFragPos;
-flat in vec3 g_flatNormal;
-flat in vec3 g_flatReflectionNormal;
+in vec3 v_position;
+in vec3 v_normal;
+in vec4 v_color;
+in vec4 v_rawVertexColor;
+in vec2 v_texCoord0;
+in vec2 v_texCoord1;
+in vec2 v_texCoord2;
+in vec2 v_texCoord3;
+in vec3 v_tangent;
+in vec3 v_bitangent;
+in vec3 v_worldTangent;
+in vec3 v_worldBitangent;
+in vec3 v_reflectionPosition;
+in vec3 v_reflectionNormal;
+in vec3 v_tangentLightPos;
+in vec3 v_tangentViewPos;
+in vec3 v_tangentFragPos;
 
-in GS_OUT_SHADOW{
+in VS_OUT_SHADOW{
 	vec3 FragPos;
 	vec3 Normal;
 	vec2 TexCoords;
 	vec4 FragPosLightSpace;
 	vec3 cameraPos;
 	vec3 lightPos;
-} g_shadow;
-
-#define v_position g_position
-#define v_normal g_normal
-#define v_color g_color
-#define v_rawVertexColor g_rawVertexColor
-#define v_texCoord0 g_texCoord0
-#define v_texCoord1 g_texCoord1
-#define v_texCoord2 g_texCoord2
-#define v_texCoord3 g_texCoord3
-#define v_tangent g_tangent
-#define v_bitangent g_bitangent
-#define v_worldTangent g_worldTangent
-#define v_worldBitangent g_worldBitangent
-#define v_reflectionPosition g_reflectionPosition
-#define v_reflectionNormal g_reflectionNormal
-#define v_tangentLightPos g_tangentLightPos
-#define v_tangentViewPos g_tangentViewPos
-#define v_tangentFragPos g_tangentFragPos
-#define fs_in_shadow g_shadow
+} fs_in_shadow;
 
 uniform bool hasVertexColors;
 uniform bool hasNegativeScale;
@@ -599,12 +578,6 @@ mat3    getTBNFromMap(sampler2D map);
 vec3    calcBumpedNormal(sampler2D map, vec2 texCoord);
 vec2    parallaxOcclusionMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap, float heightScale);
 vec2	applyParallaxMapping(vec2 baseUV, sampler2D heightMap, float heightScale, bool enabled);
-bool    isGeometryFrontFacing();
-vec3    safeNormalizeGeom(vec3 value, vec3 fallback);
-vec3    getUnsignedViewGeometryNormal();
-vec3    getSignedViewGeometryNormal();
-vec3    getUnsignedWorldGeometryNormal();
-
 // ---- Core BRDF primitives (NDF * G * F) ------------------------------------
 float   distributionGGX(vec3 N, vec3 H, float roughness);
 float   geometrySchlickGGX(float NdotV, float roughness);
@@ -623,44 +596,6 @@ float	lambdaSheenNumericHelper(float x, float alphaG);
 float	max3(vec3 v);
 vec3    calculateSheen(vec3 N, vec3 V, vec3 L, vec3 sheenColor, float sheenRoughness);
 const float kSheenStrength = 1.0;
-
-bool isGeometryFrontFacing()
-{
-	bool frontFacing = gl_FrontFacing;
-	if (hasNegativeScale)
-		frontFacing = !frontFacing;
-	return frontFacing;
-}
-
-vec3 safeNormalizeGeom(vec3 value, vec3 fallback)
-{
-	float len = length(value);
-	if (len > 1e-8)
-		return value / len;
-	return fallback;
-}
-
-vec3 getUnsignedViewGeometryNormal()
-{
-	vec3 smoothNormal = safeNormalizeGeom(v_normal, vec3(0.0, 0.0, 1.0));
-	if (displayMode == 4)
-		return safeNormalizeGeom(g_flatNormal, smoothNormal);
-	return smoothNormal;
-}
-
-vec3 getSignedViewGeometryNormal()
-{
-	vec3 normal = getUnsignedViewGeometryNormal();
-	return isGeometryFrontFacing() ? normal : -normal;
-}
-
-vec3 getUnsignedWorldGeometryNormal()
-{
-	vec3 smoothNormal = safeNormalizeGeom(v_reflectionNormal, vec3(0.0, 0.0, 1.0));
-	if (displayMode == 4)
-		return safeNormalizeGeom(g_flatReflectionNormal, smoothNormal);
-	return smoothNormal;
-}
 
 // ---- KHR Anisotropy --------------------------------------------------------
 float	V_GGX_anisotropic(float NdotL, float NdotV, float BdotV, float TdotV, float TdotL, float BdotL, float at, float ab);
@@ -816,7 +751,12 @@ void main()
 	vec4 v_color;
 
 	// Discard backfaces if not twoSided
-	bool isFrontFacing = isGeometryFrontFacing();
+	bool isFrontFacing = gl_FrontFacing;
+
+	if (hasNegativeScale)
+	{
+		isFrontFacing = !isFrontFacing;  // Invert because negative scale reverses winding
+	}
 
 	if (!twoSided && !isFrontFacing && !floorRendering)
 	{
@@ -839,9 +779,8 @@ void main()
 	// Choose rendering path - ADS vs PBR
 	if (renderingMode == 0)
 	{
-		vec3 baseNormal = getUnsignedViewGeometryNormal();
-		v_color_front = shadeBlinnPhong(lightSource, lightModel, material, v_position, baseNormal);
-		v_color_back = shadeBlinnPhong(lightSource, lightModel, material, v_position, -baseNormal);
+		v_color_front = shadeBlinnPhong(lightSource, lightModel, material, v_position, v_normal);
+		v_color_back = shadeBlinnPhong(lightSource, lightModel, material, v_position, -v_normal);
 	}
 	else
 	{
@@ -988,7 +927,7 @@ void main()
 			iso = vec3(v_texCoord1.x, 1.0 - v_texCoord1.y, 0.0);
 
 		else if (debugChannelOutput == 3) // Geometry Normal  (world-space, remapped)
-			iso = getUnsignedViewGeometryNormal() * 0.5 + 0.5;
+			iso = normalize(v_normal) * 0.5 + 0.5;
 
 		else if (debugChannelOutput == 4) // Geometry Tangent
 		{
@@ -1007,7 +946,7 @@ void main()
 			bool hasTangentData = length(v_tangent) > 0.01;
 			if (hasTangentData)
 			{
-				vec3 N = getUnsignedViewGeometryNormal();
+				vec3 N = normalize(v_normal);
 				vec3 T = normalize(v_tangent   - dot(v_tangent,   N) * N);
 				vec3 B = normalize(v_bitangent - dot(v_bitangent, N) * N);
 				float w = sign(dot(cross(T, B), N)); // +1 or -1
@@ -1020,13 +959,13 @@ void main()
 		{
 			vec3 shadingN;
 			if (renderingMode == 0) // ADS
-				shadingN = (displayMode != 4 && hasNormalTexture)
+				shadingN = hasNormalTexture
 				    ? calcBumpedNormal(texture_normal, getNormalTextureUV())
-				    : getSignedViewGeometryNormal();
+				    : normalize(gl_FrontFacing ? v_normal : -v_normal);
 			else // PBR
-				shadingN = (displayMode != 4 && hasNormalMap)
+				shadingN = hasNormalMap
 				    ? calcBumpedNormal(normalMap, getNormalUV())
-				    : getSignedViewGeometryNormal();
+				    : normalize(gl_FrontFacing ? v_normal : -v_normal);
 			iso = shadingN * 0.5 + 0.5;
 		}
 
@@ -1126,7 +1065,7 @@ void main()
 	if (debugChannelOutput == 0 && selected && selectionHighlighting) // with glow
 	{
 		// Compute lighting
-		vec3 norm = getSignedViewGeometryNormal();
+		vec3 norm = normalize(gl_FrontFacing ? v_normal : -v_normal);
 		vec3 lightDir = normalize(lightSource.position);
 		float diff = max(dot(norm, lightDir), 0.0);
 
@@ -1160,7 +1099,7 @@ void main()
 	if (debugChannelOutput == 0 && hovered && hoverHighlighting && !selected)
 	{
 		// Compute lighting (similar to selection but more subtle)
-		vec3 norm = getSignedViewGeometryNormal();
+		vec3 norm = normalize(gl_FrontFacing ? v_normal : -v_normal);
 		vec3 lightDir = normalize(lightSource.position);
 		float diff = max(dot(norm, lightDir), 0.0);
 
@@ -1209,7 +1148,7 @@ void main()
 		// Blend floor color with the background gradient
 		// View-angle modulation: reduce background mix when looking straight down
 		// NdotV in world (front/back already handled above)
-		vec3 N_main = getSignedViewGeometryNormal();
+		vec3 N_main = normalize(gl_FrontFacing ? v_normal : -v_normal);
 		vec3 V_main = normalize(cameraDir);
 		float NdotV_main = clamp(dot(N_main, V_main), 0.0, 1.0);
 
@@ -1224,7 +1163,7 @@ void main()
 		vec3 backgroundColor = vec3(1.0);
 		if (skyBoxEnabled)
 		{
-			vec3 N = getUnsignedWorldGeometryNormal();
+			vec3 N = normalize(v_reflectionNormal);
 			vec3 V = normalize(cameraDir);
 
 			// Refract ray into environment
@@ -1502,7 +1441,7 @@ vec2 applyParallaxMapping(vec2 baseUV, sampler2D heightMap, float heightScale, b
 	if (!enabled) return baseUV;
 
 	// Build TBN matrix
-	vec3 n = getUnsignedViewGeometryNormal();
+	vec3 n = normalize(v_normal);
 	vec3 t = normalize(v_tangent - dot(v_tangent, n) * n);
 	vec3 b = normalize(cross(n, t));
 	mat3 TBN = mat3(t, b, n);
@@ -1573,7 +1512,7 @@ vec3 getNormalFromMap(sampler2D map)
 	vec2 st1 = dFdx(getNormalUV());
 	vec2 st2 = dFdy(getNormalUV());
 
-	vec3 N = getUnsignedViewGeometryNormal();
+	vec3 N = normalize(v_normal);
 	vec3 T = normalize(Q1 * st2.t - Q2 * st1.t);
 	vec3 B = -normalize(cross(N, T));
 	mat3 TBN = mat3(T, B, N);
@@ -1590,7 +1529,7 @@ mat3 getTBNFromMap(sampler2D map)
 	vec2 st1 = dFdx(getNormalUV());
 	vec2 st2 = dFdy(getNormalUV());
 
-	vec3 N = getUnsignedViewGeometryNormal();
+	vec3 N = normalize(v_normal);
 	vec3 T = normalize(Q1 * st2.t - Q2 * st1.t);
 	vec3 B = -normalize(cross(N, T));
 	mat3 TBN = mat3(T, B, N);
@@ -1603,7 +1542,7 @@ mat3 getTBNFromMap(sampler2D map)
 vec3 calcBumpedNormal(sampler2D map, vec2 texCoord)
 {
     // base geometric normal (world space)
-    vec3 N = getUnsignedViewGeometryNormal();
+    vec3 N = normalize(v_normal);
     
     // Check if we have valid tangent data
     bool hasTangents = (length(v_tangent) > 0.01);
@@ -2756,11 +2695,7 @@ SurfaceFrame buildSurfaceFrame(float side, vec2 normalUV, vec2 clearcoatNormalUV
 	frame.I = -frame.V;
 	frame.L = normalize(lightDirection);
 	float frameSide = side < 0.0 ? -1.0 : 1.0;
-	if (displayMode == 4)
-	{
-		frame.Ng = getUnsignedWorldGeometryNormal();
-	}
-	else if (length(v_reflectionNormal) < 0.01)
+	if (length(v_reflectionNormal) < 0.01)
 	{
 		// No vertex normals: derive face normal from screen-space position derivatives
 		vec3 dx = dFdx(v_position);
@@ -2773,7 +2708,7 @@ SurfaceFrame buildSurfaceFrame(float side, vec2 normalUV, vec2 clearcoatNormalUV
 	}
 	else
 	{
-		frame.Ng = getUnsignedWorldGeometryNormal();
+		frame.Ng = normalize(v_reflectionNormal);
 	}
 
 	vec3 tangent;
@@ -2824,7 +2759,7 @@ SurfaceFrame buildSurfaceFrame(float side, vec2 normalUV, vec2 clearcoatNormalUV
 	frame.B = bitangent;
 
 	frame.N = frame.Ng;
-	if (displayMode != 4 && hasNormalMap)
+	if (hasNormalMap)
 	{
 		frame.N = sampleMappedNormal(
 			normalMap,
@@ -3840,7 +3775,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 		float fa = clamp(floorAlpha, 0.0, 1.0);
 
 		// View-angle term to avoid "whiteout" when looking straight down
-		vec3 Nf = getSignedViewGeometryNormal();
+		vec3 Nf = normalize(gl_FrontFacing ? v_normal : -v_normal);
 		vec3 Vf = normalize(cameraPos - v_position);
 		float NdotVf = clamp(dot(Nf, Vf), 0.0, 1.0);
 		// Fresnel-like dampening of spec when NdotV is high (looking straight down)
@@ -3861,7 +3796,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	if (useIBL && envMapEnabled)
 	{
 		vec3 I = normalize(cameraDir);
-		vec3 N = getUnsignedWorldGeometryNormal();
+		vec3 N = normalize(v_reflectionNormal);
 		vec3 offset = normalize(cameraPos - v_reflectionPosition);
 		vec3 I_offset = normalize(I - offset * 0.3);  // Blend factor adjustable
 		vec3 R = reflect(-I_offset, N);
@@ -3940,13 +3875,13 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 vec4 calculatePBRLightingKHR(int renderMode, float side)
 {
 	vec2 normalUV = getNormalUV();
-	if (displayMode != 4 && hasHeightMap)
+	if (hasHeightMap)
 	{
 		normalUV = applyParallaxMapping(getNormalUV(), heightMap, heightScale, hasHeightMap);
 	}
 
 	vec2 clearcoatNormalUV = getClearcoatNormalUV();
-	if (displayMode != 4 && hasHeightMap)
+	if (hasHeightMap)
 	{
 		clearcoatNormalUV = applyParallaxMapping(getClearcoatNormalUV(), heightMap, heightScale, hasHeightMap);
 	}

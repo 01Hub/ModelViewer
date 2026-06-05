@@ -4734,8 +4734,7 @@ void GLWidget::createShaderPrograms()
 	// Per fragment lighting
 	_fgShader = std::make_unique<ShaderProgram>(); _fgShader->setObjectName("_fgShader");
     _fgShader->loadCompileAndLinkShaderFromFile(path + "shaders/main_scene.vert",
-        path + "shaders/main_scene.frag",
-        path + "shaders/main_scene.geom");
+        path + "shaders/main_scene.frag");
 	// Axis
 	_axisShader = std::make_unique<ShaderProgram>(); _axisShader->setObjectName("_axisShader");
 	_axisShader->loadCompileAndLinkShaderFromFile(path + "shaders/axis.vert", path + "shaders/axis.frag");
