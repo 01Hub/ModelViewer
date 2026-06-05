@@ -16,6 +16,7 @@
 
 aiScene* XCAFBREPProcessor::processFile(const std::string& path)
 {
+	XCAFDocProcessor::initializeDocumentProcessing();
 	return processBREPFile(path);
 }
 
@@ -108,7 +109,6 @@ aiScene* XCAFBREPProcessor::processBREPFile(const std::string& path)
 		// Convert to Assimp scene
 		MainWindow::showStatusMessage(tr("Converting shape to mesh..."));
 		aiScene* scene = BRepToAssimpConverter::convert(shapeTuples);
-
 
 #ifdef __DEBUG__
 		QFileInfo fi(QString::fromStdString(path));

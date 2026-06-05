@@ -283,5 +283,4 @@ private:
 	GltfVariantData   _variantData;
 	GltfAnimationData _animationData;
 	GltfCameraData    _cameraData;
-	bool _preserveNodeTransformsForRuntime = false;
 };

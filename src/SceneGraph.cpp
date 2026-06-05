@@ -3,6 +3,7 @@
 #include <QFileInfo>
 #include <QJsonObject>
 #include <QJsonValue>
+#include <QVector4D>
 #include <functional>
 
 namespace
@@ -24,6 +25,16 @@ bool readMatrix(QDataStream& in, aiMatrix4x4& m)
        >> m.c1 >> m.c2 >> m.c3 >> m.c4
        >> m.d1 >> m.d2 >> m.d3 >> m.d4;
     return in.status() == QDataStream::Ok;
+}
+
+QMatrix4x4 aiToQMatrix(const aiMatrix4x4& m)
+{
+    QMatrix4x4 out;
+    out.setRow(0, QVector4D(m.a1, m.a2, m.a3, m.a4));
+    out.setRow(1, QVector4D(m.b1, m.b2, m.b3, m.b4));
+    out.setRow(2, QVector4D(m.c1, m.c2, m.c3, m.c4));
+    out.setRow(3, QVector4D(m.d1, m.d2, m.d3, m.d4));
+    return out;
 }
 }
 
@@ -374,6 +385,68 @@ QList<QUuid> SceneGraph::collectMeshUuids(const SceneNode* node) const
 {
     QList<QUuid> result;
     collectUuidsRecursive(node, result);
+    return result;
+}
+
+SceneGraphWorldTransforms SceneGraph::evaluateWorldTransforms(const SceneNode* subtreeRoot) const
+{
+    SceneGraphWorldTransforms result;
+
+    const SceneNode* traversalRoot = subtreeRoot ? subtreeRoot : _root;
+    if (!traversalRoot)
+        return result;
+
+    std::function<void(const SceneNode*, const QMatrix4x4&)> eval =
+        [&](const SceneNode* node, const QMatrix4x4& parentWorld)
+    {
+        if (!node)
+            return;
+
+        const QMatrix4x4 local = aiToQMatrix(node->localTransform);
+        const QMatrix4x4 world = parentWorld * local;
+        result.nodeWorldByUuid.insert(node->nodeUuid, world);
+        for (const QUuid& meshUuid : node->meshUuids)
+            result.meshWorldByUuid.insert(meshUuid, world);
+
+        for (const SceneNode* child : node->children)
+            eval(child, world);
+    };
+
+    eval(traversalRoot, QMatrix4x4());
+    return result;
+}
+
+SceneGraphWorldTransforms SceneGraph::evaluateWorldTransformsForFile(const QString& sourceFile) const
+{
+    SceneGraphWorldTransforms result;
+
+    const SceneNode* fileNode = findFileNode(sourceFile);
+    if (!fileNode)
+        return result;
+
+    std::function<void(const SceneNode*, const QMatrix4x4&)> eval =
+        [&](const SceneNode* node, const QMatrix4x4& parentWorld)
+    {
+        if (!node)
+            return;
+
+        const QMatrix4x4 local = aiToQMatrix(node->localTransform);
+        const QMatrix4x4 world = parentWorld * local;
+        result.nodeWorldByUuid.insert(node->nodeUuid, world);
+        for (const QUuid& meshUuid : node->meshUuids)
+            result.meshWorldByUuid.insert(meshUuid, world);
+
+        for (const SceneNode* child : node->children)
+            eval(child, world);
+    };
+
+    const QMatrix4x4 identity;
+    result.nodeWorldByUuid.insert(fileNode->nodeUuid, identity);
+    for (const QUuid& meshUuid : fileNode->meshUuids)
+        result.meshWorldByUuid.insert(meshUuid, identity);
+    for (const SceneNode* child : fileNode->children)
+        eval(child, identity);
+
     return result;
 }
 

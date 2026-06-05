@@ -298,6 +298,19 @@ QMatrix4x4 composeNodeTransform(const GLWidget::RuntimeNodeTransform& tr)
 	return matrix;
 }
 
+QUuid resolveRuntimeNodeUuid(const GLWidget::RuntimeAnimationFileState& runtime,
+                             int targetNodeIndex,
+                             const QString& fallbackNodeName = QString())
+{
+	if (targetNodeIndex >= 0 && runtime.nodeUuidByIndex.contains(targetNodeIndex))
+		return runtime.nodeUuidByIndex.value(targetNodeIndex);
+
+	if (!fallbackNodeName.isEmpty())
+		return runtime.nodeUuidByName.value(fallbackNodeName, QUuid());
+
+	return QUuid();
+}
+
 QVector3D sampleVec3Keys(const QVector<GltfAnimationVec3Key>& keys, double timeSeconds, const QVector3D& fallback)
 {
 	if (keys.isEmpty())
@@ -3933,6 +3946,12 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 					_viewer->sceneGraph()->setVariantData(fileName, vd);
 
 				const GltfAnimationData& ad = loadingWorker->getAnimationData();
+				const bool preservesNodeTransforms =
+					std::any_of(meshes.begin(), meshes.end(),
+						[](const AssImpMeshData& meshData)
+						{
+							return meshData.preserveNodeTransform;
+						});
 				if (!ad.isEmpty() || ad.hasSkinning)
 				{
 					_viewer->sceneGraph()->setAnimationData(fileName, ad);
@@ -3948,6 +3967,11 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 					syncFileNodeTransforms(fileName);
 					if (!ad.clips.isEmpty())
 						setActiveAnimation(fileName, 0);
+				}
+				else if (preservesNodeTransforms)
+				{
+					_runtimeAnimationsByFile.remove(fileName);
+					syncFileNodeTransforms(fileName);
 				}
 
 				// Register glTF camera data (if any) for this file.
@@ -6445,7 +6469,6 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 	prog->setUniformValue("hoverHighlighting", hoverHighlightingEnabled);
 	prog->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));
 	const int sssObjectIdLocation = prog->uniformLocation("sssObjectId");
-
 	// Collect visible opaque meshes, then sort by texture signature to
 	// minimise GPU texture state changes across consecutive draw calls.
 	std::vector<std::pair<uint64_t, int>> opaque;
@@ -6523,7 +6546,6 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 	prog->setUniformValue("hoverHighlighting", hoverHighlightingEnabledT);
 	prog->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));
 	const int sssObjectIdLocation = prog->uniformLocation("sssObjectId");
-
 	for (auto& it : transparent)
 	{
 		if (auto* mesh = _meshStore.at(it.second))
@@ -9513,34 +9535,47 @@ void GLWidget::syncFileNodeTransforms(const QString& sourceFile)
 	if (!_viewer || !_viewer->sceneGraph())
 		return;
 
-	SceneNode* fileNode = _viewer->sceneGraph()->findFileNode(sourceFile);
+	SceneGraph* sceneGraph = _viewer->sceneGraph();
+	SceneNode* fileNode = sceneGraph->findFileNode(sourceFile);
 	if (!fileNode)
 		return;
 
+	const SceneGraphWorldTransforms evaluatedWorlds = sceneGraph->evaluateWorldTransformsForFile(sourceFile);
+
 	RuntimeAnimationFileState& runtime = _runtimeAnimationsByFile[sourceFile];
-	runtime.data = _viewer->sceneGraph()->animationDataForFile(sourceFile);
-	runtime.defaultNodeTransforms.clear();
-	runtime.defaultNodeMorphWeights.clear();
+	runtime.data = sceneGraph->animationDataForFile(sourceFile);
+	runtime.defaultNodeTransformsByUuid.clear();
+	runtime.defaultNodeMorphWeightsByUuid.clear();
 	runtime.defaultMeshMaterials.clear();
 	runtime.meshUuidsByMaterialIndex.clear();
-	const bool needsRuntimeNodeTransforms =
-		runtime.data.hasNodeAnimations || runtime.data.hasSkinning;
+	runtime.nodeUuidByName.clear();
+	runtime.nodeUuidByIndex.clear();
 
-	std::function<void(SceneNode*, const QMatrix4x4&)> collect = [&](SceneNode* node, const QMatrix4x4& parentWorld)
+	std::function<void(SceneNode*)> collect = [&](SceneNode* node)
 	{
 		if (!node)
 			return;
 
-		runtime.defaultNodeTransforms.insert(node->name, decomposeNodeTransform(node->localTransform));
-		const QMatrix4x4 world = parentWorld * aiToQMatrix(node->localTransform);
+		runtime.defaultNodeTransformsByUuid.insert(node->nodeUuid, decomposeNodeTransform(node->localTransform));
+		if (!node->name.isEmpty() && !runtime.nodeUuidByName.contains(node->name))
+			runtime.nodeUuidByName.insert(node->name, node->nodeUuid);
+		for (const GltfAnimationNodeBinding& binding : runtime.data.nodeBindings)
+		{
+			if (binding.nodeIndex >= 0 &&
+				binding.nodeName == node->name &&
+				!runtime.nodeUuidByIndex.contains(binding.nodeIndex))
+			{
+				runtime.nodeUuidByIndex.insert(binding.nodeIndex, node->nodeUuid);
+			}
+		}
 		for (const QUuid& uuid : node->meshUuids)
 		{
 			if (TriangleMesh* mesh = getMeshByUuid(uuid))
 			{
-				if (needsRuntimeNodeTransforms)
-					mesh->setSceneRenderTransform(world);
-				if (mesh->hasMorphTargets() && !runtime.defaultNodeMorphWeights.contains(node->name))
-					runtime.defaultNodeMorphWeights.insert(node->name, mesh->defaultMorphWeights());
+				if (evaluatedWorlds.meshWorldByUuid.contains(uuid))
+					mesh->setSceneRenderTransform(evaluatedWorlds.meshWorldByUuid.value(uuid));
+				if (mesh->hasMorphTargets() && !runtime.defaultNodeMorphWeightsByUuid.contains(node->nodeUuid))
+					runtime.defaultNodeMorphWeightsByUuid.insert(node->nodeUuid, mesh->defaultMorphWeights());
 				runtime.defaultMeshMaterials.insert(uuid, mesh->getMaterial());
 				if (mesh->getOriginalMaterialIndex() >= 0)
 					runtime.meshUuidsByMaterialIndex.insert(mesh->getOriginalMaterialIndex(), uuid);
@@ -9548,11 +9583,11 @@ void GLWidget::syncFileNodeTransforms(const QString& sourceFile)
 		}
 
 		for (SceneNode* child : node->children)
-			collect(child, world);
+			collect(child);
 	};
 
 	for (SceneNode* child : fileNode->children)
-		collect(child, QMatrix4x4());
+		collect(child);
 }
 
 void GLWidget::setActiveAnimation(const QString& sourceFile, int clipIndex)
@@ -9956,7 +9991,7 @@ void GLWidget::resetAnimationPose(const QString& sourceFile)
 }
 
 void GLWidget::updateAnimatedMeshState(const QString& sourceFile,
-	const QHash<QString, QMatrix4x4>& worldTransforms)
+	const QHash<QUuid, QMatrix4x4>& worldTransformsByNodeUuid)
 {
 	if (!_viewer || !_viewer->sceneGraph())
 		return;
@@ -9969,13 +10004,12 @@ void GLWidget::updateAnimatedMeshState(const QString& sourceFile,
 	if (!runtime.data.hasNodeAnimations && !runtime.data.hasSkinning)
 		return;
 
-	QHash<QString, QMatrix4x4> nodeWorlds = worldTransforms;
 	std::function<void(SceneNode*)> applyToMeshes = [&](SceneNode* node)
 	{
 		if (!node)
 			return;
 
-		const QMatrix4x4 world = nodeWorlds.value(node->name, aiToQMatrix(node->localTransform));
+		const QMatrix4x4 world = worldTransformsByNodeUuid.value(node->nodeUuid, aiToQMatrix(node->localTransform));
 		for (const QUuid& uuid : node->meshUuids)
 		{
 			if (TriangleMesh* mesh = getMeshByUuid(uuid))
@@ -9991,7 +10025,8 @@ void GLWidget::updateAnimatedMeshState(const QString& sourceFile,
 					const QMatrix4x4 meshWorldInverse = world.inverted();
 					for (const GltfSkinJoint& joint : mesh->skinJoints())
 					{
-						const QMatrix4x4 jointWorld = nodeWorlds.value(joint.nodeName, world);
+						const QUuid jointNodeUuid = resolveRuntimeNodeUuid(runtime, -1, joint.nodeName);
+						const QMatrix4x4 jointWorld = worldTransformsByNodeUuid.value(jointNodeUuid, world);
 						palette.append(meshWorldInverse * jointWorld * aiToQMatrix(joint.inverseBindMatrix));
 					}
 					mesh->setJointPalette(palette);
@@ -10027,22 +10062,16 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 	if (!fileNode)
 		return;
 
-	QHash<QString, RuntimeNodeTransform> sampled = runtime.defaultNodeTransforms;
-	QHash<QString, QVector<float>> sampledMorphWeights = runtime.defaultNodeMorphWeights;
+	QHash<QUuid, RuntimeNodeTransform> sampled = runtime.defaultNodeTransformsByUuid;
+	QHash<QUuid, QVector<float>> sampledMorphWeightsByUuid = runtime.defaultNodeMorphWeightsByUuid;
 	QHash<QUuid, GLMaterial> animatedMaterials = runtime.defaultMeshMaterials;
 	QHash<int, bool> sampledNodeVisibility;
 	for (const GltfAnimationNodeVisibilityState& nodeState : runtime.data.nodeVisibilityStates)
 		sampledNodeVisibility.insert(nodeState.nodeIndex, nodeState.defaultVisible);
 	const GltfAnimationClip& clip = runtime.data.clips[clipIndex];
-	const auto resolveChannelNodeName = [&](const GltfAnimationChannel& channel) -> QString
+	const auto resolveChannelNodeUuid = [&](const GltfAnimationChannel& channel) -> QUuid
 	{
-		if (channel.targetNodeIndex >= 0 &&
-			channel.targetNodeIndex < runtime.data.nodeBindings.size() &&
-			!runtime.data.nodeBindings[channel.targetNodeIndex].nodeName.isEmpty())
-		{
-			return runtime.data.nodeBindings[channel.targetNodeIndex].nodeName;
-		}
-		return channel.targetNodeName;
+		return resolveRuntimeNodeUuid(runtime, channel.targetNodeIndex, channel.targetNodeName);
 	};
 	for (const GltfAnimationChannel& channel : clip.channels)
 	{
@@ -10097,11 +10126,11 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 			continue;
 		}
 
-		const QString resolvedNodeName = resolveChannelNodeName(channel);
-		if (resolvedNodeName.isEmpty())
+		const QUuid resolvedNodeUuid = resolveChannelNodeUuid(channel);
+		if (resolvedNodeUuid.isNull())
 			continue;
 
-		RuntimeNodeTransform node = sampled.value(resolvedNodeName);
+		RuntimeNodeTransform node = sampled.value(resolvedNodeUuid);
 		switch (channel.targetPath)
 		{
 		case GltfAnimationTargetPath::Translation:
@@ -10114,13 +10143,13 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 			node.scale = sampleVec3Keys(channel.vec3Keys, timeSeconds, node.scale);
 			break;
 		case GltfAnimationTargetPath::Weights:
-			sampledMorphWeights.insert(resolvedNodeName,
-				sampleWeightKeys(channel.weightKeys, timeSeconds, sampledMorphWeights.value(resolvedNodeName)));
+			sampledMorphWeightsByUuid.insert(resolvedNodeUuid,
+				sampleWeightKeys(channel.weightKeys, timeSeconds, sampledMorphWeightsByUuid.value(resolvedNodeUuid)));
 			continue;
 		case GltfAnimationTargetPath::Pointer:
 			continue;
 		}
-		sampled.insert(resolvedNodeName, node);
+		sampled.insert(resolvedNodeUuid, node);
 	}
 
 	const std::vector<TriangleMesh*>& meshes = getMeshStore();
@@ -10129,7 +10158,10 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 		if (!mesh || mesh->getSourceFile() != sourceFile || !mesh->hasMorphTargets())
 			continue;
 
-		const QVector<float> weights = sampledMorphWeights.value(mesh->getSourceNodeName());
+		const SceneNode* ownerNode = _viewer->sceneGraph()->findNodeForMesh(mesh->uuid());
+		const QVector<float> weights = ownerNode
+			? sampledMorphWeightsByUuid.value(ownerNode->nodeUuid)
+			: QVector<float>();
 		if (!weights.isEmpty())
 			mesh->applyMorphWeights(weights);
 		else
@@ -10138,8 +10170,7 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 
 	if (runtime.data.hasNodeAnimations || runtime.data.hasSkinning)
 	{
-		QHash<QString, QMatrix4x4> worldTransforms;
-		QHash<int, QMatrix4x4> worldTransformsByNodeIndex;
+		QHash<QUuid, QMatrix4x4> worldTransformsByNodeUuid;
 		std::function<void(SceneNode*, const QMatrix4x4&)> evalNode =
 			[&](SceneNode* node, const QMatrix4x4& parentWorld)
 		{
@@ -10147,18 +10178,10 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 				return;
 
 			const RuntimeNodeTransform nodeTransform =
-				sampled.value(node->name, decomposeNodeTransform(node->localTransform));
+				sampled.value(node->nodeUuid, decomposeNodeTransform(node->localTransform));
 			const QMatrix4x4 local = composeNodeTransform(nodeTransform);
 			const QMatrix4x4 world = parentWorld * local;
-			worldTransforms.insert(node->name, world);
-			for (const GltfAnimationNodeBinding& binding : runtime.data.nodeBindings)
-			{
-				if (binding.nodeName == node->name && binding.nodeIndex >= 0)
-				{
-					worldTransformsByNodeIndex.insert(binding.nodeIndex, world);
-					break;
-				}
-			}
+			worldTransformsByNodeUuid.insert(node->nodeUuid, world);
 
 			for (SceneNode* child : node->children)
 				evalNode(child, world);
@@ -10167,7 +10190,7 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 		for (SceneNode* child : fileNode->children)
 			evalNode(child, QMatrix4x4());
 
-		updateAnimatedMeshState(sourceFile, worldTransforms);
+		updateAnimatedMeshState(sourceFile, worldTransformsByNodeUuid);
 
 		if (!runtime.data.lightBindings.isEmpty() &&
 			_originalParsedLights.size() == static_cast<size_t>(runtime.data.lightBindings.size()))
@@ -10184,15 +10207,23 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 
 				QMatrix4x4 world;
 				bool hasWorldTransform = false;
-				if (binding.nodeIndex >= 0 && worldTransformsByNodeIndex.contains(binding.nodeIndex))
+				if (binding.nodeIndex >= 0 && runtime.nodeUuidByIndex.contains(binding.nodeIndex))
 				{
-					world = worldTransformsByNodeIndex.value(binding.nodeIndex);
-					hasWorldTransform = true;
+					const QUuid nodeUuid = resolveRuntimeNodeUuid(runtime, binding.nodeIndex);
+					if (worldTransformsByNodeUuid.contains(nodeUuid))
+					{
+						world = worldTransformsByNodeUuid.value(nodeUuid);
+						hasWorldTransform = true;
+					}
 				}
-				else if (!binding.nodeName.isEmpty() && worldTransforms.contains(binding.nodeName))
+				else if (!binding.nodeName.isEmpty())
 				{
-					world = worldTransforms.value(binding.nodeName);
-					hasWorldTransform = true;
+					const QUuid nodeUuid = resolveRuntimeNodeUuid(runtime, -1, binding.nodeName);
+					if (!nodeUuid.isNull() && worldTransformsByNodeUuid.contains(nodeUuid))
+					{
+						world = worldTransformsByNodeUuid.value(nodeUuid);
+						hasWorldTransform = true;
+					}
 				}
 
 				if (!hasWorldTransform)
@@ -10227,9 +10258,10 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 			if (_activeGltfCameraIndex < camData.cameras.size())
 			{
 				const GltfCameraEntry& cam = camData.cameras[_activeGltfCameraIndex];
-				if (!cam.nodeName.isEmpty() && worldTransforms.contains(cam.nodeName))
+				const QUuid cameraNodeUuid = resolveRuntimeNodeUuid(runtime, -1, cam.nodeName);
+				if (!cameraNodeUuid.isNull() && worldTransformsByNodeUuid.contains(cameraNodeUuid))
 				{
-					const QMatrix4x4& world = worldTransforms.value(cam.nodeName);
+					const QMatrix4x4& world = worldTransformsByNodeUuid.value(cameraNodeUuid);
 					// Position = translation column of the world matrix.
 					const QVector3D worldPos(world(0, 3), world(1, 3), world(2, 3));
 					// glTF cameras look along local -Z; +Y is up.

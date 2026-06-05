@@ -465,10 +465,17 @@ public:
 	struct RuntimeAnimationFileState
 	{
 		GltfAnimationData data;
-		QHash<QString, RuntimeNodeTransform> defaultNodeTransforms;
-		QHash<QString, QVector<float>> defaultNodeMorphWeights;
+		// Stable runtime state keyed by SceneNode identity rather than imported
+		// node names. This is the authoritative glTF runtime transform contract.
+		QHash<QUuid, RuntimeNodeTransform> defaultNodeTransformsByUuid;
+		QHash<QUuid, QVector<float>> defaultNodeMorphWeightsByUuid;
 		QHash<QUuid, GLMaterial> defaultMeshMaterials;
 		QMultiHash<int, QUuid> meshUuidsByMaterialIndex;
+
+		// Transitional lookup tables from imported glTF animation/light/camera
+		// references into stable SceneNode UUIDs for the currently loaded file.
+		QHash<QString, QUuid> nodeUuidByName;
+		QHash<int, QUuid> nodeUuidByIndex;
 	};
 
 signals:
@@ -786,7 +793,7 @@ private:
 	void applyAnimationPose(const QString& sourceFile, int clipIndex, double timeSeconds);
 	void resetAnimationPose(const QString& sourceFile);
 	void updateAnimatedMeshState(const QString& sourceFile,
-		const QHash<QString, QMatrix4x4>& worldTransforms);
+		const QHash<QUuid, QMatrix4x4>& worldTransformsByNodeUuid);
 
 	GLuint createGPUTextureFromImage(const QImage& image, const TextureSamplerSettings& samplers);
 	GLuint uploadDecodedTextureImage(const QImage& image, const TextureSamplerSettings& samplers);

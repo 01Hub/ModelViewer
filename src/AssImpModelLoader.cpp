@@ -933,14 +933,18 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		return;
 	}
 
-	// === Parse glTF primitive modes and correct material structure ===
+	// Route every imported aiScene through runtime node/world transforms. Formats
+	// with authored aiNode transforms are positioned by model matrices, while
+	// identity-transform scenes continue to render from their vertex data as-is.
 	QString qPath = QString::fromStdString(path);
+	const bool isGltfLike = qPath.endsWith(".gltf", Qt::CaseInsensitive) ||
+		qPath.endsWith(".glb", Qt::CaseInsensitive);
 
-	// CRITICAL: Capture original material indices BEFORE deduplication
-	// This ensures we preserve the true glTF material indices for later export matching
+	// Capture original glTF material indices before deduplication so import,
+	// variants, and export continue to share the authored material numbering.
 	_meshIndexToOriginalMaterialIndex.clear();
 	_aiMatToGltfMat.clear();
-	if (qPath.endsWith(".gltf", Qt::CaseInsensitive) || qPath.endsWith(".glb", Qt::CaseInsensitive))
+	if (isGltfLike)
 	{
 		// Save the original material indices before they get remapped
 		for (unsigned int i = 0; i < _scene->mNumMeshes; ++i)
@@ -960,8 +964,6 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		parseGltfVariants(qPath);
 		_animationData = GltfAnimationData();
 		parseSceneAnimations();
-		_preserveNodeTransformsForRuntime =
-			(_animationData.hasNodeAnimations || _animationData.hasSkinning);
 		// parseSceneCameras() is deferred to after applyCoordinateSystemTransformations()
 		// so that findNodeWorldTransform() sees the corrected root-node matrix
 		// (auto-orient rotation + auto-scale) that is also applied to mesh vertices.
@@ -971,7 +973,6 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	{
 		_animationData = GltfAnimationData();
 		_cameraData    = GltfCameraData();
-		_preserveNodeTransformsForRuntime = false;
 	}
 
 	_sceneStats = collectSceneMeshInfo(_scene);
@@ -1273,53 +1274,18 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 		float determinant = glm::determinant(glmTransform);
 		hasNegativeScale = determinant < 0.0f;
 
-		// Transform Position
 		aiVector3D pos = mesh->mVertices[i];
-		if (_preserveNodeTransformsForRuntime)
-		{
-			vertex.Position = glm::vec3(pos.x, pos.y, pos.z);
-		}
-		else
-		{
-			aiVector3D transformedPos = transform * pos;
-			vertex.Position = glm::vec3(transformedPos.x, transformedPos.y, transformedPos.z);
-		}
+		vertex.Position = glm::vec3(pos.x, pos.y, pos.z);
 
-		// Transform Normals - improved logic
 		if (hasNormals)
 		{
-			// Use existing normals from the mesh
 			aiVector3D normal = mesh->mNormals[i];
-			aiVector3D transformedNormal = normalMatrix * normal;
-			transformedNormal.Normalize();
-
-			// Flip normal if negative scale detected
-			if (hasNegativeScale)
-			{
-				transformedNormal = -transformedNormal;
-			}
-
-			if (_preserveNodeTransformsForRuntime)
-				vertex.Normal = glm::vec3(normal.x, normal.y, normal.z);
-			else
-				vertex.Normal = glm::vec3(transformedNormal.x, transformedNormal.y, transformedNormal.z);
+			vertex.Normal = glm::vec3(normal.x, normal.y, normal.z);
 		}
 		else if (!generatedNormals.empty())
 		{
-			// Use generated face normals
 			glm::vec3 normal = generatedNormals[i];
-			aiVector3D aiNormal(normal.x, normal.y, normal.z);
-			aiVector3D transformedNormal = normalMatrix * aiNormal;
-			transformedNormal.Normalize();
-			// Flip normal if negative scale detected
-			if (hasNegativeScale)
-			{
-				transformedNormal = -transformedNormal;
-			}
-			if (_preserveNodeTransformsForRuntime)
-				vertex.Normal = normal;
-			else
-				vertex.Normal = glm::vec3(transformedNormal.x, transformedNormal.y, transformedNormal.z);
+			vertex.Normal = normal;
 		}
 		else
 		{
@@ -1331,24 +1297,11 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 			}
 			else
 			{
-				// Fallback for other geometry without normals
-				// Use transformed up vector instead of position
-				aiVector3D upVector(0.0f, 1.0f, 0.0f);
-				aiVector3D transformedUp = normalMatrix * upVector;
-				transformedUp.Normalize();
-				// Flip normal if negative scale detected
-				if (hasNegativeScale)
-				{
-					transformedUp = -transformedUp;
-				}
-				if (_preserveNodeTransformsForRuntime)
-					vertex.Normal = glm::vec3(0.0f, 1.0f, 0.0f);
-				else
-					vertex.Normal = glm::vec3(transformedUp.x, transformedUp.y, transformedUp.z);
+				vertex.Normal = glm::vec3(0.0f, 1.0f, 0.0f);
 			}
 		}
 
-		// Texture Coordinates - Extract ALL available sets (0-3)
+		// Extract up to four UV sets used by the runtime vertex layout.
 		bool hasAnyTexCoords = false;
 		for (int texCoordSet = 0; texCoordSet < 4; texCoordSet++)
 		{
@@ -1362,7 +1315,6 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 			}
 			else
 			{
-				// Initialize unused sets to zero (for safety)
 				vertex.TexCoords[texCoordSet] = glm::vec2(0.0f);
 			}
 		}
@@ -1371,38 +1323,16 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 		{
 			assignFallbackTangentBasis(vertex);
 
-			// Tangent (only process if we have texCoords)
 			if (mesh->mTangents)
 			{
 				aiVector3D tangent = mesh->mTangents[i];
-				aiVector3D transformedTangent = normalMatrix * tangent;
-				transformedTangent.Normalize();
-				// Flip tangent if negative scale detected
-				if (hasNegativeScale)
-				{
-					transformedTangent = -transformedTangent;
-				}
-				if (_preserveNodeTransformsForRuntime)
-					vertex.Tangent = glm::vec3(tangent.x, tangent.y, tangent.z);
-				else
-					vertex.Tangent = glm::vec3(transformedTangent.x, transformedTangent.y, transformedTangent.z);
+				vertex.Tangent = glm::vec3(tangent.x, tangent.y, tangent.z);
 			}
 
-			// Bitangent
 			if (mesh->mBitangents)
 			{
 				aiVector3D bitangent = mesh->mBitangents[i];
-				aiVector3D transformedBitangent = normalMatrix * bitangent;
-				transformedBitangent.Normalize();
-				// Flip bitangent if negative scale detected
-				if (hasNegativeScale)
-				{
-					transformedBitangent = -transformedBitangent;
-				}
-				if (_preserveNodeTransformsForRuntime)
-					vertex.Bitangent = glm::vec3(bitangent.x, bitangent.y, bitangent.z);
-				else
-					vertex.Bitangent = glm::vec3(transformedBitangent.x, transformedBitangent.y, transformedBitangent.z);
+				vertex.Bitangent = glm::vec3(bitangent.x, bitangent.y, bitangent.z);
 			}
 		}
 		else
@@ -1421,7 +1351,7 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 		}
 		else
 		{
-			vertex.Color = glm::vec4(1.0f); // Default color (white)
+			vertex.Color = glm::vec4(1.0f);
 		}
 
 		vertices.push_back(vertex);
@@ -1536,51 +1466,15 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 		morphBaseBasis.positions.size() == vertices.size())
 	{
 		GltfPrimitiveVertexBasis importedBasis = morphBaseBasis;
-		if (!_preserveNodeTransformsForRuntime)
-		{
-			for (glm::vec3& position : importedBasis.positions)
-			{
-				const aiVector3D transformed = transform * aiVector3D(position.x, position.y, position.z);
-				position = glm::vec3(transformed.x, transformed.y, transformed.z);
-			}
-
-			for (glm::vec3& normal : importedBasis.normals)
-			{
-				aiVector3D transformed = normalMatrix * aiVector3D(normal.x, normal.y, normal.z);
-				if (transformed.Length() > 0.0001f)
-					transformed.Normalize();
-				if (hasNegativeScale)
-					transformed = -transformed;
-				normal = glm::vec3(transformed.x, transformed.y, transformed.z);
-			}
-
-			for (glm::vec3& tangent : importedBasis.tangents)
-			{
-				aiVector3D transformed = normalMatrix * aiVector3D(tangent.x, tangent.y, tangent.z);
-				if (transformed.Length() > 0.0001f)
-					transformed.Normalize();
-				if (hasNegativeScale)
-					transformed = -transformed;
-				tangent = glm::vec3(transformed.x, transformed.y, transformed.z);
-			}
-		}
-
 		const std::vector<unsigned int> morphRemap = buildMorphVertexRemap(vertices, importedBasis);
 		if (!morphRemap.empty())
 			reorderMorphTargetsToImportedVertexOrder(morphTargets, morphRemap);
 	}
 
-	if (!_preserveNodeTransformsForRuntime && !morphTargets.isEmpty())
+	if (!morphTargets.isEmpty())
 	{
 		for (MorphTargetData& morphTarget : morphTargets)
 		{
-			for (glm::vec3& delta : morphTarget.positionDeltas)
-			{
-				const aiVector3D transformed =
-					transform * aiVector3D(delta.x, delta.y, delta.z);
-				delta = glm::vec3(transformed.x, transformed.y, transformed.z);
-			}
-
 			for (glm::vec3& delta : morphTarget.normalDeltas)
 			{
 				aiVector3D transformed =
@@ -1605,7 +1499,7 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 		}
 	}
 
-	// Now wak through each of the mesh's faces (a face is a mesh its triangle) and retrieve the corresponding vertex indices.
+	// Walk each face and record its vertex indices.
 	for (unsigned int i = 0; i < mesh->mNumFaces; i++)
 	{
 		aiFace face = mesh->mFaces[i];
@@ -1807,7 +1701,7 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	meshData.originalMaterialIndex = originalMaterialIndex;
 	meshData.sourceFile = QString::fromStdString(_path);
 	meshData.sourceNodeName = QString::fromUtf8(nodeName);
-	meshData.preserveNodeTransform = _preserveNodeTransformsForRuntime;
+	meshData.preserveNodeTransform = true;
 	meshData.skinJoints = skinJoints;
 	meshData.morphTargets = morphTargets;
 	meshData.defaultMorphWeights = defaultMorphWeights;

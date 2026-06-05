@@ -8,11 +8,18 @@
 
 #include <QHash>
 #include <QJsonArray>
+#include <QMatrix4x4>
 #include <QObject>
 #include <QString>
 #include <QStringList>
 #include <QDataStream>
 #include <assimp/scene.h>
+
+struct SceneGraphWorldTransforms
+{
+    QHash<QUuid, QMatrix4x4> nodeWorldByUuid;
+    QHash<QUuid, QMatrix4x4> meshWorldByUuid;
+};
 
 // ---------------------------------------------------------------------------
 // SceneGraph
@@ -92,6 +99,11 @@ public:
     // The order follows a DFS pre-order traversal (node's own meshUuids first,
     // then children left-to-right), which matches the original load order.
     QList<QUuid> collectMeshUuids(const SceneNode* node) const;
+
+    // Evaluate authoritative world transforms from the stored localTransform
+    // hierarchy.  The returned maps are keyed by stable nodeUuid / meshUuid.
+    SceneGraphWorldTransforms evaluateWorldTransforms(const SceneNode* subtreeRoot = nullptr) const;
+    SceneGraphWorldTransforms evaluateWorldTransformsForFile(const QString& sourceFile) const;
 
     // Get all punctual lights in the scene.
     const std::vector<GPULight>& lights() const { return _lights; }
