@@ -657,6 +657,7 @@ GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent
 _bgShader(nullptr),
 _bgSplitShader(nullptr),
 _fgShader(nullptr),
+_fgFlatShader(nullptr),
 _axisShader(nullptr),
 _vertexNormalShader(nullptr),
 _faceNormalShader(nullptr),
@@ -4751,6 +4752,14 @@ void GLWidget::createShaderPrograms()
 	_fgShader = std::make_unique<ShaderProgram>(); _fgShader->setObjectName("_fgShader");
     _fgShader->loadCompileAndLinkShaderFromFile(path + "shaders/main_scene.vert",
         path + "shaders/main_scene.frag");
+	// Flat-shading variant: same vert + frag shaders, plus a geometry shader that
+	// computes the true face normal via cross(edge0,edge1) and writes it into
+	// v_flatNormal / v_reflectionFlatNormal for all three output vertices.
+	// Used for DisplayMode::FLATSHADED on GL_TRIANGLES meshes only.
+	_fgFlatShader = std::make_unique<ShaderProgram>(); _fgFlatShader->setObjectName("_fgFlatShader");
+	_fgFlatShader->loadCompileAndLinkShaderFromFile(path + "shaders/main_scene_flat.vert",
+	    path + "shaders/main_scene.frag",
+	    path + "shaders/main_scene_flat.geom");
 	// Axis
 	_axisShader = std::make_unique<ShaderProgram>(); _axisShader->setObjectName("_axisShader");
 	_axisShader->loadCompileAndLinkShaderFromFile(path + "shaders/axis.vert", path + "shaders/axis.frag");
@@ -6843,6 +6852,133 @@ void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 	bindIBLTextures();
 }
 
+
+// ---------------------------------------------------------------------------
+// syncUniformsToFlatShader
+// Copies every active uniform from _fgShader to _fgFlatShader using
+// glGetActiveUniform / glGetUniform* / glProgramUniform*.  This is called
+// once per flat-shaded triangle-mesh draw so that the flat shader always has
+// the same per-frame and per-mesh state as the main shader without requiring
+// every setUniformValue call site to be duplicated.
+//
+// glProgramUniform* (OpenGL 4.1 core) writes directly to the named program
+// object without needing to bind it — no pipeline state disturbance.
+// ---------------------------------------------------------------------------
+void GLWidget::syncUniformsToFlatShader()
+{
+    if (!_fgFlatShader || !_fgFlatShader->isLinked()) return;
+
+    const GLuint srcProg = _fgShader->programId();
+    const GLuint dstProg = _fgFlatShader->programId();
+
+    GLint numUniforms = 0;
+    glGetProgramiv(srcProg, GL_ACTIVE_UNIFORMS, &numUniforms);
+
+    for (GLint idx = 0; idx < numUniforms; ++idx)
+    {
+        char rawName[512];
+        GLsizei nameLen = 0;
+        GLint   size    = 0;    // array size (1 for non-arrays)
+        GLenum  type    = 0;
+        glGetActiveUniform(srcProg, static_cast<GLuint>(idx),
+                           static_cast<GLsizei>(sizeof(rawName)),
+                           &nameLen, &size, &type, rawName);
+
+        // glGetActiveUniform appends "[0]" for the base name of arrays.
+        // Strip it so we can re-attach "[N]" ourselves per element.
+        QString baseName = QString::fromLatin1(rawName, nameLen);
+        if (baseName.endsWith(QLatin1String("[0]")))
+            baseName.chop(3);
+
+        for (GLint elem = 0; elem < size; ++elem)
+        {
+            const QString elemName = (size > 1)
+                ? QStringLiteral("%1[%2]").arg(baseName).arg(elem)
+                : baseName;
+
+            const QByteArray en   = elemName.toLatin1();
+            const char*      encs = en.constData();
+
+            const GLint srcLoc = glGetUniformLocation(srcProg, encs);
+            const GLint dstLoc = glGetUniformLocation(dstProg, encs);
+            if (srcLoc < 0 || dstLoc < 0) continue;
+
+            switch (type)
+            {
+            case GL_FLOAT: {
+                GLfloat v; glGetUniformfv(srcProg, srcLoc, &v);
+                glProgramUniform1f(dstProg, dstLoc, v);
+                break;
+            }
+            case GL_FLOAT_VEC2: {
+                GLfloat v[2]; glGetUniformfv(srcProg, srcLoc, v);
+                glProgramUniform2fv(dstProg, dstLoc, 1, v);
+                break;
+            }
+            case GL_FLOAT_VEC3: {
+                GLfloat v[3]; glGetUniformfv(srcProg, srcLoc, v);
+                glProgramUniform3fv(dstProg, dstLoc, 1, v);
+                break;
+            }
+            case GL_FLOAT_VEC4: {
+                GLfloat v[4]; glGetUniformfv(srcProg, srcLoc, v);
+                glProgramUniform4fv(dstProg, dstLoc, 1, v);
+                break;
+            }
+            case GL_INT:
+            case GL_BOOL: {
+                GLint v; glGetUniformiv(srcProg, srcLoc, &v);
+                glProgramUniform1i(dstProg, dstLoc, v);
+                break;
+            }
+            case GL_UNSIGNED_INT: {
+                GLuint v; glGetUniformuiv(srcProg, srcLoc, &v);
+                glProgramUniform1ui(dstProg, dstLoc, v);
+                break;
+            }
+            case GL_FLOAT_MAT2: {
+                GLfloat v[4]; glGetUniformfv(srcProg, srcLoc, v);
+                glProgramUniformMatrix2fv(dstProg, dstLoc, 1, GL_FALSE, v);
+                break;
+            }
+            case GL_FLOAT_MAT3: {
+                GLfloat v[9]; glGetUniformfv(srcProg, srcLoc, v);
+                glProgramUniformMatrix3fv(dstProg, dstLoc, 1, GL_FALSE, v);
+                break;
+            }
+            case GL_FLOAT_MAT4: {
+                GLfloat v[16]; glGetUniformfv(srcProg, srcLoc, v);
+                glProgramUniformMatrix4fv(dstProg, dstLoc, 1, GL_FALSE, v);
+                break;
+            }
+            // Sampler types: the uniform value is the texture-unit integer.
+            // Texture bindings themselves are global GL state — just copy the unit.
+            case GL_SAMPLER_1D:
+            case GL_SAMPLER_2D:
+            case GL_SAMPLER_3D:
+            case GL_SAMPLER_CUBE:
+            case GL_SAMPLER_2D_ARRAY:
+            case GL_SAMPLER_2D_SHADOW:
+            case GL_SAMPLER_CUBE_SHADOW:
+            case GL_SAMPLER_BUFFER:
+            case GL_INT_SAMPLER_1D:
+            case GL_INT_SAMPLER_2D:
+            case GL_INT_SAMPLER_3D:
+            case GL_INT_SAMPLER_BUFFER:
+            case GL_UNSIGNED_INT_SAMPLER_1D:
+            case GL_UNSIGNED_INT_SAMPLER_2D:
+            case GL_UNSIGNED_INT_SAMPLER_3D:
+            case GL_UNSIGNED_INT_SAMPLER_BUFFER: {
+                GLint v; glGetUniformiv(srcProg, srcLoc, &v);
+                glProgramUniform1i(dstProg, dstLoc, v);
+                break;
+            }
+            default:
+                break;
+            }
+        }
+    }
+}
 
 
 void GLWidget::drawSectionCapping()
@@ -9128,15 +9264,45 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 		// ============================================
 	case DisplayMode::SHADED:
 	case DisplayMode::REALSHADED:
-	case DisplayMode::FLATSHADED:
 		// ============================================
-		// SHADED: Solid rendering only
+		// SHADED / REALSHADED: Solid rendering only
 		// ============================================
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glLineWidth(1.0f);
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		_fgShader->bind();
 		mesh->render();
+		break;
+
+	case DisplayMode::FLATSHADED:
+		// ============================================
+		// FLATSHADED: Use a geometry shader to compute
+		// the true face normal for triangle meshes.
+		// Non-triangle primitives fall back to _fgShader
+		// (flat qualifier picks provoking-vertex normal).
+		// ============================================
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glLineWidth(1.0f);
+		glDisable(GL_POLYGON_OFFSET_FILL);
+		if (_fgFlatShader && _fgFlatShader->isLinked()
+		    && mesh->getPrimitiveMode() == GL_TRIANGLES)
+		{
+			// Sync all current _fgShader uniform state (per-frame + per-mesh
+			// from previous draw) to _fgFlatShader before updating per-mesh
+			// uniforms via mesh->render().
+			syncUniformsToFlatShader();
+			_fgFlatShader->bind();
+			mesh->setProg(_fgFlatShader.get());
+			mesh->render();
+			// Restore main shader so subsequent draws (wireframe overlay, etc.)
+			// use the correct program.
+			_fgShader->bind();
+		}
+		else
+		{
+			_fgShader->bind();
+			mesh->render();
+		}
 		break;
 
 		// ============================================

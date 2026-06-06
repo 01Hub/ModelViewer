@@ -48,6 +48,10 @@ out vec3 v_tangentFragPos;
 
 out vec3 v_reflectionPosition;
 out vec3 v_reflectionNormal;
+flat out vec3 v_flatNormal;
+flat out vec3 v_reflectionFlatNormal;
+flat out vec3 v_positionFlat;
+noperspective out vec3 v_positionLinear;
 
 out VS_OUT_SHADOW {
     vec3 FragPos;
@@ -164,6 +168,14 @@ void main()
         v_reflectionNormal = vec3(0.0);
     else
         v_reflectionNormal = reflNormal / reflNormalLen;
+
+    // Flat shading: provoking vertex's value used for whole triangle (flat qualifier)
+    v_flatNormal = v_normal;
+    v_reflectionFlatNormal = v_reflectionNormal;
+    v_positionFlat = vec3(worldPos);  // constant per triangle — for flat lighting
+    // Linear (non-perspective) interpolation of world position keeps dFdx/dFdy
+    // constant across the triangle regardless of zoom — required for stable flat normals.
+    v_positionLinear = vec3(worldPos);
 
     // Depth mapping
     vec3 T = mat3(modelViewMatrix) * skinnedTangent;

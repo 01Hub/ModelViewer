@@ -633,6 +633,7 @@ protected:
 private:
 
 	void createShaderPrograms();
+	void syncUniformsToFlatShader();
 	void createLights();
 
 	// Fullscreen triangle methods for IBL
@@ -991,6 +992,7 @@ private:
 	QMatrix4x4 _viewportMatrix;
 
 	std::unique_ptr<ShaderProgram> _fgShader;
+	std::unique_ptr<ShaderProgram> _fgFlatShader;   // flat shading: vert + geom (face normals) + frag
 	std::unique_ptr<ShaderProgram> _axisShader;
 	std::unique_ptr<ShaderProgram> _vertexNormalShader;
 	std::unique_ptr<ShaderProgram> _faceNormalShader;
