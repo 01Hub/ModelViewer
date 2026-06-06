@@ -100,6 +100,9 @@ public:
 	void setViewRange(float range);
 	float getViewRange() const;
 
+	void setSceneRadius(float radius);
+	float getSceneRadius() const;
+
 	void setProjectionType(ProjectionType proj);
 	ProjectionType getProjectionType() const;
 
@@ -172,6 +175,9 @@ private:
 	float _width;
 	float _height;
 	float _viewRange;
+	float _sceneRadius;  // bounding sphere radius of the loaded scene; used to
+	                     // floor the perspective far plane so it always covers
+	                     // the full scene regardless of zoom depth
 	float _FOV;
 	float _rotatedX, _rotatedY, _rotatedZ, _zoomValue;
 	ViewProjection _viewProj;

@@ -1697,6 +1697,9 @@ void GLWidget::resizeGL(int width, int height)
 	_projectionMatrix.setToIdentity();
 	_primaryCamera->setScreenSize(w, h);
 	_primaryCamera->setViewRange(_viewRange);
+	// Keep the scene radius in the camera up-to-date so that the perspective
+	// far plane always covers the full scene regardless of zoom depth.
+	_primaryCamera->setSceneRadius(_boundingSphere.getRadius());
 	if (_projection == ViewProjection::ORTHOGRAPHIC)
 	{
 		_primaryCamera->setProjectionType(GLCamera::ProjectionType::ORTHOGRAPHIC);		
@@ -6157,6 +6160,7 @@ void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 	// Top View
 	_orthoViewsCamera->setScreenSize(width() / 2, height() / 2);
 	_orthoViewsCamera->setViewRange(_viewRange);
+	_orthoViewsCamera->setSceneRadius(_boundingSphere.getRadius());
 	_orthoViewsCamera->setProjectionType(GLCamera::ProjectionType::ORTHOGRAPHIC);
 	_orthoViewsCamera->setPosition(_primaryCamera->getPosition());
 	glViewport(0, 0, width() / 2, height() / 2);
@@ -6410,9 +6414,12 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 		{
 			// Capping stencil pass: skip meshes outside frustum or that don't
 			// intersect the active cap plane — they contribute nothing to stencil.
+			// Skinned meshes are exempt from frustum culling (same rationale as
+			// isMeshVisible): their bind-pose AABB is stale after the initial
+			// animation pose is applied, so the test would incorrectly drop them.
 			if (activeCapPlaneIndex >= 0)
 			{
-				if (isMeshOutsideFrustum(mesh)) continue;
+				if (!mesh->hasSkinning() && isMeshOutsideFrustum(mesh)) continue;
 				if (!isMeshStraddlesCapPlane(mesh, activeCapPlaneIndex)) continue;
 			}
 
@@ -6736,8 +6743,20 @@ bool GLWidget::isMeshVisible(const TriangleMesh* mesh, int activeClipPlaneIndex)
 {
 	if (!isMeshAnimationVisible(mesh)) return false;
 
-	// 1. Frustum cull — applied in every pass, clipping or not
-	if (isMeshOutsideFrustum(mesh)) return false;
+	// 1. Frustum cull — applied in every pass, clipping or not.
+	// Skip frustum culling for any skinned mesh.
+	// For GPU-skinned meshes the world-space bounding box stored in the mesh
+	// is the BIND-POSE (T-pose) box — it reflects the raw vertex positions
+	// before joint matrices are applied.  Our viewer always applies the
+	// animation pose at load time (time = 0), so the actual rendered positions
+	// can differ significantly from the bind-pose box even when no animation is
+	// actively playing.  A frustum test against the stale bind-pose AABB would
+	// incorrectly cull visible limbs, causing them to vanish on zoom-in.
+	// Skipping the test for all skinned meshes is safe: the GPU rasterizer
+	// clips any geometry that is genuinely outside the viewport at no extra cost,
+	// and the performance cost of drawing a few extra off-screen skinned meshes
+	// is negligible compared to the cost of the skinning shader itself.
+	if (!mesh->hasSkinning() && isMeshOutsideFrustum(mesh)) return false;
 
 	// 2. No clip planes in this pass → frustum result is final
 	if (activeClipPlaneIndex < 0) return true;
@@ -8878,6 +8897,10 @@ void GLWidget::render(GLCamera* camera)
 
 	_viewMatrix.setToIdentity();
 	_viewMatrix = camera->getViewMatrix();
+	// Keep the scene radius in the camera current every frame so the ortho
+	// near/far planes always cover the full scene, including animated models
+	// whose GPU-skinned geometry extends beyond the bind-pose bounding sphere.
+	camera->setSceneRadius(_boundingSphere.getRadius());
 	_projectionMatrix = camera->getProjectionMatrix();
 	_modelViewMatrix = _viewMatrix * _modelMatrix;
 
@@ -12105,8 +12128,16 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 			_lastZoomDirection = -1;
 		}
 		
-		if (_viewRange < _boundingSphere.getRadius() / 100.0f)
-			_viewRange = _boundingSphere.getRadius() / 100.0f;
+		// Perspective: clamp so the orbit distance (1.25×viewRange at 45° FOV)
+		// never drops below the scene bounding-sphere radius, keeping the camera
+		// eye outside the model and preventing tear-through artefacts.
+		// Ortho: the near/far floor in GLCamera handles tearing without any
+		// zoom restriction, so only the original floor is applied.
+		const float minVR = (_projection == ViewProjection::PERSPECTIVE)
+		    ? _boundingSphere.getRadius() * 0.5f
+		    : _boundingSphere.getRadius() / 100.0f;
+		if (_viewRange < minVR)
+			_viewRange = minVR;
 		if (_viewRange > _boundingSphere.getRadius() * 100.0f)
 			_viewRange = _boundingSphere.getRadius() * 100.0f;
 		_currentViewRange = _viewRange;
@@ -12281,10 +12312,15 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 	else
 		_viewRange /= zoomFactor;
 
-	if (_viewRange < _boundingSphere.getRadius() / 100.0f)
-		_viewRange = _boundingSphere.getRadius() / 100.0f;
-	if (_viewRange > _boundingSphere.getRadius() * 100.0f)
-		_viewRange = _boundingSphere.getRadius() * 100.0f;
+	{
+		const float minVR = (_projection == ViewProjection::PERSPECTIVE)
+		    ? _boundingSphere.getRadius() * 0.5f
+		    : _boundingSphere.getRadius() / 100.0f;
+		if (_viewRange < minVR)
+			_viewRange = minVR;
+		if (_viewRange > _boundingSphere.getRadius() * 100.0f)
+			_viewRange = _boundingSphere.getRadius() * 100.0f;
+	}
 
 	_currentViewRange = _viewRange;
 
@@ -12479,10 +12515,14 @@ void GLWidget::performKeyboardNav()
 					_viewRange /= 1.05f;
 				else
 					_viewRange *= 1.05f;
-				if (_viewRange < _boundingSphere.getRadius() / 100.0f)
-					_viewRange = _boundingSphere.getRadius() / 100.0f;
-				if (_viewRange > _boundingSphere.getRadius() * 100.0f)
-					_viewRange = _boundingSphere.getRadius() * 100.0f;
+				{
+					const float minVR = (_projection == ViewProjection::PERSPECTIVE)
+					    ? _boundingSphere.getRadius() * 0.5f
+					    : _boundingSphere.getRadius() / 100.0f;
+					if (_viewRange < minVR) _viewRange = minVR;
+					if (_viewRange > _boundingSphere.getRadius() * 100.0f)
+						_viewRange = _boundingSphere.getRadius() * 100.0f;
+				}
 				// Translate to focus on mouse center
 				QPoint pos = mapFromGlobal(QCursor::pos());
 				QPoint cen = getClientRectFromPoint(pos).center();
@@ -12627,9 +12667,10 @@ void GLWidget::onInertiaTimer()
 
 		resizeGL(width(), height());
 
-		// Clamp _viewRange as before
-		float minRange = _boundingSphere.getRadius() / 100.0f;
-		float maxRange = _boundingSphere.getRadius() * 100.0f;
+		const float minRange = (_projection == ViewProjection::PERSPECTIVE)
+		    ? _boundingSphere.getRadius() * 0.5f
+		    : _boundingSphere.getRadius() / 100.0f;
+		const float maxRange = _boundingSphere.getRadius() * 100.0f;
 		if (_viewRange < minRange) _viewRange = minRange;
 		if (_viewRange > maxRange) _viewRange = maxRange;
 		_currentViewRange = _viewRange;
