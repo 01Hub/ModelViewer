@@ -105,6 +105,22 @@ bool convertPixelToRay(const QPoint& pixel, const QRect& viewport, int widgetHei
 	return !dir.isNull();
 }
 
+SceneNode* findSceneNodeByAiChildPath(SceneNode* aiRootNode, const QVector<int>& aiChildPath)
+{
+	if (!aiRootNode)
+		return nullptr;
+
+	SceneNode* current = aiRootNode;
+	for (int childIndex : aiChildPath)
+	{
+		if (childIndex < 0 || childIndex >= current->children.size())
+			return nullptr;
+		current = current->children.at(childIndex);
+	}
+
+	return current;
+}
+
 bool intersectRayPlane(const QVector3D& rayOrigin, const QVector3D& rayDir,
 	const QVector3D& planePoint, const QVector3D& planeNormal,
 	QVector3D& outPoint)
@@ -309,22 +325,6 @@ QUuid resolveRuntimeNodeUuid(const GLWidget::RuntimeAnimationFileState& runtime,
 		return runtime.nodeUuidByName.value(fallbackNodeName, QUuid());
 
 	return QUuid();
-}
-
-SceneNode* findSceneNodeByAiChildPath(SceneNode* aiRootNode, const QVector<int>& aiChildPath)
-{
-	if (!aiRootNode)
-		return nullptr;
-
-	SceneNode* current = aiRootNode;
-	for (int childIndex : aiChildPath)
-	{
-		if (childIndex < 0 || childIndex >= current->children.size())
-			return nullptr;
-		current = current->children.at(childIndex);
-	}
-
-	return current;
 }
 
 QVector3D sampleVec3Keys(const QVector<GltfAnimationVec3Key>& keys, double timeSeconds, const QVector3D& fallback)
@@ -3011,6 +3011,13 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 	emit displayListSet();
 }
 
+void GLWidget::resetModelTransformBasis()
+{
+	_lightRepoBasis.baselineCenter = glm::vec3(0.0f);
+	_lightRepoBasis.baselineRadius = 0.0f;
+	_lightRepoBasis.accumulatedRotation = glm::mat4(1.0f);
+}
+
 void GLWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 {
 	_currentTranslation = _primaryCamera->getPosition();
@@ -4734,7 +4741,17 @@ void GLWidget::applyTransforms(const QMap<int, TransformState>& transforms, bool
 			_viewer->sceneGraph()->gltfCameraDataForFile(_activeGltfCameraFile);
 		if (_activeGltfCameraIndex >= 0 && _activeGltfCameraIndex < camData.cameras.size())
 		{
-			applyGltfCameraEntryTransform(camData.cameras[_activeGltfCameraIndex]);
+			const GltfCameraEntry& cam = camData.cameras[_activeGltfCameraIndex];
+			const bool animationOwnsThisFile =
+				_activeAnimationFile == _activeGltfCameraFile && _activeAnimationClip >= 0;
+			if (animationOwnsThisFile)
+			{
+				applyAnimationPose(_activeAnimationFile, _activeAnimationClip, _animationCurrentTimeSeconds);
+			}
+			else
+			{
+				applyGltfCameraEntryTransform(cam);
+			}
 		}
 	}
 	triggerShadowRecomputation();
@@ -9843,6 +9860,11 @@ void GLWidget::setActiveAnimation(const QString& sourceFile, int clipIndex)
 	emit animationStateChanged();
 }
 
+void GLWidget::syncRuntimeNodeTransforms(const QString& sourceFile)
+{
+	syncFileNodeTransforms(sourceFile);
+}
+
 void GLWidget::setAnimationPlaying(bool playing)
 {
 	_animationPlaying = playing;
@@ -9913,7 +9935,17 @@ void GLWidget::activateGltfCamera(const QString& sourceFile, int cameraIndex)
 
 	_activeGltfCameraFile  = sourceFile;
 	_activeGltfCameraIndex = cameraIndex;
-	applyGltfCameraEntryTransform(cam);
+
+	const bool animationOwnsThisFile =
+		_activeAnimationFile == sourceFile && _activeAnimationClip >= 0;
+	if (animationOwnsThisFile)
+	{
+		applyAnimationPose(sourceFile, _activeAnimationClip, _animationCurrentTimeSeconds);
+	}
+	else
+	{
+		applyGltfCameraEntryTransform(cam);
+	}
 
 	update();
 }
@@ -9950,6 +9982,55 @@ float GLWidget::currentModelTransformScaleFactor() const
 	return currentRadius / _lightRepoBasis.baselineRadius;
 }
 
+GltfCameraData GLWidget::cameraDataForMvfSave(const GltfCameraData& source) const
+{
+	GltfCameraData result = source;
+	const float radiusDelta = currentModelTransformScaleFactor();
+
+	for (GltfCameraEntry& cam : result.cameras)
+	{
+		QVector3D worldPos = cam.worldPosition;
+		QVector3D worldDir = cam.worldDirection.normalized();
+		QVector3D worldUp = cam.worldUp.normalized();
+
+		if (_lightRepoBasis.baselineRadius > 0.0f)
+		{
+			const glm::vec3 baselineCenter = _lightRepoBasis.baselineCenter;
+			const glm::vec3 currentCenter(
+				static_cast<float>(_boundingSphere.getCenter().x()),
+				static_cast<float>(_boundingSphere.getCenter().y()),
+				static_cast<float>(_boundingSphere.getCenter().z())
+			);
+			const glm::vec3 centerDelta = currentCenter - baselineCenter;
+
+			const glm::vec3 offsetFromBaseline(
+				worldPos.x() - baselineCenter.x,
+				worldPos.y() - baselineCenter.y,
+				worldPos.z() - baselineCenter.z
+			);
+			const glm::vec3 rotatedOffset = glm::vec3(
+				_lightRepoBasis.accumulatedRotation * glm::vec4(offsetFromBaseline, 0.0f));
+			const glm::vec3 transformedPos =
+				baselineCenter + rotatedOffset * radiusDelta + centerDelta;
+			worldPos = QVector3D(transformedPos.x, transformedPos.y, transformedPos.z);
+
+			const glm::vec3 rotatedDir = glm::normalize(glm::vec3(
+				_lightRepoBasis.accumulatedRotation * glm::vec4(worldDir.x(), worldDir.y(), worldDir.z(), 0.0f)));
+			const glm::vec3 rotatedUp = glm::normalize(glm::vec3(
+				_lightRepoBasis.accumulatedRotation * glm::vec4(worldUp.x(), worldUp.y(), worldUp.z(), 0.0f)));
+			worldDir = QVector3D(rotatedDir.x, rotatedDir.y, rotatedDir.z).normalized();
+			worldUp = QVector3D(rotatedUp.x, rotatedUp.y, rotatedUp.z).normalized();
+		}
+
+		cam.worldPosition = worldPos;
+		cam.worldDirection = worldDir;
+		cam.worldUp = worldUp;
+		cam.needsModelTransformCompensation = false;
+	}
+
+	return result;
+}
+
 void GLWidget::applyGltfCameraEntryTransform(const GltfCameraEntry& cam)
 {
 	if (!_primaryCamera)
@@ -9960,7 +10041,7 @@ void GLWidget::applyGltfCameraEntryTransform(const GltfCameraEntry& cam)
 	QVector3D worldUp  = cam.worldUp.normalized();
 	const float radiusDelta = currentModelTransformScaleFactor();
 
-	if (_lightRepoBasis.baselineRadius > 0.0f)
+	if (cam.needsModelTransformCompensation && _lightRepoBasis.baselineRadius > 0.0f)
 	{
 		const glm::vec3 baselineCenter = _lightRepoBasis.baselineCenter;
 		const glm::vec3 currentCenter(
@@ -9993,6 +10074,19 @@ void GLWidget::applyGltfCameraEntryTransform(const GltfCameraEntry& cam)
 	{
 		_primaryCamera->setProjectionType(GLCamera::ProjectionType::PERSPECTIVE);
 		_primaryCamera->setFOV(qRadiansToDegrees(cam.fovYRadians));
+
+		// Set _viewRange so the orbit pivot lands at the scene centre and
+		// navigation feel matches the glTF author's framing intent.
+		// orbitDist ≈ viewRange * 1.25 (maxShiftFactor clamp in computeViewShift),
+		// so: viewRange = distToScene / 1.25.
+		const QVector3D sceneCenter(
+			static_cast<float>(_boundingSphere.getCenter().x()),
+			static_cast<float>(_boundingSphere.getCenter().y()),
+			static_cast<float>(_boundingSphere.getCenter().z()));
+		const float distToScene = QVector3D::dotProduct(sceneCenter - worldPos, worldDir);
+		// Clamp to at least scene radius so we never zoom in past the model.
+		const float clampedDist = std::max(distToScene, _boundingSphere.getRadius());
+		_primaryCamera->setViewRange(clampedDist / 1.25f);
 	}
 	else
 	{

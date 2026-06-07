@@ -38,6 +38,8 @@ struct GltfCameraEntry
     // any extra string massaging.
     QString         nodeName;
     int             nodeIndex       = -1;
+    bool            hasAiChildPath  = false;
+    QVector<int>    aiChildPath;
 
     GltfCameraType  type            = GltfCameraType::Perspective;
 
@@ -58,6 +60,7 @@ struct GltfCameraEntry
     QVector3D       worldPosition;
     QVector3D       worldDirection  = { 0.0f,  0.0f, -1.0f };
     QVector3D       worldUp         = { 0.0f,  1.0f,  0.0f };
+    bool            needsModelTransformCompensation = true;
 };
 
 // All camera information for one loaded glTF/GLB source file.

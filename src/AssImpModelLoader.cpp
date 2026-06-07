@@ -3372,7 +3372,16 @@ void AssImpModelLoader::parseSceneCameras()
 
     _cameraData.sourceFile = QString::fromStdString(_path);
 
-    QVector<int> cameraNodeIndexByOrdinal;
+    struct CameraNodeBinding
+    {
+        int nodeIndex = -1;
+        int cameraIndex = -1;
+        QVector<int> aiChildPath;
+        aiMatrix4x4 worldTransform;
+        bool hasWorldTransform = false;
+    };
+    QVector<CameraNodeBinding> cameraBindingsByOrdinal;
+    QJsonArray cameraDefs;
     if (_scene->mRootNode)
     {
         QJsonDocument doc;
@@ -3382,6 +3391,7 @@ void AssImpModelLoader::parseSceneCameras()
             const QJsonObject root = doc.object();
             const QJsonArray nodes = root.value("nodes").toArray();
             const QJsonArray scenes = root.value("scenes").toArray();
+            cameraDefs = root.value("cameras").toArray();
 
             const int sceneIdx = root.value("scene").toInt(0);
             QJsonArray rootNodeIndices;
@@ -3392,6 +3402,8 @@ void AssImpModelLoader::parseSceneCameras()
             {
                 aiNode* aiNodePtr;
                 int gltfNodeIdx;
+                QVector<int> aiChildPath;
+                aiMatrix4x4 worldTransform;
             };
             QVector<NodeFrame> stack;
             aiNode* aiRoot = _scene->mRootNode;
@@ -3404,16 +3416,16 @@ void AssImpModelLoader::parseSceneCameras()
                 const QString aiRootName = QString::fromUtf8(aiRoot->mName.C_Str());
 
                 if (aiRootName == gltfRootName || aiRoot->mNumMeshes > 0 || aiRoot->mNumChildren == 0)
-                    stack.append({ aiRoot, rootGltfIdx });
+                    stack.append({ aiRoot, rootGltfIdx, {}, aiRoot->mTransformation });
                 else if (aiRoot->mNumMeshes == 0 && aiRoot->mNumChildren == 1)
-                    stack.append({ aiRoot->mChildren[0], rootGltfIdx });
+                    stack.append({ aiRoot->mChildren[0], rootGltfIdx, { 0 }, aiRoot->mTransformation * aiRoot->mChildren[0]->mTransformation });
             }
             else
             {
                 for (int i = rootNodeIndices.size() - 1; i >= 0; --i)
                 {
                     if (i < static_cast<int>(aiRoot->mNumChildren))
-                        stack.append({ aiRoot->mChildren[i], rootNodeIndices[i].toInt() });
+                        stack.append({ aiRoot->mChildren[i], rootNodeIndices[i].toInt(), { i }, aiRoot->mTransformation * aiRoot->mChildren[i]->mTransformation });
                 }
             }
 
@@ -3425,13 +3437,29 @@ void AssImpModelLoader::parseSceneCameras()
 
                 const QJsonObject nodeObj = nodes[frame.gltfNodeIdx].toObject();
                 if (nodeObj.contains("camera"))
-                    cameraNodeIndexByOrdinal.append(frame.gltfNodeIdx);
+                {
+                    CameraNodeBinding binding;
+                    binding.nodeIndex = frame.gltfNodeIdx;
+                    binding.cameraIndex = nodeObj.value("camera").toInt(-1);
+                    binding.aiChildPath = frame.aiChildPath;
+                    binding.worldTransform = frame.worldTransform;
+                    binding.hasWorldTransform = true;
+                    cameraBindingsByOrdinal.append(binding);
+                }
 
                 const QJsonArray childIndices = nodeObj.value("children").toArray();
                 for (int childOffset = childIndices.size() - 1; childOffset >= 0; --childOffset)
                 {
                     if (childOffset < static_cast<int>(frame.aiNodePtr->mNumChildren))
-                        stack.append({ frame.aiNodePtr->mChildren[childOffset], childIndices[childOffset].toInt() });
+                    {
+                        QVector<int> childPath = frame.aiChildPath;
+                        childPath.append(childOffset);
+                        aiNode* childNode = frame.aiNodePtr->mChildren[childOffset];
+                        stack.append({ childNode,
+                                       childIndices[childOffset].toInt(),
+                                       childPath,
+                                       frame.worldTransform * childNode->mTransformation });
+                    }
                 }
             }
         }
@@ -3445,37 +3473,102 @@ void AssImpModelLoader::parseSceneCameras()
 
         GltfCameraEntry entry;
         entry.name     = QString::fromUtf8(cam->mName.C_Str());
+        // Imported glTF camera poses are already authored in the same scene
+        // space as the preserved node-transform hierarchy, so they should be
+        // applied directly.  Model-transform compensation is reserved for
+        // MVF-restored cameras that were saved after user-driven global
+        // model transforms.
+        entry.needsModelTransformCompensation = false;
         // Assimp's glTF2 importer sets aiCamera::mName to the scene-node name
         // that references the camera.  That node name is the key used by the
         // animation runtime's worldTransforms map, so store it directly.
         entry.nodeName = entry.name;
-        if (static_cast<int>(i) < cameraNodeIndexByOrdinal.size())
-            entry.nodeIndex = cameraNodeIndexByOrdinal.at(static_cast<int>(i));
-
-        // Projection type: orthographic when mOrthographicWidth > 0
-        if (cam->mOrthographicWidth > 0.0f)
+        if (static_cast<int>(i) < cameraBindingsByOrdinal.size())
         {
-            entry.type  = GltfCameraType::Orthographic;
-            entry.xMag  = cam->mOrthographicWidth;
-            // mAspect = xmag / ymag  →  ymag = xmag / aspect (guard against zero)
-            entry.yMag  = (cam->mAspect > 0.0f)
-                        ? cam->mOrthographicWidth / cam->mAspect
-                        : cam->mOrthographicWidth;
+            const CameraNodeBinding& binding = cameraBindingsByOrdinal.at(static_cast<int>(i));
+            entry.nodeIndex = binding.nodeIndex;
+            entry.aiChildPath = binding.aiChildPath;
+            entry.hasAiChildPath = !entry.aiChildPath.isEmpty();
+
+            if (binding.cameraIndex >= 0 && binding.cameraIndex < cameraDefs.size())
+            {
+                const QJsonObject cameraObj = cameraDefs.at(binding.cameraIndex).toObject();
+                const QString type = cameraObj.value("type").toString();
+                if (type == QLatin1String("orthographic"))
+                {
+                    entry.type = GltfCameraType::Orthographic;
+                    const QJsonObject orthoObj = cameraObj.value("orthographic").toObject();
+                    entry.xMag = static_cast<float>(orthoObj.value("xmag").toDouble(entry.xMag));
+                    entry.yMag = static_cast<float>(orthoObj.value("ymag").toDouble(entry.yMag));
+                    entry.zNear = static_cast<float>(orthoObj.value("znear").toDouble(entry.zNear));
+                    entry.zFar = static_cast<float>(orthoObj.value("zfar").toDouble(entry.zFar));
+                }
+                else
+                {
+                    entry.type = GltfCameraType::Perspective;
+                    const QJsonObject perspObj = cameraObj.value("perspective").toObject();
+                    entry.fovYRadians = static_cast<float>(perspObj.value("yfov").toDouble(entry.fovYRadians));
+                    entry.zNear = static_cast<float>(perspObj.value("znear").toDouble(entry.zNear));
+                    entry.zFar = static_cast<float>(perspObj.value("zfar").toDouble(entry.zFar));
+                }
+            }
+            else if (cam->mOrthographicWidth > 0.0f)
+            {
+                entry.type  = GltfCameraType::Orthographic;
+                entry.xMag  = cam->mOrthographicWidth;
+                entry.yMag  = (cam->mAspect > 0.0f)
+                            ? cam->mOrthographicWidth / cam->mAspect
+                            : cam->mOrthographicWidth;
+                entry.zNear = cam->mClipPlaneNear;
+                entry.zFar  = cam->mClipPlaneFar;
+            }
+            else
+            {
+                entry.type = GltfCameraType::Perspective;
+                entry.fovYRadians = cam->mHorizontalFOV;
+                entry.zNear = cam->mClipPlaneNear;
+                entry.zFar  = cam->mClipPlaneFar;
+            }
         }
         else
         {
-            entry.type = GltfCameraType::Perspective;
-            // For glTF files Assimp stores yfov in mHorizontalFOV.
-            entry.fovYRadians = cam->mHorizontalFOV;
+            if (cam->mOrthographicWidth > 0.0f)
+            {
+                entry.type  = GltfCameraType::Orthographic;
+                entry.xMag  = cam->mOrthographicWidth;
+                entry.yMag  = (cam->mAspect > 0.0f)
+                            ? cam->mOrthographicWidth / cam->mAspect
+                            : cam->mOrthographicWidth;
+            }
+            else
+            {
+                entry.type = GltfCameraType::Perspective;
+                entry.fovYRadians = cam->mHorizontalFOV;
+            }
+            entry.zNear = cam->mClipPlaneNear;
+            entry.zFar  = cam->mClipPlaneFar;
         }
 
-        entry.zNear = cam->mClipPlaneNear;
-        entry.zFar  = cam->mClipPlaneFar;
-
-        // Compute world-space transform by walking the node hierarchy.
-        aiMatrix4x4 identity;
         aiMatrix4x4 worldMat;
-        if (findNodeWorldTransform(_scene->mRootNode, cam->mName, identity, worldMat))
+        bool hasWorldMat = false;
+        if (static_cast<int>(i) < cameraBindingsByOrdinal.size())
+        {
+            const CameraNodeBinding& binding = cameraBindingsByOrdinal.at(static_cast<int>(i));
+            if (binding.hasWorldTransform)
+            {
+                worldMat = binding.worldTransform;
+                hasWorldMat = true;
+            }
+        }
+
+        // Fallback for non-glTF or malformed bindings.
+        if (!hasWorldMat)
+        {
+            aiMatrix4x4 identity;
+            hasWorldMat = findNodeWorldTransform(_scene->mRootNode, cam->mName, identity, worldMat);
+        }
+
+        if (hasWorldMat)
         {
             // World position = translation component of the 4×4 matrix
             entry.worldPosition = QVector3D(worldMat.a4, worldMat.b4, worldMat.c4);

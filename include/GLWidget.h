@@ -133,6 +133,8 @@ public:
 	void performWindowZoom();
 
 	void setDisplayList(const std::vector<int>& ids);
+	GltfCameraData cameraDataForMvfSave(const GltfCameraData& source) const;
+	void resetModelTransformBasis();
 	void triggerShadowRecomputation();
 	void setShadowQuality(AdaptiveShadowMapper::QualityLevel quality);
 	float calculateLightDistance();
@@ -257,6 +259,7 @@ public:
 	void seekAnimation(double timeSeconds);
 	void setAnimationLooping(bool looping);
 	void setAnimationPlaybackSpeed(double speed);
+	void syncRuntimeNodeTransforms(const QString& sourceFile);
 	void refreshAnimationMaterialState(const QString& sourceFile);
 	QString activeAnimationFile() const { return _activeAnimationFile; }
 	int activeAnimationClip() const { return _activeAnimationClip; }
