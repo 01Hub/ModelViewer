@@ -62,7 +62,8 @@ SceneGraph::~SceneGraph()
 void SceneGraph::appendFromScene(const aiScene*                   scene,
                                  const QString&                   sourceFile,
                                  const QList<QUuid>&              meshUuidsInOrder,
-                                 const std::vector<GPULight>&    lights)
+                                 const std::vector<GPULight>&     lights,
+                                 const aiMatrix4x4&               importCorrection)
 {
     if (!scene || !scene->mRootNode)
         return;
@@ -78,6 +79,7 @@ void SceneGraph::appendFromScene(const aiScene*                   scene,
     fileNode->name             = QFileInfo(sourceFile).fileName();
     fileNode->isSynthetic      = true;
     fileNode->sourceFile       = sourceFile;
+    fileNode->importCorrection = importCorrection;
     // localTransform stays default-constructed (identity).
     fileNode->parent           = _root;
     _root->children.append(fileNode);

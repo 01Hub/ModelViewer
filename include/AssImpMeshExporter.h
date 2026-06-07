@@ -278,6 +278,50 @@ private:
         const std::vector<TriangleMesh*>& meshes);
 
     /**
+     * @brief Translate absolute texture paths in every aiMaterial to relative
+     *        output paths using the texture package path mapping.
+     *
+     * SceneGraphExporter writes the original (potentially absolute) texture
+     * paths into the aiMaterial slots.  For non-GLB formats Assimp writes
+     * those paths verbatim into the MTL / FBX / DAE file, producing absolute
+     * paths that break portability.  This pass replaces each path with the
+     * relative output path recorded by TextureLocationManager::packageTextures().
+     *
+     * Must be called after packageTextures() and before Assimp::Export().
+     * GLB skips this (embedded textures use "*N" references written by
+     * embedTexturesInScene()).
+     *
+     * @param scene  Assimp scene whose material texture paths are updated in-place
+     * @param pkg    Texture package produced by packageTextures()
+     */
+    void updateSceneMaterialPaths(aiScene* scene, const TexturePackage& pkg);
+
+    /**
+     * @brief Append PBR-extension lines to an Assimp-generated MTL file.
+     *
+     * Assimp's OBJ exporter writes only classic Phong MTL keywords.  This
+     * method re-opens the written .mtl, locates each material block by name,
+     * matches it to the source GLMaterial, and appends the de-facto PBR MTL
+     * extension lines that Blender, Substance Painter, Maya, and other
+     * PBR-aware OBJ importers recognise:
+     *   Pm  <metallicFactor>       map_Pm  <metallicTexture>
+     *   Pr  <roughnessFactor>      map_Pr  <roughnessTexture>
+     *                              map_Ke  <emissiveTexture>
+     *                              norm    <normalTexture>   (tangent-space)
+     *
+     * Paths are expressed relative to the MTL file location using the mapping
+     * built by packageTextures().
+     *
+     * @param mtlPath  Absolute path of the .mtl file to patch
+     * @param meshes   Source meshes (provides material names and GLMaterial data)
+     * @param pkg      Texture package (provides original → relative path mapping)
+     */
+    void patchMtlWithPbrExtensions(
+        const QString& mtlPath,
+        const std::vector<TriangleMesh*>& meshes,
+        const TexturePackage& pkg);
+
+    /**
      * Load image file and create embedded aiTexture
      *
      * Reads image from disk, converts to RGBA format,

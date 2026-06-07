@@ -230,14 +230,21 @@ namespace
             bindings.push_back({ &tex, aiType, slot });
             };
 
-        // Core PBR bindings
-        add(GLMaterial::TextureType::Albedo, aiTextureType_BASE_COLOR, 0);
-        add(GLMaterial::TextureType::Metallic, aiTextureType_METALNESS, 0);
-        add(GLMaterial::TextureType::Roughness, aiTextureType_DIFFUSE_ROUGHNESS, 0);
-        add(GLMaterial::TextureType::Normal, aiTextureType_NORMALS, 0);
-        add(GLMaterial::TextureType::AmbientOcclusion, aiTextureType_LIGHTMAP, 0);
-        add(GLMaterial::TextureType::Emissive, aiTextureType_EMISSIVE, 0);
-        add(GLMaterial::TextureType::Opacity, aiTextureType_OPACITY, 0);
+        // Core PBR bindings (glTF/GLB – post-processor reads these)
+        add(GLMaterial::TextureType::Albedo,          aiTextureType_BASE_COLOR,       0);
+        add(GLMaterial::TextureType::Metallic,        aiTextureType_METALNESS,        0);
+        add(GLMaterial::TextureType::Roughness,       aiTextureType_DIFFUSE_ROUGHNESS,0);
+        add(GLMaterial::TextureType::Normal,          aiTextureType_NORMALS,          0);
+        add(GLMaterial::TextureType::AmbientOcclusion,aiTextureType_LIGHTMAP,         0);
+        add(GLMaterial::TextureType::Emissive,        aiTextureType_EMISSIVE,         0);
+        add(GLMaterial::TextureType::Opacity,         aiTextureType_OPACITY,          0);
+
+        // Legacy Phong slots for OBJ/FBX/COLLADA exporters.
+        // These exporters only read the classic aiTextureType_DIFFUSE (map_Kd),
+        // aiTextureType_HEIGHT (OBJ map_bump, preferred over NORMALS), etc.
+        // glTF/GLB ignores these; the GltfPostProcessor overwrites from GLMaterial anyway.
+        add(GLMaterial::TextureType::Albedo, aiTextureType_DIFFUSE, 0);  // OBJ map_Kd / FBX DiffuseColor / DAE diffuse
+        add(GLMaterial::TextureType::Normal, aiTextureType_HEIGHT,  0);  // OBJ map_bump (HEIGHT checked before NORMALS)
 
         // Extensions / advanced PBR
         add(GLMaterial::TextureType::Transmission, aiTextureType_TRANSMISSION, 0);
@@ -427,7 +434,8 @@ namespace
 
 aiScene* SceneGraphExporter::buildExportScene(
     const SceneGraph* sceneGraph,
-    const MeshResolver& resolveMesh)
+    const MeshResolver& resolveMesh,
+    bool flattenTransforms)
 {
     if (!sceneGraph)
         return nullptr;
@@ -449,7 +457,13 @@ aiScene* SceneGraphExporter::buildExportScene(
     aiNode* exportRoot = makeIdentityNode(QStringLiteral("SceneRoot"));
     scene->mRootNode = exportRoot;
 
-    // Rebuild top-level children from SceneGraph::_root->children
+    // Rebuild top-level children from SceneGraph::_root->children.
+    // Each direct child is a synthetic fileNode whose importCorrection records the
+    // autoOrient+autoScale transform baked into the Assimp root by the loader.
+    // We factor that out by temporarily neutralising it from the Assimp root
+    // SceneNode's localTransform before the recursive build, then restoring it.
+    // This works for both flat formats (worldTransform accumulation) and hierarchy
+    // formats (dstNode->mTransformation assignment) with no special-casing.
     exportRoot->mNumChildren = static_cast<unsigned int>(graphRoot->children.size());
     if (exportRoot->mNumChildren > 0)
     {
@@ -457,11 +471,32 @@ aiScene* SceneGraphExporter::buildExportScene(
         exportRoot->mChildren = new aiNode * [exportRoot->mNumChildren];
         for (unsigned int i = 0; i < exportRoot->mNumChildren; ++i)
         {
-            SceneNode* srcChild = graphRoot->children.at(static_cast<int>(i));
-            aiNode* dstChild = buildNodeRecursive(srcChild, resolveMesh, builtMeshes, builtMaterials, materialKeyToIndex, aiMatrix4x4());
+            SceneNode* fileNode = graphRoot->children.at(static_cast<int>(i));
+
+            // --- Factor out the import correction --------------------------------
+            // The correction was applied to the Assimp root node (first child of
+            // the synthetic fileNode).  Temporarily pre-multiply its localTransform
+            // by the correction inverse so the exported transform is correction-free.
+            SceneNode* assimpRoot = (fileNode->isSynthetic && !fileNode->children.isEmpty())
+                                    ? fileNode->children.first() : nullptr;
+            aiMatrix4x4 savedLocalTransform;
+            if (assimpRoot && !fileNode->importCorrection.IsIdentity())
+            {
+                savedLocalTransform = assimpRoot->localTransform;
+                aiMatrix4x4 corrInverse = fileNode->importCorrection;
+                corrInverse.Inverse();
+                assimpRoot->localTransform = corrInverse * assimpRoot->localTransform;
+            }
+            // ---------------------------------------------------------------------
+
+            aiNode* dstChild = buildNodeRecursive(fileNode, resolveMesh, builtMeshes, builtMaterials, materialKeyToIndex, aiMatrix4x4(), flattenTransforms);
             exportRoot->mChildren[i] = dstChild;
             if (dstChild)
                 dstChild->mParent = exportRoot;
+
+            // Restore the Assimp root's original localTransform.
+            if (assimpRoot && !fileNode->importCorrection.IsIdentity())
+                assimpRoot->localTransform = savedLocalTransform;
         }
     }
 
@@ -553,7 +588,8 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
     std::vector<aiMesh*>& outMeshes,
     std::vector<aiMaterial*>& outMaterials,
     QMap<QString, unsigned int>& materialKeyToIndex,
-    const aiMatrix4x4& parentWorldTransform
+    const aiMatrix4x4& parentWorldTransform,
+    bool flattenTransforms
 )
 {
     if (!srcNode)
@@ -578,12 +614,23 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
     // When the localTransform is large enough for Assimp to write (e.g. negative scales,
     // significant rotations/translations), the existing worldTransform un-baking is used
     // unchanged so that normal flipping and other transform-dependent effects are correct.
+    // useParentSpaceEncoding: for hierarchy-aware formats, Assimp's glTF2 writer calls
+    // aiMatrix4x4::IsIdentity() (epsilon ~0.01) to decide whether to write a node transform.
+    // Leaf mesh nodes whose localTransform is sub-epsilon (e.g. 0.001–0.006 unit translations
+    // in MetalRoughSpheresNoTextures) would have their transform silently dropped, stacking
+    // all affected spheres at the parent position.  For these nodes we emit an identity node
+    // transform (consistent with what Assimp would write) and accept the sub-epsilon error;
+    // the flat-format path forward-bakes the full worldTransform so it is unaffected.
     const bool isLeafMeshNode = !srcNode->meshUuids.isEmpty() && srcNode->children.isEmpty();
-    const bool useParentSpaceEncoding = isLeafMeshNode && srcNode->localTransform.IsIdentity();
-    const aiMatrix4x4& unbakeTransform = useParentSpaceEncoding ? parentWorldTransform : worldTransform;
+    const bool useParentSpaceEncoding = !flattenTransforms && isLeafMeshNode && srcNode->localTransform.IsIdentity();
 
     aiNode* dstNode = makeIdentityNode(exportedNodeName(srcNode));
-    dstNode->mTransformation = useParentSpaceEncoding ? aiMatrix4x4() : srcNode->localTransform;
+    // flattenTransforms: every node is identity — Assimp OBJ/PLY/STL writer ignores them anyway.
+    // useParentSpaceEncoding: node also identity — parent-offset is baked into vertex data.
+    // normal: write the node's local transform so the hierarchy writer can reconstruct world space.
+    dstNode->mTransformation = (flattenTransforms || useParentSpaceEncoding)
+                               ? aiMatrix4x4()
+                               : srcNode->localTransform;
 
     // Build meshes owned directly by this node.
     //
@@ -619,11 +666,6 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
         // All meshes that referenced the same original material should use the same material in export.
         int originalMatIndex = triMesh->getOriginalMaterialIndex();
 
-        qDebug() << "[EXPORT] Processing mesh:" << triMesh->getName()
-                 << "originalMaterialIndex=" << originalMatIndex
-                 << "materialName=" << glMaterial.name()
-                 << "albedo=" << glMaterial.albedoColor().x() << glMaterial.albedoColor().y() << glMaterial.albedoColor().z();
-
         if (originalMatIndex >= 0)
         {
             // Mesh came from Assimp import - use original material index as key
@@ -634,8 +676,6 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
             {
                 // Already created a material for this original index - reuse it
                 materialIndex = matIt.value();
-                qDebug() << "  [EXPORT-REUSE] Reusing material" << materialIndex
-                         << "for originalMatIndex" << originalMatIndex;
             }
             else
             {
@@ -647,10 +687,6 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
                 materialIndex = static_cast<unsigned int>(outMaterials.size());
                 outMaterials.push_back(builtMaterial);
                 materialKeyToIndex.insert(originalMatKey, materialIndex);
-
-                qDebug() << "  [EXPORT-CREATE] Created material" << materialIndex
-                         << "for originalMatIndex" << originalMatIndex
-                         << "from mesh" << triMesh->getName();
             }
         }
         else
@@ -686,56 +722,57 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
             continue;
         }
 
-        // Un-bake the transform from the mesh vertices/normals.
-        // processMesh bakes the full world transform into vertices at import time:
-        //   positions:              M * P_local
-        //   normals/tangents/bitangents: M^{-T} * N_local, then flipped if det(M) < 0
-        // When useParentSpaceEncoding is true (leaf node, localTransform too small for Assimp
-        // to write), unbakeTransform == parentWorldTransform so the node's own local offset
-        // stays encoded in the vertex data and the exported node has identity transform.
-        // Otherwise unbakeTransform == worldTransform (full un-bake back to local space).
-        if (!unbakeTransform.IsIdentity())
+        // Vertex positions in AssImpMesh are stored in mesh-LOCAL space.
+        // processMesh() copies Assimp vertex positions verbatim with no world transform
+        // applied; the world transform is only used at GPU render time via
+        // setSceneRenderTransform().
+        //
+        // Two export strategies:
+        //
+        // flattenTransforms (OBJ, PLY, STL):
+        //   These Assimp writers ignore every aiNode::mTransformation and write vertex
+        //   positions verbatim.  Forward-apply worldTransform here so the output file
+        //   contains correct world-space positions (node transforms are identity).
+        //
+        // Hierarchy mode (glTF, FBX, COLLADA):
+        //   Keep vertices in local space — the hierarchy-aware writer reads
+        //   dstNode->mTransformation and applies it when writing, reconstructing world
+        //   space on export (and again on import).  No vertex transform is needed.
+        if (flattenTransforms && !worldTransform.IsIdentity())
         {
-            aiMatrix4x4 invUnbake = unbakeTransform;
-            invUnbake.Inverse();
-
-            // M^T: inverse of the forward normal transform M^{-T}.
-            aiMatrix3x3 normalUnbake = aiMatrix3x3(unbakeTransform);
-            normalUnbake.Transpose();
-
-            // det(M^T) == det(M): negative means the world transform has a negative scale.
-            const bool hasNegativeScale = normalUnbake.Determinant() < 0.0f;
+            // Forward-bake: local → world space.
+            // Normal transform: M^{-T} (cotangent formula).
+            aiMatrix3x3 normalBake = aiMatrix3x3(worldTransform);
+            normalBake = normalBake.Inverse();
+            normalBake.Transpose();
+            const bool hasNegativeScale = normalBake.Determinant() < 0.0f;
 
             for (unsigned int vi = 0; vi < builtMesh->mNumVertices; ++vi)
             {
-                builtMesh->mVertices[vi] = invUnbake * builtMesh->mVertices[vi];
+                builtMesh->mVertices[vi] = worldTransform * builtMesh->mVertices[vi];
 
                 if (builtMesh->mNormals)
                 {
-                    aiVector3D n = normalUnbake * builtMesh->mNormals[vi];
+                    aiVector3D n = normalBake * builtMesh->mNormals[vi];
                     if (hasNegativeScale) n = -n;
                     builtMesh->mNormals[vi] = n.NormalizeSafe();
                 }
-
                 if (builtMesh->mTangents)
                 {
-                    aiVector3D t = normalUnbake * builtMesh->mTangents[vi];
+                    aiVector3D t = normalBake * builtMesh->mTangents[vi];
                     if (hasNegativeScale) t = -t;
                     builtMesh->mTangents[vi] = t.NormalizeSafe();
                 }
-
                 if (builtMesh->mBitangents)
                 {
-                    aiVector3D b = normalUnbake * builtMesh->mBitangents[vi];
+                    aiVector3D b = normalBake * builtMesh->mBitangents[vi];
                     if (hasNegativeScale) b = -b;
                     builtMesh->mBitangents[vi] = b.NormalizeSafe();
                 }
             }
         }
-
-        qDebug() << "  [EXPORT-ASSIGN] Mesh:" << triMesh->getName()
-                 << "→ materialIndex=" << materialIndex
-                 << "(meshIndex in export=" << outMeshes.size() << ")";
+        // Hierarchy mode: no vertex transform.  Vertices remain in local space;
+        // dstNode->mTransformation carries srcNode->localTransform and the writer applies it.
 
         const unsigned int exportMeshIndex = static_cast<unsigned int>(outMeshes.size());
         outMeshes.push_back(builtMesh);
@@ -753,11 +790,6 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
             nodeMeshIndices.push_back(exportMeshIndex);
         }
     }
-
-    qDebug() << "[EXPORT-NODE-SUMMARY] Node:" << srcNode->name
-             << "has" << srcNode->meshUuids.size() << "meshes"
-             << "materialKeyToIndex.size()=" << materialKeyToIndex.size()
-             << "outMaterials.size()=" << outMaterials.size();
 
     dstNode->mNumMeshes = static_cast<unsigned int>(nodeMeshIndices.size());
     if (dstNode->mNumMeshes > 0)
@@ -786,7 +818,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
         for (int i = 0; i < srcNode->children.size(); ++i)
         {
             SceneNode* srcChild = srcNode->children.at(i);
-            aiNode* dstChild = buildNodeRecursive(srcChild, resolveMesh, outMeshes, outMaterials, materialKeyToIndex, worldTransform);
+            aiNode* dstChild = buildNodeRecursive(srcChild, resolveMesh, outMeshes, outMaterials, materialKeyToIndex, worldTransform, flattenTransforms);
             dstNode->mChildren[childIndex++] = dstChild;
             if (dstChild)
                 dstChild->mParent = dstNode;
@@ -839,13 +871,28 @@ aiMesh* SceneGraphExporter::buildMeshFromTriangleMesh(const TriangleMesh* mesh, 
             v.Normal.z);
     }
 
-    // --- UV channels (material-driven, up to Vertex-supported maximum = 4) ---
-    // IMPORTANT:
-    // Material bindings already preserve per-texture texCoordIndex through AI_MATKEY_UVWSRC.
-    // So the mesh must export every UV channel that is actually referenced by the material,
-    // capped to the 4 channels physically stored in Vertex::TexCoords[4].
+    // --- UV channels (material-driven + vertex-driven, up to 4) ---
+    // Primary: query material for the highest texCoordIndex referenced by any texture.
+    // Fallback: also scan vertex data for channels that contain non-trivial UV values.
+    // This prevents silently dropping UV sets when texCoordIndex metadata is not perfectly
+    // round-tripped through Assimp (e.g. TEXCOORD_1 for emissive in GLB files).
+    unsigned int materialMaxChannel = maxReferencedUvChannelForMesh(mesh);
+
+    unsigned int vertexMaxChannel = 0;
+    for (unsigned int ch = 0; ch < kMaxExportUvChannels; ++ch)
+    {
+        for (const Vertex& v : verts)
+        {
+            if (v.TexCoords[ch].x != 0.0f || v.TexCoords[ch].y != 0.0f)
+            {
+                vertexMaxChannel = ch;
+                break; // found non-trivial data in this channel; move on to the next
+            }
+        }
+    }
+
     const unsigned int uvChannelCount = std::min(
-        maxReferencedUvChannelForMesh(mesh) + 1,
+        std::max(materialMaxChannel, vertexMaxChannel) + 1,
         kMaxExportUvChannels);
 
     for (unsigned int channel = 0; channel < uvChannelCount; ++channel)
@@ -960,6 +1007,29 @@ aiMaterial* SceneGraphExporter::buildMaterialFromTriangleMesh(const TriangleMesh
 
         float sheenRoughness = material.sheenRoughness();
         aiMat->AddProperty(&sheenRoughness, 1, AI_MATKEY_SHEEN_ROUGHNESS_FACTOR);
+    }
+
+    // Phong-compatible scalar properties for OBJ/FBX/COLLADA exporters.
+    // These classic Phong properties are not meaningful for PBR renderers, but
+    // OBJ/MTL, FBX, and COLLADA exporters in Assimp only read these keys.
+    // Derive approximate values from the PBR inputs so legacy consumers get
+    // something visually reasonable rather than nothing.
+    {
+        // Ns (OBJ shininess): (1 - roughness)^4 * 1000 maps [0,1] roughness to [0,1000]
+        const float r = std::min(std::max(material.roughness(), 0.0f), 1.0f);
+        float shininess = std::pow(1.0f - r, 4.0f) * 1000.0f;
+        aiMat->AddProperty(&shininess, 1, AI_MATKEY_SHININESS);
+
+        // Ks: white specular lobe; OBJ/FBX renderers multiply by shininess
+        aiColor3D specular(1.0f, 1.0f, 1.0f);
+        aiMat->AddProperty(&specular, 1, AI_MATKEY_COLOR_SPECULAR);
+
+        // Ka: a dim version of the albedo (10 %) stands in for ambient
+        aiColor3D ambient(
+            static_cast<float>(material.albedoColor().x()) * 0.1f,
+            static_cast<float>(material.albedoColor().y()) * 0.1f,
+            static_cast<float>(material.albedoColor().z()) * 0.1f);
+        aiMat->AddProperty(&ambient, 1, AI_MATKEY_COLOR_AMBIENT);
     }
 
     // Basic rendering hints.

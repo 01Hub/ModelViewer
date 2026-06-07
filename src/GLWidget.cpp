@@ -3969,7 +3969,8 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 			if (success && !_pendingSceneUuids.isEmpty())
 			{
 				_viewer->sceneGraph()->appendFromScene(
-					_assimpScene, fileName, _pendingSceneUuids, _originalParsedLights);
+					_assimpScene, fileName, _pendingSceneUuids, _originalParsedLights,
+					SceneUtils::glmToAiMatrix(_globalSceneTransform));
 
 				// Register KHR_materials_variants data (if any) for this file.
 				const GltfVariantData& vd = loadingWorker->getVariantData();

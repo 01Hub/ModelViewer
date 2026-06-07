@@ -6,7 +6,9 @@
 
 #include <QDebug>
 #include <QDir>
+#include <QFile>
 #include <QFileInfo>
+#include <QRegularExpression>
 #include <QSet>
 #include <QMatrix4x4>
 #include <algorithm>
@@ -922,6 +924,18 @@ aiReturn AssImpMeshExporter::exportScene(
         logMessage("  -> Skipping texture embedding for non-binary format");
     }
 
+    // ===== STEP 4b: Translate texture paths to relative output paths =====
+    // SceneGraphExporter writes the original (possibly absolute) texture paths into the
+    // aiMaterial slots.  Assimp's OBJ/FBX/COLLADA writers copy those paths verbatim into
+    // the output file, producing non-portable absolute references.  Translate each path to
+    // its relative output equivalent using the mapping built by packageTextures().
+    // GLB skips this because embedTexturesInScene() replaced all paths with "*N" references.
+    if (!isGLB && settings.copyTextures)
+    {
+        logMessage("Step 4b: Updating material texture paths to relative output paths...");
+        updateSceneMaterialPaths(scene, _lastTexturePackage);
+    }
+
     // ===== STEP 5: Export =====
     logMessage("Step 5: Exporting scene...");
 
@@ -969,6 +983,20 @@ aiReturn AssImpMeshExporter::exportScene(
     if (isGLB && !embeddedTextureNames.isEmpty())
         patchGlbImageNames(exportFilePath, embeddedTextureNames, scene,
             _lastTexturePackage.textureDirectory, &_lastEmbeddedIndexMapping);
+
+    // OBJ-specific: patch the .mtl file with PBR extension lines (Pm, Pr, map_Pm,
+    // map_Pr, map_Ke, norm) that Assimp's OBJ writer does not emit.
+    if (ext == "obj" && settings.copyTextures)
+    {
+        QString mtlPath = exportFilePath;
+        mtlPath.replace(QRegularExpression("\\.obj$",
+            QRegularExpression::CaseInsensitiveOption), ".mtl");
+        if (QFileInfo::exists(mtlPath))
+        {
+            logMessage("Step 5b: Patching MTL with PBR extensions...");
+            patchMtlWithPbrExtensions(mtlPath, meshes, _lastTexturePackage);
+        }
+    }
 
     // ===== STEP 6: Post-process glTF/GLB to add missing optional properties and write transforms =====
     logMessage("Step 6: Post-processing exported file with material transforms...");
@@ -1050,9 +1078,32 @@ aiMesh* AssImpMeshExporter::createMesh(
 
     // Allocate vertex attributes
     mesh->mVertices = new aiVector3D[mesh->mNumVertices];
-    mesh->mNormals = new aiVector3D[mesh->mNumVertices];
-    mesh->mTextureCoords[0] = new aiVector3D[mesh->mNumVertices];
+    mesh->mNormals  = new aiVector3D[mesh->mNumVertices];
     mesh->mColors[0] = new aiColor4D[mesh->mNumVertices];
+
+    // Detect which UV channels carry non-trivial data.
+    // Channel 0 is always exported; channels 1-3 only if at least one vertex has a
+    // non-zero UV in that channel (avoids inflating the mesh with empty UV sets).
+    constexpr unsigned int kVertexUVChannels = 4; // matches Vertex::TexCoords[4]
+    bool exportChannel[kVertexUVChannels] = { true, false, false, false };
+    for (unsigned int ch = 1; ch < kVertexUVChannels; ++ch)
+    {
+        for (const Vertex& v : vertices)
+        {
+            if (v.TexCoords[ch].x != 0.0f || v.TexCoords[ch].y != 0.0f)
+            {
+                exportChannel[ch] = true;
+                break;
+            }
+        }
+    }
+
+    for (unsigned int ch = 0; ch < kVertexUVChannels; ++ch)
+    {
+        if (!exportChannel[ch]) continue;
+        mesh->mTextureCoords[ch]    = new aiVector3D[mesh->mNumVertices];
+        mesh->mNumUVComponents[ch]  = 2;
+    }
 
     // Copy vertex data
     for (unsigned int i = 0; i < mesh->mNumVertices; ++i)
@@ -1065,8 +1116,12 @@ aiMesh* AssImpMeshExporter::createMesh(
         // Normal
         mesh->mNormals[i] = aiVector3D(v.Normal.x, v.Normal.y, v.Normal.z);
 
-        // UV coordinates (first set)
-        mesh->mTextureCoords[0][i] = aiVector3D(v.TexCoords[0].x, v.TexCoords[0].y, 0.0f);
+        // UV coordinates — all exported channels
+        for (unsigned int ch = 0; ch < kVertexUVChannels; ++ch)
+        {
+            if (exportChannel[ch])
+                mesh->mTextureCoords[ch][i] = aiVector3D(v.TexCoords[ch].x, v.TexCoords[ch].y, 0.0f);
+        }
 
         // Vertex color (RGBA)
         mesh->mColors[0][i] = aiColor4D(v.Color.r, v.Color.g, v.Color.b, v.Color.a);
@@ -2167,6 +2222,189 @@ void AssImpMeshExporter::assignTexturesToMaterial(
             }
         }
     }
+}
+
+void AssImpMeshExporter::updateSceneMaterialPaths(aiScene* scene, const TexturePackage& pkg)
+{
+    if (!scene || pkg.pathMapping.isEmpty())
+        return;
+
+    // Every aiTextureType that SceneGraphExporter or applyMaterialsToScene may have written.
+    static const aiTextureType kTypes[] = {
+        aiTextureType_DIFFUSE,
+        aiTextureType_SPECULAR,
+        aiTextureType_AMBIENT,
+        aiTextureType_EMISSIVE,
+        aiTextureType_NORMALS,
+        aiTextureType_HEIGHT,
+        aiTextureType_SHININESS,
+        aiTextureType_OPACITY,
+        aiTextureType_DISPLACEMENT,
+        aiTextureType_LIGHTMAP,
+        aiTextureType_REFLECTION,
+        aiTextureType_BASE_COLOR,
+        aiTextureType_NORMAL_CAMERA,
+        aiTextureType_EMISSION_COLOR,
+        aiTextureType_METALNESS,
+        aiTextureType_DIFFUSE_ROUGHNESS,
+        aiTextureType_AMBIENT_OCCLUSION,
+        aiTextureType_TRANSMISSION,
+        aiTextureType_CLEARCOAT,
+        aiTextureType_SHEEN,
+        aiTextureType_UNKNOWN,
+    };
+
+    for (unsigned int m = 0; m < scene->mNumMaterials; ++m)
+    {
+        aiMaterial* mat = scene->mMaterials[m];
+        if (!mat)
+            continue;
+
+        for (aiTextureType type : kTypes)
+        {
+            const unsigned int count = mat->GetTextureCount(type);
+            for (unsigned int slot = 0; slot < count; ++slot)
+            {
+                aiString aiPath;
+                if (mat->GetTexture(type, slot, &aiPath) != AI_SUCCESS)
+                    continue;
+
+                const QString orig = QString::fromUtf8(aiPath.C_Str());
+                if (orig.isEmpty())
+                    continue;
+
+                // Try the stored path, then the normalised glb:// form.
+                auto it = pkg.pathMapping.find(orig);
+                if (it == pkg.pathMapping.end())
+                    it = pkg.pathMapping.find(GltfPostProcessor::normalisedGlbPath(orig));
+                if (it == pkg.pathMapping.end())
+                    continue;
+
+                QString rel = it.value();
+                rel.replace('\\', '/');
+                aiString newPath(rel.toStdString());
+                mat->AddProperty(&newPath, AI_MATKEY_TEXTURE(type, slot));
+            }
+        }
+    }
+}
+
+void AssImpMeshExporter::patchMtlWithPbrExtensions(
+    const QString& mtlPath,
+    const std::vector<TriangleMesh*>& meshes,
+    const TexturePackage& pkg)
+{
+    // Read the file Assimp wrote.
+    QFile file(mtlPath);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+    {
+        logWarning(QString("MTL patch: cannot open %1").arg(mtlPath));
+        return;
+    }
+    const QString content = QString::fromUtf8(file.readAll());
+    file.close();
+
+    // Build name → GLMaterial lookup matching SceneGraphExporter's naming logic.
+    QMap<QString, GLMaterial> matByName;
+    for (const TriangleMesh* mesh : meshes)
+    {
+        if (!mesh)
+            continue;
+        const GLMaterial mat = mesh->getMaterial();
+        const QString name = mat.name().trimmed().isEmpty()
+            ? mesh->getName()
+            : mat.name().trimmed();
+        matByName[name] = mat;
+    }
+
+    // Helper: resolve a texture path to a relative output path.
+    auto relPath = [&](const GLMaterial::Texture& tex) -> QString
+    {
+        if (tex.path.empty())
+            return {};
+        const QString orig = QString::fromStdString(tex.path);
+        auto it = pkg.pathMapping.find(orig);
+        if (it == pkg.pathMapping.end())
+            it = pkg.pathMapping.find(GltfPostProcessor::normalisedGlbPath(orig));
+        if (it == pkg.pathMapping.end())
+            return {};
+        QString rel = it.value();
+        rel.replace('\\', '/');
+        return rel;
+    };
+
+    // Helper: append PBR lines for one material.
+    auto appendPbr = [&](QStringList& out, const GLMaterial& mat)
+    {
+        out << "# PBR extensions (Pm/Pr/map_Pm/map_Pr/map_Ke/norm)";
+        out << QString("Pm %1").arg(mat.metalness(), 0, 'f', 4);
+        out << QString("Pr %1").arg(mat.roughness(), 0, 'f', 4);
+
+        const QString metallicTex = relPath(mat.texture(GLMaterial::TextureType::Metallic));
+        if (!metallicTex.isEmpty())
+            out << QString("map_Pm %1").arg(metallicTex);
+
+        const QString roughnessTex = relPath(mat.texture(GLMaterial::TextureType::Roughness));
+        if (!roughnessTex.isEmpty())
+            out << QString("map_Pr %1").arg(roughnessTex);
+
+        // Emissive texture — Assimp writes Ke scalar but never map_Ke.
+        const QString emissiveTex = relPath(mat.texture(GLMaterial::TextureType::Emissive));
+        if (!emissiveTex.isEmpty())
+            out << QString("map_Ke %1").arg(emissiveTex);
+
+        // norm: tangent-space normal map, preferred over bump for PBR-aware importers.
+        const QString normalTex = relPath(mat.texture(GLMaterial::TextureType::Normal));
+        if (!normalTex.isEmpty())
+            out << QString("norm %1").arg(normalTex);
+
+        out << "";  // blank separator before next block
+    };
+
+    // Walk line-by-line, flushing PBR lines at each newmtl boundary and at EOF.
+    const QStringList lines = content.split('\n');
+    QStringList output;
+    output.reserve(lines.size() + 64);
+
+    const GLMaterial* current = nullptr;
+
+    for (const QString& line : lines)
+    {
+        const QString trimmed = line.trimmed();
+
+        if (trimmed.startsWith("newmtl "))
+        {
+            // Flush PBR block for the previous material before starting a new one.
+            if (current)
+                appendPbr(output, *current);
+
+            output << line;
+
+            const QString name = trimmed.mid(7).trimmed();
+            auto it = matByName.find(name);
+            current = (it != matByName.end()) ? &it.value() : nullptr;
+        }
+        else
+        {
+            output << line;
+        }
+    }
+
+    // Flush the last material block.
+    if (current)
+        appendPbr(output, *current);
+
+    // Write back.
+    QFile outFile(mtlPath);
+    if (!outFile.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate))
+    {
+        logWarning(QString("MTL patch: cannot write %1").arg(mtlPath));
+        return;
+    }
+    outFile.write(output.join('\n').toUtf8());
+    outFile.close();
+
+    logMessage(QString("  -> Patched %1 with PBR extensions").arg(QFileInfo(mtlPath).fileName()));
 }
 
 /**

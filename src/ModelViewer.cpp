@@ -3652,8 +3652,13 @@ void ModelViewer::onFileExport()
 			return _glWidget->getMeshByUuid(uuid);
 			};
 
+		// Flat formats (OBJ, PLY, STL) ignore aiNode transforms in their Assimp writers.
+        // Keep vertices in world space and emit identity node transforms for those formats.
+        const QString exportExt = QFileInfo(fileName).suffix().toLower();
+        const bool flattenTransforms = (exportExt == "obj" || exportExt == "ply" || exportExt == "stl");
+
 		aiScene* copyScene =
-			SceneGraphExporter::buildExportScene(_sceneGraph, resolver);
+			SceneGraphExporter::buildExportScene(_sceneGraph, resolver, flattenTransforms);
 
 		if (!copyScene)
 		{
@@ -3663,17 +3668,13 @@ void ModelViewer::onFileExport()
 		}
 
 
-		// Apply inverse global transform to meshes before export, since we have applied 
-		// auto scaling and rotation based on the up vector of the model and user settings.
-		glm::mat4 transform = _glWidget->getGlobalSceneTransform();
-		// Invert the transform
-		glm::mat4 inverseTransform = glm::inverse(transform);
-		// Apply to the root node of the scene, which will affect all meshes
-		aiNode* node = copyScene->mRootNode;
-		aiMatrix4x4 aiTransform = SceneUtils::glmToAiMatrix(inverseTransform);
-		node->mTransformation = aiTransform * node->mTransformation;
+		// The autoOrient+autoScale correction is now factored out inside
+		// SceneGraphExporter::buildExportScene() using the importCorrection stored on
+		// each fileNode.  No further node-transform patching is needed here.
 
-		// Apply inverse transforms to the punctual lights as well
+		// Apply inverse transforms to the punctual lights as well.
+		glm::mat4 transform = _glWidget->getGlobalSceneTransform();
+		glm::mat4 inverseTransform = glm::inverse(transform);
 		std::vector<GPULight> lights = _glWidget->getParsedLights();
 		for (GPULight& light : lights)
 		{
@@ -3696,9 +3697,12 @@ void ModelViewer::onFileExport()
 		}
 
 		// Export the meshes loaded in the scene
+		// PLY and STL are geometry-only formats — skip texture packaging entirely
+		// so no textures subfolder is created.
+		const bool formatSupportsTextures = (exportExt != "ply" && exportExt != "stl");
 		AssImpMeshExporter::ExportSettings expSettings;
 		expSettings.outputDirectory = QFileInfo(fileName).absolutePath();
-		expSettings.copyTextures = true;
+		expSettings.copyTextures = formatSupportsTextures;
 		expSettings.useRelativePaths = true;
 		expSettings.deduplicateTextures = true;
 		expSettings.verbose = true;

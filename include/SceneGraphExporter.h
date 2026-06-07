@@ -28,9 +28,14 @@ public:
     //  - rebuild full materials from current GLMaterial state
     //  - include lights
     //  - support multiple UV channels / vertex colors / tangents as needed
+    // flattenTransforms: when true, every aiNode gets an identity transform and
+    // vertices are left in world space.  Required for formats whose Assimp writer
+    // ignores node transforms (OBJ, PLY, STL).  Default false for hierarchy-aware
+    // formats (glTF, FBX, COLLADA).
     static aiScene* buildExportScene(
         const SceneGraph* sceneGraph,
-        const MeshResolver& resolveMesh);
+        const MeshResolver& resolveMesh,
+        bool flattenTransforms = false);
 
 private:
     static aiNode* buildNodeRecursive(
@@ -39,7 +44,8 @@ private:
         std::vector<aiMesh*>& outMeshes,
         std::vector<aiMaterial*>& outMaterials,
         QMap<QString, unsigned int>& materialKeyToIndex,
-        const aiMatrix4x4& parentWorldTransform
+        const aiMatrix4x4& parentWorldTransform,
+        bool flattenTransforms
     );
 
     static aiMesh* buildMeshFromTriangleMesh(const TriangleMesh* mesh, unsigned int materialIndex);

@@ -58,10 +58,14 @@ public:
     //                      The cursor-based DFS inside buildSubtree() assigns
     //                      these UUIDs to the matching aiNodes automatically.
     // lights             — optional punctual lights from KHR_lights_punctual extension.
+    // importCorrection   — autoOrient+autoScale matrix the loader applied to the Assimp root
+    //                      node before the SceneGraph was built; stored on the synthetic
+    //                      fileNode so exporters can factor it out.  Pass identity if none.
     void appendFromScene(const aiScene*                   scene,
                          const QString&                   sourceFile,
                          const QList<QUuid>&              meshUuidsInOrder,
-                         const std::vector<GPULight>&    lights = {});
+                         const std::vector<GPULight>&     lights = {},
+                         const aiMatrix4x4&               importCorrection = aiMatrix4x4());
 
     // Build a flat synthetic session node that owns all meshes directly.
     // Used as a fallback for native-session files that do not carry a full
