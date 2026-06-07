@@ -712,7 +712,6 @@ vec3  computeDielectricF0(float ior, float specularFactor, vec3 specularColor, b
 vec3  computeF90(float metallic, float specularFactor);
 float computeVolumeScaleFactor();
 float computeVolumeThickness(float thickness);
-float computeScaledAttenuationDistance(float attenuationDistance);
 vec3  computeBaseColor(vec2 uv,
 					   vec3 matBaseColor_linear,
 					   sampler2D albedoTex,
@@ -2872,11 +2871,6 @@ float computeVolumeThickness(float thickness)
 	return thickness * computeVolumeScaleFactor();
 }
 
-float computeScaledAttenuationDistance(float attenuationDistance)
-{
-	return attenuationDistance * computeVolumeScaleFactor();
-}
-
 vec3 computeBaseColor(vec2 uv,
 	vec3 matBaseColor_linear,
 	sampler2D albedoTex,
@@ -2929,7 +2923,7 @@ MaterialParams gatherMaterialParams()
 	params.diffuseTransmissionFactor = pbrLighting.diffuseTransmissionFactor;
 	params.diffuseTransmissionColor = pbrLighting.diffuseTransmissionColorFactor;
 	params.attenuationColor = pbrLighting.attenuationColor;
-	params.attenuationDistance = computeScaledAttenuationDistance(pbrLighting.attenuationDistance);
+	params.attenuationDistance = pbrLighting.attenuationDistance;
 	params.dispersion = pbrLighting.dispersion;
 	params.specularFactor = pbrLighting.specularFactor;
 	params.specularColor = pbrLighting.specularColorFactor;

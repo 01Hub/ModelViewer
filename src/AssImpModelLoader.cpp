@@ -1649,20 +1649,6 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 				const_cast<aiScene*>(scene),
 				QString::fromStdString(_path));
 			
-			// Match the effective optical thickness to the baked node scale that was
-			// already applied to vertex positions above. Keep attenuationDistance in
-			// material space so scaled glTF instances still show stronger/weaker
-			// absorption, as intended by sample assets such as AttenuationTest.
-			const glm::mat3 meshTransform(
-				transform.a1, transform.a2, transform.a3,
-				transform.b1, transform.b2, transform.b3,
-				transform.c1, transform.c2, transform.c3);
-			const float scaleX = glm::length(glm::vec3(meshTransform[0]));
-			const float scaleY = glm::length(glm::vec3(meshTransform[1]));
-			const float scaleZ = glm::length(glm::vec3(meshTransform[2]));
-			const float materialScale = (scaleX + scaleY + scaleZ) / 3.0f;
-
-			mat.setThicknessFactor(mat.thicknessFactor() * materialScale);
 			mat.setIsGLTFMaterial(true);
 			qDebug() << "GLTF Material Loaded";
 		}
