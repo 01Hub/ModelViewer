@@ -198,7 +198,6 @@ void AssImpMesh::optimizeMesh()
 	}
 	if (_indices.size() > 300 && _vertices.size() > 100)
 	{
-		//qDebug("Optimizing mesh %s with %zu vertices and %zu indices...", qPrintable(_name), _vertices.size(), _indices.size());
 		size_t vertexCount = _vertices.size();
 
 		// Extract positions temporarily for overdraw optimization
@@ -1009,8 +1008,6 @@ void AssImpMesh::syncVertexDataAfterBake()
 	// (setupMesh would re-optimize, which we don't want)
 	setupMesh();
 
-	qDebug() << "AssImpMesh::syncVertexDataAfterBake: Synced" << _vertices.size()
-		<< "vertices with baked geometry";
 }
 
 void AssImpMesh::setAlbedoPBRMap(unsigned int albedoMap)
@@ -1290,84 +1287,48 @@ void AssImpMesh::clearAllPBRMaps()
 
 void AssImpMesh::setDiffuseADSMap(unsigned int diffuseTex)
 {
-	if (_diffuseADSMap && _diffuseADSMap != diffuseTex)
-		glDeleteTextures(1, &_diffuseADSMap);
 	_diffuseADSMap = diffuseTex;
-	GLMaterial::Texture t;
-	t.id = diffuseTex;
-	t.type = "texture_diffuse";
-	t.path = ""; // No path for OpenGL texture handles
-	_textures.push_back(t);
+	replaceOrAppendTexture("texture_diffuse", diffuseTex, false);
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
 void AssImpMesh::setSpecularADSMap(unsigned int specularTex)
 {
-	if (_specularADSMap && _specularADSMap != specularTex)
-		glDeleteTextures(1, &_specularADSMap);
 	_specularADSMap = specularTex;
-	GLMaterial::Texture t;
-	t.id = specularTex;
-	t.type = "texture_specular";
-	t.path = ""; // No path for OpenGL texture handles
-	_textures.push_back(t);
+	replaceOrAppendTexture("texture_specular", specularTex, false);
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
 void AssImpMesh::setEmissiveADSMap(unsigned int emissiveTex)
 {
-	if (_emissiveADSMap && _emissiveADSMap != emissiveTex)
-		glDeleteTextures(1, &_emissiveADSMap);
 	_emissiveADSMap = emissiveTex;
-	GLMaterial::Texture t;
-	t.id = emissiveTex;
-	t.type = "texture_emissive";
-	t.path = ""; // No path for OpenGL texture handles
-	_textures.push_back(t);
+	replaceOrAppendTexture("texture_emissive", emissiveTex, false);
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
 void AssImpMesh::setNormalADSMap(unsigned int normalTex)
 {
-	if (_normalADSMap && _normalADSMap != normalTex)
-		glDeleteTextures(1, &_normalADSMap);
 	_normalADSMap = normalTex;
-	GLMaterial::Texture t;
-	t.id = normalTex;
-	t.type = "texture_normal";
-	t.path = ""; // No path for OpenGL texture handles
-	_textures.push_back(t);
+	replaceOrAppendTexture("texture_normal", normalTex, false);
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
 void AssImpMesh::setHeightADSMap(unsigned int heightTex)
 {
-	if (_heightADSMap && _heightADSMap != heightTex)
-		glDeleteTextures(1, &_heightADSMap);
 	_heightADSMap = heightTex;
-	GLMaterial::Texture t;
-	t.id = heightTex;
-	t.type = "texture_height";
-	t.path = ""; // No path for OpenGL texture handles
-	_textures.push_back(t);
+	replaceOrAppendTexture("texture_height", heightTex, false);
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
 void AssImpMesh::setOpacityADSMap(unsigned int opacityTex)
 {
-	if (_opacityADSMap && _opacityADSMap != opacityTex)
-		glDeleteTextures(1, &_opacityADSMap);
 	_opacityADSMap = opacityTex;
-	GLMaterial::Texture t;
-	t.id = opacityTex;
-	t.type = "texture_opacity";
-	t.path = ""; // No path for OpenGL texture handles
-	_textures.push_back(t);
+	replaceOrAppendTexture("texture_opacity", opacityTex, true);
 	_material.setBlendMode(GLMaterial::BlendMode::Alpha);
 	markTexturesDirty();
 	markUniformsDirty();
@@ -1375,7 +1336,6 @@ void AssImpMesh::setOpacityADSMap(unsigned int opacityTex)
 
 void AssImpMesh::clearDiffuseADSMap()
 {
-	glDeleteTextures(1, &_diffuseADSMap);
 	_diffuseADSMap = 0;
 	removeTexturesByType({ "texture_diffuse" });
 	markTexturesDirty();
@@ -1384,7 +1344,6 @@ void AssImpMesh::clearDiffuseADSMap()
 
 void AssImpMesh::clearSpecularADSMap()
 {
-	glDeleteTextures(1, &_specularADSMap);
 	_specularADSMap = 0;
 	removeTexturesByType({ "texture_specular" });
 	markTexturesDirty();
@@ -1393,7 +1352,6 @@ void AssImpMesh::clearSpecularADSMap()
 
 void AssImpMesh::clearEmissiveADSMap()
 {
-	glDeleteTextures(1, &_emissiveADSMap);
 	_emissiveADSMap = 0;
 	removeTexturesByType({ "texture_emissive" });
 	markTexturesDirty();
@@ -1402,7 +1360,6 @@ void AssImpMesh::clearEmissiveADSMap()
 
 void AssImpMesh::clearNormalADSMap()
 {
-	glDeleteTextures(1, &_normalADSMap);
 	_normalADSMap = 0;
 	removeTexturesByType({ "texture_normal" });
 	markTexturesDirty();
@@ -1411,7 +1368,6 @@ void AssImpMesh::clearNormalADSMap()
 
 void AssImpMesh::clearHeightADSMap()
 {
-	glDeleteTextures(1, &_heightADSMap);
 	_heightADSMap = 0;
 	removeTexturesByType({ "texture_height" });
 	markTexturesDirty();
@@ -1420,7 +1376,6 @@ void AssImpMesh::clearHeightADSMap()
 
 void AssImpMesh::clearOpacityADSMap()
 {
-	glDeleteTextures(1, &_opacityADSMap);
 	_opacityADSMap = 0;
 	removeTexturesByType({ "texture_opacity" });
 	markTexturesDirty();
@@ -1439,148 +1394,64 @@ void AssImpMesh::clearAllADSMaps()
 
 void AssImpMesh::setTextureMaps(const GLMaterial& material)
 {
+	// Runtime-resolved GLMaterial instances can point at shared textures from
+	// GLWidget's cache. Sync to those ids without deleting or recreating them.
 	_material = material;
 	cacheBaseVolumeProperties();
 	applyScaledVolumeProperties();
 
 	_textures.clear();
 
-	if (material.hasAlbedoMap())
+	auto syncTexture = [this](bool present, const char* type, GLuint id, bool hasAlpha = false)
 	{
-		setAlbedoPBRMap(material.albedoTextureId());
-	}
-	if (material.hasMetallicMap())
-	{
-		setMetallicPBRMap(material.metallicTextureId());
-	}
-	if (material.hasEmissiveMap())
-	{
-		setEmissivePBRMap(material.emissiveTextureId());
-	}
-	if (material.hasRoughnessMap())
-	{
-		setRoughnessPBRMap(material.roughnessTextureId());
-	}
-	if (material.hasNormalMap())
-	{
-		setNormalPBRMap(material.normalTextureId());
-	}
-	if (material.hasAOMap())
-	{
-		setAOPBRMap(material.occlusionTextureId());
-	}
-	if (material.hasHeightMap())
-	{
-		setHeightPBRMap(material.heightTextureId());
-	}
-	if (material.hasOpacityMap())
-	{
-		setOpacityPBRMap(material.opacityTextureId());		
-	}
-	if (material.hasTransmissionMap())
-	{
-		setTransmissionPBRMap(material.transmissionTextureId());
-	}
-	if (material.hasIORMap())
-	{
-		setIORPBRMap(material.iorTextureId());
-	}
-	if (material.hasSheenColorMap())
-	{
-		setSheenColorPBRMap(material.sheenColorTextureId());
-	}
-	if (material.hasSheenRoughnessMap())
-	{
-		setSheenRoughnessPBRMap(material.sheenRoughnessTextureId());
-	}
-	if (material.hasClearcoatColorMap())
-	{
-		setClearcoatPBRMap(material.clearcoatColorTextureId());
-	}
-	if (material.hasClearcoatRoughnessMap())
-	{
-		setClearcoatRoughnessPBRMap(material.clearcoatRoughnessTextureId());
-	}
-	if (material.hasClearcoatNormalMap())
-	{
-		setClearcoatNormalPBRMap(material.clearcoatNormalTextureId());
-	}
-	if (material.hasIridescenceMap())
-	{
-		replaceOrAppendTexture("iridescenceMap", material.iridescenceTextureId(), false);
-	}
-	if (material.hasIridescenceThicknessMap())
-	{
-		replaceOrAppendTexture("iridescenceThicknessMap", material.iridescenceThicknessTextureId(), false);
-	}
-	if (material.hasSpecularFactorMap())
-	{
-		replaceOrAppendTexture("specularFactorMap", material.specularFactorTextureId(), false);
-	}
-	if (material.hasSpecularColorMap())
-	{
-		replaceOrAppendTexture("specularColorMap", material.specularColorTextureId(), false);
-	}
-	if (material.hasAnisotropyMap())
-	{
-		replaceOrAppendTexture("anisotropyMap", material.anisotropyTextureId(), false);
-	}
-	if (material.hasThicknessMap())
-	{
-		replaceOrAppendTexture("thicknessMap", material.thicknessTextureId(), false);
-	}
-	if (material.hasDiffuseMap())
-	{
-		replaceOrAppendTexture("diffuseMap", material.diffuseTextureId(), false);
-	}
-	if (material.hasDiffuseTransmissionMap())
-	{
-		replaceOrAppendTexture("diffuseTransmissionMap", material.diffuseTransmissionTextureId(), false);
-	}
-	if (material.hasDiffuseTransmissionColorMap())
-	{
-		replaceOrAppendTexture("diffuseTransmissionColorMap", material.diffuseTransmissionColorTextureId(), false);
-	}
-	if (material.hasSpecularGlossinessMap())
-	{
-		replaceOrAppendTexture("specularGlossinessMap", material.specularGlossinessTextureId(), false);
-	}
+		if (present)
+			replaceOrAppendTexture(type, id, hasAlpha);
+	};
 
-	// Mirror the active material into the legacy ADS texture entries that
-	// AssImpMesh::render() still binds for ADS mode.
-	if (material.hasAlbedoMap())
-	{
-		setDiffuseADSMap(material.albedoTextureId());
-	}
-	else if (material.hasDiffuseMap())
-	{
-		setDiffuseADSMap(material.diffuseTextureId());
-	}
+	syncTexture(material.hasAlbedoMap(), "albedoMap", material.albedoTextureId());
+	syncTexture(material.hasMetallicMap(), "metallicMap", material.metallicTextureId());
+	syncTexture(material.hasEmissiveMap(), "emissiveMap", material.emissiveTextureId());
+	syncTexture(material.hasRoughnessMap(), "roughnessMap", material.roughnessTextureId());
+	syncTexture(material.hasNormalMap(), "normalMap", material.normalTextureId());
+	syncTexture(material.hasAOMap(), "aoMap", material.occlusionTextureId());
+	syncTexture(material.hasHeightMap(), "heightMap", material.heightTextureId());
+	syncTexture(material.hasOpacityMap(), "opacityMap", material.opacityTextureId(), true);
+	syncTexture(material.hasTransmissionMap(), "transmissionMap", material.transmissionTextureId());
+	syncTexture(material.hasIORMap(), "iorMap", material.iorTextureId());
+	syncTexture(material.hasSheenColorMap(), "sheenColorMap", material.sheenColorTextureId());
+	syncTexture(material.hasSheenRoughnessMap(), "sheenRoughnessMap", material.sheenRoughnessTextureId());
+	syncTexture(material.hasClearcoatColorMap(), "clearcoatColorMap", material.clearcoatColorTextureId());
+	syncTexture(material.hasClearcoatRoughnessMap(), "clearcoatRoughnessMap", material.clearcoatRoughnessTextureId());
+	syncTexture(material.hasClearcoatNormalMap(), "clearcoatNormalMap", material.clearcoatNormalTextureId());
+	syncTexture(material.hasIridescenceMap(), "iridescenceMap", material.iridescenceTextureId());
+	syncTexture(material.hasIridescenceThicknessMap(), "iridescenceThicknessMap", material.iridescenceThicknessTextureId());
+	syncTexture(material.hasSpecularFactorMap(), "specularFactorMap", material.specularFactorTextureId());
+	syncTexture(material.hasSpecularColorMap(), "specularColorMap", material.specularColorTextureId());
+	syncTexture(material.hasAnisotropyMap(), "anisotropyMap", material.anisotropyTextureId());
+	syncTexture(material.hasThicknessMap(), "thicknessMap", material.thicknessTextureId());
+	syncTexture(material.hasDiffuseMap(), "diffuseMap", material.diffuseTextureId());
+	syncTexture(material.hasDiffuseTransmissionMap(), "diffuseTransmissionMap", material.diffuseTransmissionTextureId());
+	syncTexture(material.hasDiffuseTransmissionColorMap(), "diffuseTransmissionColorMap", material.diffuseTransmissionColorTextureId());
+	syncTexture(material.hasSpecularGlossinessMap(), "specularGlossinessMap", material.specularGlossinessTextureId());
 
-	if (material.hasMetallicMap())
-	{
-		setSpecularADSMap(material.metallicTextureId());
-	}
+	_diffuseADSMap = material.hasAlbedoMap()
+		? material.albedoTextureId()
+		: (material.hasDiffuseMap() ? material.diffuseTextureId() : 0U);
+	_specularADSMap = material.hasMetallicMap() ? material.metallicTextureId() : 0U;
+	_emissiveADSMap = material.hasEmissiveMap() ? material.emissiveTextureId() : 0U;
+	_normalADSMap = material.hasNormalMap() ? material.normalTextureId() : 0U;
+	_heightADSMap = material.hasHeightMap() ? material.heightTextureId() : 0U;
+	_opacityADSMap = material.hasOpacityMap() ? material.opacityTextureId() : 0U;
 
-	if (material.hasEmissiveMap())
-	{
-		setEmissiveADSMap(material.emissiveTextureId());
-	}
+	syncTexture(_diffuseADSMap != 0, "texture_diffuse", _diffuseADSMap);
+	syncTexture(_specularADSMap != 0, "texture_specular", _specularADSMap);
+	syncTexture(_emissiveADSMap != 0, "texture_emissive", _emissiveADSMap);
+	syncTexture(_normalADSMap != 0, "texture_normal", _normalADSMap);
+	syncTexture(_heightADSMap != 0, "texture_height", _heightADSMap);
+	syncTexture(_opacityADSMap != 0, "texture_opacity", _opacityADSMap, true);
 
-	if (material.hasNormalMap())
-	{
-		setNormalADSMap(material.normalTextureId());
-	}
-
-	if (material.hasHeightMap())
-	{
-		setHeightADSMap(material.heightTextureId());
-	}
-
-	if (material.hasOpacityMap())
-	{
-		setOpacityADSMap(material.opacityTextureId());
-	}
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 void AssImpMesh::replaceOrAppendTexture(const std::string& type, GLuint id, bool hasAlpha)

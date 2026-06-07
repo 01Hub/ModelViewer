@@ -307,6 +307,7 @@ public:
 	void setDefaultLightColor(const QVector4D& defaultLightColor);
 
 	QVector3D getLightPosition() const;
+	QVector3D getLightOffset() const { return QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ); }
 	void setLightOffset(const QVector3D& offset);
 
 	std::vector<GPULight> getParsedLights() const { return _originalParsedLights; }
@@ -385,11 +386,22 @@ public:
 	bool isEnvironmentMapEnabled() const { return _envMapEnabled; }
 	bool isIBLEnabled() const { return _useIBL; }
 	float getIBLExposure() const { return _iblExposure; }
+	float getEnvMapExposure() const { return _envMapExposure; }
 	QString getCurrentSkyboxFolder() const { return _currentSkyboxFolder; }
+	bool isSkyBoxShown() const { return _skyBoxEnabled; }
+	bool isSkyBoxHDRIEnabled() const { return _skyBoxTextureHDRI; }
+	int getSkyBoxBlurPercent() const { return _skyBoxBlurPercent; }
+	float getSkyBoxFOV() const { return _skyBoxFOV; }
+	float getSkyBoxZRotationDegrees() const { return _skyBoxZRotation; }
+	bool areReflectionsEnabled() const { return _reflectionsEnabled; }
+	bool isFloorTextureShown() const { return _floorTextureDisplayed; }
+	bool areShadowsEnabled() const { return _shadowsEnabled; }
+	bool areSelfShadowsEnabled() const { return _selfShadowsEnabled; }
+	bool areDefaultLightsEnabled() const { return _useDefaultLights; }
+	bool arePunctualLightsEnabled() const { return _usePunctualLights; }
+	bool areLightsShown() const;
 
 	ViewToolbar* getViewToolbar() const { return _viewToolbar; }
-
-	bool areLightsShown() const;
 
 	void cleanUpShaders();
 
@@ -422,6 +434,12 @@ public:
 		QUuid        uuid;
 		GLenum       primitiveMode = GL_TRIANGLES;
 		int          sceneIndex    = -1;
+		bool         hasNegativeScale = false;
+		int          originalMaterialIndex = -1;
+		QString      sourceFile;
+		QString      sourceNodeName;
+		QVector<GltfVariantMapping> variantMappings;
+		QMap<int, GLMaterial> allVariantMaterials;
 		std::vector<Vertex>       vertices;
 		std::vector<unsigned int> indices;
 		GLMaterial   material;
@@ -450,8 +468,9 @@ public:
 
 	// Legacy combined entry point (kept for compatibility).
 	bool loadMvfMeshes(const Mvf::Document& document,
-	                    const QByteArray& geometryChunk,
-	                    const QByteArray& imageChunk);
+	                   const QByteArray& geometryChunk,
+	                   const QByteArray& imageChunk);
+	void setParsedLights(const std::vector<GPULight>& lights);
 
 	/// Accessor for the foreground shader (for pre-load shader validation).
 	ShaderProgram* getShader() const { return _fgShader.get(); }
@@ -656,6 +675,8 @@ private:
 	void updateMainLightPosition(float halfObjectSize);
 	float updateFloorGeometry();
 	void syncDefaultLightColorUniforms();
+	void syncPunctualLightUniforms(int lightCount, bool hasPunctualLights);
+	bool shouldUseFallbackLightForVisibleScene() const;
 
 	void updatePunctualLights();  // Update lights based on bounding sphere changes
 	void setAnimatedLightVisibilityState(const QString& sourceFile, const QVector<bool>& visibleByParsedLight);

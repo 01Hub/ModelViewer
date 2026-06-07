@@ -193,6 +193,7 @@ void SceneGraph::rebuildFromMvf(const QJsonArray& documentNodes,
     _activeVariantByFile.clear();
     _animationDataByFile.clear();
     _activeAnimationClipByFile.clear();
+    _gltfCameraDataByFile.clear();
     freeSubtree(_root);
 
     _root           = new SceneNode();
@@ -214,6 +215,8 @@ void SceneGraph::rebuildFromMvf(const QJsonArray& documentNodes,
         node->nodeUuid = idStr.isEmpty() ? QUuid::createUuid()
                                          : QUuid::fromString(idStr);
         node->name = obj[QStringLiteral("name")].toString();
+        node->isSynthetic = obj[QStringLiteral("isSynthetic")].toBool(false);
+        node->sourceFile = obj[QStringLiteral("sourceFile")].toString();
 
         const QJsonArray mat = obj[QStringLiteral("matrix")].toArray();
         if (mat.size() == 16)

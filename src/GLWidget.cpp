@@ -26,6 +26,7 @@
 #include "Utils.h"
 #include <algorithm>
 #include <iostream>
+#include <QCryptographicHash>
 #include <QOpenGLContext>
 #include <QElapsedTimer>
 #include <QMessageBox>
@@ -68,6 +69,7 @@ struct ViewCubeStyle
 };
 
 const ViewCubeStyle kViewCubeStyle;
+
 
 bool convertPixelToRay(const QPoint& pixel, const QRect& viewport, int widgetHeight,
 	const QMatrix4x4& view, const QMatrix4x4& projection,
@@ -1517,28 +1519,7 @@ void GLWidget::initializeGL()
 	// Connect lights loading
 	connect(_assimpModelLoader, &AssImpModelLoader::lightsLoaded,
 		this, [this](const std::vector<GPULight>& lights) {
-			_originalParsedLights.clear();
-			_currentRepositionedLights.clear();
-			_animatedLightTransformSourceFile.clear();
-			_animatedParsedLights.clear();
-			_animatedLightVisibilitySourceFile.clear();
-			_animatedLightVisibilityMask.clear();
-			_animatedMeshVisibilitySourceFile.clear();
-			_animatedHiddenMeshUuids.clear();
-			_lightRepoBasis.baselineRadius = 0.0f;  // Reset baseline for new model
-			_originalParsedLights = lights;
-
-			_fgShader->bind();
-			if (!lights.empty())
-			{
-				_fgShader->setUniformValue("lightCount", (int)lights.size());
-				_fgShader->setUniformValue("hasPunctualLights", true);
-			}
-			else
-			{
-				_fgShader->setUniformValue("lightCount", 1);
-				_fgShader->setUniformValue("hasPunctualLights", false);
-			}
+			setParsedLights(lights);
 		});
 
 	const std::string path = PathUtils::getDataDirectory().toStdString() + "/";
@@ -1971,7 +1952,6 @@ bool GLWidget::loadCubemapFromSingleHDR(const QString& filePath)
 		faceSize = imgHeight;
 		for (int i = 0; i < 6; ++i)
 			faceOffsets[i] = QPoint(i * faceSize, 0);
-		qDebug() << "Detected layout: 6x1 horizontal strip";
 		validLayout = true;
 	}
 
@@ -1981,7 +1961,6 @@ bool GLWidget::loadCubemapFromSingleHDR(const QString& filePath)
 		faceSize = imgWidth;
 		for (int i = 0; i < 6; ++i)
 			faceOffsets[i] = QPoint(0, i * faceSize);
-		qDebug() << "Detected layout: 1x6 vertical strip";
 		validLayout = true;
 	}
 
@@ -1999,7 +1978,6 @@ bool GLWidget::loadCubemapFromSingleHDR(const QString& filePath)
 		};
 		for (int i = 0; i < 6; ++i)
 			faceOffsets[i] = QPoint(gridOffsets[i].x() * faceSize, gridOffsets[i].y() * faceSize);
-		qDebug() << "Detected layout: 3x2 grid";
 		validLayout = true;
 	}
 
@@ -2021,7 +1999,6 @@ bool GLWidget::loadCubemapFromSingleHDR(const QString& filePath)
 			};
 			for (int i = 0; i < 6; ++i)
 				faceOffsets[i] = QPoint(crossOffsets[i].x() * faceSize, crossOffsets[i].y() * faceSize);
-			qDebug() << "Detected layout: 4x3 cross";
 			validLayout = true;
 		}
 		// Handle 3x4 cross layout (rotated cross)
@@ -2038,7 +2015,6 @@ bool GLWidget::loadCubemapFromSingleHDR(const QString& filePath)
 			};
 			for (int i = 0; i < 6; ++i)
 				faceOffsets[i] = QPoint(crossOffsets[i].x() * faceSize, crossOffsets[i].y() * faceSize);
-			qDebug() << "Detected layout: 3x4 cross";
 			validLayout = true;
 		}
 	}
@@ -2135,7 +2111,6 @@ bool GLWidget::convertEquirectangularToCubemap(const QString& filePath)
 	// good face size.  Round down to the nearest power-of-two for clean mip chains and
 	// clamp to 2048 to keep GPU memory reasonable.
 	int cubeSize = 1 << static_cast<int>(std::log2(std::min(imgWidth / 4, 2048)));
-	qDebug() << "HDR equirect" << imgWidth << "x" << imgHeight << "→ cubemap face" << cubeSize;
 	for (int mip = 0; mip < static_cast<int>(std::log2(cubeSize)) + 1; ++mip)
 	{
 		int mipSize = cubeSize >> mip;
@@ -2238,7 +2213,6 @@ bool GLWidget::convertEquirectangularToCubemapQuad(const QString& filePath)
 	// good face size.  Round down to the nearest power-of-two for clean mip chains and
 	// clamp to 2048 to keep GPU memory reasonable.
 	int cubeSize = 1 << static_cast<int>(std::log2(std::min(imgWidth / 4, 2048)));
-	qDebug() << "HDR equirect" << imgWidth << "x" << imgHeight << "→ cubemap face" << cubeSize;
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 
 	for (int i = 0; i < 6; ++i)
@@ -2331,7 +2305,6 @@ bool GLWidget::convertEquirectangularToCubemapQuad(const QString& filePath)
 	glDeleteBuffers(1, &quadEBO);
 	glDeleteVertexArrays(1, &quadVAO);
 
-	qDebug() << "Equirectangular to cubemap conversion complete";
 	return true;
 }
 void GLWidget::renderConversionCube()
@@ -2980,11 +2953,6 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 		_lightRepoBasis.baselineRadius = _boundingSphere.getRadius();
 		_lightRepoBasis.accumulatedRotation = glm::mat4(1.0f);
 
-		qDebug() << "Model transform basis captured in setDisplayList:";
-		qDebug() << "  Baseline center: (" << _lightRepoBasis.baselineCenter.x
-			<< ", " << _lightRepoBasis.baselineCenter.y
-			<< ", " << _lightRepoBasis.baselineCenter.z << ")";
-		qDebug() << "  Baseline radius: " << _lightRepoBasis.baselineRadius;
 	}
 	// ================================================================
 
@@ -3006,7 +2974,10 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 	}
 	else if (_autoFitViewOnUpdate)
 	{
-		fitAll();
+		if (!isGltfCameraActive())
+		{
+			fitAll();
+		}
 	}
 
 	update();
@@ -3253,14 +3224,69 @@ void GLWidget::updateFloorPlane()
 	// Create fallback light if no punctual lights available
 	if (_originalParsedLights.empty())
 	{
-		glLights->createFallbackLight(glm::vec3(
-			static_cast<float>(_lightPosition.x()),
-			static_cast<float>(_lightPosition.y()),
-			static_cast<float>(_lightPosition.z())
-		));
+		if (shouldUseFallbackLightForVisibleScene())
+		{
+			glLights->createFallbackLight(glm::vec3(
+				static_cast<float>(_lightPosition.x()),
+				static_cast<float>(_lightPosition.y()),
+				static_cast<float>(_lightPosition.z())
+			));
+			syncPunctualLightUniforms(1, true);
+		}
+		else
+		{
+			glLights->setLights({});
+			syncPunctualLightUniforms(0, false);
+		}
 	}
 
 	updateClippingPlane();
+}
+
+void GLWidget::syncPunctualLightUniforms(int lightCount, bool hasPunctualLights)
+{
+	if (!_fgShader)
+		return;
+
+	_fgShader->bind();
+	_fgShader->setUniformValue("lightCount", lightCount);
+	_fgShader->setUniformValue("hasPunctualLights", hasPunctualLights);
+}
+
+bool GLWidget::shouldUseFallbackLightForVisibleScene() const
+{
+	const std::vector<int>& visibleIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+	bool sawVisibleMesh = false;
+	bool sawGltfDerivedMesh = false;
+
+	for (int meshId : visibleIds)
+	{
+		if (meshId < 0 || meshId >= static_cast<int>(_meshStore.size()))
+			continue;
+
+		TriangleMesh* mesh = _meshStore.at(meshId);
+		if (!mesh)
+			continue;
+
+		sawVisibleMesh = true;
+		const QString sourceFile = mesh->getSourceFile().trimmed();
+		if (sourceFile.isEmpty())
+			continue;
+
+		if (sourceFile.endsWith(".gltf", Qt::CaseInsensitive) ||
+			sourceFile.endsWith(".glb", Qt::CaseInsensitive))
+		{
+			sawGltfDerivedMesh = true;
+			continue;
+		}
+
+		return true;
+	}
+
+	if (!sawVisibleMesh)
+		return true;
+
+	return !sawGltfDerivedMesh;
 }
 
 void GLWidget::updateClippingPlane()
@@ -3715,11 +3741,8 @@ void GLWidget::removeFromDisplay(int index)
 		_animatedMeshVisibilitySourceFile.clear();
 		_animatedHiddenMeshUuids.clear();
 		_lightRepoBasis.baselineRadius = 0.0f;  // Reset baseline
-		glLights->createFallbackLight(glm::vec3(
-			static_cast<float>(_lightPosition.x()),
-			static_cast<float>(_lightPosition.y()),
-			static_cast<float>(_lightPosition.z())
-		));		
+		glLights->setLights({});
+		syncPunctualLightUniforms(0, false);
 	}
 }
 
@@ -3880,29 +3903,7 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 			&AssImpModelLoader::lightsLoaded,
 			this,
 			[this](const std::vector<GPULight>& lights) {
-				_originalParsedLights.clear();
-				_currentRepositionedLights.clear();
-				_animatedLightTransformSourceFile.clear();
-				_animatedParsedLights.clear();
-				_animatedLightVisibilitySourceFile.clear();
-				_animatedLightVisibilityMask.clear();
-				_animatedMeshVisibilitySourceFile.clear();
-				_animatedHiddenMeshUuids.clear();
-				_lightRepoBasis.baselineRadius = 0.0f;  // Reset baseline for new model
-				_originalParsedLights = lights;
-
-				makeCurrent();
-				_fgShader->bind();
-				if (!lights.empty())
-				{
-					_fgShader->setUniformValue("lightCount", (int)lights.size());
-					_fgShader->setUniformValue("hasPunctualLights", true);
-				}
-				else
-				{
-					_fgShader->setUniformValue("lightCount", 1);
-					_fgShader->setUniformValue("hasPunctualLights", false);
-				}
+				setParsedLights(lights);
 			},
 			Qt::QueuedConnection);
 
@@ -10044,6 +10045,12 @@ void GLWidget::resetToSystemCamera()
 		_primaryCamera->setProjectionType(_savedProjectionType);
 		_primaryCamera->setFOV(_savedCameraFOV);
 		_primaryCamera->setViewRange(_savedCameraViewRange);
+		_viewRange = _savedCameraViewRange;
+		_currentViewRange = _viewRange;
+		_projection = (_savedProjectionType == GLCamera::ProjectionType::PERSPECTIVE)
+			? ViewProjection::PERSPECTIVE
+			: ViewProjection::ORTHOGRAPHIC;
+		_previousProjection = _savedProjectionType;
 		_systemCameraStateSaved = false;
 	}
 
@@ -10170,13 +10177,20 @@ void GLWidget::applyGltfCameraEntryTransform(const GltfCameraEntry& cam)
 		// Clamp to at least scene radius so we never zoom in past the model.
 		const float clampedDist = std::max(distToScene, _boundingSphere.getRadius());
 		_primaryCamera->setViewRange(clampedDist / 1.25f);
+		_projection = ViewProjection::PERSPECTIVE;
+		_previousProjection = GLCamera::ProjectionType::PERSPECTIVE;
 	}
 	else
 	{
 		_primaryCamera->setProjectionType(GLCamera::ProjectionType::ORTHOGRAPHIC);
 		const float orthoRange = std::max(cam.xMag, cam.yMag) * 2.0f * radiusDelta;
 		_primaryCamera->setViewRange(std::max(orthoRange, 0.0001f));
+		_projection = ViewProjection::ORTHOGRAPHIC;
+		_previousProjection = GLCamera::ProjectionType::ORTHOGRAPHIC;
 	}
+
+	_viewRange = _primaryCamera->getViewRange();
+	_currentViewRange = _viewRange;
 
 	const QVector3D right = QVector3D::crossProduct(worldDir, worldUp).normalized();
 	const QVector3D pivotPos = (_primaryCamera->getMode() == GLCamera::CameraMode::Orbit)
@@ -10516,7 +10530,7 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 						scalarValue);
 				}
 			}
-			else if (channel.pointerTargetKind == GltfAnimationPointerTargetKind::NodeVisibility)
+				else if (channel.pointerTargetKind == GltfAnimationPointerTargetKind::NodeVisibility)
 			{
 				if (channel.targetNodeIndex >= 0)
 				{
@@ -10840,9 +10854,11 @@ GLuint GLWidget::createGPUTextureFromImage(const QImage& image, const TextureSam
 		break;
 
 	case QImage::Format_Grayscale8:
-		glImage = image;
-		internalFormat = GL_R8;
-		dataFormat = GL_RED;
+		// Expand to RGBA so all three colour channels are populated.
+		// Uploading as GL_RED leaves G and B at 0, making the texture appear red.
+		glImage = image.convertToFormat(QImage::Format_RGBA8888);
+		internalFormat = GL_RGBA8;
+		dataFormat = GL_RGBA;
 		break;
 
 	case QImage::Format_Indexed8:
@@ -11053,8 +11069,6 @@ unsigned int GLWidget::getOrLoadTextureCached(
 				if (oldTexID != 0)
 				{
 					releaseTexture(oldTexID);
-					qDebug() << "Released old texture ID" << oldTexID
-						<< "when creating new texture with different samplers for" << path;
 				}
 
 				entry.lastGPUTexture = newTexID;
@@ -11123,18 +11137,10 @@ GLMaterial GLWidget::resolveMaterialTextures(GLWidget* w, const GLMaterial& src)
 		const std::string& mapType,
 		const TextureSamplerSettings& samplers) -> unsigned int
 	{
-		qDebug() << "resolveTexturePath called with path:" << path << "mapType:" << QString::fromStdString(mapType);
 		if (path.isEmpty())
-		{
-			qDebug() << "  Path is empty, returning 0";
 			return 0;
-		}
 		if (path.endsWith(".ktx2", Qt::CaseInsensitive))
-		{
-			qDebug() << "  Loading as KTX2";
 			return w->getOrLoadKtx2TextureCached(path, mapType, samplers);
-		}
-		qDebug() << "  Loading as standard texture";
 		return w->getOrLoadTextureCached(path, samplers);
 	};
 	auto resolveTexturePathOrKeepId = [&](const QString& path,
@@ -11402,11 +11408,7 @@ void GLWidget::generateCubemapMipmaps(GLuint cubemapTexture)
 	glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
 	glGetTextureLevelParameteriv(cubemapTexture, 0, GL_TEXTURE_WIDTH, &baseSize);
 
-	qDebug() << "Cubemap resolution:" << baseSize << "x" << baseSize;
-
 	int maxMipLevels = static_cast<int>(std::log2(baseSize)) + 1;
-
-	qDebug() << "Generating" << maxMipLevels << "mip levels for cubemap";
 
 	// Create temporary FBO for rendering to mip levels
 	GLuint mipmapFBO;
@@ -11477,8 +11479,6 @@ void GLWidget::generateCubemapMipmaps(GLuint cubemapTexture)
 	{
 		int mipSize = baseSize >> mip;  // Bitshift divide by 2^mip
 
-		qDebug() << "Generating mip level" << mip << "(" << mipSize << "x" << mipSize << ")";
-
 		// Resize renderbuffer for depth attachment
 		glBindRenderbuffer(GL_RENDERBUFFER, mipmapRBO);
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipSize, mipSize);
@@ -11533,7 +11533,6 @@ void GLWidget::generateCubemapMipmaps(GLuint cubemapTexture)
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-	qDebug() << "Mipmap generation complete";
 }
 
 QString GLWidget::generateUniqueMeshName(const QString& baseName)
@@ -13164,9 +13163,11 @@ unsigned int GLWidget::loadTextureFromFile(
 		break;
 
 	case QImage::Format_Grayscale8:
-		glImage = image;
-		internalFormat = GL_R8;
-		dataFormat = GL_RED;
+		// Expand to RGBA so all three colour channels are populated.
+		// Uploading as GL_RED leaves G and B at 0, making the texture appear red.
+		glImage = image.convertToFormat(QImage::Format_RGBA8888);
+		internalFormat = GL_RGBA8;
+		dataFormat = GL_RGBA;
 		break;
 
 	case QImage::Format_Indexed8:
@@ -14236,6 +14237,7 @@ void GLWidget::setBackgroundColor()
 #include "MvfDocument.h"
 #include <QFile>
 #include <QTemporaryDir>
+#include <QUuid>
 #include <cstring>
 
 namespace
@@ -14355,93 +14357,85 @@ static void applyTextureRef(GLMaterial& mat,
     default: return;
     }
 
-    // Apply sampler settings to the internal Texture slot so
-    // resolveMaterialTextures uses the correct GL wrap/filter.
+    GLMaterial::Texture tex = mat.texture(type);
+    tex.path = path.toStdString();
+    tex.texCoordIndex = texInfo[QStringLiteral("texCoord")].toInt(0);
+
     if (samplerIndex >= 0 && samplerIndex < samplers.size())
     {
         const QJsonObject samp = samplers[samplerIndex].toObject();
-        // Retrieve the current slot (already has sensible defaults), patch it.
-        GLMaterial::Texture tex = mat.texture(type);
         tex.magFilter = static_cast<GLenum>(samp[QStringLiteral("magFilter")].toInt(GL_LINEAR));
         tex.minFilter = static_cast<GLenum>(samp[QStringLiteral("minFilter")].toInt(GL_LINEAR_MIPMAP_LINEAR));
         tex.wrapS     = static_cast<GLenum>(samp[QStringLiteral("wrapS")].toInt(GL_REPEAT));
         tex.wrapT     = static_cast<GLenum>(samp[QStringLiteral("wrapT")].toInt(GL_REPEAT));
-        tex.path      = path.toStdString();
-        // There is no generic setTexture(type, tex) on GLMaterial;
-        // the path setters above suffice and defaults cover filtering.
-        (void)tex;
     }
 
-    // Apply texCoord index where per-type setters exist.
-    const int texCoord = texInfo[QStringLiteral("texCoord")].toInt(0);
-    if (texCoord != 0)
+    const QJsonObject extensions = texInfo[QStringLiteral("extensions")].toObject();
+    const QJsonObject transform = extensions[QStringLiteral("KHR_texture_transform")].toObject();
+    if (!transform.isEmpty())
     {
-        switch (type)
-        {
-        case GLMaterial::TextureType::Albedo:               mat.setAlbedoTexCoord(texCoord); break;
-        case GLMaterial::TextureType::Roughness:            mat.setRoughnessTexCoord(texCoord); break;
-        case GLMaterial::TextureType::Emissive:             mat.setEmissiveTexCoord(texCoord); break;
-        case GLMaterial::TextureType::Opacity:              mat.setOpacityTexCoord(texCoord); break;
-        case GLMaterial::TextureType::ClearcoatColor:       mat.setClearcoatColorTexCoord(texCoord); break;
-        case GLMaterial::TextureType::ClearcoatRoughness:   mat.setClearcoatRoughnessTexCoord(texCoord); break;
-        case GLMaterial::TextureType::ClearcoatNormal:      mat.setClearcoatNormalTexCoord(texCoord); break;
-        case GLMaterial::TextureType::SheenColor:           mat.setSheenColorTexCoord(texCoord); break;
-        case GLMaterial::TextureType::SheenRoughness:       mat.setSheenRoughnessTexCoord(texCoord); break;
-        case GLMaterial::TextureType::Transmission:         mat.setTransmissionTexCoord(texCoord); break;
-        case GLMaterial::TextureType::SpecularFactor:       mat.setSpecularFactorTexCoord(texCoord); break;
-        case GLMaterial::TextureType::SpecularColor:        mat.setSpecularColorTexCoord(texCoord); break;
-        case GLMaterial::TextureType::Anisotropy:           mat.setAnisotropyTexCoord(texCoord); break;
-        case GLMaterial::TextureType::Iridescence:          mat.setIridescenceTexCoord(texCoord); break;
-        case GLMaterial::TextureType::IridescenceThickness: mat.setIridescenceThicknessTexCoord(texCoord); break;
-        case GLMaterial::TextureType::Thickness:            mat.setThicknessTexCoord(texCoord); break;
-        case GLMaterial::TextureType::DiffuseTransmission:  mat.setDiffuseTransmissionTexCoord(texCoord); break;
-        case GLMaterial::TextureType::DiffuseTransmissionColor: mat.setDiffuseTransmissionColorTexCoord(texCoord); break;
-        case GLMaterial::TextureType::SpecularGlossiness:   mat.setSpecularGlossinessTexCoord(texCoord); break;
-        default: break;
-        }
+        const QJsonArray scale = transform[QStringLiteral("scale")].toArray();
+        if (scale.size() >= 2)
+            tex.scale = glm::vec2(static_cast<float>(scale[0].toDouble(1.0)),
+                                  static_cast<float>(scale[1].toDouble(1.0)));
+
+        const QJsonArray offset = transform[QStringLiteral("offset")].toArray();
+        if (offset.size() >= 2)
+            tex.offset = glm::vec2(static_cast<float>(offset[0].toDouble(0.0)),
+                                   static_cast<float>(offset[1].toDouble(0.0)));
+
+        tex.rotation = static_cast<float>(transform[QStringLiteral("rotation")].toDouble(0.0));
     }
+
+    mat.setTexture(type, tex);
 }
 
 // Reconstruct a GLMaterial from an MVF3 material JSON object.
 static GLMaterial reconstructMvfMaterial(const QJsonObject& matObj,
-                                          const QHash<int, QString>& imagePaths,
-                                          const QJsonArray& textures,
-                                          const QJsonArray& samplers)
+                                         const QHash<int, QString>& imagePaths,
+                                         const QJsonArray& textures,
+                                         const QJsonArray& samplers)
 {
-    GLMaterial mat;
-    mat.setName(matObj[QStringLiteral("name")].toString());
+    const QString materialName = matObj[QStringLiteral("name")].toString();
+    const QJsonObject exts = matObj[QStringLiteral("extensions")].toObject();
+    const bool hasRuntimeMaterial =
+        !exts[QStringLiteral("MVF_material_runtime")].toObject().isEmpty();
 
-    const QString shadingModel = matObj[QStringLiteral("shadingModel")].toString();
-    if      (shadingModel == QLatin1String("PBR"))        mat.setShadingModel(GLMaterial::ShadingModel::PBR);
-    else if (shadingModel == QLatin1String("BlinnPhong")) mat.setShadingModel(GLMaterial::ShadingModel::BlinnPhong);
-    else if (shadingModel == QLatin1String("Unlit"))      mat.setShadingModel(GLMaterial::ShadingModel::Unlit);
-    else if (shadingModel == QLatin1String("Toon"))       mat.setShadingModel(GLMaterial::ShadingModel::Toon);
+    GLMaterial mat = hasRuntimeMaterial
+        ? GLMaterial::fromVariantMap(exts[QStringLiteral("MVF_material_runtime")].toObject().toVariantMap())
+        : GLMaterial();
+    mat.setName(materialName);
 
-    const QString blendMode = matObj[QStringLiteral("blendMode")].toString();
-    if      (blendMode == QLatin1String("Opaque"))   mat.setBlendMode(GLMaterial::BlendMode::Opaque);
-    else if (blendMode == QLatin1String("Masked"))   mat.setBlendMode(GLMaterial::BlendMode::Masked);
-    else if (blendMode == QLatin1String("Alpha"))    mat.setBlendMode(GLMaterial::BlendMode::Alpha);
-    else if (blendMode == QLatin1String("Additive")) mat.setBlendMode(GLMaterial::BlendMode::Additive);
-    else if (blendMode == QLatin1String("Multiply")) mat.setBlendMode(GLMaterial::BlendMode::Multiply);
-
-    mat.setTwoSided(matObj[QStringLiteral("doubleSided")].toBool(false));
-    mat.setAlphaThreshold((float)matObj[QStringLiteral("alphaCutoff")].toDouble(0.5));
-    mat.setOpacity((float)matObj[QStringLiteral("opacity")].toDouble(1.0));
-
-    const QJsonObject pbr = matObj[QStringLiteral("pbr")].toObject();
+    if (!hasRuntimeMaterial)
     {
+        const QString shadingModel = matObj[QStringLiteral("shadingModel")].toString();
+        if      (shadingModel == QLatin1String("PBR"))        mat.setShadingModel(GLMaterial::ShadingModel::PBR);
+        else if (shadingModel == QLatin1String("BlinnPhong")) mat.setShadingModel(GLMaterial::ShadingModel::BlinnPhong);
+        else if (shadingModel == QLatin1String("Unlit"))      mat.setShadingModel(GLMaterial::ShadingModel::Unlit);
+        else if (shadingModel == QLatin1String("Toon"))       mat.setShadingModel(GLMaterial::ShadingModel::Toon);
+
+        const QString blendMode = matObj[QStringLiteral("blendMode")].toString();
+        if      (blendMode == QLatin1String("Opaque"))   mat.setBlendMode(GLMaterial::BlendMode::Opaque);
+        else if (blendMode == QLatin1String("Masked"))   mat.setBlendMode(GLMaterial::BlendMode::Masked);
+        else if (blendMode == QLatin1String("Alpha"))    mat.setBlendMode(GLMaterial::BlendMode::Alpha);
+        else if (blendMode == QLatin1String("Additive")) mat.setBlendMode(GLMaterial::BlendMode::Additive);
+        else if (blendMode == QLatin1String("Multiply")) mat.setBlendMode(GLMaterial::BlendMode::Multiply);
+
+        mat.setTwoSided(matObj[QStringLiteral("doubleSided")].toBool(false));
+        mat.setAlphaThreshold((float)matObj[QStringLiteral("alphaCutoff")].toDouble(0.5));
+        mat.setOpacity((float)matObj[QStringLiteral("opacity")].toDouble(1.0));
+
+        const QJsonObject pbr = matObj[QStringLiteral("pbr")].toObject();
         const QJsonArray bc = pbr[QStringLiteral("baseColorFactor")].toArray();
         if (bc.size() >= 3)
             mat.setAlbedoColor(QVector3D((float)bc[0].toDouble(),
                                           (float)bc[1].toDouble(),
                                           (float)bc[2].toDouble()));
+        mat.setMetalness((float)pbr[QStringLiteral("metallicFactor")].toDouble(0.0));
+        mat.setRoughness((float)pbr[QStringLiteral("roughnessFactor")].toDouble(1.0));
     }
-    mat.setMetalness((float)pbr[QStringLiteral("metallicFactor")].toDouble(0.0));
-    mat.setRoughness((float)pbr[QStringLiteral("roughnessFactor")].toDouble(1.0));
 
-    const QJsonObject exts = matObj[QStringLiteral("extensions")].toObject();
-
-    if (exts.contains(QStringLiteral("MVF_material_ads")))
+    if (!hasRuntimeMaterial && exts.contains(QStringLiteral("MVF_material_ads")))
     {
         const QJsonObject ads = exts[QStringLiteral("MVF_material_ads")].toObject();
         auto v3 = [](const QJsonArray& a, const QVector3D& def = {}) -> QVector3D {
@@ -14460,18 +14454,19 @@ static GLMaterial reconstructMvfMaterial(const QJsonObject& matObj,
     {
         const QJsonObject mvfPbr = exts[QStringLiteral("MVF_material_pbr")].toObject();
 
-        mat.setIOR((float)mvfPbr[QStringLiteral("ior")].toDouble(1.5));
-        mat.setTransmission((float)mvfPbr[QStringLiteral("transmission")].toDouble(0.0));
-        mat.setClearcoat((float)mvfPbr[QStringLiteral("clearcoat")].toDouble(0.0));
-        mat.setClearcoatRoughness((float)mvfPbr[QStringLiteral("clearcoatRoughness")].toDouble(0.0));
+        if (!hasRuntimeMaterial)
         {
+            mat.setIOR((float)mvfPbr[QStringLiteral("ior")].toDouble(1.5));
+            mat.setTransmission((float)mvfPbr[QStringLiteral("transmission")].toDouble(0.0));
+            mat.setClearcoat((float)mvfPbr[QStringLiteral("clearcoat")].toDouble(0.0));
+            mat.setClearcoatRoughness((float)mvfPbr[QStringLiteral("clearcoatRoughness")].toDouble(0.0));
             const QJsonArray sc = mvfPbr[QStringLiteral("sheenColor")].toArray();
             if (sc.size() >= 3)
                 mat.setSheenColor(QVector3D((float)sc[0].toDouble(),
                                              (float)sc[1].toDouble(),
                                              (float)sc[2].toDouble()));
+            mat.setSheenRoughness((float)mvfPbr[QStringLiteral("sheenRoughness")].toDouble(0.0));
         }
-        mat.setSheenRoughness((float)mvfPbr[QStringLiteral("sheenRoughness")].toDouble(0.0));
 
         static const struct { const char* key; GLMaterial::TextureType type; } kTexKeys[] = {
             {"baseColorTexture",                GLMaterial::TextureType::Albedo},
@@ -14510,7 +14505,35 @@ static GLMaterial reconstructMvfMaterial(const QJsonObject& matObj,
         }
     }
 
+    // Mirror any MVF-rebound texture slots back into the material's canonical
+    // per-map path/id fields before runtime texture resolution.
+    mat.syncTextureParameters();
+    mat.updateConsistency();
     return mat;
+}
+
+static QVector<int> jsonArrayToIntVector(const QJsonArray& array)
+{
+    QVector<int> values;
+    values.reserve(array.size());
+    for (const QJsonValue& value : array)
+        values.append(value.toInt(-1));
+    return values;
+}
+
+static QVector<GltfVariantMapping> parseVariantMappings(const QJsonArray& array)
+{
+    QVector<GltfVariantMapping> mappings;
+    mappings.reserve(array.size());
+    for (const QJsonValue& value : array)
+    {
+        const QJsonObject obj = value.toObject();
+        GltfVariantMapping mapping;
+        mapping.materialIndex = obj[QStringLiteral("materialIndex")].toInt(-1);
+        mapping.variantIndices = jsonArrayToIntVector(obj[QStringLiteral("variantIndices")].toArray());
+        mappings.append(mapping);
+    }
+    return mappings;
 }
 } // anonymous namespace
 
@@ -14543,6 +14566,9 @@ QVector<GLWidget::PreparedMvfMesh> GLWidget::prepareMvfMeshes(
                 if (length > 0 && offset + length <= imageChunk.size()
                     && s_embeddedImageDir.isValid())
                 {
+                    const QByteArray embeddedBytes = QByteArray(
+                        imageChunk.constData() + offset, length);
+
                     QString ext = QStringLiteral(".bin");
                     if      (mimeType == QLatin1String("image/png"))  ext = QStringLiteral(".png");
                     else if (mimeType == QLatin1String("image/jpeg")) ext = QStringLiteral(".jpg");
@@ -14550,11 +14576,14 @@ QVector<GLWidget::PreparedMvfMesh> GLWidget::prepareMvfMeshes(
                     else if (mimeType == QLatin1String("image/bmp"))  ext = QStringLiteral(".bmp");
 
                     const QString tempPath = s_embeddedImageDir.filePath(
-                        QStringLiteral("img%1%2").arg(i).arg(ext));
+                        QStringLiteral("img_%1_%2%3")
+                            .arg(QUuid::createUuid().toString(QUuid::WithoutBraces))
+                            .arg(i)
+                            .arg(ext));
                     QFile f(tempPath);
                     if (f.open(QIODevice::WriteOnly))
                     {
-                        f.write(imageChunk.constData() + offset, length);
+                        f.write(embeddedBytes);
                         f.close();
                         imagePaths[i] = tempPath;
                         continue;
@@ -14667,6 +14696,11 @@ QVector<GLWidget::PreparedMvfMesh> GLWidget::prepareMvfMeshes(
         prepared.name          = meshObj[QStringLiteral("name")].toString();
         prepared.primitiveMode = static_cast<GLenum>(prim[QStringLiteral("mode")].toInt(GL_TRIANGLES));
         prepared.sceneIndex    = extras[QStringLiteral("sceneIndex")].toInt(-1);
+        prepared.hasNegativeScale = extras[QStringLiteral("hasNegativeScale")].toBool(false);
+        prepared.originalMaterialIndex = extras[QStringLiteral("originalMaterialIndex")].toInt(-1);
+        prepared.sourceFile = extras[QStringLiteral("sourceFile")].toString();
+        prepared.sourceNodeName = extras[QStringLiteral("sourceNodeName")].toString();
+        prepared.variantMappings = parseVariantMappings(extras[QStringLiteral("variantMappings")].toArray());
         const QString uuidStr  = extras[QStringLiteral("meshUuid")].toString();
         prepared.uuid          = uuidStr.isEmpty()
                                  ? QUuid::fromString(meshObj[QStringLiteral("id")].toString())
@@ -14674,6 +14708,21 @@ QVector<GLWidget::PreparedMvfMesh> GLWidget::prepareMvfMeshes(
         prepared.vertices      = std::move(vertices);
         prepared.indices       = std::move(indices);
         prepared.material      = std::move(material);
+
+        const QJsonArray variantMaterialsArray = extras[QStringLiteral("variantMaterials")].toArray();
+        for (const QJsonValue& variantMaterialValue : variantMaterialsArray)
+        {
+            const QJsonObject variantMaterialObj = variantMaterialValue.toObject();
+            const int key = variantMaterialObj[QStringLiteral("key")].toInt(-1);
+            const QJsonObject materialObj = variantMaterialObj[QStringLiteral("material")].toObject();
+            if (key < 0 || materialObj.isEmpty())
+                continue;
+
+            prepared.allVariantMaterials.insert(
+                key,
+                reconstructMvfMaterial(materialObj, imagePaths, document.textures, document.samplers));
+
+        }
 
         result.append(std::move(prepared));
     }
@@ -14721,14 +14770,19 @@ bool GLWidget::uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& meshes)
         mesh->setUuid(pm.uuid);
         mesh->setPrimitiveMode(pm.primitiveMode);
         mesh->setSceneIndex(pm.sceneIndex);
+        mesh->setHasNegativeScale(pm.hasNegativeScale);
+        mesh->setOriginalMaterialIndex(pm.originalMaterialIndex);
+        mesh->setSourceFile(pm.sourceFile);
+        mesh->setSourceNodeName(pm.sourceNodeName);
         mesh->setMeshData(pm.vertices, pm.indices);
+        mesh->setVariantMappings(pm.variantMappings);
+        mesh->setAllVariantMaterials(pm.allVariantMaterials);
 
         const GLMaterial resolved = resolveMaterialTextures(this, pm.material);
         mesh->setMaterial(resolved);
         mesh->setTextureMaps(resolved);
         mesh->invertOpacityADSMap(resolved.isOpacityMapInverted());
         mesh->invertOpacityPBRMap(resolved.isOpacityMapInverted());
-
         addToDisplay(mesh);
 
         // Yield periodically so the progress bar and event loop stay alive.
@@ -14782,6 +14836,12 @@ void GLWidget::uploadOneMvfMesh(const PreparedMvfMesh& pm)
     mesh->setUuid(pm.uuid);
     mesh->setPrimitiveMode(pm.primitiveMode);
     mesh->setSceneIndex(pm.sceneIndex);
+    mesh->setHasNegativeScale(pm.hasNegativeScale);
+    mesh->setOriginalMaterialIndex(pm.originalMaterialIndex);
+    mesh->setSourceFile(pm.sourceFile);
+    mesh->setSourceNodeName(pm.sourceNodeName);
+    mesh->setVariantMappings(pm.variantMappings);
+    mesh->setAllVariantMaterials(pm.allVariantMaterials);
 
     // Upload VBO data
     mesh->setMeshData(pm.vertices, pm.indices);
@@ -14792,7 +14852,6 @@ void GLWidget::uploadOneMvfMesh(const PreparedMvfMesh& pm)
     mesh->setTextureMaps(resolved);
     mesh->invertOpacityADSMap(resolved.isOpacityMapInverted());
     mesh->invertOpacityPBRMap(resolved.isOpacityMapInverted());
-
     // Add to display list and track in pending UUIDs (like AssImp's onMeshBatchReady)
     addToDisplay(mesh);
     _pendingSceneUuids.append(mesh->uuid());
@@ -14807,6 +14866,26 @@ bool GLWidget::loadMvfMeshes(const Mvf::Document& document,
 {
     QVector<PreparedMvfMesh> prepared = prepareMvfMeshes(document, geometryChunk, imageChunk);
     return uploadPreparedMvfMeshes(prepared);
+}
+
+void GLWidget::setParsedLights(const std::vector<GPULight>& lights)
+{
+    _originalParsedLights.clear();
+    _currentRepositionedLights.clear();
+    _animatedLightTransformSourceFile.clear();
+    _animatedParsedLights.clear();
+    _animatedLightVisibilitySourceFile.clear();
+    _animatedLightVisibilityMask.clear();
+    _animatedMeshVisibilitySourceFile.clear();
+    _animatedHiddenMeshUuids.clear();
+    _lightRepoBasis.baselineRadius = 0.0f;
+    _originalParsedLights = lights;
+
+    makeCurrent();
+    if (lights.empty())
+        glLights->setLights({});
+
+    syncPunctualLightUniforms(static_cast<int>(lights.size()), !lights.empty());
 }
 
 // ---------------------------------------------------------------------------
