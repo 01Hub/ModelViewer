@@ -2963,6 +2963,9 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 
 	// Recompute all visible-scene aggregates in one pass.
 	recalculateVisibleSceneStats(true);
+	// Reset smoothed zoom floor to scene radius so a freshly loaded model
+	// starts with the standard global clamp, not a stale small value.
+	_zoomInLimit = _boundingSphere.getRadius();
 
 	// ===== CAPTURE BASELINE HERE - NOW BOUNDING SPHERE IS REAL =====
 	// Capture once per loaded scene so imported lights and glTF cameras can be
@@ -6659,6 +6662,86 @@ bool GLWidget::isMeshOutsideFrustum(const TriangleMesh* mesh) const
 			return true;
 	}
 	return false;
+}
+
+bool GLWidget::isMeshFullyInsideFrustum(const TriangleMesh* mesh) const
+{
+	const BoundingBox& bb = mesh->getBoundingBox();
+	for (int i = 0; i < 6; ++i)
+	{
+		const QVector4D& p = _frustumPlanes[i];
+		// Negative support point: the AABB corner LEAST inside this plane.
+		// If even this worst-case corner is on the positive (inside) side,
+		// the whole AABB is guaranteed to lie within this half-space.
+		const float sx = p.x() >= 0.0f ? static_cast<float>(bb.xMin())
+		                                : static_cast<float>(bb.xMax());
+		const float sy = p.y() >= 0.0f ? static_cast<float>(bb.yMin())
+		                                : static_cast<float>(bb.yMax());
+		const float sz = p.z() >= 0.0f ? static_cast<float>(bb.zMin())
+		                                : static_cast<float>(bb.zMax());
+		if (p.x() * sx + p.y() * sy + p.z() * sz + p.w() < 0.0f)
+			return false;   // at least one plane has a corner outside
+	}
+	return true;
+}
+
+// Returns the minimum bounding-sphere radius among meshes that are completely
+// enclosed within the current view frustum.  Used to derive a dynamic zoom
+// floor: as the camera zooms into a sub-mesh, large meshes leave the frustum
+// and the floor shrinks to match the focused geometry, preventing the eye from
+// ever entering the mesh the user is actually looking at.
+float GLWidget::computeFullyVisibleMinMeshRadius() const
+{
+	const std::vector<int>& ids =
+		_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+
+	float minRadius = std::numeric_limits<float>::max();
+	for (int id : ids)
+	{
+		if (id < 0 || id >= static_cast<int>(_meshStore.size())) continue;
+		const TriangleMesh* mesh = _meshStore[id];
+		if (!mesh) continue;
+		if (!isMeshAnimationVisible(mesh)) continue;   // hidden by animation
+
+		if (mesh->hasSkinning())
+		{
+			// The stored AABB is the bind-pose box and is unreliable for
+			// frustum testing after skinning is applied.  Skip the frustum
+			// test entirely and always count the mesh — this ensures animated
+			// models participate in sub-mesh zoom granularity regardless of pose.
+			const float r = mesh->getBoundingSphere().getRadius();
+			if (r > 0.0f)
+				minRadius = std::min(minRadius, r);
+			continue;
+		}
+
+		if (isMeshOutsideFrustum(mesh))      continue;   // not visible at all
+		if (!isMeshFullyInsideFrustum(mesh)) continue;   // only partially in view
+
+		const float r = mesh->getBoundingSphere().getRadius();
+		if (r > 0.0f)
+			minRadius = std::min(minRadius, r);
+	}
+
+	// Fall back to global scene radius when nothing qualifies
+	// (e.g. zoomed so far out the whole scene spans the viewport).
+	return (minRadius < std::numeric_limits<float>::max())
+		? minRadius
+		: _boundingSphere.getRadius();
+}
+
+// Update _zoomInLimit with asymmetric smoothing:
+//   • Decreases are applied immediately so zoom-in is never blocked.
+//   • Increases are blended gradually (factor 0.12 ≈ 10 events to reach ~72%)
+//     so the clamp creeps back rather than snapping when the focused mesh
+//     transitions out of the "fully inside" frustum set.
+void GLWidget::updateZoomInLimit()
+{
+	const float rawFloor = computeFullyVisibleMinMeshRadius();
+	if (rawFloor <= _zoomInLimit)
+		_zoomInLimit = rawFloor;                                          // drop: immediate
+	else
+		_zoomInLimit += (rawFloor - _zoomInLimit) * 0.12f;          // rise: gradual
 }
 
 bool GLWidget::isMeshFullyClipped_X(const TriangleMesh* mesh) const
@@ -12222,14 +12305,17 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 			_lastZoomDirection = -1;
 		}
 		
-		// Perspective: clamp so the orbit distance (1.25×viewRange at 45° FOV)
-		// never drops below the scene bounding-sphere radius, keeping the camera
-		// eye outside the model and preventing tear-through artefacts.
+		// Perspective: floor is the focused sub-mesh radius × 0.5 so the orbit
+		// distance stays outside whatever mesh is currently fully in view.
+		// As the user zooms in, large meshes leave the frustum and the floor
+		// shrinks automatically to match the focused geometry.
 		// Ortho: the near/far floor in GLCamera handles tearing without any
-		// zoom restriction, so only the original floor is applied.
+		// zoom restriction, so only a minimal absolute floor is applied.
+		updateZoomInLimit();
+		const float focusRadius = _zoomInLimit;
 		const float minVR = (_projection == ViewProjection::PERSPECTIVE)
-		    ? _boundingSphere.getRadius() * 0.5f
-		    : _boundingSphere.getRadius() / 100.0f;
+		    ? std::max(focusRadius * 0.5f, 0.0001f)
+		    : std::max(focusRadius / 100.0f, 0.00001f);
 		if (_viewRange < minVR)
 			_viewRange = minVR;
 		if (_viewRange > _boundingSphere.getRadius() * 100.0f)
@@ -12407,9 +12493,11 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 		_viewRange /= zoomFactor;
 
 	{
+		updateZoomInLimit();
+		const float focusRadius = _zoomInLimit;
 		const float minVR = (_projection == ViewProjection::PERSPECTIVE)
-		    ? _boundingSphere.getRadius() * 0.5f
-		    : _boundingSphere.getRadius() / 100.0f;
+		    ? std::max(focusRadius * 0.5f, 0.0001f)
+		    : std::max(focusRadius / 100.0f, 0.00001f);
 		if (_viewRange < minVR)
 			_viewRange = minVR;
 		if (_viewRange > _boundingSphere.getRadius() * 100.0f)
@@ -12610,9 +12698,11 @@ void GLWidget::performKeyboardNav()
 				else
 					_viewRange *= 1.05f;
 				{
+					updateZoomInLimit();
+		const float focusRadius = _zoomInLimit;
 					const float minVR = (_projection == ViewProjection::PERSPECTIVE)
-					    ? _boundingSphere.getRadius() * 0.5f
-					    : _boundingSphere.getRadius() / 100.0f;
+					    ? std::max(focusRadius * 0.5f, 0.0001f)
+					    : std::max(focusRadius / 100.0f, 0.00001f);
 					if (_viewRange < minVR) _viewRange = minVR;
 					if (_viewRange > _boundingSphere.getRadius() * 100.0f)
 						_viewRange = _boundingSphere.getRadius() * 100.0f;
@@ -12761,9 +12851,11 @@ void GLWidget::onInertiaTimer()
 
 		resizeGL(width(), height());
 
+		updateZoomInLimit();
+		const float focusRadius = _zoomInLimit;
 		const float minRange = (_projection == ViewProjection::PERSPECTIVE)
-		    ? _boundingSphere.getRadius() * 0.5f
-		    : _boundingSphere.getRadius() / 100.0f;
+		    ? std::max(focusRadius * 0.5f, 0.0001f)
+		    : std::max(focusRadius / 100.0f, 0.00001f);
 		const float maxRange = _boundingSphere.getRadius() * 100.0f;
 		if (_viewRange < minRange) _viewRange = minRange;
 		if (_viewRange > maxRange) _viewRange = maxRange;

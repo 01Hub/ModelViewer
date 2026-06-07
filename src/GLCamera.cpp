@@ -205,9 +205,11 @@ void GLCamera::updateProjectionMatrix(void)
 		// Near plane: 0.1% of viewRange keeps close-up views from clipping into
 		// geometry, floored at an absolute minimum so it never reaches zero.
 		float nearPlane = std::max(_viewRange * 0.001f, 0.0001f);
-		// Far plane: 1000× gives a near:far ratio of 1:1 000 000, comfortable
-		// for a 24-bit depth buffer in a model-viewer context.
-		float farPlane = _viewRange * 1000.0f;
+		// Far plane: 1000× viewRange gives a 1:1 000 000 near:far ratio, comfortable
+		// for a 24-bit depth buffer.  Floor at 200× sceneRadius so the full model
+		// is never clipped when zoomed deep into a small sub-mesh (where viewRange
+		// is tiny but the rest of the scene is still far away).
+		float farPlane = std::max(_viewRange * 1000.0f, _sceneRadius * 200.0f);
 
 		float fovY = _FOV;
 		float fovYRad = fovY * PI / 180.0f;

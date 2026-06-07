@@ -677,7 +677,10 @@ private:
 
 	// Visibility culling
 	void extractFrustumPlanes();
-	bool isMeshOutsideFrustum(const TriangleMesh* mesh) const;
+	bool  isMeshOutsideFrustum(const TriangleMesh* mesh) const;
+	bool  isMeshFullyInsideFrustum(const TriangleMesh* mesh) const;
+	float computeFullyVisibleMinMeshRadius() const;
+	void  updateZoomInLimit();
 	bool isMeshFullyClipped_X(const TriangleMesh* mesh) const;
 	bool isMeshFullyClipped_Y(const TriangleMesh* mesh) const;
 	bool isMeshFullyClipped_Z(const TriangleMesh* mesh) const;
@@ -944,6 +947,10 @@ private:
 
 	// Frustum planes extracted each frame for AABB culling (Gribb-Hartmann, world space)
 	QVector4D _frustumPlanes[6];
+	// Minimum allowed _viewRange (closest the camera may zoom in).
+	// Drops immediately when a smaller focus radius is found so zoom-in is never blocked;
+	// rises gradually to prevent snap-back when the focused mesh exits the frustum.
+	float _zoomInLimit = 1.0f;
 
 	bool _showVertexNormals;
 	bool _showFaceNormals;
