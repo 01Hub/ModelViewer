@@ -109,6 +109,16 @@ public:
 	QVector3D getScaling() const;
 	void setScaling(const QVector3D& scale);
 
+	// Fast variants — update TRS and recompute the world-space bounding box from
+	// the 8 local AABB corners only (O(1)), skipping the full O(N) vertex transform
+	// that setTranslation/setRotation/setScaling do.  Use during interactive gizmo
+	// drag; call fullUpdateRuntimeBounds() once on drag-commit to resync _trsfPoints.
+	void setTranslationFast(const QVector3D& trans);
+	void setRotationFast(const QVector3D& rota);
+	void setRotationQuaternionFast(const QQuaternion& quat, const QVector3D& displayEuler);
+	void setScalingFast(const QVector3D& scale);
+	void fullUpdateRuntimeBounds();  // force full O(N) rebuild after drag ends
+
 	QMatrix4x4 getTransformation() const;
 	QMatrix4x4 getSceneRenderTransform() const;
 	QMatrix4x4 combinedRenderTransform() const;
@@ -364,6 +374,7 @@ protected: // methods
     void computeBounds();
     void deleteBuffers();
 	void rebuildAbsoluteTransformation();
+	void fastUpdateWorldBounds();   // O(1) AABB update from 8 local corners
 
     virtual void setupTransformation();
 	virtual void setupTextures();

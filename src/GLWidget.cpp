@@ -3970,7 +3970,9 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 			{
 				_viewer->sceneGraph()->appendFromScene(
 					_assimpScene, fileName, _pendingSceneUuids, _originalParsedLights,
-					SceneUtils::glmToAiMatrix(_globalSceneTransform));
+					SceneUtils::glmToAiMatrix(_globalSceneTransform),
+					loadingWorker->wasAutoOrientApplied(),
+					loadingWorker->wasAutoScaleApplied());
 
 				// Register KHR_materials_variants data (if any) for this file.
 				const GltfVariantData& vd = loadingWorker->getVariantData();
@@ -7670,9 +7672,11 @@ void GLWidget::updateTransformGizmoTranslationDrag(const QPoint& pixel)
 		if (TriangleMesh* mesh = _meshStore[id])
 		{
 			const TransformState& startState = it.value();
-			mesh->setTranslation(startState.translation + _transformGizmoCurrentTranslationDelta);
-			mesh->setRotation(startState.rotation);
-			mesh->setScaling(startState.scale);
+			// Use fast setters during drag — only updates AABB from 8 corners (O(1))
+			// instead of re-transforming all vertices (O(N)) for each mouse event.
+			mesh->setTranslationFast(startState.translation + _transformGizmoCurrentTranslationDelta);
+			mesh->setRotationFast(startState.rotation);
+			mesh->setScalingFast(startState.scale);
 		}
 	}
 
@@ -7906,12 +7910,12 @@ void GLWidget::updateTransformGizmoScaleDrag(const QPoint& pixel)
 				scaledScale.setZ(startState.scale.z() * uniformFactor);
 			}
 
-			mesh->setTranslation(scaledTranslation);
+			mesh->setTranslationFast(scaledTranslation);
 			if (startState.hasExactRotation)
-				mesh->setRotationQuaternion(startState.rotationQuat, startState.rotation);
+				mesh->setRotationQuaternionFast(startState.rotationQuat, startState.rotation);
 			else
-				mesh->setRotation(startState.rotation);
-			mesh->setScaling(scaledScale);
+				mesh->setRotationFast(startState.rotation);
+			mesh->setScalingFast(scaledScale);
 		}
 	}
 
@@ -8149,9 +8153,9 @@ void GLWidget::updateTransformGizmoRotationDrag(const QPoint& pixel)
 			displayRotationMatrix.setToIdentity();
 			displayRotationMatrix.rotate(exactRotationQuat);
 			const QVector3D displayRotation = extractMeshRotationFromMatrix(displayRotationMatrix);
-			mesh->setTranslation(exactTranslation);
-			mesh->setRotationQuaternion(exactRotationQuat, displayRotation);
-			mesh->setScaling(startState.scale);
+			mesh->setTranslationFast(exactTranslation);
+			mesh->setRotationQuaternionFast(exactRotationQuat, displayRotation);
+			mesh->setScalingFast(startState.scale);
 		}
 	}
 
@@ -10084,7 +10088,12 @@ GltfCameraData GLWidget::cameraDataForMvfSave(const GltfCameraData& source) cons
 		QVector3D worldDir = cam.worldDirection.normalized();
 		QVector3D worldUp = cam.worldUp.normalized();
 
-		if (_lightRepoBasis.baselineRadius > 0.0f)
+		// Mirror the same gate used by applyGltfCameraEntryTransform:
+		// only bake the model-transform compensation when the flag is set.
+		// Without this guard, each save/reload cycle bakes another rotation
+		// layer that activation never applies back (flag is already false after
+		// the first round-trip), causing cameras to drift on every save.
+		if (cam.needsModelTransformCompensation && _lightRepoBasis.baselineRadius > 0.0f)
 		{
 			const glm::vec3 baselineCenter = _lightRepoBasis.baselineCenter;
 			const glm::vec3 currentCenter(
@@ -14710,6 +14719,29 @@ QVector<GLWidget::PreparedMvfMesh> GLWidget::prepareMvfMeshes(
         prepared.indices       = std::move(indices);
         prepared.material      = std::move(material);
 
+        // Restore per-mesh user transform (gizmo TRS saved by MvfSceneBuilder).
+        const QJsonObject meshTrs = extras[QStringLiteral("meshTrs")].toObject();
+        if (!meshTrs.isEmpty())
+        {
+            prepared.meshTranslation  = QVector3D(
+                (float)meshTrs[QStringLiteral("tx")].toDouble(0.0),
+                (float)meshTrs[QStringLiteral("ty")].toDouble(0.0),
+                (float)meshTrs[QStringLiteral("tz")].toDouble(0.0));
+            prepared.meshRotationQuat = QQuaternion(
+                (float)meshTrs[QStringLiteral("qw")].toDouble(1.0),
+                (float)meshTrs[QStringLiteral("qx")].toDouble(0.0),
+                (float)meshTrs[QStringLiteral("qy")].toDouble(0.0),
+                (float)meshTrs[QStringLiteral("qz")].toDouble(0.0));
+            prepared.meshRotation     = QVector3D(
+                (float)meshTrs[QStringLiteral("rx")].toDouble(0.0),
+                (float)meshTrs[QStringLiteral("ry")].toDouble(0.0),
+                (float)meshTrs[QStringLiteral("rz")].toDouble(0.0));
+            prepared.meshScale        = QVector3D(
+                (float)meshTrs[QStringLiteral("sx")].toDouble(1.0),
+                (float)meshTrs[QStringLiteral("sy")].toDouble(1.0),
+                (float)meshTrs[QStringLiteral("sz")].toDouble(1.0));
+        }
+
         const QJsonArray variantMaterialsArray = extras[QStringLiteral("variantMaterials")].toArray();
         for (const QJsonValue& variantMaterialValue : variantMaterialsArray)
         {
@@ -14784,6 +14816,24 @@ bool GLWidget::uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& meshes)
         mesh->setTextureMaps(resolved);
         mesh->invertOpacityADSMap(resolved.isOpacityMapInverted());
         mesh->invertOpacityPBRMap(resolved.isOpacityMapInverted());
+
+        // Restore per-mesh user transform (gizmo TRS) saved in the MVF file.
+        // Apply non-default values only to avoid clobbering the identity state
+        // for meshes that were never transformed by the user.
+        {
+            const QVector3D defaultScale(1.0f, 1.0f, 1.0f);
+            const QVector3D defaultTranslation(0.0f, 0.0f, 0.0f);
+            const bool hasTranslation  = !pm.meshTranslation.isNull();
+            const bool hasScale        = (pm.meshScale != defaultScale);
+            const bool hasRotation     = !pm.meshRotationQuat.isIdentity();
+            if (hasTranslation || hasRotation || hasScale)
+            {
+                mesh->setTranslation(pm.meshTranslation);
+                mesh->setRotationQuaternion(pm.meshRotationQuat, pm.meshRotation);
+                mesh->setScaling(pm.meshScale);
+            }
+        }
+
         addToDisplay(mesh);
 
         // Yield periodically so the progress bar and event loop stay alive.
@@ -14853,6 +14903,21 @@ void GLWidget::uploadOneMvfMesh(const PreparedMvfMesh& pm)
     mesh->setTextureMaps(resolved);
     mesh->invertOpacityADSMap(resolved.isOpacityMapInverted());
     mesh->invertOpacityPBRMap(resolved.isOpacityMapInverted());
+
+    // Restore per-mesh user transform (gizmo TRS) saved in the MVF file.
+    {
+        const QVector3D defaultScale(1.0f, 1.0f, 1.0f);
+        const bool hasTranslation = !pm.meshTranslation.isNull();
+        const bool hasScale       = (pm.meshScale != defaultScale);
+        const bool hasRotation    = !pm.meshRotationQuat.isIdentity();
+        if (hasTranslation || hasRotation || hasScale)
+        {
+            mesh->setTranslation(pm.meshTranslation);
+            mesh->setRotationQuaternion(pm.meshRotationQuat, pm.meshRotation);
+            mesh->setScaling(pm.meshScale);
+        }
+    }
+
     // Add to display list and track in pending UUIDs (like AssImp's onMeshBatchReady)
     addToDisplay(mesh);
     _pendingSceneUuids.append(mesh->uuid());

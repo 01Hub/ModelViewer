@@ -3593,155 +3593,195 @@ void ModelViewer::importFiles(QStringList& fileNames)
 #include <AssImpMesh.h>
 #include "SceneUtils.h"
 #include "SceneGraphExporter.h"
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QLabel>
+#include <QListWidget>
 void ModelViewer::onFileExport()
 {
-	Assimp::Exporter exporter;
+	if (!_sceneGraph || !_sceneGraph->root() || !_glWidget)
+		return;
+
+	// --- Build the format filter list (shared for all file dialogs) ---------------
+	Assimp::Exporter assimpExporter;
 	QStringList filters;
 	QStringList allExtensions;
-	QMap<QString, QString> filterToExtension; // Map filter -> extension
+	QMap<QString, QString> filterToExtension;
 
-	// Build filters and track extensions
-	for (unsigned int i = 0; i < exporter.GetExportFormatCount(); ++i)
+	for (unsigned int i = 0; i < assimpExporter.GetExportFormatCount(); ++i)
 	{
-		const aiExportFormatDesc* desc = exporter.GetExportFormatDescription(i);
-		QString ext = QString::fromUtf8(desc->fileExtension);
+		const aiExportFormatDesc* desc = assimpExporter.GetExportFormatDescription(i);
+		QString ext  = QString::fromUtf8(desc->fileExtension);
 		QString descStr = QString::fromUtf8(desc->description);
-		QString filter = QString("%1 (*.%2)").arg(descStr).arg(ext);
-
+		QString filter  = QString("%1 (*.%2)").arg(descStr).arg(ext);
 		filters.append(filter);
 		allExtensions.append("*." + ext);
 		filterToExtension[filter] = ext;
 	}
-
-	// All Supported Files filter
 	QString allSupportedFilter = QString("All Supported Files (%1)").arg(allExtensions.join(' '));
 	filters.prepend(allSupportedFilter);
-
-	// Map the "All Supported Files" to empty extension (no default append)
 	filterToExtension[allSupportedFilter] = "";
+	// ------------------------------------------------------------------------------
 
-	QString selectedFilter;
-	QString fileName = QFileDialog::getSaveFileName(this, tr("Export Model"), _lastOpenedDir, filters.join(";;"), &selectedFilter);
+	// --- Scene selection: if multiple files are loaded, ask which one to export ---
+	// The dialog is shown BEFORE the filename dialog so the user picks a single scene
+	// first, then provides exactly one output filename for it.
+	QString selectedSourceFile;   // empty = no filter (single scene loaded)
+	const QList<SceneNode*>& fileNodes = _sceneGraph->root()->children;
 
-	if (!fileName.isEmpty())
+	if (fileNodes.size() > 1)
 	{
-		QString extToAppend = filterToExtension[selectedFilter];
+		QDialog selDlg(this);
+		selDlg.setWindowTitle(tr("Select Scene to Export"));
+		selDlg.setMinimumWidth(440);
 
-		// Append extension only if not present already
-		if (!extToAppend.isEmpty() && !fileName.endsWith("." + extToAppend, Qt::CaseInsensitive))
+		QVBoxLayout* vlay = new QVBoxLayout(&selDlg);
+		vlay->addWidget(new QLabel(
+			tr("Multiple scenes are loaded. Select one to export:"), &selDlg));
+
+		QListWidget* list = new QListWidget(&selDlg);
+		list->setSelectionMode(QAbstractItemView::SingleSelection);
+		for (const SceneNode* fileNode : fileNodes)
 		{
-			fileName += "." + extToAppend;
+			QListWidgetItem* item = new QListWidgetItem(fileNode->name, list);
+			item->setData(Qt::UserRole, fileNode->sourceFile);
 		}
+		list->setCurrentRow(0);   // select first by default
+		vlay->addWidget(list);
 
-		// Export
-		AssImpMeshExporter exporter(this);
-		std::vector<TriangleMesh*> triMeshes = _glWidget->getMeshStore();
-		std::vector<AssImpMesh*> assImpMeshes;
-		for (TriangleMesh* triMesh : triMeshes)
-			assImpMeshes.push_back(dynamic_cast<AssImpMesh*>(triMesh));
+		QDialogButtonBox* bbox = new QDialogButtonBox(
+			QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &selDlg);
+		connect(bbox, &QDialogButtonBox::accepted, &selDlg, &QDialog::accept);
+		connect(bbox, &QDialogButtonBox::rejected, &selDlg, &QDialog::reject);
+		vlay->addWidget(bbox);
 
-		// Check the user settings
-		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-		bool exportScene = settings.value("radioButtonExportScene", true).toBool();
-				
-		// Export a copy of the the original aiScene
-		//aiScene* copyScene = SceneUtils::deepCopyScene(_glWidget->getAssImpScene());
-
-
-		auto resolver = [this](const QUuid& uuid) -> TriangleMesh* {
-			return _glWidget->getMeshByUuid(uuid);
-			};
-
-		// Flat formats (OBJ, PLY, STL) ignore aiNode transforms in their Assimp writers.
-        // Keep vertices in world space and emit identity node transforms for those formats.
-        const QString exportExt = QFileInfo(fileName).suffix().toLower();
-        const bool flattenTransforms = (exportExt == "obj" || exportExt == "ply" || exportExt == "stl");
-
-		aiScene* copyScene =
-			SceneGraphExporter::buildExportScene(_sceneGraph, resolver, flattenTransforms);
-
-		if (!copyScene)
-		{
-			QMessageBox::critical(this, tr("Error"),
-				tr("Failed to build export scene."));
+		if (selDlg.exec() != QDialog::Accepted)
 			return;
-		}
 
+		QListWidgetItem* sel = list->currentItem();
+		if (!sel)
+			return;
 
-		// The autoOrient+autoScale correction is now factored out inside
-		// SceneGraphExporter::buildExportScene() using the importCorrection stored on
-		// each fileNode.  No further node-transform patching is needed here.
-
-		// Apply inverse transforms to the punctual lights as well.
-		glm::mat4 transform = _glWidget->getGlobalSceneTransform();
-		glm::mat4 inverseTransform = glm::inverse(transform);
-		std::vector<GPULight> lights = _glWidget->getParsedLights();
-		for (GPULight& light : lights)
-		{
-			// Transform position (with translation)
-			glm::vec4 transformedPos = inverseTransform * glm::vec4(light.position, 1.0f);
-			light.position = glm::vec3(transformedPos);
-
-			// Transform direction (no translation)
-			glm::vec4 transformedDir = inverseTransform * glm::vec4(light.direction, 0.0f);
-			light.direction = glm::normalize(glm::vec3(transformedDir));
-
-			// Extract scale from transform matrix
-			glm::vec3 scale(
-				glm::length(glm::vec3(inverseTransform[0])),
-				glm::length(glm::vec3(inverseTransform[1])),
-				glm::length(glm::vec3(inverseTransform[2]))
-			);
-			float avgScale = (scale.x + scale.y + scale.z) / 3.0f;
-			light.range *= avgScale;
-		}
-
-		// Export the meshes loaded in the scene
-		// PLY and STL are geometry-only formats — skip texture packaging entirely
-		// so no textures subfolder is created.
-		const bool formatSupportsTextures = (exportExt != "ply" && exportExt != "stl");
-		AssImpMeshExporter::ExportSettings expSettings;
-		expSettings.outputDirectory = QFileInfo(fileName).absolutePath();
-		expSettings.copyTextures = formatSupportsTextures;
-		expSettings.useRelativePaths = true;
-		expSettings.deduplicateTextures = true;
-		expSettings.verbose = true;
-		expSettings.lights = lights;
-
-		// Collect variant names so KHR_materials_variants is preserved on glTF export
-		{
-			QStringList filesWithVariants = _sceneGraph->filesWithVariants();
-			if (!filesWithVariants.isEmpty())
-			{
-				// Use the first variant-bearing file's names.
-				// For multi-file scenes with different variant namespaces, this is
-				// a best-effort approach; full multi-namespace support would require
-				// per-mesh variant index remapping which is out of scope here.
-				GltfVariantData vd = _sceneGraph->variantDataForFile(filesWithVariants.first());
-				expSettings.variantNames = vd.variantNames;
-				qDebug() << "[Export] Will preserve" << vd.variantNames.size()
-				         << "material variants:" << vd.variantNames;
-			}
-		}
-
-		aiReturn res = aiReturn_FAILURE;
-		if (exportScene)
-		{			
-			res = exporter.exportScene(copyScene, triMeshes, fileName.toStdString(), expSettings);
-			qDebug() << "Exporting scene result:" << res;
-			delete copyScene;
-		}
-		else
-		{			
-			res = exporter.exportMeshes(copyScene, triMeshes, fileName, expSettings);
-			qDebug() << "Exporting meshes result:" << res;
-		}
-
-		if (res == aiReturn_SUCCESS)
-			QMessageBox::information(this, tr("Information"), tr("Exported %1").arg(QFileInfo(fileName).fileName()));
-		else
-			QMessageBox::critical(this, tr("Error"), tr("Export failed!"));
+		selectedSourceFile = sel->data(Qt::UserRole).toString();
 	}
+	// ------------------------------------------------------------------------------
+
+	// --- Filename dialog ----------------------------------------------------------
+	QString selectedFilter;
+	QString fileName = QFileDialog::getSaveFileName(
+		this, tr("Export Model"), _lastOpenedDir,
+		filters.join(";;"), &selectedFilter);
+
+	if (fileName.isEmpty())
+		return;
+
+	QString extToAppend = filterToExtension[selectedFilter];
+	if (!extToAppend.isEmpty() && !fileName.endsWith("." + extToAppend, Qt::CaseInsensitive))
+		fileName += "." + extToAppend;
+	// ------------------------------------------------------------------------------
+
+	// --- Build export scene and mesh list ----------------------------------------
+	QStringList allowedSourceFiles;
+	if (!selectedSourceFile.isEmpty())
+		allowedSourceFiles << selectedSourceFile;
+
+	auto resolver = [this](const QUuid& uuid) -> TriangleMesh* {
+		return _glWidget->getMeshByUuid(uuid);
+	};
+
+	const QString exportExt = QFileInfo(fileName).suffix().toLower();
+	const bool flattenTransforms = (exportExt == "obj" || exportExt == "ply" || exportExt == "stl");
+
+	aiScene* copyScene = SceneGraphExporter::buildExportScene(
+		_sceneGraph, resolver, flattenTransforms, allowedSourceFiles);
+
+	if (!copyScene)
+	{
+		QMessageBox::critical(this, tr("Error"), tr("Failed to build export scene."));
+		return;
+	}
+
+	// Filter the runtime mesh list to match the exported scene.
+	// Keeping ALL meshes when only a subset was exported causes a count mismatch in
+	// AssImpMeshExporter::exportScene(), which triggers an incorrect fallback path
+	// and can produce malformed texture image entries in GLB output.
+	std::vector<TriangleMesh*> allMeshes = _glWidget->getMeshStore();
+	std::vector<TriangleMesh*> triMeshes;
+	triMeshes.reserve(allMeshes.size());
+	for (TriangleMesh* m : allMeshes)
+	{
+		if (allowedSourceFiles.isEmpty() || allowedSourceFiles.contains(m->getSourceFile()))
+			triMeshes.push_back(m);
+	}
+	// ------------------------------------------------------------------------------
+
+	// The autoOrient+autoScale correction is factored out inside buildExportScene()
+	// via the importCorrection stored on each fileNode.
+
+	// Apply inverse scene transform to punctual lights.
+	glm::mat4 transform = _glWidget->getGlobalSceneTransform();
+	glm::mat4 inverseTransform = glm::inverse(transform);
+	std::vector<GPULight> lights = _glWidget->getParsedLights();
+	for (GPULight& light : lights)
+	{
+		glm::vec4 transformedPos = inverseTransform * glm::vec4(light.position, 1.0f);
+		light.position = glm::vec3(transformedPos);
+
+		glm::vec4 transformedDir = inverseTransform * glm::vec4(light.direction, 0.0f);
+		light.direction = glm::normalize(glm::vec3(transformedDir));
+
+		glm::vec3 scale(
+			glm::length(glm::vec3(inverseTransform[0])),
+			glm::length(glm::vec3(inverseTransform[1])),
+			glm::length(glm::vec3(inverseTransform[2])));
+		float avgScale = (scale.x + scale.y + scale.z) / 3.0f;
+		light.range *= avgScale;
+	}
+
+	const bool formatSupportsTextures = (exportExt != "ply" && exportExt != "stl");
+	AssImpMeshExporter::ExportSettings expSettings;
+	expSettings.outputDirectory  = QFileInfo(fileName).absolutePath();
+	expSettings.copyTextures     = formatSupportsTextures;
+	expSettings.useRelativePaths = true;
+	expSettings.deduplicateTextures = true;
+	expSettings.verbose = true;
+	expSettings.lights  = lights;
+
+	// Collect variant names so KHR_materials_variants is preserved on glTF export.
+	{
+		// Use variant data from the selected source file if known, else first available.
+		QString variantFile = selectedSourceFile.isEmpty()
+		                      ? (_sceneGraph->filesWithVariants().isEmpty()
+		                         ? QString() : _sceneGraph->filesWithVariants().first())
+		                      : selectedSourceFile;
+		if (!variantFile.isEmpty())
+		{
+			GltfVariantData vd = _sceneGraph->variantDataForFile(variantFile);
+			expSettings.variantNames = vd.variantNames;
+		}
+	}
+
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	bool useScenePath = settings.value("radioButtonExportScene", true).toBool();
+
+	AssImpMeshExporter meshExporter(this);
+	aiReturn res = aiReturn_FAILURE;
+	if (useScenePath)
+	{
+		res = meshExporter.exportScene(copyScene, triMeshes, fileName.toStdString(), expSettings);
+		qDebug() << "Exporting scene result:" << res;
+		delete copyScene;
+	}
+	else
+	{
+		res = meshExporter.exportMeshes(copyScene, triMeshes, fileName, expSettings);
+		qDebug() << "Exporting meshes result:" << res;
+	}
+
+	if (res == aiReturn_SUCCESS)
+		QMessageBox::information(this, tr("Information"), tr("Exported %1").arg(QFileInfo(fileName).fileName()));
+	else
+		QMessageBox::critical(this, tr("Error"), tr("Export failed!"));
 }
 
 
@@ -4600,6 +4640,28 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 
 bool ModelViewer::saveToFile(const QString& fileName)
 {
+	// Flush any unsaved material-panel changes to the mesh before building the MVF package.
+	// The panel works on a copy of the mesh material; changes become visible in the viewport
+	// via texture-cache warming but the mesh's stored material is only updated when the user
+	// explicitly clicks Apply.  Silently committing the current panel state here ensures that
+	// "save without clicking Apply" still captures the intended textures/properties.
+	if (!_currentEditingMeshUuid.isNull())
+	{
+		const GLMaterial* panelMat = Ui_ModelViewer::predefinedMaterialsPanel->material();
+		if (panelMat && _glWidget)
+		{
+			TriangleMesh* mesh = _glWidget->getMeshByUuid(_currentEditingMeshUuid);
+			if (mesh)
+			{
+				_glWidget->makeCurrent();
+				GLMaterial resolved = GLWidget::resolveMaterialTextures(_glWidget, *panelMat);
+				resolved.setIsGLTFMaterial(true);
+				mesh->setMaterial(resolved);
+				mesh->setTextureMaps(resolved);
+			}
+		}
+	}
+
 	const Mvf::MVFPackage package = buildMVFPackage();
 	const QByteArray jsonPayload = Mvf::toJsonBytes(package.document);
 	const QByteArray& geometryPayload = package.geometryChunk;

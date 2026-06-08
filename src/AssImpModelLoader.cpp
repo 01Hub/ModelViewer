@@ -2112,6 +2112,8 @@ void AssImpModelLoader::applyCoordinateSystemTransformations(const std::string& 
 		{
 			glm::mat4 coordTransform = getCoordinateSystemTransform(_scene, path);
 			_appliedTransform = coordTransform;
+			// Record whether a non-identity orientation rotation was actually applied
+			_autoOrientWasApplied = (coordTransform != glm::mat4(1.0f));
 		}
 
 		// Apply scaling separately

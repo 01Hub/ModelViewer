@@ -61,11 +61,15 @@ public:
     // importCorrection   — autoOrient+autoScale matrix the loader applied to the Assimp root
     //                      node before the SceneGraph was built; stored on the synthetic
     //                      fileNode so exporters can factor it out.  Pass identity if none.
+    // autoOrientApplied  — true if the loader applied a coordinate-system rotation.
+    // autoScaleApplied   — true if the loader applied an auto-scale to normalise scene size.
     void appendFromScene(const aiScene*                   scene,
                          const QString&                   sourceFile,
                          const QList<QUuid>&              meshUuidsInOrder,
                          const std::vector<GPULight>&     lights = {},
-                         const aiMatrix4x4&               importCorrection = aiMatrix4x4());
+                         const aiMatrix4x4&               importCorrection = aiMatrix4x4(),
+                         bool                             autoOrientApplied = false,
+                         bool                             autoScaleApplied  = false);
 
     // Build a flat synthetic session node that owns all meshes directly.
     // Used as a fallback for native-session files that do not carry a full

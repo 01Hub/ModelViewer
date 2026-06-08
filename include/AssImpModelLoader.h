@@ -160,8 +160,12 @@ public:
 	// Auto scale and orient the model to fit the scene's coordinate system
 	void setAutoScaleActive(bool autoScale) { _autoScale = autoScale; }
 	void setAutoOrientActive(bool autoOrient) { _autoOrient = autoOrient; }
-	bool isAutoScaleActive(bool autoScale) const { return _autoScale; }
-	bool isAutoOrientActive(bool autoOrient) const { return _autoOrient; }
+	bool isAutoScaleActive()  const { return _autoScale; }
+	bool isAutoOrientActive() const { return _autoOrient; }
+	// True if a coordinate-system rotation was actually performed at load time.
+	bool wasAutoOrientApplied() const { return _autoOrient && _autoOrientWasApplied; }
+	// True if an auto-scale was actually performed at load time.
+	bool wasAutoScaleApplied()  const { return _autoScale && std::abs(_appliedScale - 1.0f) > 0.001f; }
 
 	const aiScene* getScene() const { return _scene; }
 
@@ -252,8 +256,9 @@ private:
 	UVMethod _selectedUVMethod = UVMethod::Hybrid;
 	bool _needsUVGeneration = false;
 
-	bool _autoScale = true; // Automatically scale the model to fit the scene's coordinate system
-	bool _autoOrient = true; // Automatically orient the model to match the scene's coordinate system
+	bool _autoScale = true;            // Automatically scale the model to fit the scene's coordinate system
+	bool _autoOrient = true;           // Automatically orient the model to match the scene's coordinate system
+	bool _autoOrientWasApplied = false; // Set true when a non-identity orientation rotation was performed
 	float _appliedScale = 1.0f;
 	glm::mat4 _appliedTransform = glm::mat4(1.0f);
 

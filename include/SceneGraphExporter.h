@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <vector>
+#include <QStringList>
 #include <QUuid>
 
 #include <assimp/scene.h>
@@ -32,10 +33,13 @@ public:
     // vertices are left in world space.  Required for formats whose Assimp writer
     // ignores node transforms (OBJ, PLY, STL).  Default false for hierarchy-aware
     // formats (glTF, FBX, COLLADA).
+    // allowedSourceFiles: if non-empty, only file nodes whose sourceFile path is in
+    // this list are exported.  An empty list means "export all loaded scenes".
     static aiScene* buildExportScene(
         const SceneGraph* sceneGraph,
         const MeshResolver& resolveMesh,
-        bool flattenTransforms = false);
+        bool flattenTransforms = false,
+        const QStringList& allowedSourceFiles = QStringList());
 
 private:
     static aiNode* buildNodeRecursive(
@@ -45,7 +49,8 @@ private:
         std::vector<aiMaterial*>& outMaterials,
         QMap<QString, unsigned int>& materialKeyToIndex,
         const aiMatrix4x4& parentWorldTransform,
-        bool flattenTransforms
+        bool flattenTransforms,
+        const aiMatrix4x4& importCorrection = aiMatrix4x4()
     );
 
     static aiMesh* buildMeshFromTriangleMesh(const TriangleMesh* mesh, unsigned int materialIndex);

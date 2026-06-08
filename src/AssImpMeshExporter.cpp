@@ -234,6 +234,23 @@ bool hasDistinctSplitMetallicRoughnessTextures(const aiMaterial* material)
 bool shouldNormalizePreservedGltfMaterial(const aiMaterial* preservedMaterial,
                                           const GLMaterial& sourceMaterial)
 {
+    // Force normalization when the source GLMaterial contains GLB virtual paths
+    // ("glb://...") or Assimp embedded-texture references ("*N").
+    // buildMaterialFromTriangleMesh copies these raw paths into the preserved
+    // aiMaterial.  Assimp's GLB exporter cannot resolve them as file-system paths,
+    // so the textures would be silently missing in the output.
+    // createMaterial() + _lastTexturePackage remaps them to packaged relative paths
+    // that Assimp CAN read and embed correctly.
+    for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i)
+    {
+        const auto& tex = sourceMaterial.texture(static_cast<GLMaterial::TextureType>(i));
+        if (tex.path.empty())
+            continue;
+        // glb:// virtual path or *N embedded-texture index
+        if (tex.path.rfind("glb://", 0) == 0 || tex.path[0] == '*')
+            return true;
+    }
+
     const QString metallicPath = sourceMaterial.metallicMapPath();
     const QString roughnessPath = sourceMaterial.roughnessMapPath();
 

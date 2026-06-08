@@ -15,6 +15,7 @@
 #include <glm/vec3.hpp>
 
 #include <QDebug>
+#include <QMatrix4x4>
 #include <cmath>
 #include <initializer_list>
 
@@ -435,7 +436,8 @@ namespace
 aiScene* SceneGraphExporter::buildExportScene(
     const SceneGraph* sceneGraph,
     const MeshResolver& resolveMesh,
-    bool flattenTransforms)
+    bool flattenTransforms,
+    const QStringList& allowedSourceFiles)
 {
     if (!sceneGraph)
         return nullptr;
@@ -464,14 +466,27 @@ aiScene* SceneGraphExporter::buildExportScene(
     // SceneNode's localTransform before the recursive build, then restoring it.
     // This works for both flat formats (worldTransform accumulation) and hierarchy
     // formats (dstNode->mTransformation assignment) with no special-casing.
-    exportRoot->mNumChildren = static_cast<unsigned int>(graphRoot->children.size());
+    //
+    // allowedSourceFiles: when non-empty, only file nodes whose sourceFile is in
+    // the list are exported.  Empty means "export all".
+    const bool filterFiles = !allowedSourceFiles.isEmpty();
+
+    // Collect file nodes that pass the filter.
+    QList<SceneNode*> exportFileNodes;
+    for (SceneNode* fileNode : graphRoot->children)
+    {
+        if (!filterFiles || allowedSourceFiles.contains(fileNode->sourceFile))
+            exportFileNodes.append(fileNode);
+    }
+
+    exportRoot->mNumChildren = static_cast<unsigned int>(exportFileNodes.size());
     if (exportRoot->mNumChildren > 0)
     {
         QMap<QString, unsigned int> materialKeyToIndex;
         exportRoot->mChildren = new aiNode * [exportRoot->mNumChildren];
         for (unsigned int i = 0; i < exportRoot->mNumChildren; ++i)
         {
-            SceneNode* fileNode = graphRoot->children.at(static_cast<int>(i));
+            SceneNode* fileNode = exportFileNodes.at(static_cast<int>(i));
 
             // --- Factor out the import correction --------------------------------
             // The correction was applied to the Assimp root node (first child of
@@ -480,6 +495,18 @@ aiScene* SceneGraphExporter::buildExportScene(
             SceneNode* assimpRoot = (fileNode->isSynthetic && !fileNode->children.isEmpty())
                                     ? fileNode->children.first() : nullptr;
             aiMatrix4x4 savedLocalTransform;
+            {
+                const auto& ic = fileNode->importCorrection;
+                const aiMatrix4x4& lt = assimpRoot ? assimpRoot->localTransform : aiMatrix4x4();
+                qDebug() << "[Export] fileNode:" << fileNode->name
+                         << "  importCorrection.IsIdentity=" << ic.IsIdentity()
+                         << "  importCorrection=[" << ic.a1 << ic.a2 << ic.a3 << ic.a4
+                         << " |" << ic.b1 << ic.b2 << ic.b3 << ic.b4
+                         << " |" << ic.c1 << ic.c2 << ic.c3 << ic.c4 << "]"
+                         << "  assimpRoot->localTransform=[" << lt.a1 << lt.a2 << lt.a3 << lt.a4
+                         << " |" << lt.b1 << lt.b2 << lt.b3 << lt.b4
+                         << " |" << lt.c1 << lt.c2 << lt.c3 << lt.c4 << "]";
+            }
             if (assimpRoot && !fileNode->importCorrection.IsIdentity())
             {
                 savedLocalTransform = assimpRoot->localTransform;
@@ -489,7 +516,7 @@ aiScene* SceneGraphExporter::buildExportScene(
             }
             // ---------------------------------------------------------------------
 
-            aiNode* dstChild = buildNodeRecursive(fileNode, resolveMesh, builtMeshes, builtMaterials, materialKeyToIndex, aiMatrix4x4(), flattenTransforms);
+            aiNode* dstChild = buildNodeRecursive(fileNode, resolveMesh, builtMeshes, builtMaterials, materialKeyToIndex, aiMatrix4x4(), flattenTransforms, fileNode->importCorrection);
             exportRoot->mChildren[i] = dstChild;
             if (dstChild)
                 dstChild->mParent = exportRoot;
@@ -589,7 +616,8 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
     std::vector<aiMaterial*>& outMaterials,
     QMap<QString, unsigned int>& materialKeyToIndex,
     const aiMatrix4x4& parentWorldTransform,
-    bool flattenTransforms
+    bool flattenTransforms,
+    const aiMatrix4x4& importCorrection
 )
 {
     if (!srcNode)
@@ -668,8 +696,23 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
 
         if (originalMatIndex >= 0)
         {
-            // Mesh came from Assimp import - use original material index as key
-            QString originalMatKey = QString("originalMat=%1").arg(originalMatIndex);
+            // Mesh came from Assimp import.
+            // Include the source file in the key so that materials from different
+            // files that happen to share the same integer index are kept distinct.
+            // Without the file qualifier, file-A material 0 and file-B material 0
+            // would collapse into a single exported material, scrambling multi-file
+            // scenes that use KHR_materials_variants or simply different material sets.
+            //
+            // Also include a content hash of the live GLMaterial so that if the user
+            // has modified one mesh's material (e.g. applied a different texture or
+            // changed a colour), that mesh gets its own export entry rather than
+            // inheriting whichever mesh with the same originalMaterialIndex was
+            // visited first.  Unmodified meshes sharing the same original index and
+            // identical material content still deduplicate correctly.
+            const QString sourceFile = triMesh->getSourceFile();
+            const QString contentKey = buildMaterialReuseKey(glMaterial);
+            QString originalMatKey = QString("originalMat=%1@%2::%3")
+                                     .arg(originalMatIndex).arg(sourceFile).arg(contentKey);
             auto matIt = materialKeyToIndex.find(originalMatKey);
 
             if (matIt != materialKeyToIndex.end())
@@ -686,7 +729,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
 
                 materialIndex = static_cast<unsigned int>(outMaterials.size());
                 outMaterials.push_back(builtMaterial);
-                materialKeyToIndex.insert(originalMatKey, materialIndex);
+                materialKeyToIndex.insert(originalMatKey, materialIndex); // key already includes sourceFile
             }
         }
         else
@@ -722,6 +765,56 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
             continue;
         }
 
+        // Per-mesh user TRS (from the interactive gizmo).  This is stored in
+        // TriangleMesh::_transformation and is applied BEFORE the scene-hierarchy
+        // world transform at render time: effectiveWorld = meshTrs * worldTransform.
+        // We must fold it into the export so that the exported file matches what the
+        // user sees in the viewport.
+        //
+        // IMPORTANT — coordinate-system correction:
+        // The gizmo TRS is in viewer world space, which is the autoOrient/autoScale
+        // corrected space (importCorrection has been applied to the scene root).
+        // The exporter factors out importCorrection from the hierarchy so the output
+        // file is in the original model coordinate system.  To express the viewer-space
+        // TRS correctly in model space we must insert importCorrection between meshTrsAi
+        // and worldTransform:
+        //   effectiveWorld_model = meshTrs_viewer × importCorrection × worldTransform_model
+        // This converts the viewer-space displacement/rotation to the model's axes so
+        // that a Y-axis move in the viewer does not appear as a Z-axis move in the file.
+        const QMatrix4x4 meshTrsQ = triMesh->getTransformation(); // identity when untouched
+        const bool hasMeshTrs = !meshTrsQ.isIdentity();
+        aiMatrix4x4 meshTrsAi;  // default = identity
+        if (hasMeshTrs)
+        {
+            meshTrsAi = aiMatrix4x4(
+                meshTrsQ(0,0), meshTrsQ(0,1), meshTrsQ(0,2), meshTrsQ(0,3),
+                meshTrsQ(1,0), meshTrsQ(1,1), meshTrsQ(1,2), meshTrsQ(1,3),
+                meshTrsQ(2,0), meshTrsQ(2,1), meshTrsQ(2,2), meshTrsQ(2,3),
+                meshTrsQ(3,0), meshTrsQ(3,1), meshTrsQ(3,2), meshTrsQ(3,3));
+        }
+        // correctedMeshTrs: viewer-space TRS re-expressed in model (export) space via
+        // the similarity transform  C⁻¹ × meshTrs × C  where C = importCorrection.
+        //
+        // Derivation: the viewer renders  meshTrs × C × H × vertex.  After export and
+        // re-import (autoOrient re-applies C), the scene shows  C × node_chain × vertex.
+        // For these to match:  node_chain = C⁻¹ × meshTrs × C × H = correctedMeshTrs × H.
+        //
+        // When importCorrection is identity (Z-up model, or no autoOrient), the
+        // similarity collapses to meshTrsAi unchanged, so Z-up exports are unaffected.
+        aiMatrix4x4 correctedMeshTrs;   // default = identity (hasMeshTrs=false path)
+        if (hasMeshTrs)
+        {
+            aiMatrix4x4 corrInv = importCorrection;
+            corrInv.Inverse();
+            correctedMeshTrs = corrInv * meshTrsAi * importCorrection;
+        }
+        // effectiveWorldTransform = correctedMeshTrs * sceneHierarchyWorld (model space).
+        // For flat formats this is baked into vertices.
+        // For hierarchy formats it is folded into the node/child-node transform.
+        const aiMatrix4x4 effectiveWorldTransform = hasMeshTrs
+                                                    ? (correctedMeshTrs * worldTransform)
+                                                    : worldTransform;
+
         // Vertex positions in AssImpMesh are stored in mesh-LOCAL space.
         // processMesh() copies Assimp vertex positions verbatim with no world transform
         // applied; the world transform is only used at GPU render time via
@@ -731,25 +824,26 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
         //
         // flattenTransforms (OBJ, PLY, STL):
         //   These Assimp writers ignore every aiNode::mTransformation and write vertex
-        //   positions verbatim.  Forward-apply worldTransform here so the output file
-        //   contains correct world-space positions (node transforms are identity).
+        //   positions verbatim.  Forward-apply effectiveWorldTransform here so the output
+        //   file contains correct world-space positions (node transforms are identity).
         //
         // Hierarchy mode (glTF, FBX, COLLADA):
         //   Keep vertices in local space — the hierarchy-aware writer reads
         //   dstNode->mTransformation and applies it when writing, reconstructing world
-        //   space on export (and again on import).  No vertex transform is needed.
-        if (flattenTransforms && !worldTransform.IsIdentity())
+        //   space on export (and again on import).  No vertex transform is needed, but
+        //   the per-mesh TRS must be folded into the node/child-node transform below.
+        if (flattenTransforms && !effectiveWorldTransform.IsIdentity())
         {
             // Forward-bake: local → world space.
             // Normal transform: M^{-T} (cotangent formula).
-            aiMatrix3x3 normalBake = aiMatrix3x3(worldTransform);
+            aiMatrix3x3 normalBake = aiMatrix3x3(effectiveWorldTransform);
             normalBake = normalBake.Inverse();
             normalBake.Transpose();
             const bool hasNegativeScale = normalBake.Determinant() < 0.0f;
 
             for (unsigned int vi = 0; vi < builtMesh->mNumVertices; ++vi)
             {
-                builtMesh->mVertices[vi] = worldTransform * builtMesh->mVertices[vi];
+                builtMesh->mVertices[vi] = effectiveWorldTransform * builtMesh->mVertices[vi];
 
                 if (builtMesh->mNormals)
                 {
@@ -771,8 +865,19 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
                 }
             }
         }
-        // Hierarchy mode: no vertex transform.  Vertices remain in local space;
-        // dstNode->mTransformation carries srcNode->localTransform and the writer applies it.
+        // Hierarchy mode: vertices remain in local space.
+        // If hasMeshTrs, fold the per-mesh TRS into the node/child-node transform so
+        // the reader reconstructs the correct world position.
+        //
+        // The per-mesh TRS lives in "pre-scene" space: effectiveWorld = meshTrs * sceneWorld.
+        // For the node (or child node) to produce this, its local transform must be:
+        //   newLocal = parentWorld^-1 * meshTrs * parentWorld * srcNode->localTransform
+        // For a child node (splitMeshesIntoChildNodes), the effective parent world IS
+        // worldTransform, so:
+        //   childTransform = worldTransform^-1 * meshTrs * worldTransform
+        //
+        // This similarity transform re-expresses the world-space TRS in the node's
+        // local coordinate system, which the exporter hierarchy reconstructs on import.
 
         const unsigned int exportMeshIndex = static_cast<unsigned int>(outMeshes.size());
         outMeshes.push_back(builtMesh);
@@ -783,10 +888,37 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
             meshNode->mNumMeshes = 1;
             meshNode->mMeshes = new unsigned int[1];
             meshNode->mMeshes[0] = exportMeshIndex;
+
+            // Fold per-mesh user TRS into the child node for hierarchy formats.
+            // Use correctedMeshTrs (viewer-space TRS remapped to model/export space).
+            if (!flattenTransforms && hasMeshTrs)
+            {
+                aiMatrix4x4 worldInv = worldTransform;
+                worldInv.Inverse();
+                meshNode->mTransformation = worldInv * correctedMeshTrs * worldTransform;
+            }
+
             meshChildNodes.push_back(meshNode);
         }
         else
         {
+            // Single mesh on the parent node.  Fold the per-mesh TRS directly into
+            // dstNode->mTransformation for hierarchy formats.
+            //
+            // Note: useParentSpaceEncoding is true for glTF leaf nodes whose
+            // localTransform is sub-epsilon (IsIdentity() returns true).  In that
+            // case dstNode->mTransformation was set to explicit identity above, but
+            // when hasMeshTrs we must override it with the folded TRS — otherwise
+            // the user's gizmo transform is silently lost in glTF exports.
+            if (!flattenTransforms && hasMeshTrs)
+            {
+                // newLocal = parentWorld^-1 * correctedMeshTrs * worldTransform
+                // correctedMeshTrs = C⁻¹ × meshTrs_viewer × C remaps the
+                // viewer-space TRS to the exported (model) coordinate system.
+                aiMatrix4x4 parentWorldInv = parentWorldTransform;
+                parentWorldInv.Inverse();
+                dstNode->mTransformation = parentWorldInv * correctedMeshTrs * worldTransform;
+            }
             nodeMeshIndices.push_back(exportMeshIndex);
         }
     }
@@ -818,7 +950,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
         for (int i = 0; i < srcNode->children.size(); ++i)
         {
             SceneNode* srcChild = srcNode->children.at(i);
-            aiNode* dstChild = buildNodeRecursive(srcChild, resolveMesh, outMeshes, outMaterials, materialKeyToIndex, worldTransform, flattenTransforms);
+            aiNode* dstChild = buildNodeRecursive(srcChild, resolveMesh, outMeshes, outMaterials, materialKeyToIndex, worldTransform, flattenTransforms, importCorrection);
             dstNode->mChildren[childIndex++] = dstChild;
             if (dstChild)
                 dstChild->mParent = dstNode;

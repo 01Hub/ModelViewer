@@ -73,6 +73,7 @@ bool GltfPostProcessor::writeKhrMaterialsVariantsExtension(
     QJsonObject rootExts = gltfJson.value("extensions").toObject();
     QJsonObject khrRootObj;
     khrRootObj["variants"] = variantsArray;
+
     rootExts[khrName] = khrRootObj;
     gltfJson["extensions"] = rootExts;
 

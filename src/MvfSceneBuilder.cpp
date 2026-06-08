@@ -16,6 +16,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QVector2D>
+#include <QVector3D>
 
 #include <cstring>
 #include <limits>
@@ -656,6 +657,32 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
         if (mesh->hasVariants())
             primitiveExtras.insert(QStringLiteral("variantMappings"), variantMappingsToJson(mesh->variantMappings()));
 
+        // Per-mesh user transform (gizmo TRS applied on top of scene hierarchy).
+        // Stored as separate translation/rotation-quaternion/scale so that the load path
+        // can call setTranslation / setRotationQuaternion / setScaling directly.
+        {
+            const QVector3D    t  = mesh->getTranslation();
+            const QQuaternion  q  = mesh->getRotationQuaternion();
+            const QVector3D    r  = mesh->getRotation();   // Euler display values
+            const QVector3D    s  = mesh->getScaling();
+
+            QJsonObject meshTrs;
+            meshTrs.insert(QStringLiteral("tx"), t.x());
+            meshTrs.insert(QStringLiteral("ty"), t.y());
+            meshTrs.insert(QStringLiteral("tz"), t.z());
+            meshTrs.insert(QStringLiteral("qx"), q.x());
+            meshTrs.insert(QStringLiteral("qy"), q.y());
+            meshTrs.insert(QStringLiteral("qz"), q.z());
+            meshTrs.insert(QStringLiteral("qw"), q.scalar());
+            meshTrs.insert(QStringLiteral("rx"), r.x());
+            meshTrs.insert(QStringLiteral("ry"), r.y());
+            meshTrs.insert(QStringLiteral("rz"), r.z());
+            meshTrs.insert(QStringLiteral("sx"), s.x());
+            meshTrs.insert(QStringLiteral("sy"), s.y());
+            meshTrs.insert(QStringLiteral("sz"), s.z());
+            primitiveExtras.insert(QStringLiteral("meshTrs"), meshTrs);
+        }
+
         if (!mesh->allVariantMaterials().isEmpty())
         {
             QJsonArray variantMaterialsArray;
@@ -881,6 +908,14 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
         if (!node->sourceFile.isEmpty())
             nodeObj.insert(QStringLiteral("sourceFile"), node->sourceFile);
         nodeObj.insert(QStringLiteral("matrix"), matrixToJson(node->localTransform));
+        // Persist the autoOrient+autoScale correction so the exporter can factor it
+        // out on the next export even after a save/load round-trip via MVF.
+        if (!node->importCorrection.IsIdentity())
+            nodeObj.insert(QStringLiteral("importCorrection"), matrixToJson(node->importCorrection));
+        if (node->autoOrientApplied)
+            nodeObj.insert(QStringLiteral("autoOrientApplied"), true);
+        if (node->autoScaleApplied)
+            nodeObj.insert(QStringLiteral("autoScaleApplied"), true);
 
         if (!node->meshUuids.isEmpty())
         {

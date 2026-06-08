@@ -443,6 +443,14 @@ public:
 		std::vector<Vertex>       vertices;
 		std::vector<unsigned int> indices;
 		GLMaterial   material;
+
+		// Per-mesh user transform (gizmo TRS).  Non-identity when the user has moved,
+		// rotated, or scaled the mesh via the gizmo.  Applied by uploadPreparedMvfMeshes
+		// after the mesh is created so interactive transforms survive save/load.
+		QVector3D   meshTranslation  = QVector3D(0.0f, 0.0f, 0.0f);
+		QVector3D   meshRotation     = QVector3D(0.0f, 0.0f, 0.0f);  // Euler display
+		QQuaternion meshRotationQuat = QQuaternion();
+		QVector3D   meshScale        = QVector3D(1.0f, 1.0f, 1.0f);
 	};
 
 	/// CPU-only preparation: reads geometry streams, builds vertex arrays,

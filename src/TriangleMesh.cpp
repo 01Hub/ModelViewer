@@ -1721,6 +1721,82 @@ void TriangleMesh::setupTransformation()
 	updateRuntimeBounds();
 }
 
+// ---------------------------------------------------------------------------
+// Fast TRS setters — for interactive gizmo drag
+// ---------------------------------------------------------------------------
+// These update _transformation and recompute the world-space bounding box from
+// the 8 local AABB corners only (O(1)), skipping the full O(N) vertex transform.
+// Call fullUpdateRuntimeBounds() once when the drag ends to resync _trsfPoints.
+
+// Helper: update _boundingBox from _localBoundingBox corners via combinedRenderTransform.
+void TriangleMesh::fastUpdateWorldBounds()
+{
+	const QMatrix4x4 combined = combinedRenderTransform();
+	float xMin =  std::numeric_limits<float>::max();
+	float yMin =  std::numeric_limits<float>::max();
+	float zMin =  std::numeric_limits<float>::max();
+	float xMax = -std::numeric_limits<float>::max();
+	float yMax = -std::numeric_limits<float>::max();
+	float zMax = -std::numeric_limits<float>::max();
+	for (const QVector3D& corner : _localBoundingBox.getCorners())
+	{
+		const QVector3D tc = combined.map(corner);
+		xMin = std::min(xMin, tc.x());
+		yMin = std::min(yMin, tc.y());
+		zMin = std::min(zMin, tc.z());
+		xMax = std::max(xMax, tc.x());
+		yMax = std::max(yMax, tc.y());
+		zMax = std::max(zMax, tc.z());
+	}
+	_boundingBox.setLimits(
+		static_cast<double>(xMin), static_cast<double>(xMax),
+		static_cast<double>(yMin), static_cast<double>(yMax),
+		static_cast<double>(zMin), static_cast<double>(zMax));
+}
+
+void TriangleMesh::setTranslationFast(const QVector3D& trans)
+{
+	_transX = trans.x();
+	_transY = trans.y();
+	_transZ = trans.z();
+	rebuildAbsoluteTransformation();
+	fastUpdateWorldBounds();
+}
+
+void TriangleMesh::setRotationFast(const QVector3D& rota)
+{
+	_rotateX = rota.x();
+	_rotateY = rota.y();
+	_rotateZ = rota.z();
+	_rotationQuat = meshEulerToQuaternion(rota);
+	rebuildAbsoluteTransformation();
+	fastUpdateWorldBounds();
+}
+
+void TriangleMesh::setRotationQuaternionFast(const QQuaternion& quat, const QVector3D& displayEuler)
+{
+	_rotationQuat = quat.normalized();
+	_rotateX = displayEuler.x();
+	_rotateY = displayEuler.y();
+	_rotateZ = displayEuler.z();
+	rebuildAbsoluteTransformation();
+	fastUpdateWorldBounds();
+}
+
+void TriangleMesh::setScalingFast(const QVector3D& scale)
+{
+	_scaleX = scale.x();
+	_scaleY = scale.y();
+	_scaleZ = scale.z();
+	rebuildAbsoluteTransformation();
+	fastUpdateWorldBounds();
+}
+
+void TriangleMesh::fullUpdateRuntimeBounds()
+{
+	updateRuntimeBounds();
+}
+
 void TriangleMesh::updateRuntimeBounds()
 {
 	// Compute the local-space bounding box from _points (before any transform).
