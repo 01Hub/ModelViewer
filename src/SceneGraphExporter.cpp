@@ -6,6 +6,11 @@
 #include "AssImpMesh.h"
 #include "GLLights.h"
 
+#include "GltfAnimationData.h"
+#include "GltfCameraData.h"
+
+#include <assimp/anim.h>
+#include <assimp/camera.h>
 #include <assimp/material.h>
 #include <assimp/mesh.h>
 #include <assimp/scene.h>
@@ -604,6 +609,184 @@ aiScene* SceneGraphExporter::buildExportScene(
         }
 
         qDebug() << "[EXPORT-LIGHTS] Exported" << scene->mNumLights << "punctual lights";
+    }
+
+    // ===== Export glTF Cameras =====
+    // Populate aiScene::mCameras from GltfCameraData stored in SceneGraph.
+    // Assimp's glTF2 exporter links each aiCamera to a node whose mName matches
+    // aiCamera::mName, so we use the original node name (= camera.nodeName).
+    {
+        std::vector<aiCamera*> builtCameras;
+
+        for (const SceneNode* fileNode : exportFileNodes)
+        {
+            const GltfCameraData camData = sceneGraph->gltfCameraDataForFile(fileNode->sourceFile);
+            for (const GltfCameraEntry& cam : camData.cameras)
+            {
+                aiCamera* aiCam = new aiCamera();
+
+                // Name must equal the hosting node's name so Assimp wires them up.
+                aiCam->mName.Set(cam.nodeName.toStdString());
+
+                aiCam->mClipPlaneNear = cam.zNear;
+                aiCam->mClipPlaneFar  = cam.zFar;
+
+                if (cam.type == GltfCameraType::Perspective)
+                {
+                    // Assimp's glTF2 exporter writes aiCamera::mHorizontalFOV as
+                    // the glTF "yfov" property, so store the vertical FOV there for
+                    // a lossless round-trip.  mAspect = 0 signals "unspecified".
+                    aiCam->mHorizontalFOV = cam.fovYRadians;
+                    aiCam->mAspect        = 0.0f;
+                }
+                else // Orthographic
+                {
+                    // glTF orthographic: xmag = mOrthographicWidth,
+                    //                    ymag = xmag / mAspect
+                    // Store xMag and derive aspect so the exporter recovers yMag.
+                    aiCam->mOrthographicWidth = cam.xMag;
+                    aiCam->mAspect = (cam.yMag > 0.0f)
+                                     ? (cam.xMag / cam.yMag)
+                                     : 1.0f;
+                }
+
+                // World-space orientation is already encoded in the camera's hosting
+                // node transform, which is exported as part of the node hierarchy.
+                // No need to duplicate position/direction here.
+
+                builtCameras.push_back(aiCam);
+            }
+        }
+
+        if (!builtCameras.empty())
+        {
+            scene->mNumCameras = static_cast<unsigned int>(builtCameras.size());
+            scene->mCameras = new aiCamera*[scene->mNumCameras];
+            for (unsigned int i = 0; i < scene->mNumCameras; ++i)
+                scene->mCameras[i] = builtCameras[i];
+
+            qDebug() << "[EXPORT-CAMERAS] Exported" << scene->mNumCameras << "camera(s)";
+        }
+    }
+
+    // ===== Export Animations (TRS channels) =====
+    // Convert GltfAnimationData → aiAnimation / aiNodeAnim for each exported file.
+    //
+    // Scope: Translation, Rotation, and Scale node-transform channels are exported
+    // faithfully.  Morph-weight (Weights) and pointer-target channels (material
+    // properties, node visibility) require glTF-specific JSON surgery and are
+    // intentionally skipped here; they can be added via GltfPostProcessor later.
+    //
+    // Coordinate space: keyframe values are in the original model space (same space
+    // as the exported node hierarchy after importCorrection is factored out), so no
+    // additional transform is needed.
+    {
+        std::vector<aiAnimation*> builtAnims;
+
+        for (const SceneNode* fileNode : exportFileNodes)
+        {
+            const GltfAnimationData animData = sceneGraph->animationDataForFile(fileNode->sourceFile);
+            if (animData.isEmpty())
+                continue;
+
+            for (const GltfAnimationClip& clip : animData.clips)
+            {
+                // Group TRS channels by target node name so each node gets exactly
+                // one aiNodeAnim (Assimp requires one-per-node per animation).
+                QMap<QString, aiNodeAnim*> nodeAnimByName;
+
+                for (const GltfAnimationChannel& ch : clip.channels)
+                {
+                    const bool isTRS = (ch.targetPath == GltfAnimationTargetPath::Translation ||
+                                        ch.targetPath == GltfAnimationTargetPath::Rotation    ||
+                                        ch.targetPath == GltfAnimationTargetPath::Scale);
+                    if (!isTRS)
+                        continue; // skip Weights / Pointer for now
+
+                    const std::string nodeName = ch.targetNodeName.toStdString();
+
+                    if (!nodeAnimByName.contains(ch.targetNodeName))
+                    {
+                        aiNodeAnim* na = new aiNodeAnim();
+                        na->mNodeName.Set(nodeName);
+                        nodeAnimByName[ch.targetNodeName] = na;
+                    }
+                    aiNodeAnim* na = nodeAnimByName[ch.targetNodeName];
+
+                    // Use milliseconds as ticks (mTicksPerSecond = 1000) for
+                    // sub-millisecond precision with integer-safe timestamps.
+                    constexpr double kTicksPerSecond = 1000.0;
+
+                    if (ch.targetPath == GltfAnimationTargetPath::Translation)
+                    {
+                        na->mNumPositionKeys = static_cast<unsigned int>(ch.vec3Keys.size());
+                        na->mPositionKeys    = new aiVectorKey[na->mNumPositionKeys];
+                        for (unsigned int k = 0; k < na->mNumPositionKeys; ++k)
+                        {
+                            const GltfAnimationVec3Key& key = ch.vec3Keys[k];
+                            na->mPositionKeys[k].mTime  = key.timeSeconds * kTicksPerSecond;
+                            na->mPositionKeys[k].mValue = aiVector3D(key.value.x(),
+                                                                     key.value.y(),
+                                                                     key.value.z());
+                        }
+                    }
+                    else if (ch.targetPath == GltfAnimationTargetPath::Rotation)
+                    {
+                        na->mNumRotationKeys = static_cast<unsigned int>(ch.quatKeys.size());
+                        na->mRotationKeys    = new aiQuatKey[na->mNumRotationKeys];
+                        for (unsigned int k = 0; k < na->mNumRotationKeys; ++k)
+                        {
+                            const GltfAnimationQuatKey& key = ch.quatKeys[k];
+                            // Assimp quaternion: (w, x, y, z)
+                            na->mRotationKeys[k].mTime  = key.timeSeconds * kTicksPerSecond;
+                            na->mRotationKeys[k].mValue = aiQuaternion(key.value.scalar(),
+                                                                       key.value.x(),
+                                                                       key.value.y(),
+                                                                       key.value.z());
+                        }
+                    }
+                    else // Scale
+                    {
+                        na->mNumScalingKeys = static_cast<unsigned int>(ch.vec3Keys.size());
+                        na->mScalingKeys    = new aiVectorKey[na->mNumScalingKeys];
+                        for (unsigned int k = 0; k < na->mNumScalingKeys; ++k)
+                        {
+                            const GltfAnimationVec3Key& key = ch.vec3Keys[k];
+                            na->mScalingKeys[k].mTime  = key.timeSeconds * kTicksPerSecond;
+                            na->mScalingKeys[k].mValue = aiVector3D(key.value.x(),
+                                                                    key.value.y(),
+                                                                    key.value.z());
+                        }
+                    }
+                }
+
+                if (nodeAnimByName.isEmpty())
+                    continue; // no TRS channels → nothing to write
+
+                aiAnimation* anim = new aiAnimation();
+                anim->mName.Set(clip.name.toStdString());
+                anim->mDuration        = clip.durationSeconds * 1000.0; // in ticks
+                anim->mTicksPerSecond  = 1000.0;
+
+                anim->mNumChannels = static_cast<unsigned int>(nodeAnimByName.size());
+                anim->mChannels    = new aiNodeAnim*[anim->mNumChannels];
+                unsigned int ci = 0;
+                for (aiNodeAnim* na : nodeAnimByName)
+                    anim->mChannels[ci++] = na;
+
+                builtAnims.push_back(anim);
+            }
+        }
+
+        if (!builtAnims.empty())
+        {
+            scene->mNumAnimations = static_cast<unsigned int>(builtAnims.size());
+            scene->mAnimations    = new aiAnimation*[scene->mNumAnimations];
+            for (unsigned int i = 0; i < scene->mNumAnimations; ++i)
+                scene->mAnimations[i] = builtAnims[i];
+
+            qDebug() << "[EXPORT-ANIMS] Exported" << scene->mNumAnimations << "animation clip(s)";
+        }
     }
 
     return scene;
