@@ -7,6 +7,7 @@
 #include <assimp/Exporter.hpp>
 #include "TextureLocationManager.h"
 #include "GLLights.h"
+#include "GltfCameraData.h"
 #include "GltfVariantData.h"
 #include "TexturePackingUtils.h"
 
@@ -62,6 +63,7 @@ public:
         bool deduplicateTextures = true;      ///< Remove duplicate textures
         bool verbose = true;                  ///< Enable debug logging
         std::vector<GPULight> lights;
+        QVector<GltfCameraEntry> cameras;  ///< glTF cameras to inject via post-processor
         // Ordered variant names for KHR_materials_variants export.
         // Leave empty to omit the extension from the output.
         QStringList variantNames;

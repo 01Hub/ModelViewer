@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "GLLights.h"
+#include "GltfCameraData.h"
 #include "GltfVariantData.h"
 
 #include "GLMaterial.h"
@@ -126,6 +127,11 @@ public:
 	 *
 	 * This adds a KHR_lights_punctual extension with light definitions based on the provided GPULight data.
 	 */
+    static bool writeGltfCameras(
+        QJsonObject& gltfJson,
+        const QVector<GltfCameraEntry>& cameras,
+        std::function<void(const QString&)> logCallback);
+
     static bool writePunctualLights(
         QJsonObject& gltfJson,
         const std::vector<GPULight>& lights,
@@ -157,6 +163,14 @@ public:
      * @param entries       Per-mesh export entries built by AssImpMeshExporter
      *                      (one entry per exported mesh, in output order).
      */
+    /**
+     * Register glTF camera entries to be injected into the next export.
+     * Call before postProcessGlb/GltfFileWithMaterials and clear afterwards
+     * (clearVariantExportData also clears camera data).
+     */
+    static void setGltfCameraData(const QVector<GltfCameraEntry>& cameras);
+    static void clearGltfCameraData();
+
     static void setVariantExportData(
         const QStringList& variantNames,
         const QVector<MeshVariantExportEntry>& entries);
@@ -294,6 +308,8 @@ private:
     static QMap<int, int> _materialToSourceMeshIndex;
 
     // KHR_materials_variants export state (set by setVariantExportData before post-processing)
+    static QVector<GltfCameraEntry> _gltfCameras;
+
     static QStringList _variantNames;
     static QVector<MeshVariantExportEntry> _variantEntries;
     // GLMaterials for non-default variant materials keyed by JSON material index.

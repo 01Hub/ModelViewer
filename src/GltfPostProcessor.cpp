@@ -16,9 +16,21 @@ bool GltfPostProcessor::_isGlbExport = false;
 QMap<QString, QString> GltfPostProcessor::_pathMapping;
 QMap<QString, int> GltfPostProcessor::_embeddedIndexMapping;
 QMap<int, int> GltfPostProcessor::_materialToSourceMeshIndex;
+QVector<GltfCameraEntry> GltfPostProcessor::_gltfCameras;
+
 QStringList GltfPostProcessor::_variantNames;
 QVector<MeshVariantExportEntry> GltfPostProcessor::_variantEntries;
 QMap<int, GLMaterial> GltfPostProcessor::_variantMatByJsonIdx;
+
+void GltfPostProcessor::setGltfCameraData(const QVector<GltfCameraEntry>& cameras)
+{
+    _gltfCameras = cameras;
+}
+
+void GltfPostProcessor::clearGltfCameraData()
+{
+    _gltfCameras.clear();
+}
 
 void GltfPostProcessor::setVariantMaterialData(const QMap<int, GLMaterial>& variantMats)
 {
@@ -38,6 +50,9 @@ void GltfPostProcessor::clearVariantExportData()
     _variantNames.clear();
     _variantEntries.clear();
     _variantMatByJsonIdx.clear();
+    // Note: _gltfCameras is NOT cleared here — cameras are managed independently
+    // via setGltfCameraData() / clearGltfCameraData() so that the variant else-branch
+    // (clearVariantExportData) does not clobber camera data that was just registered.
 }
 
 bool GltfPostProcessor::writeKhrMaterialsVariantsExtension(
@@ -1235,6 +1250,97 @@ bool GltfPostProcessor::writePunctualLights(
 
     log(QString("  -> KHR_lights_punctual written (%1 lights)").arg(lightsArray.size()), logCallback);
     return true;
+}
+
+// Inject glTF camera definitions and wire them to their hosting nodes.
+//
+// Assimp's glTF2 exporter does not write cameras, so this post-processing
+// step adds them directly to the JSON.  Each GltfCameraEntry carries the
+// original node name; we scan the exported nodes array for a matching
+// "name" field and add "camera": <index> to that node.
+bool GltfPostProcessor::writeGltfCameras(
+    QJsonObject& gltfJson,
+    const QVector<GltfCameraEntry>& cameras,
+    std::function<void(const QString&)> logCallback)
+{
+    if (cameras.isEmpty())
+        return false;
+
+    log(QString("Writing %1 glTF camera(s)...").arg(cameras.size()), logCallback);
+
+    QJsonArray camerasArray = gltfJson.value("cameras").toArray(); // preserve any existing
+    QJsonArray nodesArray   = gltfJson.value("nodes").toArray();
+
+    // Build a node-name → node-index lookup for fast matching.
+    QMap<QString, int> nodeIndexByName;
+    for (int ni = 0; ni < nodesArray.size(); ++ni)
+    {
+        const QString nodeName = nodesArray[ni].toObject().value("name").toString();
+        if (!nodeName.isEmpty())
+            nodeIndexByName[nodeName] = ni;
+    }
+
+    int injectedCount = 0;
+    for (const GltfCameraEntry& cam : cameras)
+    {
+        const int cameraIndex = camerasArray.size();
+
+        // --- Build camera definition ---
+        QJsonObject camDef;
+        camDef["name"] = cam.name.isEmpty() ? cam.nodeName : cam.name;
+
+        if (cam.type == GltfCameraType::Perspective)
+        {
+            camDef["type"] = QStringLiteral("perspective");
+            QJsonObject persp;
+            persp["yfov"]  = static_cast<double>(cam.fovYRadians);
+            persp["znear"] = static_cast<double>(cam.zNear);
+            if (cam.zFar > 0.0f && cam.zFar < 1e38f)
+                persp["zfar"] = static_cast<double>(cam.zFar);
+            // aspectRatio is intentionally omitted — glTF consumers compute it
+            // from the render target, and omitting it is spec-compliant.
+            camDef["perspective"] = persp;
+        }
+        else // Orthographic
+        {
+            camDef["type"] = QStringLiteral("orthographic");
+            QJsonObject ortho;
+            ortho["xmag"]  = static_cast<double>(cam.xMag);
+            ortho["ymag"]  = static_cast<double>(cam.yMag);
+            ortho["znear"] = static_cast<double>(cam.zNear);
+            ortho["zfar"]  = static_cast<double>(cam.zFar);
+            camDef["orthographic"] = ortho;
+        }
+
+        camerasArray.append(camDef);
+
+        // --- Wire the camera to its hosting node ---
+        const QString targetNode = cam.nodeName.isEmpty() ? cam.name : cam.nodeName;
+        if (nodeIndexByName.contains(targetNode))
+        {
+            const int ni = nodeIndexByName[targetNode];
+            QJsonObject node = nodesArray[ni].toObject();
+            node["camera"] = cameraIndex;
+            nodesArray[ni] = node;
+            log(QString("  -> Camera '%1' (%2) wired to node[%3] '%4'")
+                .arg(camDef["name"].toString())
+                .arg(cam.type == GltfCameraType::Perspective ? "perspective" : "orthographic")
+                .arg(ni).arg(targetNode), logCallback);
+            ++injectedCount;
+        }
+        else
+        {
+            log(QString("  -> Camera '%1': hosting node '%2' not found in exported hierarchy — camera definition added but not referenced")
+                .arg(camDef["name"].toString()).arg(targetNode), logCallback);
+        }
+    }
+
+    gltfJson["cameras"] = camerasArray;
+    gltfJson["nodes"]   = nodesArray;
+
+    log(QString("  -> %1/%2 camera(s) successfully wired to nodes")
+        .arg(injectedCount).arg(cameras.size()), logCallback);
+    return injectedCount > 0;
 }
 
 // Remove TANGENT attributes from all mesh primitives
@@ -3844,6 +3950,9 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
 
     if (!lights.empty())
         writePunctualLights(gltfJson, lights, logCallback);
+
+    if (!_gltfCameras.isEmpty())
+        writeGltfCameras(gltfJson, _gltfCameras, logCallback);
 
     if (_isGlbExport)
     {

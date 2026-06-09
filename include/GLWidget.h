@@ -312,6 +312,14 @@ public:
 
 	std::vector<GPULight> getParsedLights() const { return _originalParsedLights; }
 
+	// Returns the current repositioned lights (what the user sees after slider/auto-rotate
+	// adjustments). Falls back to _originalParsedLights if repositioning hasn't run yet.
+	std::vector<GPULight> getRepositionedLights() const
+	{
+		return _currentRepositionedLights.empty() ? _originalParsedLights
+		                                           : _currentRepositionedLights;
+	}
+
 	float getFloorSize() const { return _floorSize; }
 
 	bool isShaded() const;

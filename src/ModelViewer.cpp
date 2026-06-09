@@ -3744,9 +3744,12 @@ void ModelViewer::onFileExport()
 	// via the importCorrection stored on each fileNode.
 
 	// Apply inverse scene transform to punctual lights.
+	// Use the repositioned lights (user-visible state after slider / auto-rotate
+	// adjustments) rather than the raw parsed positions, so the exported file
+	// reflects exactly what the user sees in the viewer.
 	glm::mat4 transform = _glWidget->getGlobalSceneTransform();
 	glm::mat4 inverseTransform = glm::inverse(transform);
-	std::vector<GPULight> lights = _glWidget->getParsedLights();
+	std::vector<GPULight> lights = _glWidget->getRepositionedLights();
 	for (GPULight& light : lights)
 	{
 		glm::vec4 transformedPos = inverseTransform * glm::vec4(light.position, 1.0f);
@@ -3771,6 +3774,20 @@ void ModelViewer::onFileExport()
 	expSettings.deduplicateTextures = true;
 	expSettings.verbose = true;
 	expSettings.lights  = lights;
+
+	// Collect glTF cameras for all exported files.
+	{
+		const QStringList camFiles = _sceneGraph->filesWithGltfCameras();
+		for (const QString& file : camFiles)
+		{
+			// Only include cameras from files that are part of this export.
+			if (!selectedSourceFile.isEmpty() && file != selectedSourceFile)
+				continue;
+			const GltfCameraData camData = _sceneGraph->gltfCameraDataForFile(file);
+			for (const GltfCameraEntry& cam : camData.cameras)
+				expSettings.cameras.append(cam);
+		}
+	}
 
 	// Collect variant names so KHR_materials_variants is preserved on glTF export.
 	{

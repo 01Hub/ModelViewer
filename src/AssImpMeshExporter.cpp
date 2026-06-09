@@ -614,6 +614,12 @@ aiReturn AssImpMeshExporter::exportMeshes(
 
     auto logCallback = [this](const QString& msg) { logMessage(msg); };
 
+    // Register camera data so the post-processor injects glTF cameras.
+    if (!settings.cameras.isEmpty())
+        GltfPostProcessor::setGltfCameraData(settings.cameras);
+    else
+        GltfPostProcessor::clearGltfCameraData();
+
     // Register variant data so the post-processor writes KHR_materials_variants
     if (!settings.variantNames.isEmpty() && !_lastVariantEntries.isEmpty())
     {
@@ -646,6 +652,7 @@ aiReturn AssImpMeshExporter::exportMeshes(
     }
 
     GltfPostProcessor::clearVariantExportData();  // Always clean up after use
+    GltfPostProcessor::clearGltfCameraData();     // Always clean up after use
 
     // ===== STEP 6: Cleanup temp texture folder for GLB exports =====
     if (isGLB && settings.copyTextures && !_lastTexturePackage.textures.empty())
@@ -1022,6 +1029,12 @@ aiReturn AssImpMeshExporter::exportScene(
         logMessage(msg);
         };
 
+    // Register camera data so the post-processor injects glTF cameras.
+    if (!settings.cameras.isEmpty())
+        GltfPostProcessor::setGltfCameraData(settings.cameras);
+    else
+        GltfPostProcessor::clearGltfCameraData();
+
     // Register variant data so the post-processor writes KHR_materials_variants
     if (!settings.variantNames.isEmpty() && !_lastVariantEntries.isEmpty())
     {
@@ -1060,6 +1073,7 @@ aiReturn AssImpMeshExporter::exportScene(
     }
 
     GltfPostProcessor::clearVariantExportData();
+    GltfPostProcessor::clearGltfCameraData();
 
     // ===== STEP 6: Cleanup temp texture folder for GLB exports =====
     if (isGLB && settings.copyTextures && !_lastTexturePackage.textures.empty())
