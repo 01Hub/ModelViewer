@@ -555,8 +555,8 @@ aiScene* SceneGraphExporter::buildExportScene(
         }
     }
 
-    // Transfer lights from SceneGraph into aiScene::mLights (KHR_lights_punctual support)
-    const auto& lights = sceneGraph->lights();
+    // Transfer enabled lights from SceneGraph into aiScene::mLights (KHR_lights_punctual support)
+    const std::vector<GPULight> lights = sceneGraph->buildEnabledLightList();
     if (!lights.empty())
     {
         scene->mNumLights = static_cast<unsigned int>(lights.size());

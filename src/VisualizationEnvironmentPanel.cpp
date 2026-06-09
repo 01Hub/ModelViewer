@@ -5,11 +5,17 @@
 #include "ModelViewer.h"
 #include "MaterialPreviewWidget.h"
 #include "PathUtils.h"
+#include "SceneGraph.h"
 #include <QColorDialog>
 #include <QFileDialog>
+#include <QFileInfo>
+#include <QFrame>
+#include <QGridLayout>
 #include <QImage>
 #include <QDir>
 #include <QDebug>
+#include <QMouseEvent>
+#include <QTreeWidget>
 
 VisualizationEnvironmentPanel::VisualizationEnvironmentPanel(QWidget* parent)
 	: QWidget(parent),
@@ -46,13 +52,55 @@ VisualizationEnvironmentPanel::VisualizationEnvironmentPanel(QWidget* parent)
 
 VisualizationEnvironmentPanel::~VisualizationEnvironmentPanel() = default;
 
+bool VisualizationEnvironmentPanel::eventFilter(QObject* watched, QEvent* event)
+{
+	if (watched == _lightTreeResizeHandle)
+	{
+		auto* me = static_cast<QMouseEvent*>(event);
+		switch (event->type())
+		{
+		case QEvent::MouseButtonPress:
+			if (me->button() == Qt::LeftButton)
+			{
+				_lightTreeDragStartY = me->globalPosition().y();
+				_lightTreeDragStartH = ui->treePunctualLights->height();
+				return true;
+			}
+			break;
+
+		case QEvent::MouseMove:
+			if (me->buttons() & Qt::LeftButton)
+			{
+				constexpr int kMinH = 48;
+				const int delta = static_cast<int>(me->globalPosition().y() - _lightTreeDragStartY);
+				const int newH  = qMax(kMinH, _lightTreeDragStartH + delta);
+				// setFixedHeight (sets both min and max) forces the layout to
+				// allocate exactly newH pixels — setMaximumHeight alone is
+				// insufficient when the tree is already at its natural size.
+				ui->treePunctualLights->setFixedHeight(newH);
+				ui->groupBoxPunctualLights->updateGeometry();
+				return true;
+			}
+			break;
+
+		case QEvent::MouseButtonRelease:
+			return true;
+
+		default:
+			break;
+		}
+	}
+	return QWidget::eventFilter(watched, event);
+}
+
 void VisualizationEnvironmentPanel::initialize(ModelViewer* modelViewer, GLWidget* glWidget)
 {
 	if (_isInitialized)
 		return;
 
 	_modelViewer = modelViewer;
-	_glWidget = glWidget;
+	_glWidget    = glWidget;
+	_sceneGraph  = _modelViewer ? _modelViewer->sceneGraph() : nullptr;
 
 	// Load state from ModelViewer
 	if (_modelViewer)
@@ -62,6 +110,14 @@ void VisualizationEnvironmentPanel::initialize(ModelViewer* modelViewer, GLWidge
 	}
 
 	connectSignalsAndSlots();
+
+	// Refresh punctual lights tree whenever SceneGraph light data changes
+	// (model loaded/unloaded, or individual light toggled from elsewhere).
+	if (_sceneGraph)
+	{
+		connect(_sceneGraph, &SceneGraph::lightDataChanged,
+		        this, &VisualizationEnvironmentPanel::refreshPunctualLightsTree);
+	}
 	updateControlDependencies();
 
 	// Keep GLWidget in sync with the UI defaults on first startup as well.
@@ -74,6 +130,35 @@ void VisualizationEnvironmentPanel::initialize(ModelViewer* modelViewer, GLWidge
 			: (ui->radioButtonGroundGrid->isChecked() ? GroundMode::Grid : GroundMode::None));
 		_glWidget->setFloorOffsetPercent(ui->doubleSpinBoxFloorOffset->value());
 	}
+
+	// ── Punctual-lights tree resize handle ─────────────────────────────────
+	// Give the tree a compact default height (shows ~4–5 items); users drag
+	// the handle strip below it to reveal more.  The tree's own scroll bar
+	// handles any overflow.
+	{
+		// Fix the tree at a compact default height; the user can drag the handle
+		// down to expand.  setFixedHeight is used so the layout immediately
+		// honours the size regardless of content count.
+		constexpr int kDefaultTreeH = 110;
+		ui->treePunctualLights->setFixedHeight(kDefaultTreeH);
+
+		// Thin drag-handle strip inserted below the tree in the group box layout.
+		auto* handle = new QFrame(ui->groupBoxPunctualLights);
+		handle->setObjectName("treeLightResizeHandle");
+		handle->setFrameShape(QFrame::HLine);
+		handle->setFrameShadow(QFrame::Sunken);
+		handle->setCursor(Qt::SizeVerCursor);
+		handle->setFixedHeight(6);
+		handle->setToolTip(tr("Drag to resize the lights list"));
+
+		auto* gl = qobject_cast<QGridLayout*>(ui->groupBoxPunctualLights->layout());
+		if (gl)
+			gl->addWidget(handle, 1, 0);
+
+		handle->installEventFilter(this);
+		_lightTreeResizeHandle = handle;
+	}
+	// ────────────────────────────────────────────────────────────────────────
 
 	_isInitialized = true;
 }
@@ -94,9 +179,15 @@ void VisualizationEnvironmentPanel::connectSignalsAndSlots()
 
 	// ===== Lighting Checkboxes =====
 	connect(ui->checkBoxDefaultLights, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onDefaultLightsChanged);
-	connect(ui->checkBoxPunctualLights, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onPunctualLightsChanged);
 	connect(ui->checkBoxShowLights, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onShowLightsChanged);
 	connect(ui->checkBoxIBL, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onIBLChanged);
+
+	// ===== Punctual Lights Tree =====
+	connect(ui->treePunctualLights, &QTreeWidget::itemChanged,
+	        this, &VisualizationEnvironmentPanel::onPunctualLightItemChanged);
+
+	// Group box hidden until a model with lights is loaded
+	ui->groupBoxPunctualLights->setVisible(false);
 
 	// ===== Skybox Controls =====
 	connect(ui->checkBoxSkyBox, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onSkyBoxStateChanged);
@@ -254,23 +345,20 @@ void VisualizationEnvironmentPanel::onDefaultLightsClicked()
 
 	// Set lighting checkboxes - block signals during set
 	ui->checkBoxDefaultLights->blockSignals(true);
-	ui->checkBoxPunctualLights->blockSignals(true);
 	ui->checkBoxIBL->blockSignals(true);
 	ui->checkBoxShowLights->blockSignals(true);
 
 	ui->checkBoxDefaultLights->setChecked(true);
-	ui->checkBoxPunctualLights->setChecked(true);
 	ui->checkBoxIBL->setChecked(true);
 	ui->checkBoxShowLights->setChecked(false);
 
 	ui->checkBoxDefaultLights->blockSignals(false);
-	ui->checkBoxPunctualLights->blockSignals(false);
 	ui->checkBoxIBL->blockSignals(false);
 	ui->checkBoxShowLights->blockSignals(false);
 
 	// Manually trigger GLWidget calls
 	_glWidget->useDefaultLights(true);
-	_glWidget->usePunctualLights(true);
+	_glWidget->usePunctualLights(true);  // kept true; tree checkboxes control per-light enable
 	_glWidget->useIBL(true);
 	_glWidget->showLights(false);
 
@@ -327,12 +415,156 @@ void VisualizationEnvironmentPanel::onDefaultLightsChanged(bool checked)
 	_glWidget->updateView();
 }
 
-void VisualizationEnvironmentPanel::onPunctualLightsChanged(bool checked)
+// ---------------------------------------------------------------------------
+// Punctual Lights tree
+// ---------------------------------------------------------------------------
+
+static const int kLightIndexRole    = Qt::UserRole;       // int  — light index in file (-1 = file item)
+static const int kSourceFileRole    = Qt::UserRole + 1;   // QString — absolute source file path
+
+QTreeWidgetItem* VisualizationEnvironmentPanel::makeLightFileItem(const QString& sourceFile) const
 {
-	if (!_glWidget)
+	QTreeWidgetItem* item = new QTreeWidgetItem();
+	item->setText(0, QFileInfo(sourceFile).fileName());
+	item->setData(0, kSourceFileRole, sourceFile);
+	item->setData(0, kLightIndexRole, -1);
+	// Tri-state: Qt will manage checked/partial/unchecked automatically
+	// once children are added with individual check states.
+	// Qt::ItemIsUserTristate is intentionally omitted.  With it, clicking a
+	// Checked parent would first land on PartiallyChecked (a no-op for the
+	// handler), requiring a second click to reach Unchecked.  Without it Qt
+	// only toggles Checked ↔ Unchecked on user interaction; PartiallyChecked
+	// is still set programmatically by the leaf handler when children diverge.
+	item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+	QFont f = item->font(0);
+	f.setBold(true);
+	item->setFont(0, f);
+	// Not selectable — clicking the row only toggles the checkbox
+	item->setFlags(item->flags() & ~Qt::ItemIsSelectable);
+	return item;
+}
+
+QTreeWidgetItem* VisualizationEnvironmentPanel::makeLightLeafItem(const GltfLightEntry& entry,
+                                                                   int lightIndex) const
+{
+	// Pick a type label for the tooltip
+	const int t = entry.gpuLight.type;
+	QString typeStr = (t == 0) ? QStringLiteral("Directional")
+	               : (t == 1) ? QStringLiteral("Point")
+	               :             QStringLiteral("Spot");
+
+	QString displayName = entry.name.isEmpty()
+	                      ? QString("%1 %2").arg(typeStr).arg(lightIndex + 1)
+	                      : entry.name;
+
+	QTreeWidgetItem* item = new QTreeWidgetItem();
+	item->setText(0, displayName);
+	item->setToolTip(0, typeStr);
+	item->setData(0, kLightIndexRole, lightIndex);
+	item->setCheckState(0, entry.enabled ? Qt::Checked : Qt::Unchecked);
+	item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+	item->setFlags(item->flags() & ~Qt::ItemIsSelectable);
+	return item;
+}
+
+void VisualizationEnvironmentPanel::refreshPunctualLightsTree()
+{
+	if (!_sceneGraph || !ui)
 		return;
 
-	_glWidget->usePunctualLights(checked);
+	QTreeWidget* tree = ui->treePunctualLights;
+
+	// Block itemChanged while rebuilding so we don't trigger onPunctualLightItemChanged
+	tree->blockSignals(true);
+	tree->clear();
+
+	const QStringList files = _sceneGraph->filesWithLights();
+	for (const QString& sourceFile : files)
+	{
+		const GltfLightData ld = _sceneGraph->lightDataForFile(sourceFile);
+		if (ld.isEmpty())
+			continue;
+
+		QTreeWidgetItem* fileItem = makeLightFileItem(sourceFile);
+		tree->addTopLevelItem(fileItem);
+
+		for (int i = 0; i < ld.lights.size(); ++i)
+		{
+			QTreeWidgetItem* leaf = makeLightLeafItem(ld.lights[i], i);
+			leaf->setData(0, kSourceFileRole, sourceFile);
+			fileItem->addChild(leaf);
+		}
+
+		fileItem->setExpanded(true);
+
+		// Set parent tri-state from children
+		bool anyOn  = false, anyOff = false;
+		for (int i = 0; i < ld.lights.size(); ++i)
+		{
+			(ld.lights[i].enabled ? anyOn : anyOff) = true;
+		}
+		fileItem->setCheckState(0, anyOn && anyOff ? Qt::PartiallyChecked
+		                         : anyOn           ? Qt::Checked
+		                                           : Qt::Unchecked);
+	}
+
+	tree->blockSignals(false);
+
+	// Show the group box only when at least one file has lights
+	ui->groupBoxPunctualLights->setVisible(!files.isEmpty());
+}
+
+void VisualizationEnvironmentPanel::onPunctualLightItemChanged(QTreeWidgetItem* item, int column)
+{
+	if (!_sceneGraph || !_glWidget || !item || column != 0)
+		return;
+
+	const int        lightIndex = item->data(0, kLightIndexRole).toInt();
+	const QString    sourceFile = item->data(0, kSourceFileRole).toString();
+	const Qt::CheckState state  = item->checkState(0);
+
+	// Block lightDataChanged from firing while we're inside the itemChanged
+	// handler.  setLightEnabled() would emit lightDataChanged() →
+	// refreshPunctualLightsTree() → tree->clear(), which deletes the 'item'
+	// pointer we're still using — instant crash on rapid toggling.
+	// The tree UI is managed manually below; we trigger the GPU upload ourselves.
+	QSignalBlocker sceneGraphBlocker(_sceneGraph);
+
+	if (lightIndex == -1)
+	{
+		// File-level item toggled — apply same state to all children.
+		ui->treePunctualLights->blockSignals(true);
+		const bool enable = (state != Qt::Unchecked);
+		for (int i = 0; i < item->childCount(); ++i)
+		{
+			item->child(i)->setCheckState(0, enable ? Qt::Checked : Qt::Unchecked);
+			_sceneGraph->setLightEnabled(sourceFile, i, enable);
+		}
+		ui->treePunctualLights->blockSignals(false);
+	}
+	else
+	{
+		// Leaf item toggled — update SceneGraph for this one light.
+		_sceneGraph->setLightEnabled(sourceFile, lightIndex, state == Qt::Checked);
+
+		// Update parent tri-state without re-entering this slot.
+		if (QTreeWidgetItem* parent = item->parent())
+		{
+			ui->treePunctualLights->blockSignals(true);
+			bool anyOn = false, anyOff = false;
+			for (int i = 0; i < parent->childCount(); ++i)
+				(parent->child(i)->checkState(0) == Qt::Checked ? anyOn : anyOff) = true;
+			parent->setCheckState(0, anyOn && anyOff ? Qt::PartiallyChecked
+			                       : anyOn           ? Qt::Checked
+			                                         : Qt::Unchecked);
+			ui->treePunctualLights->blockSignals(false);
+		}
+	}
+
+	// sceneGraphBlocker goes out of scope here — signals re-enabled on _sceneGraph.
+	// Rebuild the GPU light list and upload directly without going through the
+	// lightDataChanged → refreshPunctualLightsTree path.
+	_glWidget->applyEnabledLightList(_sceneGraph->buildEnabledLightList());
 	_glWidget->updateView();
 }
 

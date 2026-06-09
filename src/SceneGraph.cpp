@@ -67,7 +67,6 @@ SceneGraph::~SceneGraph()
 void SceneGraph::appendFromScene(const aiScene*                   scene,
                                  const QString&                   sourceFile,
                                  const QList<QUuid>&              meshUuidsInOrder,
-                                 const std::vector<GPULight>&     lights,
                                  const aiMatrix4x4&               importCorrection,
                                  bool                             autoOrientApplied,
                                  bool                             autoScaleApplied)
@@ -75,8 +74,10 @@ void SceneGraph::appendFromScene(const aiScene*                   scene,
     if (!scene || !scene->mRootNode)
         return;
 
-    // Store lights from this import (replaces any previous lights)
-    _lights = lights;
+    // Store per-file punctual lights (full GltfLightData with names, already
+    // set by the caller before or after this call via setLightData()).
+    // appendFromScene itself does not touch _lightDataByFile — the caller
+    // (GLWidget) calls setLightData() separately, which emits lightDataChanged().
 
     // --- Synthetic file-level node ------------------------------------------
     // This sits directly under _root and provides a clean per-import boundary
@@ -111,7 +112,7 @@ void SceneGraph::rebuildFlat(const QString& sessionName,
                              const QList<QUuid>& meshUuids)
 {
     _meshUuidToNode.clear();
-    _lights.clear();
+    _lightDataByFile.clear();
     _variantDataByFile.clear();
     _activeVariantByFile.clear();
     _animationDataByFile.clear();
@@ -181,7 +182,7 @@ SceneNode* SceneGraph::buildSubtree(const aiNode*       ainode,
 void SceneGraph::clear()
 {
     _meshUuidToNode.clear();
-    _lights.clear();
+    _lightDataByFile.clear();
     _variantDataByFile.clear();
     _activeVariantByFile.clear();
     _animationDataByFile.clear();
@@ -199,7 +200,7 @@ void SceneGraph::rebuildFromMvf(const QJsonArray& documentNodes,
                                 const QJsonArray& sceneRootNodes)
 {
     _meshUuidToNode.clear();
-    _lights.clear();
+    _lightDataByFile.clear();
     _variantDataByFile.clear();
     _activeVariantByFile.clear();
     _animationDataByFile.clear();
@@ -805,4 +806,62 @@ QStringList SceneGraph::filesWithGltfCameras() const
             files.append(it.key());
     }
     return files;
+}
+
+// ---------------------------------------------------------------------------
+// KHR_lights_punctual
+// ---------------------------------------------------------------------------
+
+void SceneGraph::setLightData(const QString& sourceFile, const GltfLightData& data)
+{
+    _lightDataByFile[sourceFile] = data;
+    emit lightDataChanged();
+}
+
+void SceneGraph::clearLightData(const QString& sourceFile)
+{
+    if (_lightDataByFile.remove(sourceFile) != 0)
+        emit lightDataChanged();
+}
+
+GltfLightData SceneGraph::lightDataForFile(const QString& sourceFile) const
+{
+    return _lightDataByFile.value(sourceFile, GltfLightData{});
+}
+
+QStringList SceneGraph::filesWithLights() const
+{
+    QStringList files;
+    for (auto it = _lightDataByFile.cbegin(); it != _lightDataByFile.cend(); ++it)
+    {
+        if (!it.value().isEmpty())
+            files.append(it.key());
+    }
+    return files;
+}
+
+void SceneGraph::setLightEnabled(const QString& sourceFile, int lightIndex, bool enabled)
+{
+    auto it = _lightDataByFile.find(sourceFile);
+    if (it == _lightDataByFile.end())
+        return;
+    if (lightIndex < 0 || lightIndex >= it->lights.size())
+        return;
+    it->lights[lightIndex].enabled = enabled;
+    emit lightDataChanged();
+}
+
+std::vector<GPULight> SceneGraph::buildEnabledLightList() const
+{
+    std::vector<GPULight> result;
+    // Iterate in source-file insertion order so the GPU list is deterministic.
+    for (auto it = _lightDataByFile.cbegin(); it != _lightDataByFile.cend(); ++it)
+    {
+        for (const GltfLightEntry& entry : it->lights)
+        {
+            if (entry.enabled)
+                result.push_back(entry.gpuLight);
+        }
+    }
+    return result;
 }

@@ -2886,9 +2886,10 @@ void MaterialProcessor::convertSpecularGlossinessToDielectric(GLMaterial& mat)
 
 // FIXED parseKHRLightsPunctual function for MaterialProcessor.cpp
 // This version properly walks the parent chain to get world transforms
-std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& gltfPath)
+GltfLightData MaterialProcessor::parseKHRLightsPunctual(const QString& gltfPath)
 {
-	std::vector<GPULight> lights;
+	GltfLightData result;
+	result.sourceFile = gltfPath;
 
 	bool isGLB = gltfPath.endsWith(".glb", Qt::CaseInsensitive);
 	bool isGLTF = gltfPath.endsWith(".gltf", Qt::CaseInsensitive);
@@ -2896,7 +2897,7 @@ std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& g
 	if (!isGLB && !isGLTF)
 	{
 		qWarning() << "parseKHRLightsPunctual: Not a glTF file:" << gltfPath;
-		return lights;
+		return result;
 	}
 
 	QJsonDocument doc;
@@ -2919,7 +2920,7 @@ std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& g
 			if (jsonString.isEmpty())
 			{
 				qWarning() << "parseKHRLightsPunctual: Failed to extract JSON from GLB:" << gltfPath;
-				return lights;
+				return result;
 			}
 
 			QJsonParseError perr;
@@ -2927,7 +2928,7 @@ std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& g
 			if (perr.error != QJsonParseError::NoError)
 			{
 				qWarning() << "parseKHRLightsPunctual: JSON parse error in GLB:" << perr.errorString();
-				return lights;
+				return result;
 			}
 
 			// Cache for future use
@@ -2941,7 +2942,7 @@ std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& g
 		if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
 		{
 			qWarning() << "Cannot open glTF file for lights parsing:" << gltfPath;
-			return lights;
+			return result;
 		}
 
 		QJsonParseError perr;
@@ -2951,7 +2952,7 @@ std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& g
 		if (perr.error != QJsonParseError::NoError)
 		{
 			qWarning() << "parseKHRLightsPunctual: JSON parse error in GLTF:" << perr.errorString();
-			return lights;
+			return result;
 		}
 	}
 
@@ -2959,25 +2960,25 @@ std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& g
 	if (!doc.isObject())
 	{
 		qWarning() << "Invalid glTF/GLB JSON structure for lights";
-		return lights;
+		return result;
 	}
 
 	QJsonObject root = doc.object();
 
 	// Check for extensions
 	if (!root.contains("extensions"))
-		return lights;
+		return result;
 
 	QJsonObject extensions = root.value("extensions").toObject();
 
 	// Check for KHR_lights_punctual
 	if (!extensions.contains("KHR_lights_punctual"))
-		return lights;
+		return result;
 
 	QJsonObject lightsExt = extensions.value("KHR_lights_punctual").toObject();
 	if (!lightsExt.contains("lights") || !lightsExt.value("lights").isArray())
 	{
-		return lights;  // No lights array
+		return result;  // No lights array
 	}
 
 	QJsonArray lightsArray = lightsExt.value("lights").toArray();
@@ -3265,14 +3266,20 @@ std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& g
 			qDebug() << "  Outer Cone:  " << outerAngleDeg << "degrees";
 		}
 
-		lights.push_back(light);
+		// === Capture light name from glTF definition ===
+		GltfLightEntry entry;
+		entry.name     = lightDef.value("name").toString(
+		                     QString("Light %1").arg(result.lights.size()));
+		entry.gpuLight = light;
+		entry.enabled  = true;
+		result.lights.append(entry);
 	}
 
 	qDebug() << "========================================";
-	qDebug() << "Total lights parsed:" << lights.size();
+	qDebug() << "Total lights parsed:" << result.lights.size();
 	qDebug() << "========================================";
 
-	return lights;
+	return result;
 }
 
 // Sets the texture maps for a material based on the defined texture mappings.

@@ -245,6 +245,7 @@ private:
 	void validateVariantData();   // removes variant data for files with no remaining meshes
 	void validateAnimationData(); // removes animation data for files with no remaining meshes
 	void validateCameraData();    // removes camera data for files with no remaining meshes
+	void validateLightData();     // removes punctual-light data for files with no remaining meshes
 	bool saveMaterialsBeforeClose();  // Save all unsaved materials to library before closing
 	void cleanupUnsavedMaterialsFromLibrary();
 	QSet<QUuid> scanStackForReferencedUuids();

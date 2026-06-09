@@ -2,6 +2,7 @@
 #include "GLWidget.h"
 #include "ModelViewer.h"
 #include "SceneGraph.h"
+#include "TriangleMesh.h"
 
 DeleteMeshCommand::DeleteMeshCommand(ModelViewer* viewer,
     GLWidget* glWidget,
@@ -43,6 +44,15 @@ void DeleteMeshCommand::undo()
         }
     }
 
+    // Re-register punctual light data for any files that had all their meshes
+    // deleted.  validateLightData() cleared this data during redo(); we put it
+    // back now that the meshes are live again.
+    if (sg)
+    {
+        for (auto it = _savedLightData.cbegin(); it != _savedLightData.cend(); ++it)
+            sg->setLightData(it.key(), it.value());
+    }
+
     _glWidget->updateView();
     _viewer->updateDisplayList();
 }
@@ -50,6 +60,47 @@ void DeleteMeshCommand::undo()
 void DeleteMeshCommand::redo()
 {
     SceneGraph* sg = _viewer->sceneGraph();
+
+    // Snapshot punctual-light data for any file that is about to lose ALL its
+    // meshes.  This must happen before removeMeshUuid() because structureChanged
+    // → validateLightData() → clearLightData() fires synchronously inside that
+    // call and would destroy the data we need to save.
+    _savedLightData.clear();
+    if (sg)
+    {
+        const QSet<QUuid> deletingSet(_meshUuids.begin(), _meshUuids.end());
+
+        // Collect unique source files for the meshes being deleted.
+        QSet<QString> candidateFiles;
+        for (const QUuid& uuid : _meshUuids)
+        {
+            if (TriangleMesh* m = _glWidget->getMeshByUuid(uuid))
+                candidateFiles.insert(m->getSourceFile());
+        }
+
+        for (const QString& file : candidateFiles)
+        {
+            const GltfLightData& ld = sg->lightDataForFile(file);
+            if (ld.isEmpty())
+                continue;
+
+            // Only snapshot if every mesh belonging to this file is in the
+            // deletion set — i.e., the file will have no remaining live mesh.
+            bool allDeleted = true;
+            const std::vector<TriangleMesh*>& store = _glWidget->getMeshStore();
+            for (const TriangleMesh* mesh : store)
+            {
+                if (mesh && mesh->getSourceFile() == file &&
+                    !deletingSet.contains(mesh->uuid()))
+                {
+                    allDeleted = false;
+                    break;
+                }
+            }
+            if (allDeleted)
+                _savedLightData[file] = ld;
+        }
+    }
 
     for (const QUuid& uuid : _meshUuids)
     {

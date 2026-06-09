@@ -1,11 +1,14 @@
 #pragma once
 
+#include "GltfLightData.h"
 #include "ModelViewerCommand.h"
 #include "SceneNode.h"
+#include <QHash>
 #include <QVector>
 #include <QMap>
 #include <QUuid>
 #include <QSet>
+#include <QString>
 
 class ModelViewer;
 class GLWidget;
@@ -47,4 +50,9 @@ private:
         int        position = -1;
     };
     QMap<QUuid, SceneRemovalRecord> _sceneRecords;
+
+    // Snapshot of GltfLightData for files that will lose ALL their meshes in
+    // this deletion.  Populated at the start of redo() (before any removal so
+    // validateLightData hasn't cleared it yet) and restored in undo().
+    QHash<QString, GltfLightData> _savedLightData;
 };

@@ -449,6 +449,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	        this, &ModelViewer::validateAnimationData);
 	connect(_sceneGraph, &SceneGraph::structureChanged,
 	        this, &ModelViewer::validateCameraData);
+	connect(_sceneGraph, &SceneGraph::structureChanged,
+	        this, &ModelViewer::validateLightData);
 	treeWidgetModel->installEventFilter(this);
 	treeWidgetModel->viewport()->installEventFilter(this);
 
@@ -2859,6 +2861,29 @@ void ModelViewer::validateCameraData()
 	}
 }
 
+void ModelViewer::validateLightData()
+{
+	if (!_sceneGraph || !_glWidget)
+		return;
+
+	const QStringList files = _sceneGraph->filesWithLights();
+	const std::vector<TriangleMesh*>& meshes = _glWidget->getMeshStore();
+
+	for (const QString& sourceFile : files)
+	{
+		const bool hasLiveMesh = std::any_of(meshes.cbegin(), meshes.cend(),
+			[&](TriangleMesh* mesh)
+			{
+				return mesh
+					&& mesh->getSourceFile() == sourceFile
+					&& _sceneGraph->findNodeForMesh(mesh->uuid()) != nullptr;
+			});
+
+		if (!hasLiveMesh)
+			_sceneGraph->clearLightData(sourceFile);
+	}
+}
+
 void ModelViewer::invalidateCutClipboard()
 {
 	_clipboard.clear();
@@ -4317,7 +4342,20 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		QMetaObject::invokeMethod(this,
 			[this, &result, &visibleUuids, &fileName]()
 		{
-			_glWidget->setParsedLights(result.lights);
+			// Wrap flat MVF light list into a GltfLightData with unnamed entries.
+			// Source file is not tracked per-light in the MVF format yet, so the
+			// panel won't show these; they still render correctly via _originalParsedLights.
+			{
+				GltfLightData ld;
+				for (const GPULight& gl : result.lights)
+				{
+					GltfLightEntry e;
+					e.gpuLight = gl;
+					e.enabled  = true;
+					ld.lights.append(e);
+				}
+				_glWidget->setParsedLights(ld);
+			}
 
 			// Ensure all mesh UUIDs in _pendingSceneUuids are marked visible
 			// In progressive mode, this was already called during Phase 3.
@@ -4386,7 +4424,23 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	const QJsonArray sceneRootNodes =
 		result.document.scenes[sceneIndex][QStringLiteral("nodes")].toArray();
 	_sceneGraph->rebuildFromMvf(result.document.nodes, sceneRootNodes);
-	_sceneGraph->setLights(result.lights);
+	// MVF stores lights as a flat list with no per-file source attribution.
+	// Store under a synthetic key so they render correctly; the PunctualLights
+	// panel won't show them until the MVF format is extended to persist per-file
+	// named light data.
+	if (!result.lights.empty())
+	{
+		GltfLightData ld;
+		ld.sourceFile = QStringLiteral("__mvf__");
+		for (const GPULight& gl : result.lights)
+		{
+			GltfLightEntry e;
+			e.gpuLight = gl;
+			e.enabled  = true;
+			ld.lights.append(e);
+		}
+		_sceneGraph->setLightData(ld.sourceFile, ld);
+	}
 
 	for (const GltfVariantData& variantData : result.variantDataByFile)
 	{

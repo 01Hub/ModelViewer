@@ -1105,22 +1105,26 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	}
 
 	// === Parse KHR_lights_punctual extension ===
-	std::vector<GPULight> parsedLights;
+	GltfLightData parsedLights;
 	QString gltfPath = QString::fromStdString(path);
 
 	if (gltfPath.endsWith(".gltf", Qt::CaseInsensitive) || gltfPath.endsWith(".glb", Qt::CaseInsensitive))
 	{
 		parsedLights = _materialProcessor.parseKHRLightsPunctual(gltfPath);
-		if (!parsedLights.empty())
+		if (!parsedLights.isEmpty())
 		{
-			qDebug() << "AssImpModelLoader: Loaded" << parsedLights.size() << "KHR lights with transforms";
+			qDebug() << "AssImpModelLoader: Loaded" << parsedLights.lights.size() << "KHR lights with transforms";
 		}
 	}
 
-	if (!parsedLights.empty() && (_autoScale || _autoOrient))
+	// Apply the same autoOrient / autoScale correction to each light's position,
+	// direction, and range so they stay consistent with the transformed geometry.
+	if (!parsedLights.isEmpty() && (_autoScale || _autoOrient))
 	{
-		for (auto& light : parsedLights)
+		for (auto& entry : parsedLights.lights)
 		{
+			GPULight& light = entry.gpuLight;
+
 			// Transform position (with translation)
 			glm::vec4 transformedPos = _appliedTransform * glm::vec4(light.position, 1.0f);
 			light.position = glm::vec3(transformedPos);
@@ -1129,7 +1133,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			glm::vec4 transformedDir = _appliedTransform * glm::vec4(light.direction, 0.0f);
 			light.direction = glm::normalize(glm::vec3(transformedDir));
 
-			// Extract scale from transform matrix
+			// Scale range by the uniform scale factor
 			glm::vec3 scale(
 				glm::length(glm::vec3(_appliedTransform[0])),
 				glm::length(glm::vec3(_appliedTransform[1])),
@@ -1138,7 +1142,6 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			float avgScale = (scale.x + scale.y + scale.z) / 3.0f;
 			light.range *= avgScale;
 		}
-
 	}
 
 	// Emit lights for GLWidget to handle

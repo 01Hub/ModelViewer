@@ -1518,7 +1518,7 @@ void GLWidget::initializeGL()
 	glLights = std::make_unique<GLLights>();
 	// Connect lights loading
 	connect(_assimpModelLoader, &AssImpModelLoader::lightsLoaded,
-		this, [this](const std::vector<GPULight>& lights) {
+		this, [this](const GltfLightData& lights) {
 			setParsedLights(lights);
 		});
 
@@ -1642,6 +1642,15 @@ void GLWidget::initializeGL()
 	}
 
 	_openGLInitialized = true;
+
+	// Keep GLWidget's _originalParsedLights in sync with SceneGraph whenever
+	// a file's light data is added or removed (multi-model scene support).
+	if (_viewer && _viewer->sceneGraph())
+	{
+		connect(_viewer->sceneGraph(), &SceneGraph::lightDataChanged,
+		        this, &GLWidget::onSceneLightDataChanged,
+		        Qt::UniqueConnection);
+	}
 }
 
 void GLWidget::resizeGL(int width, int height)
@@ -3902,7 +3911,7 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 			loadingWorker,
 			&AssImpModelLoader::lightsLoaded,
 			this,
-			[this](const std::vector<GPULight>& lights) {
+			[this](const GltfLightData& lights) {
 				setParsedLights(lights);
 			},
 			Qt::QueuedConnection);
@@ -3969,10 +3978,19 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 			if (success && !_pendingSceneUuids.isEmpty())
 			{
 				_viewer->sceneGraph()->appendFromScene(
-					_assimpScene, fileName, _pendingSceneUuids, _originalParsedLights,
+					_assimpScene, fileName, _pendingSceneUuids,
 					SceneUtils::glmToAiMatrix(_globalSceneTransform),
 					loadingWorker->wasAutoOrientApplied(),
 					loadingWorker->wasAutoScaleApplied());
+
+				// Register per-file punctual lights (if any) for this file.
+				// setLightData() emits lightDataChanged() which triggers the
+				// PunctualLightsPanel to refresh and GLWidget to rebuild the GPU list.
+				if (!_pendingLightData.isEmpty())
+				{
+					_pendingLightData.sourceFile = fileName; // authoritative path
+					_viewer->sceneGraph()->setLightData(fileName, _pendingLightData);
+				}
 
 				// Register KHR_materials_variants data (if any) for this file.
 				const GltfVariantData& vd = loadingWorker->getVariantData();
@@ -5256,7 +5274,37 @@ void GLWidget::updatePunctualLights()
 		_currentRepositionedLights = std::move(visibleLights);
 	}
 
-	glLights->setLights(_currentRepositionedLights);
+	// Apply per-light enabled filter before GPU upload.
+	// _currentRepositionedLights is kept as the FULL set so gizmos remain
+	// visible for disabled lights.  Only the GPU-uploaded subset changes.
+	//
+	// If the map is absent (MVF flat-light path or legacy code path) fall back
+	// to uploading everything, preserving pre-existing behaviour.
+	if (_viewer && _viewer->sceneGraph() &&
+	    !_lightFileIndexMap.isEmpty() &&
+	    static_cast<int>(_currentRepositionedLights.size()) == _lightFileIndexMap.size())
+	{
+		std::vector<GPULight> toUpload;
+		toUpload.reserve(_currentRepositionedLights.size());
+		auto* sg = _viewer->sceneGraph();
+		for (int i = 0; i < static_cast<int>(_currentRepositionedLights.size()); ++i)
+		{
+			const LightOrigin& origin = _lightFileIndexMap[i];
+			const GltfLightData& ld   = sg->lightDataForFile(origin.file);
+			if (origin.index < static_cast<int>(ld.lights.size()) &&
+			    ld.lights[origin.index].enabled)
+			{
+				toUpload.push_back(_currentRepositionedLights[i]);
+			}
+		}
+		glLights->setLights(toUpload);
+		syncPunctualLightUniforms(static_cast<int>(toUpload.size()),
+		                          !toUpload.empty());
+	}
+	else
+	{
+		glLights->setLights(_currentRepositionedLights);
+	}
 }
 
 void GLWidget::setAnimatedLightVisibilityState(const QString& sourceFile, const QVector<bool>& visibleByParsedLight)
@@ -10619,27 +10667,62 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 
 		updateAnimatedMeshState(sourceFile, worldTransformsByNodeUuid);
 
+		// Determine how many lights belong to sourceFile and where they sit in
+		// _originalParsedLights.  _lightFileIndexMap is populated by
+		// onSceneLightDataChanged() and covers the multi-model case; fall back to
+		// the whole vector when there is only one file loaded (map still empty).
+		int fileLightOffset = 0;
+		int fileLightCount  = static_cast<int>(_originalParsedLights.size()); // fallback
+		if (!_lightFileIndexMap.isEmpty())
+		{
+			int foundOffset = -1, foundCount = 0;
+			for (int k = 0; k < _lightFileIndexMap.size(); ++k)
+			{
+				if (_lightFileIndexMap[k].file == sourceFile)
+				{
+					if (foundCount == 0) foundOffset = k;
+					++foundCount;
+				}
+			}
+			if (foundOffset >= 0)
+			{
+				fileLightOffset = foundOffset;
+				fileLightCount  = foundCount;
+			}
+		}
+
+		// importCorrection is stored as fileNode->localTransform.  evalNode()
+		// starts from identity (so the rendering path can apply fileNode's
+		// transform separately for meshes), which means the world matrices it
+		// produces are in model-space.  For lights we need world-space positions
+		// that match _originalParsedLights (which already have importCorrection
+		// baked in by AssImpModelLoader), so we pre-compose the correction here.
+		const QMatrix4x4 importCorrection = aiToQMatrix(fileNode->localTransform);
+
 		if (!runtime.data.lightBindings.isEmpty() &&
-			_originalParsedLights.size() == static_cast<size_t>(runtime.data.lightBindings.size()))
+			fileLightCount == static_cast<int>(runtime.data.lightBindings.size()))
 		{
 			std::vector<GPULight> animatedLights = _originalParsedLights;
 			bool resolvedAnyAnimatedLightTransform = false;
 			for (const GltfAnimationLightBinding& binding : runtime.data.lightBindings)
 			{
+				// binding.parsedLightIndex is file-relative; map it to the global
+				// index inside animatedLights (which mirrors _originalParsedLights).
+				const int globalIndex = fileLightOffset + binding.parsedLightIndex;
 				if (binding.parsedLightIndex < 0 ||
-					binding.parsedLightIndex >= static_cast<int>(animatedLights.size()))
+					globalIndex >= static_cast<int>(animatedLights.size()))
 				{
 					continue;
 				}
 
-				QMatrix4x4 world;
+				QMatrix4x4 modelSpaceWorld;
 				bool hasWorldTransform = false;
 				if (binding.nodeIndex >= 0 && runtime.nodeUuidByIndex.contains(binding.nodeIndex))
 				{
 					const QUuid nodeUuid = resolveRuntimeNodeUuid(runtime, binding.nodeIndex);
 					if (worldTransformsByNodeUuid.contains(nodeUuid))
 					{
-						world = worldTransformsByNodeUuid.value(nodeUuid);
+						modelSpaceWorld = worldTransformsByNodeUuid.value(nodeUuid);
 						hasWorldTransform = true;
 					}
 				}
@@ -10648,7 +10731,7 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 					const QUuid nodeUuid = resolveRuntimeNodeUuid(runtime, -1, binding.nodeName);
 					if (!nodeUuid.isNull() && worldTransformsByNodeUuid.contains(nodeUuid))
 					{
-						world = worldTransformsByNodeUuid.value(nodeUuid);
+						modelSpaceWorld = worldTransformsByNodeUuid.value(nodeUuid);
 						hasWorldTransform = true;
 					}
 				}
@@ -10656,11 +10739,15 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 				if (!hasWorldTransform)
 					continue;
 
-				GPULight& light = animatedLights[binding.parsedLightIndex];
-				light.position = glm::vec3(world(0, 3), world(1, 3), world(2, 3));
+				// Apply importCorrection so the resulting position is in the same
+				// coordinate space as _originalParsedLights (world space).
+				const QMatrix4x4 worldSpace = importCorrection * modelSpaceWorld;
+
+				GPULight& light = animatedLights[globalIndex];
+				light.position = glm::vec3(worldSpace(0, 3), worldSpace(1, 3), worldSpace(2, 3));
 
 				const QVector3D localDir(0.0f, 0.0f, -1.0f);
-				const QVector3D worldDir = (world.mapVector(localDir)).normalized();
+				const QVector3D worldDir = (worldSpace.mapVector(localDir)).normalized();
 				light.direction = glm::vec3(worldDir.x(), worldDir.y(), worldDir.z());
 				resolvedAnyAnimatedLightTransform = true;
 			}
@@ -13760,6 +13847,14 @@ void GLWidget::usePunctualLights(bool usePunctualLights)
 	update();
 }
 
+void GLWidget::applyEnabledLightList(const std::vector<GPULight>& enabledLights)
+{
+	makeCurrent();
+	glLights->setLights(enabledLights);
+	syncPunctualLightUniforms(static_cast<int>(enabledLights.size()),
+	                          !enabledLights.empty());
+}
+
 void GLWidget::useIBL(bool useIBL)
 {
 	_useIBL = useIBL;
@@ -14934,9 +15029,28 @@ bool GLWidget::loadMvfMeshes(const Mvf::Document& document,
     return uploadPreparedMvfMeshes(prepared);
 }
 
-void GLWidget::setParsedLights(const std::vector<GPULight>& lights)
+void GLWidget::setParsedLights(const GltfLightData& lightData)
 {
+    _pendingLightData = lightData;
+
+    // If this model carries no punctual lights, leave the existing GPU light
+    // state intact.  Another model already loaded may have punctual lights
+    // registered in SceneGraph; wiping _originalParsedLights here would make
+    // those gizmos vanish and incorrectly trigger the fallback-light path.
+    // onSceneLightDataChanged() (connected to SceneGraph::lightDataChanged)
+    // is the authoritative place to rebuild from all registered files.
+    if (lightData.isEmpty())
+        return;
+
+    // Extract the flat GPU list for animation / repositioning code that
+    // still works in terms of std::vector<GPULight>.
+    // _lightFileIndexMap is cleared here and rebuilt by onSceneLightDataChanged
+    // (fired via setLightData in appendFromSceneAsync) once the data is in SceneGraph.
     _originalParsedLights.clear();
+    _lightFileIndexMap.clear();
+    for (const GltfLightEntry& entry : lightData.lights)
+        _originalParsedLights.push_back(entry.gpuLight);
+
     _currentRepositionedLights.clear();
     _animatedLightTransformSourceFile.clear();
     _animatedParsedLights.clear();
@@ -14945,13 +15059,66 @@ void GLWidget::setParsedLights(const std::vector<GPULight>& lights)
     _animatedMeshVisibilitySourceFile.clear();
     _animatedHiddenMeshUuids.clear();
     _lightRepoBasis.baselineRadius = 0.0f;
-    _originalParsedLights = lights;
 
-    makeCurrent();
-    if (lights.empty())
+    syncPunctualLightUniforms(static_cast<int>(_originalParsedLights.size()),
+                              !_originalParsedLights.empty());
+}
+
+// ---------------------------------------------------------------------------
+// onSceneLightDataChanged
+//
+// Slot connected to SceneGraph::lightDataChanged.  Called whenever a file's
+// light data is registered (setLightData) or removed (clearLightData).
+// Rebuilds _originalParsedLights from the full set of SceneGraph-registered
+// lights so that gizmos and the repositioning system always reflect the
+// current multi-model scene, not just the last model that was loaded.
+// ---------------------------------------------------------------------------
+void GLWidget::onSceneLightDataChanged()
+{
+    if (!_viewer || !_viewer->sceneGraph())
+        return;
+
+    // Collect ALL GPULights across all files (ignoring per-entry enabled flag
+    // so the repositioning baseline always covers the complete original set).
+    // Also build _lightFileIndexMap so updatePunctualLights() can filter the
+    // repositioned list by each light's current enabled state before GPU upload.
+    _originalParsedLights.clear();
+    _lightFileIndexMap.clear();
+    const QStringList files = _viewer->sceneGraph()->filesWithLights();
+    for (const QString& file : files)
+    {
+        const GltfLightData& ld = _viewer->sceneGraph()->lightDataForFile(file);
+        for (int i = 0; i < static_cast<int>(ld.lights.size()); ++i)
+        {
+            _originalParsedLights.push_back(ld.lights[i].gpuLight);
+            _lightFileIndexMap.append({file, i});
+        }
+    }
+
+    if (_originalParsedLights.empty())
+    {
+        // All lights have been removed — clear the GPU buffer immediately.
+        _lightRepoBasis.baselineRadius = 0.0f;
+        _currentRepositionedLights.clear();
+        makeCurrent();
         glLights->setLights({});
+        syncPunctualLightUniforms(0, false);
+        return;
+    }
 
-    syncPunctualLightUniforms(static_cast<int>(lights.size()), !lights.empty());
+    // Non-empty lights remain.  Always reset the repositioning anchor so the
+    // next bounding-sphere update (recalculateVisibleSceneStats → line 2955)
+    // re-anchors all surviving lights against the correct post-change scene.
+    //
+    // Without this reset the deletion path would reach updatePunctualLights()
+    // inside setDisplayList() with the old combined-scene basis but the new
+    // smaller bounding sphere, producing wrong radiusDelta / centerDelta and
+    // visibly misplaced light gizmos.
+    //
+    // For model loading setParsedLights() already reset the basis to zero
+    // before this slot fires, so this is a no-op in that case.
+    _lightRepoBasis.baselineRadius = 0.0f;
+    _currentRepositionedLights.clear();
 }
 
 // ---------------------------------------------------------------------------

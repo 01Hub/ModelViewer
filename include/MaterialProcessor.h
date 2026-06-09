@@ -8,6 +8,7 @@
 #include "GLMaterial.h"
 #include "AssImpMesh.h"
 #include "GLLights.h"
+#include "GltfLightData.h"
 
 
 class MaterialProcessor
@@ -70,7 +71,7 @@ public:
 
 	std::tuple<int, glm::vec2, glm::vec2, float> extractKHRTextureTransform(const QJsonObject& texObj);
 	
-	std::vector<GPULight> parseKHRLightsPunctual(const QString& gltfPath);
+	GltfLightData parseKHRLightsPunctual(const QString& gltfPath);
 
 	void setImageTextureUploader(ImageTextureUploadFn uploader) { _imageTextureUploader = std::move(uploader); }
 	void setKtx2TextureUploader(Ktx2TextureUploadFn uploader) { _ktx2TextureUploader = std::move(uploader); }

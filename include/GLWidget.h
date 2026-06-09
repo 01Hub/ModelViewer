@@ -478,7 +478,11 @@ public:
 	bool loadMvfMeshes(const Mvf::Document& document,
 	                   const QByteArray& geometryChunk,
 	                   const QByteArray& imageChunk);
-	void setParsedLights(const std::vector<GPULight>& lights);
+	void setParsedLights(const GltfLightData& lights);
+
+	/// Rebuilds _originalParsedLights from all SceneGraph-registered light data.
+	/// Connected to SceneGraph::lightDataChanged to stay current on model add/remove.
+	void onSceneLightDataChanged();
 
 	/// Accessor for the foreground shader (for pre-load shader validation).
 	ShaderProgram* getShader() const { return _fgShader.get(); }
@@ -563,6 +567,10 @@ public slots:
 	void showLights(bool showLights);
 	void useDefaultLights(bool useDefaultLights);
 	void usePunctualLights(bool usePunctualLights);
+
+	// Upload a new GPU light list (e.g. after a per-light checkbox toggle) and
+	// sync the hasPunctualLights / lightCount shader uniforms in one call.
+	void applyEnabledLightList(const std::vector<GPULight>& enabledLights);
 	void useIBL(bool useIBL);
 	void showFileReadingProgress(float percent);
 	void showMeshLoadingProgress(float percent);
@@ -1290,8 +1298,16 @@ private:
 	AdaptiveShadowMapper shadowMapper;
 
 	std::unique_ptr<GLLights> glLights;
-	std::vector<GPULight> _originalParsedLights;      // ORIGINAL - never modified
-	std::vector<GPULight> _currentRepositionedLights; // Working copy
+	GltfLightData         _pendingLightData;           // Full named data for SceneGraph
+	std::vector<GPULight> _originalParsedLights;       // GPU list extracted from _pendingLightData; used for animation/repositioning
+	std::vector<GPULight> _currentRepositionedLights;  // Working copy (ALL lights; gizmo rendering uses this)
+
+	// Maps flat index i in _originalParsedLights / _currentRepositionedLights
+	// → { sourceFile, lightIndex } in SceneGraph::_lightDataByFile.
+	// Used by updatePunctualLights() to honour per-light enabled flags without
+	// re-uploading ALL lights and discarding the user's checkbox state.
+	struct LightOrigin { QString file; int index; };
+	QVector<LightOrigin> _lightFileIndexMap;
 	float _originalBoundingRadius = 1.0f;
 	QString _animatedLightTransformSourceFile;
 	std::vector<GPULight> _animatedParsedLights;

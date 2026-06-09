@@ -4,6 +4,7 @@
 #include "GLLights.h"
 #include "GltfAnimationData.h"
 #include "GltfCameraData.h"
+#include "GltfLightData.h"
 #include "GltfVariantData.h"
 
 #include <QHash>
@@ -66,7 +67,6 @@ public:
     void appendFromScene(const aiScene*                   scene,
                          const QString&                   sourceFile,
                          const QList<QUuid>&              meshUuidsInOrder,
-                         const std::vector<GPULight>&     lights = {},
                          const aiMatrix4x4&               importCorrection = aiMatrix4x4(),
                          bool                             autoOrientApplied = false,
                          bool                             autoScaleApplied  = false);
@@ -113,11 +113,30 @@ public:
     SceneGraphWorldTransforms evaluateWorldTransforms(const SceneNode* subtreeRoot = nullptr) const;
     SceneGraphWorldTransforms evaluateWorldTransformsForFile(const QString& sourceFile) const;
 
-    // Get all punctual lights in the scene.
-    const std::vector<GPULight>& lights() const { return _lights; }
+    // -----------------------------------------------------------------------
+    // KHR_lights_punctual
+    // -----------------------------------------------------------------------
 
-    // Set lights in the scene (called during import).
-    void setLights(const std::vector<GPULight>& lights) { _lights = lights; }
+    // Register punctual light data for a source file (called after import).
+    void setLightData(const QString& sourceFile, const GltfLightData& data);
+
+    // Remove punctual light data when a file's meshes are cleared.
+    void clearLightData(const QString& sourceFile);
+
+    // Returns the light data for a specific source file, or an empty struct.
+    GltfLightData lightDataForFile(const QString& sourceFile) const;
+
+    // Returns all source files that carry KHR_lights_punctual data.
+    QStringList filesWithLights() const;
+
+    // Enable or disable one individual light within a source file.
+    // lightIndex is the index into GltfLightData::lights for that file.
+    void setLightEnabled(const QString& sourceFile, int lightIndex, bool enabled);
+
+    // Build the flat GPU list from all currently-enabled per-file lights.
+    // Call this whenever a light is toggled or a file is added/removed, then
+    // pass the result to GLLights::setLights().
+    std::vector<GPULight> buildEnabledLightList() const;
 
     SceneNode* findFileNode(const QString& sourceFile) const;
 
@@ -213,6 +232,11 @@ signals:
     void animationDataChanged();
     void gltfCameraDataChanged();
 
+    // Emitted when punctual light data is added, removed, or an individual
+    // light's enabled state changes.  PunctualLightsPanel connects to this
+    // to refresh its tree; GLWidget connects to rebuild the GPU light list.
+    void lightDataChanged();
+
 private:
     // Recursively build a SceneNode subtree that mirrors ainode and its
     // descendants.  cursor advances through uuids as mesh UUIDs are assigned
@@ -240,8 +264,9 @@ private:
     // removeMeshUuid / clear.
     QHash<QUuid, SceneNode*> _meshUuidToNode;
 
-    // Punctual lights from KHR_lights_punctual extension.
-    std::vector<GPULight> _lights;
+    // KHR_lights_punctual: one entry per source file that carries the extension.
+    // Individual GltfLightEntry::enabled flags track per-light activation state.
+    QHash<QString, GltfLightData> _lightDataByFile;
 
     // KHR_materials_variants: one entry per source file that carries the extension.
     QHash<QString, GltfVariantData> _variantDataByFile;

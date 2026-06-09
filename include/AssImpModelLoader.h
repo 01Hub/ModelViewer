@@ -187,7 +187,7 @@ signals:
 	void meshBatchReady(AssImpMeshDataBatch batch);
 	void loadingFinished(bool successFlag, const aiScene* scene);
 	void loadingCancelled();
-	void lightsLoaded(const std::vector<GPULight>& lights);
+	void lightsLoaded(const GltfLightData& lights);
 
 public slots:
 	void processFileReadProgress(float percentage);

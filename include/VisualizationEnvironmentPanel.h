@@ -1,9 +1,13 @@
 #pragma once
 
+#include "GltfLightData.h"
+#include <QTreeWidgetItem>
 #include <QWidget>
 #include <QVector3D>
 #include <QVector4D>
 #include <memory>
+
+class QFrame;
 
 namespace Ui {
 	class VisualizationEnvironmentPanel;
@@ -12,6 +16,7 @@ namespace Ui {
 class GLWidget;
 class ModelViewer;
 class MaterialPreviewWidget;
+class SceneGraph;
 
 class VisualizationEnvironmentPanel : public QWidget
 {
@@ -57,9 +62,14 @@ public slots:
 
 	// ===== Lighting Checkboxes =====
 	void onDefaultLightsChanged(bool checked);
-	void onPunctualLightsChanged(bool checked);
 	void onShowLightsChanged(bool checked);
 	void onIBLChanged(bool checked);
+
+	// ===== Punctual Lights Tree =====
+	// Rebuild the tree from SceneGraph light data; show/hide the group box.
+	void refreshPunctualLightsTree();
+	// Called when any tree item's check state changes — rebuilds GPU light list.
+	void onPunctualLightItemChanged(QTreeWidgetItem* item, int column);
 
 	// ===== Skybox Controls =====
 	void onSkyBoxStateChanged(bool checked);
@@ -115,15 +125,28 @@ public:
 
 private:
 	// Member variables
-	ModelViewer* _modelViewer;
-	GLWidget* _glWidget;
+	ModelViewer*    _modelViewer;
+	GLWidget*       _glWidget;
+	SceneGraph*     _sceneGraph  = nullptr;
 	MaterialPreviewWidget* _previewWidget = nullptr;
 	std::unique_ptr<Ui::VisualizationEnvironmentPanel> ui;
 	bool _isInitialized;
+
+	// Build one file-level parent item + its light children.
+	QTreeWidgetItem* makeLightFileItem(const QString& sourceFile) const;
+	QTreeWidgetItem* makeLightLeafItem(const GltfLightEntry& entry, int lightIndex) const;
 
 	// State management - moved from ModelViewer
 	int _skyBoxLDRIIndex;
 	int _skyBoxHDRIIndex;
 
 	bool _detached = false;
+
+	// Resize handle for treePunctualLights
+	QFrame* _lightTreeResizeHandle = nullptr;
+	qreal   _lightTreeDragStartY   = 0.0;
+	int     _lightTreeDragStartH   = 0;
+
+protected:
+	bool eventFilter(QObject* watched, QEvent* event) override;
 };

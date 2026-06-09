@@ -969,12 +969,15 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
     document.mvfSession.insert(QStringLiteral("selectedMeshUuids"), selectedArray);
     document.mvfSession.insert(QStringLiteral("geometryChunkPresent"), !package.geometryChunk.isEmpty());
 
-    if (!sceneGraph.lights().empty())
     {
-        QJsonArray lightsArray;
-        for (const GPULight& light : sceneGraph.lights())
-            lightsArray.append(gpuLightToJson(light));
-        document.mvfSession.insert(QStringLiteral("lights"), lightsArray);
+        const std::vector<GPULight> lights = sceneGraph.buildEnabledLightList();
+        if (!lights.empty())
+        {
+            QJsonArray lightsArray;
+            for (const GPULight& light : lights)
+                lightsArray.append(gpuLightToJson(light));
+            document.mvfSession.insert(QStringLiteral("lights"), lightsArray);
+        }
     }
 
     const QStringList variantFiles = sceneGraph.filesWithVariants();
