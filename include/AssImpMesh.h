@@ -80,6 +80,7 @@ public:
 	void setMorphTargets(const QVector<MorphTargetData>& targets,
 		const QVector<float>& defaultWeights);
 	bool hasMorphTargets() const override { return !_morphTargets.isEmpty(); }
+	const QVector<MorphTargetData>& getMorphTargets() const { return _morphTargets; }
 	QVector<float> defaultMorphWeights() const override { return _defaultMorphWeights; }
 	void applyMorphWeights(const QVector<float>& weights) override;
 	void resetMorphTargets() override;

@@ -3717,8 +3717,9 @@ void ModelViewer::onFileExport()
 	const QString exportExt = QFileInfo(fileName).suffix().toLower();
 	const bool flattenTransforms = (exportExt == "obj" || exportExt == "ply" || exportExt == "stl");
 
+	QMap<QString, unsigned int> animMatRemap; // "origMatIdx@sourceFile" → export material index
 	aiScene* copyScene = SceneGraphExporter::buildExportScene(
-		_sceneGraph, resolver, flattenTransforms, allowedSourceFiles);
+		_sceneGraph, resolver, flattenTransforms, allowedSourceFiles, &animMatRemap);
 
 	if (!copyScene)
 	{
@@ -3800,6 +3801,62 @@ void ModelViewer::onFileExport()
 		{
 			GltfVariantData vd = _sceneGraph->variantDataForFile(variantFile);
 			expSettings.variantNames = vd.variantNames;
+		}
+	}
+
+	// Collect glTF animation data for Pointer-channel injection (KHR_animation_pointer).
+	// Pointer channels (material texture-transform, node visibility) are stored in
+	// GltfAnimationData but cannot be expressed as Assimp aiAnimation channels.
+	// We pass them to GltfPostProcessor via ExportSettings so they are re-injected
+	// into the output glTF/GLB after Assimp writes the file.
+	{
+		const QStringList animFiles = _sceneGraph->filesWithAnimations();
+		for (const QString& file : animFiles)
+		{
+			if (!selectedSourceFile.isEmpty() && file != selectedSourceFile)
+				continue;
+			const GltfAnimationData animData = _sceneGraph->animationDataForFile(file);
+			if (!animData.isEmpty() && (animData.hasPointerAnimations || animData.hasMorphAnimations))
+				expSettings.animationDataList.append(animData);
+		}
+
+		// Remap pointer-animation targetMaterialIndex values to the actual indices used
+		// in the exported aiScene.  The original material indices stored in
+		// GltfAnimationChannel::targetMaterialIndex were assigned by the ORIGINAL glTF
+		// loader and may not match the export-scene order (which depends on the DFS
+		// traversal order of the scene graph).  Without this remap the injected
+		// KHR_animation_pointer paths reference the wrong material on re-import.
+		if (!animMatRemap.isEmpty())
+		{
+			for (GltfAnimationData& animData : expSettings.animationDataList)
+			{
+				for (GltfAnimationClip& clip : animData.clips)
+				{
+					for (GltfAnimationChannel& ch : clip.channels)
+					{
+						if (ch.targetPath != GltfAnimationTargetPath::Pointer)
+							continue;
+						if (ch.targetMaterialIndex < 0)
+							continue;
+
+						const QString remapKey =
+							QString::number(ch.targetMaterialIndex)
+							+ QLatin1Char('@')
+							+ animData.sourceFile;
+						const auto it = animMatRemap.constFind(remapKey);
+						if (it != animMatRemap.constEnd())
+						{
+							const int newIdx = static_cast<int>(it.value());
+							if (newIdx != ch.targetMaterialIndex)
+							{
+								qDebug() << "[EXPORT-ANIM-REMAP] sourceFile=" << animData.sourceFile
+								         << "material" << ch.targetMaterialIndex << "->" << newIdx;
+								ch.targetMaterialIndex = newIdx;
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 
@@ -4441,22 +4498,75 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	const QJsonArray sceneRootNodes =
 		result.document.scenes[sceneIndex][QStringLiteral("nodes")].toArray();
 	_sceneGraph->rebuildFromMvf(result.document.nodes, sceneRootNodes);
-	// MVF stores lights as a flat list with no per-file source attribution.
-	// Store under a synthetic key so they render correctly; the PunctualLights
-	// panel won't show them until the MVF format is extended to persist per-file
-	// named light data.
-	if (!result.lights.empty())
+	// Restore punctual light data.  New MVF files store a per-file structure
+	// ("punctualLightsByFile") with display names, enabled flags, and the
+	// user's repositioned positions.  Older files fall back to the flat
+	// "lights" array under a synthetic "__mvf__" key so they still render.
 	{
-		GltfLightData ld;
-		ld.sourceFile = QStringLiteral("__mvf__");
-		for (const GPULight& gl : result.lights)
+		const QJsonArray perFileArr =
+			result.document.mvfSession[QStringLiteral("punctualLightsByFile")].toArray();
+
+		if (!perFileArr.isEmpty())
 		{
-			GltfLightEntry e;
-			e.gpuLight = gl;
-			e.enabled  = true;
-			ld.lights.append(e);
+			// New format: restore per-file GltfLightData so PunctualLightsPanel
+			// can show names and per-light checkboxes.
+			auto jsonToVec3 = [](const QJsonArray& a) -> glm::vec3 {
+				return glm::vec3(
+					static_cast<float>(a[0].toDouble()),
+					static_cast<float>(a[1].toDouble()),
+					static_cast<float>(a[2].toDouble()));
+			};
+
+			for (const QJsonValue& fileVal : perFileArr)
+			{
+				const QJsonObject fileObj = fileVal.toObject();
+				const QString sourceFile  = fileObj[QStringLiteral("sourceFile")].toString();
+				if (sourceFile.isEmpty())
+					continue;
+
+				GltfLightData ld;
+				ld.sourceFile = sourceFile;
+
+				const QJsonArray lightsArr = fileObj[QStringLiteral("lights")].toArray();
+				for (const QJsonValue& lightVal : lightsArr)
+				{
+					const QJsonObject lightObj = lightVal.toObject();
+					const QJsonObject gpuObj   = lightObj[QStringLiteral("gpuLight")].toObject();
+
+					GltfLightEntry entry;
+					entry.name    = lightObj[QStringLiteral("name")].toString();
+					entry.enabled = lightObj[QStringLiteral("enabled")].toBool(true);
+
+					entry.gpuLight.type         = gpuObj[QStringLiteral("type")].toInt();
+					entry.gpuLight.range        = static_cast<float>(gpuObj[QStringLiteral("range")].toDouble());
+					entry.gpuLight.intensity    = static_cast<float>(gpuObj[QStringLiteral("intensity")].toDouble());
+					entry.gpuLight.innerConeCos = static_cast<float>(gpuObj[QStringLiteral("innerConeCos")].toDouble());
+					entry.gpuLight.outerConeCos = static_cast<float>(gpuObj[QStringLiteral("outerConeCos")].toDouble());
+					entry.gpuLight.color     = jsonToVec3(gpuObj[QStringLiteral("color")].toArray());
+					entry.gpuLight.position  = jsonToVec3(gpuObj[QStringLiteral("position")].toArray());
+					entry.gpuLight.direction = jsonToVec3(gpuObj[QStringLiteral("direction")].toArray());
+
+					ld.lights.append(entry);
+				}
+
+				_sceneGraph->setLightData(sourceFile, ld);
+			}
 		}
-		_sceneGraph->setLightData(ld.sourceFile, ld);
+		else if (!result.lights.empty())
+		{
+			// Legacy flat list: store under a synthetic key.  Lights render correctly
+			// but PunctualLightsPanel won't show per-file names or checkboxes.
+			GltfLightData ld;
+			ld.sourceFile = QStringLiteral("__mvf__");
+			for (const GPULight& gl : result.lights)
+			{
+				GltfLightEntry e;
+				e.gpuLight = gl;
+				e.enabled  = true;
+				ld.lights.append(e);
+			}
+			_sceneGraph->setLightData(ld.sourceFile, ld);
+		}
 	}
 
 	for (const GltfVariantData& variantData : result.variantDataByFile)
@@ -4585,10 +4695,15 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		const QJsonArray lightOffset = viewerState[QStringLiteral("defaultLightOffset")].toArray();
 		if (lightOffset.size() == 3)
 		{
-			_glWidget->setLightOffset(QVector3D(
+			const QVector3D off(
 				static_cast<float>(lightOffset[0].toDouble(0.0)),
 				static_cast<float>(lightOffset[1].toDouble(0.0)),
-				static_cast<float>(lightOffset[2].toDouble(0.0))));
+				static_cast<float>(lightOffset[2].toDouble(0.0)));
+			_glWidget->setLightOffset(off);
+			// Also push the value back into the panel sliders — updateLightPositionRanges
+			// (called earlier via setDisplayList) resets them to defaults, so we need
+			// an explicit override here to keep the UI in sync with the restored state.
+			visualizationEnvironmentPanel->restoreDefaultLightOffset(off);
 		}
 
 		const QString skyboxFolder =
@@ -4705,6 +4820,84 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 	viewerState.insert(QStringLiteral("bgTopColor"), colorToJson(_glWidget->getBgTopColor()));
 	viewerState.insert(QStringLiteral("bgBotColor"), colorToJson(_glWidget->getBgBotColor()));
 	package.document.mvfSession.insert(QStringLiteral("viewerState"), viewerState);
+
+	// ---- Per-file punctual light data ----
+	// Save the repositioned positions (what the user actually sees) together
+	// with each light's display name and enabled flag, grouped by source file.
+	// The flat "lights" key written by older versions is superseded by this.
+	// On load (see Phase 4 of loadMVF()) the per-file structure is restored
+	// directly into SceneGraph so PunctualLightsPanel can show names and
+	// honour per-light checkboxes without needing the original model file.
+	if (_glWidget && _sceneGraph)
+	{
+		const std::vector<GPULight>              repoLights  = _glWidget->getRepositionedLights();
+		const QVector<GLWidget::LightOrigin>     fileIndexMap = _glWidget->getLightFileIndexMap();
+		const QStringList                        lightFiles  = _sceneGraph->filesWithLights();
+
+		if (!lightFiles.isEmpty() && !repoLights.empty())
+		{
+			// Helper to serialise one GPULight
+			auto gpuLightToJson = [](const GPULight& gl) -> QJsonObject {
+				return QJsonObject{
+					{QStringLiteral("type"),         gl.type},
+					{QStringLiteral("range"),        static_cast<double>(gl.range)},
+					{QStringLiteral("intensity"),    static_cast<double>(gl.intensity)},
+					{QStringLiteral("innerConeCos"), static_cast<double>(gl.innerConeCos)},
+					{QStringLiteral("outerConeCos"), static_cast<double>(gl.outerConeCos)},
+					{QStringLiteral("color"),        QJsonArray{gl.color.x, gl.color.y, gl.color.z}},
+					{QStringLiteral("position"),     QJsonArray{gl.position.x, gl.position.y, gl.position.z}},
+					{QStringLiteral("direction"),    QJsonArray{gl.direction.x, gl.direction.y, gl.direction.z}},
+				};
+			};
+
+			QJsonArray fileArray;
+			for (const QString& sourceFile : lightFiles)
+			{
+				const GltfLightData& ld = _sceneGraph->lightDataForFile(sourceFile);
+				if (ld.isEmpty())
+					continue;
+
+				QJsonObject fileObj;
+				fileObj.insert(QStringLiteral("sourceFile"), sourceFile);
+
+				QJsonArray lightsArr;
+				for (int li = 0; li < ld.lights.size(); ++li)
+				{
+					const GltfLightEntry& entry = ld.lights[li];
+
+					// Find the repositioned GPULight for this (file, lightIndex) pair.
+					// The fileIndexMap maps flat index → (file, lightIndex); search it.
+					GPULight repoGpu = entry.gpuLight; // fallback: raw position
+					if (!fileIndexMap.isEmpty() &&
+					    fileIndexMap.size() == static_cast<int>(repoLights.size()))
+					{
+						for (int fi = 0; fi < fileIndexMap.size(); ++fi)
+						{
+							if (fileIndexMap[fi].file == sourceFile &&
+							    fileIndexMap[fi].index == li)
+							{
+								repoGpu = repoLights[static_cast<std::size_t>(fi)];
+								break;
+							}
+						}
+					}
+
+					QJsonObject lightObj;
+					lightObj.insert(QStringLiteral("name"),    entry.name);
+					lightObj.insert(QStringLiteral("enabled"), entry.enabled);
+					lightObj.insert(QStringLiteral("gpuLight"), gpuLightToJson(repoGpu));
+					lightsArr.append(lightObj);
+				}
+
+				fileObj.insert(QStringLiteral("lights"), lightsArr);
+				fileArray.append(fileObj);
+			}
+
+			if (!fileArray.isEmpty())
+				package.document.mvfSession.insert(
+					QStringLiteral("punctualLightsByFile"), fileArray);
+		}
+	}
 
 	return package;
 }

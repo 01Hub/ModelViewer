@@ -326,6 +326,8 @@ bool loadAnimationJsonAndBuffer(const QString& gltfPath, QJsonDocument& doc, QVe
 		bufferData.clear();
 		bufferData.append(QByteArray(reinterpret_cast<const char*>(glbBinaryBuffer.data()),
 			static_cast<int>(glbBinaryBuffer.size())));
+		qDebug() << "[ANIM-GLB-LOAD] loaded GLB binary buffer size=" << (int)glbBinaryBuffer.size()
+		         << "path=" << gltfPath;
 		return true;
 	}
 
@@ -1460,9 +1462,10 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	}
 
 	const QString importPath = QString::fromStdString(_path);
-	if ((importPath.endsWith(".gltf", Qt::CaseInsensitive) || importPath.endsWith(".glb", Qt::CaseInsensitive)) &&
-		loadMorphTargetsForAiMesh(importPath, scene, meshIndex, mesh->mNumVertices, morphTargets, defaultMorphWeights, &morphBaseBasis))
+	if (importPath.endsWith(".gltf", Qt::CaseInsensitive) || importPath.endsWith(".glb", Qt::CaseInsensitive))
 	{
+		loadMorphTargetsForAiMesh(
+			importPath, scene, meshIndex, mesh->mNumVertices, morphTargets, defaultMorphWeights, &morphBaseBasis);
 	}
 
 	if (!morphTargets.isEmpty() &&

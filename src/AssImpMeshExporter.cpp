@@ -634,6 +634,13 @@ aiReturn AssImpMeshExporter::exportMeshes(
         GltfPostProcessor::clearVariantExportData();
     }
 
+    // Register pointer-animation data for KHR_animation_pointer injection.
+    if (!settings.animationDataList.isEmpty())
+        GltfPostProcessor::setPointerAnimationData(
+            settings.animationDataList, settings.nodeIndexToExportedName);
+    else
+        GltfPostProcessor::clearPointerAnimationData();
+
     if (isGLB)
     {
         if (GltfPostProcessor::postProcessGlbFileWithMaterials(
@@ -651,8 +658,9 @@ aiReturn AssImpMeshExporter::exportMeshes(
             logWarning("  -> Post-processing failed (file may still be valid)");
     }
 
-    GltfPostProcessor::clearVariantExportData();  // Always clean up after use
-    GltfPostProcessor::clearGltfCameraData();     // Always clean up after use
+    GltfPostProcessor::clearVariantExportData();    // Always clean up after use
+    GltfPostProcessor::clearGltfCameraData();       // Always clean up after use
+    GltfPostProcessor::clearPointerAnimationData(); // Always clean up after use
 
     // ===== STEP 6: Cleanup temp texture folder for GLB exports =====
     if (isGLB && settings.copyTextures && !_lastTexturePackage.textures.empty())
@@ -1049,6 +1057,13 @@ aiReturn AssImpMeshExporter::exportScene(
         GltfPostProcessor::clearVariantExportData();
     }
 
+    // Register pointer-animation data for KHR_animation_pointer injection.
+    if (!settings.animationDataList.isEmpty())
+        GltfPostProcessor::setPointerAnimationData(
+            settings.animationDataList, settings.nodeIndexToExportedName);
+    else
+        GltfPostProcessor::clearPointerAnimationData();
+
     if (isGLB)
     {
         if (GltfPostProcessor::postProcessGlbFileWithMaterials(exportFilePath, meshes, settings.lights, logCallback, textureSubfolder, _lastTexturePackage.pathMapping, _lastEmbeddedIndexMapping))
@@ -1074,6 +1089,7 @@ aiReturn AssImpMeshExporter::exportScene(
 
     GltfPostProcessor::clearVariantExportData();
     GltfPostProcessor::clearGltfCameraData();
+    GltfPostProcessor::clearPointerAnimationData();
 
     // ===== STEP 6: Cleanup temp texture folder for GLB exports =====
     if (isGLB && settings.copyTextures && !_lastTexturePackage.textures.empty())

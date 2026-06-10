@@ -9,6 +9,7 @@
 #include "GLLights.h"
 #include "GltfCameraData.h"
 #include "GltfVariantData.h"
+#include "GltfAnimationData.h"
 #include "TexturePackingUtils.h"
 
 class GLMaterial;
@@ -67,6 +68,12 @@ public:
         // Ordered variant names for KHR_materials_variants export.
         // Leave empty to omit the extension from the output.
         QStringList variantNames;
+        // Pointer-path animation data for KHR_animation_pointer injection.
+        // Only relevant for glTF/GLB export; ignored for other formats.
+        QVector<GltfAnimationData> animationDataList;
+        // Map from glTF node index (source file) → exported node name.
+        // Required for resolving targetNodeIndex in Pointer channels.
+        QMap<int, QString> nodeIndexToExportedName;
     };
 
     explicit AssImpMeshExporter(QObject* parent = nullptr);

@@ -22,7 +22,9 @@
 #include <QDebug>
 #include <QMatrix4x4>
 #include <cmath>
+#include <functional>
 #include <initializer_list>
+#include <set>
 
 namespace
 {
@@ -442,7 +444,8 @@ aiScene* SceneGraphExporter::buildExportScene(
     const SceneGraph* sceneGraph,
     const MeshResolver& resolveMesh,
     bool flattenTransforms,
-    const QStringList& allowedSourceFiles)
+    const QStringList& allowedSourceFiles,
+    QMap<QString, unsigned int>* outAnimMatRemap)
 {
     if (!sceneGraph)
         return nullptr;
@@ -521,7 +524,7 @@ aiScene* SceneGraphExporter::buildExportScene(
             }
             // ---------------------------------------------------------------------
 
-            aiNode* dstChild = buildNodeRecursive(fileNode, resolveMesh, builtMeshes, builtMaterials, materialKeyToIndex, aiMatrix4x4(), flattenTransforms, fileNode->importCorrection);
+            aiNode* dstChild = buildNodeRecursive(fileNode, resolveMesh, builtMeshes, builtMaterials, materialKeyToIndex, aiMatrix4x4(), flattenTransforms, fileNode->importCorrection, outAnimMatRemap);
             exportRoot->mChildren[i] = dstChild;
             if (dstChild)
                 dstChild->mParent = exportRoot;
@@ -693,17 +696,63 @@ aiScene* SceneGraphExporter::buildExportScene(
             {
                 // Group TRS channels by target node name so each node gets exactly
                 // one aiNodeAnim (Assimp requires one-per-node per animation).
-                QMap<QString, aiNodeAnim*> nodeAnimByName;
+                QMap<QString, aiNodeAnim*>    nodeAnimByName;
+                // Morph-weight channels: one aiMeshMorphAnim per target mesh name.
+                QMap<QString, aiMeshMorphAnim*> morphAnimByName;
 
                 for (const GltfAnimationChannel& ch : clip.channels)
                 {
                     const bool isTRS = (ch.targetPath == GltfAnimationTargetPath::Translation ||
                                         ch.targetPath == GltfAnimationTargetPath::Rotation    ||
                                         ch.targetPath == GltfAnimationTargetPath::Scale);
-                    if (!isTRS)
-                        continue; // skip Weights / Pointer for now
+                    const bool isWeights = (ch.targetPath == GltfAnimationTargetPath::Weights);
+
+                    if (!isTRS && !isWeights)
+                        continue; // Pointer channels handled by GltfPostProcessor
+
+                    if (isWeights)
+                    {
+                        // Each weightKey carries a variable-length array of weights
+                        // (one per morph target on the mesh).  Assimp represents these
+                        // as aiMeshMorphKey entries keyed to the mesh name.
+                        if (ch.weightKeys.isEmpty())
+                            continue;
+
+                        const QString& meshName = ch.targetNodeName; // best approximation
+                        if (!morphAnimByName.contains(meshName))
+                        {
+                            aiMeshMorphAnim* ma = new aiMeshMorphAnim();
+                            ma->mName.Set(meshName.toStdString());
+                            morphAnimByName[meshName] = ma;
+                        }
+                        aiMeshMorphAnim* ma = morphAnimByName[meshName];
+
+                        constexpr double kTicksPerSecond = 1000.0;
+                        ma->mNumKeys = static_cast<unsigned int>(ch.weightKeys.size());
+                        ma->mKeys    = new aiMeshMorphKey[ma->mNumKeys];
+
+                        for (unsigned int k = 0; k < ma->mNumKeys; ++k)
+                        {
+                            const GltfAnimationWeightsKey& wk = ch.weightKeys[k];
+                            aiMeshMorphKey& mk = ma->mKeys[k];
+                            mk.mTime = wk.timeSeconds * kTicksPerSecond;
+
+                            const int numWeights = wk.values.size();
+                            mk.mNumValuesAndWeights = static_cast<unsigned int>(numWeights);
+                            mk.mValues  = new unsigned int[numWeights];
+                            mk.mWeights = new double[numWeights];
+                            for (int wi = 0; wi < numWeights; ++wi)
+                            {
+                                mk.mValues[wi]  = static_cast<unsigned int>(wi);
+                                mk.mWeights[wi] = static_cast<double>(wk.values[wi]);
+                            }
+                        }
+                        continue;
+                    }
 
                     const std::string nodeName = ch.targetNodeName.toStdString();
+                    qDebug() << "[EXPORT-ANIMS-TRS] TRS channel target:" << ch.targetNodeName
+                             << "path:" << static_cast<int>(ch.targetPath);
 
                     if (!nodeAnimByName.contains(ch.targetNodeName))
                     {
@@ -760,19 +809,67 @@ aiScene* SceneGraphExporter::buildExportScene(
                     }
                 }
 
-                if (nodeAnimByName.isEmpty())
-                    continue; // no TRS channels → nothing to write
+                if (nodeAnimByName.isEmpty() && morphAnimByName.isEmpty())
+                    continue; // no exportable channels → skip this clip
+
+                // Assimp's glTF2 exporter requires each aiNodeAnim to have at least
+                // one keyframe for EVERY channel type (position, rotation, scale).
+                // Skeletal animations commonly animate only a subset of TRS channels
+                // (e.g. rotation-only joints) — if any array is left empty the
+                // exporter crashes or produces invalid output.
+                //
+                // Safety pass: ensure every aiNodeAnim has ≥1 key of each type.
+                // Use a neutral default (zero translation, identity rotation, unit scale)
+                // at time 0.  The single key is never interpolated so it does not
+                // distort the animation for channels that legitimately have no keys.
+                constexpr double kZeroTime = 0.0;
+                for (aiNodeAnim* na : nodeAnimByName)
+                {
+                    if (na->mNumPositionKeys == 0 || na->mPositionKeys == nullptr)
+                    {
+                        na->mNumPositionKeys = 1;
+                        na->mPositionKeys    = new aiVectorKey[1];
+                        na->mPositionKeys[0].mTime  = kZeroTime;
+                        na->mPositionKeys[0].mValue = aiVector3D(0.0f, 0.0f, 0.0f);
+                    }
+                    if (na->mNumRotationKeys == 0 || na->mRotationKeys == nullptr)
+                    {
+                        na->mNumRotationKeys = 1;
+                        na->mRotationKeys    = new aiQuatKey[1];
+                        na->mRotationKeys[0].mTime  = kZeroTime;
+                        na->mRotationKeys[0].mValue = aiQuaternion(1.0f, 0.0f, 0.0f, 0.0f); // identity (w,x,y,z)
+                    }
+                    if (na->mNumScalingKeys == 0 || na->mScalingKeys == nullptr)
+                    {
+                        na->mNumScalingKeys = 1;
+                        na->mScalingKeys    = new aiVectorKey[1];
+                        na->mScalingKeys[0].mTime  = kZeroTime;
+                        na->mScalingKeys[0].mValue = aiVector3D(1.0f, 1.0f, 1.0f);
+                    }
+                }
 
                 aiAnimation* anim = new aiAnimation();
                 anim->mName.Set(clip.name.toStdString());
-                anim->mDuration        = clip.durationSeconds * 1000.0; // in ticks
-                anim->mTicksPerSecond  = 1000.0;
+                anim->mDuration       = clip.durationSeconds * 1000.0; // in ticks
+                anim->mTicksPerSecond = 1000.0;
 
                 anim->mNumChannels = static_cast<unsigned int>(nodeAnimByName.size());
-                anim->mChannels    = new aiNodeAnim*[anim->mNumChannels];
-                unsigned int ci = 0;
-                for (aiNodeAnim* na : nodeAnimByName)
-                    anim->mChannels[ci++] = na;
+                if (anim->mNumChannels > 0)
+                {
+                    anim->mChannels = new aiNodeAnim*[anim->mNumChannels];
+                    unsigned int ci = 0;
+                    for (aiNodeAnim* na : nodeAnimByName)
+                        anim->mChannels[ci++] = na;
+                }
+
+                anim->mNumMorphMeshChannels = static_cast<unsigned int>(morphAnimByName.size());
+                if (anim->mNumMorphMeshChannels > 0)
+                {
+                    anim->mMorphMeshChannels = new aiMeshMorphAnim*[anim->mNumMorphMeshChannels];
+                    unsigned int mi = 0;
+                    for (aiMeshMorphAnim* ma : morphAnimByName)
+                        anim->mMorphMeshChannels[mi++] = ma;
+                }
 
                 builtAnims.push_back(anim);
             }
@@ -789,6 +886,84 @@ aiScene* SceneGraphExporter::buildExportScene(
         }
     }
 
+    // ===== Validate animation channel targets =====
+    // Assimp's glTF2 exporter crashes (null-ptr deref) if an aiNodeAnim::mNodeName
+    // does not resolve to an existing node in the exported hierarchy.  Collect all
+    // exported node names and strip any channels whose target is absent so the
+    // exporter receives a self-consistent aiScene.
+    {
+        // Collect all node names from the exported aiNode hierarchy.
+        std::set<std::string> exportedNodeNames;
+        std::function<void(const aiNode*)> collectNames = [&](const aiNode* node)
+        {
+            if (!node) return;
+            exportedNodeNames.insert(node->mName.C_Str());
+            for (unsigned int i = 0; i < node->mNumChildren; ++i)
+                collectNames(node->mChildren[i]);
+        };
+        collectNames(scene->mRootNode);
+
+        qDebug() << "[EXPORT-VALIDATE] Scene contains" << exportedNodeNames.size() << "exported node(s).";
+
+        // For each animation, remove channels whose target node is not in the hierarchy.
+        for (unsigned int ai = 0; ai < scene->mNumAnimations; ++ai)
+        {
+            aiAnimation* anim = scene->mAnimations[ai];
+            if (!anim || anim->mNumChannels == 0)
+                continue;
+
+            std::vector<aiNodeAnim*> validChannels;
+            validChannels.reserve(anim->mNumChannels);
+
+            for (unsigned int ci = 0; ci < anim->mNumChannels; ++ci)
+            {
+                aiNodeAnim* na = anim->mChannels[ci];
+                if (!na) continue;
+
+                const std::string targetName = na->mNodeName.C_Str();
+                if (exportedNodeNames.count(targetName) > 0)
+                {
+                    validChannels.push_back(na);
+                }
+                else
+                {
+                    qWarning() << "[EXPORT-VALIDATE] Animation '" << QString::fromUtf8(anim->mName.C_Str())
+                               << "' channel" << ci << "target '" << QString::fromStdString(targetName)
+                               << "' NOT found in exported node hierarchy — removing channel to prevent crash.";
+                    // Log all known exported node names on the first missing target to aid debugging.
+                    static bool dumpedNames = false;
+                    if (!dumpedNames)
+                    {
+                        dumpedNames = true;
+                        qDebug() << "[EXPORT-VALIDATE] Exported node names:";
+                        for (const std::string& n : exportedNodeNames)
+                            qDebug() << "  " << QString::fromStdString(n);
+                    }
+                    delete na;
+                }
+            }
+
+            if (validChannels.size() < anim->mNumChannels)
+            {
+                // Replace channel array with the filtered list.
+                delete[] anim->mChannels;
+                anim->mNumChannels = static_cast<unsigned int>(validChannels.size());
+                if (anim->mNumChannels > 0)
+                {
+                    anim->mChannels = new aiNodeAnim*[anim->mNumChannels];
+                    for (unsigned int k = 0; k < anim->mNumChannels; ++k)
+                        anim->mChannels[k] = validChannels[k];
+                }
+                else
+                {
+                    anim->mChannels = nullptr;
+                }
+                qDebug() << "[EXPORT-VALIDATE] Animation '" << QString::fromUtf8(anim->mName.C_Str())
+                         << "' reduced to" << anim->mNumChannels << "valid channel(s).";
+            }
+        }
+    }
+
     return scene;
 }
 
@@ -800,7 +975,8 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
     QMap<QString, unsigned int>& materialKeyToIndex,
     const aiMatrix4x4& parentWorldTransform,
     bool flattenTransforms,
-    const aiMatrix4x4& importCorrection
+    const aiMatrix4x4& importCorrection,
+    QMap<QString, unsigned int>* animMatRemap
 )
 {
     if (!srcNode)
@@ -913,6 +1089,14 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
                 materialIndex = static_cast<unsigned int>(outMaterials.size());
                 outMaterials.push_back(builtMaterial);
                 materialKeyToIndex.insert(originalMatKey, materialIndex); // key already includes sourceFile
+            }
+
+            // Track original→export material index mapping for pointer-animation remapping.
+            // Key format: "originalMatIdx@sourceFile"
+            if (animMatRemap && !sourceFile.isEmpty())
+            {
+                const QString remapKey = QString::number(originalMatIndex) + QLatin1Char('@') + sourceFile;
+                animMatRemap->insert(remapKey, materialIndex);
             }
         }
         else
@@ -1133,7 +1317,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
         for (int i = 0; i < srcNode->children.size(); ++i)
         {
             SceneNode* srcChild = srcNode->children.at(i);
-            aiNode* dstChild = buildNodeRecursive(srcChild, resolveMesh, outMeshes, outMaterials, materialKeyToIndex, worldTransform, flattenTransforms, importCorrection);
+            aiNode* dstChild = buildNodeRecursive(srcChild, resolveMesh, outMeshes, outMaterials, materialKeyToIndex, worldTransform, flattenTransforms, importCorrection, animMatRemap);
             dstNode->mChildren[childIndex++] = dstChild;
             if (dstChild)
                 dstChild->mParent = dstNode;
@@ -1234,6 +1418,122 @@ aiMesh* SceneGraphExporter::buildMeshFromTriangleMesh(const TriangleMesh* mesh, 
     {
         delete out;
         return nullptr;
+    }
+
+    // --- Skinning (bone weights) ---
+    // Export joint indices and weights stored per-vertex so the output glTF / FBX
+    // round-trips skeletal animations correctly.
+    const QVector<GltfSkinJoint>& skinJoints = mesh->skinJoints();
+    if (!skinJoints.isEmpty())
+    {
+        const int numJoints = skinJoints.size();
+
+        // Accumulate per-bone weight lists from vertex JointIndices/JointWeights.
+        std::vector<std::vector<aiVertexWeight>> perBoneWeights(static_cast<size_t>(numJoints));
+
+        for (unsigned int vi = 0; vi < out->mNumVertices; ++vi)
+        {
+            const Vertex& v = verts[vi];
+            const int   jIdx[4] = {
+                static_cast<int>(v.JointIndices.x), static_cast<int>(v.JointIndices.y),
+                static_cast<int>(v.JointIndices.z), static_cast<int>(v.JointIndices.w)
+            };
+            const float jWt[4] = { v.JointWeights.x, v.JointWeights.y,
+                                   v.JointWeights.z, v.JointWeights.w };
+
+            for (int slot = 0; slot < 4; ++slot)
+            {
+                if (jIdx[slot] < 0 || jIdx[slot] >= numJoints || jWt[slot] <= 0.0f)
+                    continue;
+                perBoneWeights[static_cast<size_t>(jIdx[slot])].push_back({ vi, jWt[slot] });
+            }
+        }
+
+        out->mNumBones = static_cast<unsigned int>(numJoints);
+        out->mBones    = new aiBone*[static_cast<size_t>(numJoints)];
+
+        for (int bi = 0; bi < numJoints; ++bi)
+        {
+            aiBone* bone = new aiBone();
+            bone->mName.Set(skinJoints[bi].nodeName.toStdString());
+            bone->mOffsetMatrix = skinJoints[bi].inverseBindMatrix;
+
+            const auto& bw = perBoneWeights[static_cast<size_t>(bi)];
+            bone->mNumWeights = static_cast<unsigned int>(bw.size());
+            bone->mWeights    = bone->mNumWeights > 0
+                                    ? new aiVertexWeight[bone->mNumWeights]
+                                    : nullptr;
+            for (unsigned int wi = 0; wi < bone->mNumWeights; ++wi)
+                bone->mWeights[wi] = bw[wi];
+
+            out->mBones[bi] = bone;
+        }
+
+        qDebug() << "[EXPORT-SKIN] Mesh" << mesh->getName()
+                 << "exported" << numJoints << "bone(s)";
+    }
+
+    // --- Morph targets (blend shapes) ---
+    // Populate aiAnimMesh entries from stored MorphTargetData so the output
+    // glTF / FBX carries blend-shape geometry for weight-animation round-trips.
+    if (const AssImpMesh* assimpMesh = dynamic_cast<const AssImpMesh*>(mesh))
+    {
+        const QVector<MorphTargetData>& morphTargets = assimpMesh->getMorphTargets();
+        if (!morphTargets.isEmpty())
+        {
+            const unsigned int numVerts = out->mNumVertices;
+            out->mNumAnimMeshes = static_cast<unsigned int>(morphTargets.size());
+            out->mAnimMeshes    = new aiAnimMesh*[morphTargets.size()];
+
+            const QVector<float>& defWeights = assimpMesh->defaultMorphWeights();
+
+            for (int mi = 0; mi < morphTargets.size(); ++mi)
+            {
+                const MorphTargetData& mt = morphTargets[mi];
+                aiAnimMesh* am = new aiAnimMesh();
+                am->mNumVertices = numVerts;
+
+                // Target positions = base + delta (glTF stores deltas; Assimp wants absolute).
+                if (!mt.positionDeltas.empty())
+                {
+                    am->mVertices = new aiVector3D[numVerts];
+                    const auto count = std::min(
+                        static_cast<unsigned int>(mt.positionDeltas.size()), numVerts);
+                    for (unsigned int vi = 0; vi < count; ++vi)
+                        am->mVertices[vi] = aiVector3D(
+                            out->mVertices[vi].x + mt.positionDeltas[vi].x,
+                            out->mVertices[vi].y + mt.positionDeltas[vi].y,
+                            out->mVertices[vi].z + mt.positionDeltas[vi].z);
+                    // Vertices beyond the delta count are unchanged.
+                    for (unsigned int vi = count; vi < numVerts; ++vi)
+                        am->mVertices[vi] = out->mVertices[vi];
+                }
+
+                // Target normals = base + delta.
+                if (!mt.normalDeltas.empty() && out->mNormals)
+                {
+                    am->mNormals = new aiVector3D[numVerts];
+                    const auto count = std::min(
+                        static_cast<unsigned int>(mt.normalDeltas.size()), numVerts);
+                    for (unsigned int vi = 0; vi < count; ++vi)
+                        am->mNormals[vi] = aiVector3D(
+                            out->mNormals[vi].x + mt.normalDeltas[vi].x,
+                            out->mNormals[vi].y + mt.normalDeltas[vi].y,
+                            out->mNormals[vi].z + mt.normalDeltas[vi].z);
+                    for (unsigned int vi = count; vi < numVerts; ++vi)
+                        am->mNormals[vi] = out->mNormals[vi];
+                }
+
+                // Morph target name (glTF extras.targetNames[i]).
+                am->mName.Set(std::string("target_") + std::to_string(mi));
+                am->mWeight = (mi < defWeights.size()) ? defWeights[mi] : 0.0f;
+
+                out->mAnimMeshes[mi] = am;
+            }
+
+            qDebug() << "[EXPORT-MORPH] Mesh" << mesh->getName()
+                     << "exported" << morphTargets.size() << "morph target(s)";
+        }
     }
 
     return out;

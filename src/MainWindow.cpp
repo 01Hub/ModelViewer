@@ -199,6 +199,15 @@ ModelViewer* MainWindow::createMdiChild()
 	viewer->setAttribute(Qt::WA_DeleteOnClose);
 	_viewers.append(viewer);
 	ui->mdiArea->addSubWindow(viewer);
+
+	// Apply persisted perspective FOV immediately so the first view uses the
+	// setting before any settingsChanged signal fires.
+	{
+		QSettings s(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+		const int fov = s.value("fieldOfViewSpinBox", 45).toInt();
+		viewer->getGLView()->setPerspFOV(fov);
+	}
+
 	return viewer;
 }
 
@@ -807,6 +816,7 @@ void MainWindow::on_actionSettings_triggered()
 				viewer->getGLView()->setShowViewCubeOverride(settingsDialog->displayShowViewCube());
 				viewer->getGLView()->setCornerAxisPosition(static_cast<CornerAxisPosition>(settingsDialog->displayCornerTrihedronPosition()));
 				viewer->getGLView()->getSelectionManager()->setHoverHighlightMode(settingsDialog->displayHoverHighlightMode());
+				viewer->getGLView()->setPerspFOV(settingsDialog->displayFieldOfView());
 			}
 		}
 		// Re-read QSettings now that they have been committed (OK / Apply).

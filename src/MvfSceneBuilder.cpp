@@ -737,6 +737,12 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
             bool hasUv1 = false;
             bool hasUv2 = false;
             bool hasUv3 = false;
+            bool hasSkinData = false;
+
+            std::vector<float> jointIndices;
+            std::vector<float> jointWeights;
+            jointIndices.reserve(vertices.size() * 4);
+            jointWeights.reserve(vertices.size() * 4);
 
             for (const Vertex& v : vertices)
             {
@@ -766,6 +772,20 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
                 uv3.push_back(v.TexCoords[3].x);
                 uv3.push_back(v.TexCoords[3].y);
 
+                jointIndices.push_back(v.JointIndices.x);
+                jointIndices.push_back(v.JointIndices.y);
+                jointIndices.push_back(v.JointIndices.z);
+                jointIndices.push_back(v.JointIndices.w);
+                jointWeights.push_back(v.JointWeights.x);
+                jointWeights.push_back(v.JointWeights.y);
+                jointWeights.push_back(v.JointWeights.z);
+                jointWeights.push_back(v.JointWeights.w);
+
+                if (!hasSkinData &&
+                    (v.JointWeights.x > 0.0f || v.JointWeights.y > 0.0f ||
+                     v.JointWeights.z > 0.0f || v.JointWeights.w > 0.0f))
+                    hasSkinData = true;
+
                 minX = std::min(minX, v.Position.x);
                 minY = std::min(minY, v.Position.y);
                 minZ = std::min(minZ, v.Position.z);
@@ -778,6 +798,9 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
                 hasUv2 = hasUv2 || v.TexCoords[2] != glm::vec2(0.0f);
                 hasUv3 = hasUv3 || v.TexCoords[3] != glm::vec2(0.0f);
             }
+            // Also flag as skin data if the mesh has skin joints defined
+            if (!hasSkinData && mesh->hasSkinning())
+                hasSkinData = true;
 
             QJsonObject attributes;
 
@@ -867,6 +890,28 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
                 attributes.insert(QStringLiteral("COLOR_0"), colorAccessor);
             }
 
+            // --- Skinning: JOINTS_0 and WEIGHTS_0 ---
+            if (hasSkinData)
+            {
+                const int jointsOffset = appendBinary(package.geometryChunk, jointIndices.data(), static_cast<int>(jointIndices.size()));
+                const int jointsView = document.bufferViews.size();
+                document.bufferViews.append(makeBufferView(0, jointsOffset, jointIndices.size() * sizeof(float), BufferTargetArray,
+                                                           QStringLiteral("%1_JOINTS_0").arg(mesh->getName())));
+                const int jointsAccessor = document.accessors.size();
+                document.accessors.append(makeAccessor(jointsView, 0, ComponentTypeFloat, vertices.size(), QStringLiteral("VEC4"),
+                                                       QStringLiteral("%1_JOINTS_0").arg(mesh->getName())));
+                attributes.insert(QStringLiteral("JOINTS_0"), jointsAccessor);
+
+                const int weightsOffset = appendBinary(package.geometryChunk, jointWeights.data(), static_cast<int>(jointWeights.size()));
+                const int weightsView = document.bufferViews.size();
+                document.bufferViews.append(makeBufferView(0, weightsOffset, jointWeights.size() * sizeof(float), BufferTargetArray,
+                                                           QStringLiteral("%1_WEIGHTS_0").arg(mesh->getName())));
+                const int weightsAccessor = document.accessors.size();
+                document.accessors.append(makeAccessor(weightsView, 0, ComponentTypeFloat, vertices.size(), QStringLiteral("VEC4"),
+                                                       QStringLiteral("%1_WEIGHTS_0").arg(mesh->getName())));
+                attributes.insert(QStringLiteral("WEIGHTS_0"), weightsAccessor);
+            }
+
             primitive.insert(QStringLiteral("attributes"), attributes);
 
             const int indexOffset = appendBinary(package.geometryChunk, indices.data(), static_cast<int>(indices.size()));
@@ -877,6 +922,89 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
             document.accessors.append(makeAccessor(indexView, 0, ComponentTypeUnsignedInt, indices.size(), QStringLiteral("SCALAR"),
                                                    QStringLiteral("%1_INDICES").arg(mesh->getName())));
             primitive.insert(QStringLiteral("indices"), indexAccessor);
+
+            // --- Morph targets (blend shapes) ---
+            // Write each morph target's position/normal/tangent delta arrays as
+            // VEC3 float accessors into the geometryChunk, then record them in
+            // the primitive "targets" array (glTF-compatible layout).  The default
+            // weights are stored in primitiveExtras so the read path can restore
+            // the mesh's initial weight state.
+            const QVector<MorphTargetData>& morphTargets = assImpMesh->getMorphTargets();
+            if (!morphTargets.isEmpty())
+            {
+                QJsonArray targetsArray;
+                const QString meshName = mesh->getName();
+                for (int ti = 0; ti < morphTargets.size(); ++ti)
+                {
+                    const MorphTargetData& mt = morphTargets[ti];
+                    QJsonObject targetAttribs;
+                    const QString tiStr = QString::number(ti);
+
+                    // POSITION deltas
+                    if (!mt.positionDeltas.empty())
+                    {
+                        std::vector<float> posD;
+                        posD.reserve(mt.positionDeltas.size() * 3);
+                        for (const auto& p : mt.positionDeltas) { posD.push_back(p.x); posD.push_back(p.y); posD.push_back(p.z); }
+                        const int offset = appendBinary(package.geometryChunk, posD.data(), static_cast<int>(posD.size()));
+                        const int bv = document.bufferViews.size();
+                        document.bufferViews.append(makeBufferView(0, offset, posD.size() * sizeof(float), BufferTargetArray,
+                                                                   QStringLiteral("%1_MORPH%2_POSITION").arg(meshName, tiStr)));
+                        const int acc = document.accessors.size();
+                        document.accessors.append(makeAccessor(bv, 0, ComponentTypeFloat,
+                                                               static_cast<int>(mt.positionDeltas.size()),
+                                                               QStringLiteral("VEC3"),
+                                                               QStringLiteral("%1_MORPH%2_POSITION").arg(meshName, tiStr)));
+                        targetAttribs.insert(QStringLiteral("POSITION"), acc);
+                    }
+
+                    // NORMAL deltas
+                    if (!mt.normalDeltas.empty())
+                    {
+                        std::vector<float> norD;
+                        norD.reserve(mt.normalDeltas.size() * 3);
+                        for (const auto& n : mt.normalDeltas) { norD.push_back(n.x); norD.push_back(n.y); norD.push_back(n.z); }
+                        const int offset = appendBinary(package.geometryChunk, norD.data(), static_cast<int>(norD.size()));
+                        const int bv = document.bufferViews.size();
+                        document.bufferViews.append(makeBufferView(0, offset, norD.size() * sizeof(float), BufferTargetArray,
+                                                                   QStringLiteral("%1_MORPH%2_NORMAL").arg(meshName, tiStr)));
+                        const int acc = document.accessors.size();
+                        document.accessors.append(makeAccessor(bv, 0, ComponentTypeFloat,
+                                                               static_cast<int>(mt.normalDeltas.size()),
+                                                               QStringLiteral("VEC3"),
+                                                               QStringLiteral("%1_MORPH%2_NORMAL").arg(meshName, tiStr)));
+                        targetAttribs.insert(QStringLiteral("NORMAL"), acc);
+                    }
+
+                    // TANGENT deltas
+                    if (!mt.tangentDeltas.empty())
+                    {
+                        std::vector<float> tanD;
+                        tanD.reserve(mt.tangentDeltas.size() * 3);
+                        for (const auto& t : mt.tangentDeltas) { tanD.push_back(t.x); tanD.push_back(t.y); tanD.push_back(t.z); }
+                        const int offset = appendBinary(package.geometryChunk, tanD.data(), static_cast<int>(tanD.size()));
+                        const int bv = document.bufferViews.size();
+                        document.bufferViews.append(makeBufferView(0, offset, tanD.size() * sizeof(float), BufferTargetArray,
+                                                                   QStringLiteral("%1_MORPH%2_TANGENT").arg(meshName, tiStr)));
+                        const int acc = document.accessors.size();
+                        document.accessors.append(makeAccessor(bv, 0, ComponentTypeFloat,
+                                                               static_cast<int>(mt.tangentDeltas.size()),
+                                                               QStringLiteral("VEC3"),
+                                                               QStringLiteral("%1_MORPH%2_TANGENT").arg(meshName, tiStr)));
+                        targetAttribs.insert(QStringLiteral("TANGENT"), acc);
+                    }
+
+                    targetsArray.append(targetAttribs);
+                }
+                primitive.insert(QStringLiteral("targets"), targetsArray);
+
+                // Save default weights in extras for read path restoration.
+                const QVector<float> defWeights = assImpMesh->defaultMorphWeights();
+                QJsonArray defWeightsJson;
+                for (float w : defWeights)
+                    defWeightsJson.append(static_cast<double>(w));
+                primitiveExtras.insert(QStringLiteral("defaultMorphWeights"), defWeightsJson);
+            }
         }
 
         const GLMaterial material = mesh->getMaterial();
@@ -891,6 +1019,25 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
         const int materialIndex = document.materials.size() - 1;
         materialIndexByUuid.insert(meshUuid, materialIndex);
         primitive.insert(QStringLiteral("material"), materialIndex);
+
+        // Save skin joints (inverse bind matrices + node names) so MVF reload can
+        // restore per-vertex skinning and drive skeletal animation.
+        {
+            const QVector<GltfSkinJoint>& skinJoints = mesh->skinJoints();
+            if (!skinJoints.isEmpty())
+            {
+                QJsonArray skinJointsArray;
+                for (const GltfSkinJoint& joint : skinJoints)
+                {
+                    skinJointsArray.append(QJsonObject{
+                        {QStringLiteral("nodeName"), joint.nodeName},
+                        {QStringLiteral("inverseBindMatrix"), matrixToJson(joint.inverseBindMatrix)}
+                    });
+                }
+                primitiveExtras.insert(QStringLiteral("skinJoints"), skinJointsArray);
+            }
+        }
+
         primitive.insert(QStringLiteral("extras"), primitiveExtras);
 
         QJsonArray primitives;
@@ -969,16 +1116,10 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
     document.mvfSession.insert(QStringLiteral("selectedMeshUuids"), selectedArray);
     document.mvfSession.insert(QStringLiteral("geometryChunkPresent"), !package.geometryChunk.isEmpty());
 
-    {
-        const std::vector<GPULight> lights = sceneGraph.buildEnabledLightList();
-        if (!lights.empty())
-        {
-            QJsonArray lightsArray;
-            for (const GPULight& light : lights)
-                lightsArray.append(gpuLightToJson(light));
-            document.mvfSession.insert(QStringLiteral("lights"), lightsArray);
-        }
-    }
+    // Per-file punctual light data (names, enabled flags, repositioned positions)
+    // is written by ModelViewer::buildMVFPackage() which has access to GLWidget's
+    // repositioned state.  This builder only sees the raw SceneGraph positions and
+    // has no way to apply the user's slider / model-rotation repositioning.
 
     const QStringList variantFiles = sceneGraph.filesWithVariants();
     if (!variantFiles.isEmpty())

@@ -1104,3 +1104,37 @@ void VisualizationEnvironmentPanel::onDetachButtonClicked()
 {
 	emit detachRequested();
 }
+
+// ==================== LIGHT OFFSET RESTORE ====================
+
+void VisualizationEnvironmentPanel::restoreDefaultLightOffset(const QVector3D& offset)
+{
+	if (!ui || !_glWidget)
+		return;
+
+	// Clamp to the current slider range so a stale saved value doesn't
+	// produce a slider stuck against the wall after the range was re-scaled.
+	const int x = qBound(ui->sliderLightPosX->minimum(),
+	                      static_cast<int>(offset.x()),
+	                      ui->sliderLightPosX->maximum());
+	const int y = qBound(ui->sliderLightPosY->minimum(),
+	                      static_cast<int>(offset.y()),
+	                      ui->sliderLightPosY->maximum());
+	const int z = qBound(ui->sliderLightPosZ->minimum(),
+	                      static_cast<int>(offset.z()),
+	                      ui->sliderLightPosZ->maximum());
+
+	ui->sliderLightPosX->blockSignals(true);
+	ui->sliderLightPosY->blockSignals(true);
+	ui->sliderLightPosZ->blockSignals(true);
+	ui->sliderLightPosX->setValue(x);
+	ui->sliderLightPosY->setValue(y);
+	ui->sliderLightPosZ->setValue(z);
+	ui->sliderLightPosX->blockSignals(false);
+	ui->sliderLightPosY->blockSignals(false);
+	ui->sliderLightPosZ->blockSignals(false);
+
+	_glWidget->setLightOffset(QVector3D(static_cast<float>(x),
+	                                    static_cast<float>(y),
+	                                    static_cast<float>(z)));
+}

@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <vector>
+#include <QMap>
 #include <QStringList>
 #include <QUuid>
 
@@ -35,11 +36,17 @@ public:
     // formats (glTF, FBX, COLLADA).
     // allowedSourceFiles: if non-empty, only file nodes whose sourceFile path is in
     // this list are exported.  An empty list means "export all loaded scenes".
+    // outAnimMatRemap: optional output map filled with
+    //   key   = "originalMatIdx@sourceFile"  (e.g. "2@/path/to/model.glb")
+    //   value = export material index in the returned aiScene
+    // Callers can use this to remap GltfAnimationChannel::targetMaterialIndex so that
+    // KHR_animation_pointer paths reference the correct material after re-ordering.
     static aiScene* buildExportScene(
         const SceneGraph* sceneGraph,
         const MeshResolver& resolveMesh,
         bool flattenTransforms = false,
-        const QStringList& allowedSourceFiles = QStringList());
+        const QStringList& allowedSourceFiles = QStringList(),
+        QMap<QString, unsigned int>* outAnimMatRemap = nullptr);
 
 private:
     static aiNode* buildNodeRecursive(
@@ -50,7 +57,8 @@ private:
         QMap<QString, unsigned int>& materialKeyToIndex,
         const aiMatrix4x4& parentWorldTransform,
         bool flattenTransforms,
-        const aiMatrix4x4& importCorrection = aiMatrix4x4()
+        const aiMatrix4x4& importCorrection = aiMatrix4x4(),
+        QMap<QString, unsigned int>* animMatRemap = nullptr
     );
 
     static aiMesh* buildMeshFromTriangleMesh(const TriangleMesh* mesh, unsigned int materialIndex);

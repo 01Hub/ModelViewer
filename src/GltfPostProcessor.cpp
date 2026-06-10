@@ -22,6 +22,23 @@ QStringList GltfPostProcessor::_variantNames;
 QVector<MeshVariantExportEntry> GltfPostProcessor::_variantEntries;
 QMap<int, GLMaterial> GltfPostProcessor::_variantMatByJsonIdx;
 
+QVector<GltfAnimationData> GltfPostProcessor::_pointerAnimData;
+QMap<int, QString>         GltfPostProcessor::_pointerAnimNodeNames;
+
+void GltfPostProcessor::setPointerAnimationData(
+    const QVector<GltfAnimationData>& animDataList,
+    const QMap<int, QString>& nodeIndexToName)
+{
+    _pointerAnimData      = animDataList;
+    _pointerAnimNodeNames = nodeIndexToName;
+}
+
+void GltfPostProcessor::clearPointerAnimationData()
+{
+    _pointerAnimData.clear();
+    _pointerAnimNodeNames.clear();
+}
+
 void GltfPostProcessor::setGltfCameraData(const QVector<GltfCameraEntry>& cameras)
 {
     _gltfCameras = cameras;
@@ -922,6 +939,8 @@ bool GltfPostProcessor::postProcessGltfFileWithMaterials(
     // Process with material transforms
     postProcessGltfJsonWithMaterials(gltfJson, meshes, lights, logCallback, textureSubfolder, pathMapping, embeddedIndexMapping);
     mergeOpacityIntoBaseColorTextures(gltfJson, meshes, filePath, nullptr, logCallback);
+    injectPointerAnimationChannels(gltfJson, nullptr, logCallback);
+    injectMorphWeightAnimations(gltfJson, nullptr, logCallback);
 
     doc.setObject(gltfJson);
 
@@ -1035,6 +1054,24 @@ bool GltfPostProcessor::postProcessGlbFileWithMaterials(
         binaryChunkData = glbData.mid(offset);
 
     mergeOpacityIntoBaseColorTextures(gltfJson, meshes, filePath, &binaryChunkData, logCallback);
+    qDebug() << "[GLB-POSTPROCESS] binaryChunkData.size() after mergeOpacity=" << binaryChunkData.size();
+    injectPointerAnimationChannels(gltfJson, &binaryChunkData, logCallback);
+    qDebug() << "[GLB-POSTPROCESS] binaryChunkData.size() after injectPointer=" << binaryChunkData.size();
+    injectMorphWeightAnimations(gltfJson, &binaryChunkData, logCallback);
+    qDebug() << "[GLB-POSTPROCESS] binaryChunkData.size() after injectMorph=" << binaryChunkData.size();
+
+    // If binaryChunkData was modified (new accessor data appended), the binary
+    // chunk header (first 8 bytes: chunkLength + chunkType) still holds the
+    // OLD chunk length written by Assimp.  Update the chunkLength field so that
+    // any reader that trusts the chunk header (e.g. extractJsonFromGLB) can read
+    // the full buffer, including the newly injected animation accessor data.
+    if (binaryChunkData.size() >= 8)
+    {
+        const quint32 oldChunkLen = *reinterpret_cast<const quint32*>(binaryChunkData.constData());
+        const quint32 newChunkLen = static_cast<quint32>(binaryChunkData.size() - 8);
+        qDebug() << "[GLB-POSTPROCESS] updating binary chunk header:" << oldChunkLen << "->" << newChunkLen;
+        memcpy(binaryChunkData.data(), &newChunkLen, 4);
+    }
 
     // Reconstruct GLB with modified JSON
     doc.setObject(gltfJson);
@@ -4932,5 +4969,716 @@ bool GltfPostProcessor::mergeOpacityIntoBaseColorTextures(
         *glbBinaryChunk = rebuiltChunk;
     }
 
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// injectPointerAnimationChannels
+//
+// Injects KHR_animation_pointer channels for Pointer-path animation data
+// (material texture-transform, node visibility) that Assimp's aiAnimation
+// cannot represent.  Called after the main postProcessGltfJsonWithMaterials()
+// pass when _pointerAnimData is non-empty.
+//
+// Strategy:
+//  - For each GltfAnimationClip that has hasPointerAnimations == true, find
+//    the matching animation in gltfJson["animations"] by clip name.
+//  - For each Pointer channel, write a float accessor for the time values and
+//    a float/vec2 accessor for the channel values.
+//  - Accessor data is accumulated in a single QByteArray; for glTF the buffer
+//    is embedded as a data URI; for GLB it is appended to *glbBinaryChunk and
+//    the existing buffer's byteLength is patched.
+//  - Add the sampler (input/output accessors + "STEP" interpolation) and
+//    channel (target with "pointer" path + KHR_animation_pointer extension)
+//    to the matching animation object.
+// ---------------------------------------------------------------------------
+bool GltfPostProcessor::injectPointerAnimationChannels(
+    QJsonObject& gltfJson,
+    QByteArray*  glbBinaryChunk,
+    std::function<void(const QString&)> logCallback)
+{
+    if (_pointerAnimData.isEmpty())
+        return false;
+
+    // Check if there are any Pointer channels at all.
+    bool hasAny = false;
+    for (const GltfAnimationData& ad : std::as_const(_pointerAnimData))
+        for (const GltfAnimationClip& clip : ad.clips)
+            if (clip.hasPointerAnimations)
+                for (const GltfAnimationChannel& ch : clip.channels)
+                    if (ch.targetPath == GltfAnimationTargetPath::Pointer)
+                    { hasAny = true; break; }
+    if (!hasAny)
+        return false;
+
+    // ------------------------------------------------------------------
+    // Build the binary blob for all new accessors.
+    // ------------------------------------------------------------------
+    QByteArray newBinary;
+    QJsonArray accessors  = gltfJson[QStringLiteral("accessors")].toArray();
+    QJsonArray bufferViews = gltfJson[QStringLiteral("bufferViews")].toArray();
+    QJsonArray animations = gltfJson[QStringLiteral("animations")].toArray();
+    QJsonArray buffers    = gltfJson[QStringLiteral("buffers")].toArray();
+
+    // Determine the buffer index we will append to / create.
+    // For GLB we reuse buffer 0; for gltF we will create a new buffer at the end.
+    const int bufferIndex = glbBinaryChunk ? 0
+                                           : static_cast<int>(buffers.size());
+    // Byte offset into *this* buffer where our data starts.
+    // For GLB mode: use the actual binary chunk data size (excluding the 8-byte chunk header),
+    // NOT buffers[0].byteLength. Assimp packs image data into the binary chunk BEYOND
+    // buffers[0].byteLength, so using byteLength as the base offset would place new accessor
+    // data in the middle of the image data rather than at the end of the binary chunk.
+    int byteOffsetBase = glbBinaryChunk
+                       ? (glbBinaryChunk->size() >= 8 ? glbBinaryChunk->size() - 8 : 0)
+                       : 0;
+    qDebug() << "[INJECT-POINTER] byteOffsetBase=" << byteOffsetBase
+             << "buffers[0].byteLength=" << (buffers.size() > 0 ? buffers[0].toObject()["byteLength"].toInt() : -1);
+
+    // Helper: append floats and return (bufferViewIndex, accessorIndex).
+    auto appendAccessor = [&](const QVector<float>& data,
+                              const QString& type,
+                              int componentCount) -> int
+    {
+        if (data.isEmpty())
+            return -1;
+
+        // 4-byte align start of this view.
+        while (newBinary.size() % 4 != 0)
+            newBinary.append('\0');
+
+        const int byteOffset  = byteOffsetBase + newBinary.size();
+        const int byteLength  = static_cast<int>(data.size()) * 4;
+        newBinary.append(reinterpret_cast<const char*>(data.constData()), byteLength);
+
+        QJsonObject bv;
+        bv.insert(QStringLiteral("buffer"),     bufferIndex);
+        bv.insert(QStringLiteral("byteOffset"), byteOffset);
+        bv.insert(QStringLiteral("byteLength"), byteLength);
+        const int bvIdx = static_cast<int>(bufferViews.size());
+        bufferViews.append(bv);
+
+        float minVal = data[0], maxVal = data[0];
+        for (float f : data) { minVal = std::min(minVal, f); maxVal = std::max(maxVal, f); }
+
+        QJsonObject acc;
+        acc.insert(QStringLiteral("bufferView"),    bvIdx);
+        acc.insert(QStringLiteral("byteOffset"),    0);
+        acc.insert(QStringLiteral("componentType"), 5126); // FLOAT
+        acc.insert(QStringLiteral("count"),
+                   static_cast<int>(data.size()) / componentCount);
+        acc.insert(QStringLiteral("type"),          type);
+        const int accIdx = static_cast<int>(accessors.size());
+        accessors.append(acc);
+
+        return accIdx;
+    };
+
+    // Helper: find animation by clip name.
+    auto findAnimByName = [&](const QString& name) -> int {
+        for (int i = 0; i < animations.size(); ++i)
+            if (animations[i].toObject()[QStringLiteral("name")].toString() == name)
+                return i;
+        return -1;
+    };
+
+    // Helper: resolve glTF node index from name.
+    auto nodeIndexInJson = [&](const QString& name) -> int {
+        const QJsonArray nodes = gltfJson[QStringLiteral("nodes")].toArray();
+        for (int i = 0; i < nodes.size(); ++i)
+            if (nodes[i].toObject()[QStringLiteral("name")].toString() == name)
+                return i;
+        return -1;
+    };
+
+    // Helper: convert texture target enum to the glTF JSON path segment used
+    // in KHR_animation_pointer pointer strings.
+    // Pattern: /materials/{idx}/{texSlotPath}/extensions/KHR_texture_transform/{prop}
+    auto textureTargetToJsonPath = [](GltfAnimationTextureTarget t) -> QString {
+        switch (t)
+        {
+        case GltfAnimationTextureTarget::Albedo:
+            return QStringLiteral("pbrMetallicRoughness/baseColorTexture");
+        case GltfAnimationTextureTarget::MetallicRoughness:
+            return QStringLiteral("pbrMetallicRoughness/metallicRoughnessTexture");
+        case GltfAnimationTextureTarget::Normal:
+            return QStringLiteral("normalTexture");
+        case GltfAnimationTextureTarget::Occlusion:
+            return QStringLiteral("occlusionTexture");
+        case GltfAnimationTextureTarget::Emissive:
+            return QStringLiteral("emissiveTexture");
+        case GltfAnimationTextureTarget::Transmission:
+            return QStringLiteral("extensions/KHR_materials_transmission/transmissionTexture");
+        case GltfAnimationTextureTarget::Thickness:
+            return QStringLiteral("extensions/KHR_materials_volume/thicknessTexture");
+        case GltfAnimationTextureTarget::SheenColor:
+            return QStringLiteral("extensions/KHR_materials_sheen/sheenColorTexture");
+        case GltfAnimationTextureTarget::SheenRoughness:
+            return QStringLiteral("extensions/KHR_materials_sheen/sheenRoughnessTexture");
+        case GltfAnimationTextureTarget::Clearcoat:
+            return QStringLiteral("extensions/KHR_materials_clearcoat/clearcoatTexture");
+        case GltfAnimationTextureTarget::ClearcoatRoughness:
+            return QStringLiteral("extensions/KHR_materials_clearcoat/clearcoatRoughnessTexture");
+        case GltfAnimationTextureTarget::ClearcoatNormal:
+            return QStringLiteral("extensions/KHR_materials_clearcoat/clearcoatNormalTexture");
+        case GltfAnimationTextureTarget::Iridescence:
+            return QStringLiteral("extensions/KHR_materials_iridescence/iridescenceTexture");
+        case GltfAnimationTextureTarget::IridescenceThickness:
+            return QStringLiteral("extensions/KHR_materials_iridescence/iridescenceThicknessTexture");
+        case GltfAnimationTextureTarget::SpecularFactor:
+            return QStringLiteral("extensions/KHR_materials_specular/specularTexture");
+        case GltfAnimationTextureTarget::SpecularColor:
+            return QStringLiteral("extensions/KHR_materials_specular/specularColorTexture");
+        case GltfAnimationTextureTarget::Anisotropy:
+            return QStringLiteral("extensions/KHR_materials_anisotropy/anisotropyTexture");
+        case GltfAnimationTextureTarget::DiffuseTransmission:
+            return QStringLiteral("extensions/KHR_materials_diffuse_transmission/diffuseTransmissionTexture");
+        case GltfAnimationTextureTarget::DiffuseTransmissionColor:
+            return QStringLiteral("extensions/KHR_materials_diffuse_transmission/diffuseTransmissionColorTexture");
+        case GltfAnimationTextureTarget::Diffuse:
+            return QStringLiteral("extensions/KHR_materials_pbrSpecularGlossiness/diffuseTexture");
+        case GltfAnimationTextureTarget::SpecularGlossiness:
+            return QStringLiteral("extensions/KHR_materials_pbrSpecularGlossiness/specularGlossinessTexture");
+        default:
+            return QString(); // Unknown — caller should skip
+        }
+    };
+
+    bool modified = false;
+
+    for (const GltfAnimationData& ad : std::as_const(_pointerAnimData))
+    {
+        for (const GltfAnimationClip& clip : ad.clips)
+        {
+            if (!clip.hasPointerAnimations)
+                continue;
+
+            int animIdx = findAnimByName(clip.name);
+            QJsonObject animObj;
+            if (animIdx >= 0)
+                animObj = animations[animIdx].toObject();
+            else
+            {
+                // No TRS channels were exported for this clip; create a new animation.
+                animObj.insert(QStringLiteral("name"), clip.name);
+                animIdx = static_cast<int>(animations.size());
+                animations.append(animObj);
+            }
+
+            QJsonArray samplers = animObj[QStringLiteral("samplers")].toArray();
+            QJsonArray channels = animObj[QStringLiteral("channels")].toArray();
+
+            for (const GltfAnimationChannel& ch : clip.channels)
+            {
+                if (ch.targetPath != GltfAnimationTargetPath::Pointer)
+                    continue;
+
+                // Build time values accessor.
+                QVector<float> times;
+
+                // Determine the pointer path and value accessor based on property type.
+                QString pointerPath;
+                int inputAccIdx  = -1;
+                int outputAccIdx = -1;
+
+                switch (ch.pointerProperty)
+                {
+                case GltfAnimationPointerProperty::Visibility:
+                {
+                    // /nodes/{idx}/extensions/KHR_node_visibility/visible
+                    const QString nodeName = ch.targetNodeName;
+                    const int jsonNodeIdx  = nodeIndexInJson(nodeName);
+                    if (jsonNodeIdx < 0)
+                    {
+                        log(QString("  [POINTER] Node not found: %1, skipping").arg(nodeName), logCallback);
+                        continue;
+                    }
+                    pointerPath = QString("/nodes/%1/extensions/KHR_node_visibility/visible")
+                                      .arg(jsonNodeIdx);
+
+                    for (const GltfAnimationBoolKey& k : ch.boolKeys)
+                        times.append(static_cast<float>(k.timeSeconds));
+                    inputAccIdx = appendAccessor(times, QStringLiteral("SCALAR"), 1);
+
+                    QVector<float> values;
+                    values.reserve(ch.boolKeys.size());
+                    for (const GltfAnimationBoolKey& k : ch.boolKeys)
+                        values.append(k.value ? 1.0f : 0.0f);
+                    outputAccIdx = appendAccessor(values, QStringLiteral("SCALAR"), 1);
+                    break;
+                }
+
+                case GltfAnimationPointerProperty::Offset:
+                {
+                    // /materials/{matIdx}/{texSlot}/extensions/KHR_texture_transform/offset
+                    if (ch.targetMaterialIndex < 0)
+                        continue;
+                    const QString texSlotOff = textureTargetToJsonPath(ch.textureTarget);
+                    if (texSlotOff.isEmpty())
+                        continue;
+                    pointerPath = QString(
+                        "/materials/%1/%2/extensions/KHR_texture_transform/offset")
+                            .arg(ch.targetMaterialIndex).arg(texSlotOff);
+
+                    for (const GltfAnimationVec2Key& k : ch.vec2Keys)
+                        times.append(static_cast<float>(k.timeSeconds));
+                    inputAccIdx = appendAccessor(times, QStringLiteral("SCALAR"), 1);
+
+                    QVector<float> values;
+                    values.reserve(ch.vec2Keys.size() * 2);
+                    for (const GltfAnimationVec2Key& k : ch.vec2Keys)
+                    { values.append(k.value.x()); values.append(k.value.y()); }
+                    outputAccIdx = appendAccessor(values, QStringLiteral("VEC2"), 2);
+                    break;
+                }
+
+                case GltfAnimationPointerProperty::Scale:
+                {
+                    if (ch.targetMaterialIndex < 0)
+                        continue;
+                    const QString texSlotScale = textureTargetToJsonPath(ch.textureTarget);
+                    if (texSlotScale.isEmpty())
+                        continue;
+                    pointerPath = QString(
+                        "/materials/%1/%2/extensions/KHR_texture_transform/scale")
+                            .arg(ch.targetMaterialIndex).arg(texSlotScale);
+
+                    for (const GltfAnimationVec2Key& k : ch.vec2Keys)
+                        times.append(static_cast<float>(k.timeSeconds));
+                    inputAccIdx = appendAccessor(times, QStringLiteral("SCALAR"), 1);
+
+                    QVector<float> values;
+                    values.reserve(ch.vec2Keys.size() * 2);
+                    for (const GltfAnimationVec2Key& k : ch.vec2Keys)
+                    { values.append(k.value.x()); values.append(k.value.y()); }
+                    outputAccIdx = appendAccessor(values, QStringLiteral("VEC2"), 2);
+                    break;
+                }
+
+                case GltfAnimationPointerProperty::Rotation:
+                {
+                    if (ch.targetMaterialIndex < 0)
+                        continue;
+                    const QString texSlotRot = textureTargetToJsonPath(ch.textureTarget);
+                    if (texSlotRot.isEmpty())
+                        continue;
+                    pointerPath = QString(
+                        "/materials/%1/%2/extensions/KHR_texture_transform/rotation")
+                            .arg(ch.targetMaterialIndex).arg(texSlotRot);
+
+                    for (const GltfAnimationFloatKey& k : ch.floatKeys)
+                        times.append(static_cast<float>(k.timeSeconds));
+                    inputAccIdx = appendAccessor(times, QStringLiteral("SCALAR"), 1);
+
+                    QVector<float> values;
+                    values.reserve(ch.floatKeys.size());
+                    for (const GltfAnimationFloatKey& k : ch.floatKeys)
+                        values.append(k.value);
+                    outputAccIdx = appendAccessor(values, QStringLiteral("SCALAR"), 1);
+                    break;
+                }
+
+                case GltfAnimationPointerProperty::BaseColorFactor:
+                {
+                    if (ch.targetMaterialIndex < 0)
+                        continue;
+                    pointerPath = QString(
+                        "/materials/%1/pbrMetallicRoughness/baseColorFactor")
+                            .arg(ch.targetMaterialIndex);
+
+                    for (const GltfAnimationVec4Key& k : ch.vec4Keys)
+                        times.append(static_cast<float>(k.timeSeconds));
+                    inputAccIdx = appendAccessor(times, QStringLiteral("SCALAR"), 1);
+
+                    QVector<float> values;
+                    values.reserve(ch.vec4Keys.size() * 4);
+                    for (const GltfAnimationVec4Key& k : ch.vec4Keys)
+                    {
+                        values.append(k.value.x()); values.append(k.value.y());
+                        values.append(k.value.z()); values.append(k.value.w());
+                    }
+                    outputAccIdx = appendAccessor(values, QStringLiteral("VEC4"), 4);
+                    break;
+                }
+
+                default:
+                    continue; // Unsupported pointer property; skip.
+                }
+
+                if (inputAccIdx < 0 || outputAccIdx < 0 || pointerPath.isEmpty())
+                    continue;
+
+                // Add sampler (STEP interpolation for all pointer animations).
+                QJsonObject sampler;
+                sampler.insert(QStringLiteral("input"),         inputAccIdx);
+                sampler.insert(QStringLiteral("output"),        outputAccIdx);
+                sampler.insert(QStringLiteral("interpolation"), QStringLiteral("STEP"));
+                const int samplerIdx = static_cast<int>(samplers.size());
+                samplers.append(sampler);
+
+                // Add channel with KHR_animation_pointer target extension.
+                QJsonObject pointerExt;
+                pointerExt.insert(QStringLiteral("pointer"), pointerPath);
+
+                QJsonObject extensions;
+                extensions.insert(QStringLiteral("KHR_animation_pointer"), pointerExt);
+
+                QJsonObject target;
+                target.insert(QStringLiteral("path"),       QStringLiteral("pointer"));
+                target.insert(QStringLiteral("extensions"), extensions);
+
+                QJsonObject channel;
+                channel.insert(QStringLiteral("sampler"), samplerIdx);
+                channel.insert(QStringLiteral("target"),  target);
+                channels.append(channel);
+
+                log(QString("  [POINTER] Injected channel: %1").arg(pointerPath), logCallback);
+                modified = true;
+            }
+
+            if (modified)
+            {
+                animObj[QStringLiteral("samplers")] = samplers;
+                animObj[QStringLiteral("channels")] = channels;
+                animations[animIdx] = animObj;
+            }
+        }
+    }
+
+    qDebug() << "[INJECT-POINTER] modified=" << modified
+             << "newBinary.size()=" << newBinary.size()
+             << "glbBinaryChunk=" << (glbBinaryChunk ? "yes" : "null");
+    if (!modified || newBinary.isEmpty())
+        return modified;
+
+    // Write the new binary data.
+    if (glbBinaryChunk)
+    {
+        // Append to GLB binary chunk and update buffer 0 byteLength.
+        // Set byteLength to byteOffsetBase + newBinary.size() (= actual end of all data)
+        // rather than oldLen + newBinary.size(), because Assimp embeds image data in the
+        // binary chunk beyond the declared byteLength, so the real data end is byteOffsetBase.
+        QJsonObject buf0 = buffers[0].toObject();
+        buf0[QStringLiteral("byteLength")] = byteOffsetBase + static_cast<int>(newBinary.size());
+        buffers[0] = buf0;
+
+        glbBinaryChunk->append(newBinary);
+    }
+    else
+    {
+        // Embed as a new buffer with a data URI.
+        QJsonObject newBuf;
+        newBuf.insert(QStringLiteral("byteLength"), newBinary.size());
+        newBuf.insert(QStringLiteral("uri"),
+                      QStringLiteral("data:application/octet-stream;base64,") +
+                      QString::fromLatin1(newBinary.toBase64()));
+        buffers.append(newBuf);
+    }
+
+    gltfJson[QStringLiteral("accessors")]   = accessors;
+    gltfJson[QStringLiteral("bufferViews")] = bufferViews;
+    gltfJson[QStringLiteral("animations")]  = animations;
+    gltfJson[QStringLiteral("buffers")]     = buffers;
+
+    // Ensure required extensions are listed.
+    auto addExtension = [&](const QString& ext, bool required) {
+        const QString key = required ? QStringLiteral("extensionsRequired")
+                                     : QStringLiteral("extensionsUsed");
+        QJsonArray arr = gltfJson[key].toArray();
+        bool found = false;
+        for (const QJsonValue& v : std::as_const(arr))
+            if (v.toString() == ext) { found = true; break; }
+        if (!found)
+        {
+            arr.append(ext);
+            gltfJson[key] = arr;
+        }
+    };
+    addExtension(QStringLiteral("KHR_animation_pointer"), false);
+    addExtension(QStringLiteral("KHR_node_visibility"),   false);
+
+    log(QStringLiteral("  [POINTER] Injected pointer animation channels"), logCallback);
+    return true;
+}
+
+// ---------------------------------------------------------------------------
+// injectMorphWeightAnimations
+//
+// Injects standard glTF2 "weights" animation channels for morph-target blend
+// shapes.  Assimp's glTF2 exporter may not write aiMeshMorphAnim channels
+// reliably across versions, so we inject them here instead.
+//
+// Strategy:
+//  - For each GltfAnimationClip that has hasMorphAnimations == true, find
+//    (or create) the matching animation in gltfJson["animations"] by clip name.
+//  - For each Weights channel, write a float accessor for the time values and
+//    a flat float accessor for the packed weight values
+//    (all morph weights at t0, then all at t1, ...).
+//  - Find the target node in the exported nodes array by name.
+//  - Skip injection if a "weights" channel targeting the same node already
+//    exists (prevents duplication when Assimp also wrote it).
+// ---------------------------------------------------------------------------
+bool GltfPostProcessor::injectMorphWeightAnimations(
+    QJsonObject& gltfJson,
+    QByteArray*  glbBinaryChunk,
+    std::function<void(const QString&)> logCallback)
+{
+    // Check whether there are any morph weight channels to inject.
+    bool hasAny = false;
+    for (const GltfAnimationData& ad : std::as_const(_pointerAnimData))
+        for (const GltfAnimationClip& clip : ad.clips)
+            if (clip.hasMorphAnimations)
+                for (const GltfAnimationChannel& ch : clip.channels)
+                    if (ch.targetPath == GltfAnimationTargetPath::Weights && !ch.weightKeys.isEmpty())
+                    { hasAny = true; break; }
+    if (!hasAny)
+        return false;
+
+    QByteArray newBinary;
+    QJsonArray accessors   = gltfJson[QStringLiteral("accessors")].toArray();
+    QJsonArray bufferViews = gltfJson[QStringLiteral("bufferViews")].toArray();
+    QJsonArray animations  = gltfJson[QStringLiteral("animations")].toArray();
+    QJsonArray buffers     = gltfJson[QStringLiteral("buffers")].toArray();
+
+    const int bufferIndex = glbBinaryChunk ? 0 : static_cast<int>(buffers.size());
+
+    // For GLB: base offset = actual binary chunk data size (exclude 8-byte header).
+    // Same approach as injectPointerAnimationChannels.
+    int byteOffsetBase = glbBinaryChunk
+                       ? (glbBinaryChunk->size() >= 8 ? glbBinaryChunk->size() - 8 : 0)
+                       : 0;
+
+    // Helper: append float array and return accessor index.
+    auto appendFloatAccessor = [&](const QVector<float>& data,
+                                   const QString& type,
+                                   int componentCount) -> int
+    {
+        if (data.isEmpty())
+            return -1;
+
+        while (newBinary.size() % 4 != 0)
+            newBinary.append('\0');
+
+        const int byteOffset = byteOffsetBase + newBinary.size();
+        const int byteLength = static_cast<int>(data.size()) * 4;
+        newBinary.append(reinterpret_cast<const char*>(data.constData()), byteLength);
+
+        QJsonObject bv;
+        bv.insert(QStringLiteral("buffer"),     bufferIndex);
+        bv.insert(QStringLiteral("byteOffset"), byteOffset);
+        bv.insert(QStringLiteral("byteLength"), byteLength);
+        const int bvIdx = static_cast<int>(bufferViews.size());
+        bufferViews.append(bv);
+
+        QJsonObject acc;
+        acc.insert(QStringLiteral("bufferView"),    bvIdx);
+        acc.insert(QStringLiteral("byteOffset"),    0);
+        acc.insert(QStringLiteral("componentType"), 5126); // FLOAT
+        acc.insert(QStringLiteral("count"),         static_cast<int>(data.size()) / componentCount);
+        acc.insert(QStringLiteral("type"),          type);
+        const int accIdx = static_cast<int>(accessors.size());
+        accessors.append(acc);
+        return accIdx;
+    };
+
+    // Helper: find animation by clip name.
+    auto findAnimByName = [&](const QString& name) -> int {
+        for (int i = 0; i < animations.size(); ++i)
+            if (animations[i].toObject()[QStringLiteral("name")].toString() == name)
+                return i;
+        return -1;
+    };
+
+    // Helper: resolve glTF node index from name.
+    auto nodeIndexInJson = [&](const QString& name) -> int {
+        const QJsonArray nodes = gltfJson[QStringLiteral("nodes")].toArray();
+        for (int i = 0; i < nodes.size(); ++i)
+            if (nodes[i].toObject()[QStringLiteral("name")].toString() == name)
+                return i;
+        return -1;
+    };
+
+    // Helper: check if the animation already has a "weights" channel for nodeIdx.
+    auto hasWeightsChannel = [&](const QJsonObject& animObj, int nodeIdx) -> bool {
+        const QJsonArray channels = animObj[QStringLiteral("channels")].toArray();
+        for (const QJsonValue& cv : channels)
+        {
+            const QJsonObject ch = cv.toObject();
+            const QJsonObject tgt = ch[QStringLiteral("target")].toObject();
+            if (tgt[QStringLiteral("path")].toString() == QLatin1String("weights") &&
+                tgt[QStringLiteral("node")].toInt(-1) == nodeIdx)
+                return true;
+        }
+        return false;
+    };
+
+    bool modified = false;
+
+    for (const GltfAnimationData& ad : std::as_const(_pointerAnimData))
+    {
+        for (const GltfAnimationClip& clip : ad.clips)
+        {
+            if (!clip.hasMorphAnimations)
+                continue;
+
+            int animIdx = findAnimByName(clip.name);
+            QJsonObject animObj;
+            if (animIdx >= 0)
+                animObj = animations[animIdx].toObject();
+            else
+            {
+                // No animation yet for this clip — create one.
+                animObj.insert(QStringLiteral("name"), clip.name);
+                animObj.insert(QStringLiteral("samplers"), QJsonArray());
+                animObj.insert(QStringLiteral("channels"), QJsonArray());
+            }
+
+            QJsonArray samplers = animObj[QStringLiteral("samplers")].toArray();
+            QJsonArray channels = animObj[QStringLiteral("channels")].toArray();
+
+            for (const GltfAnimationChannel& ch : clip.channels)
+            {
+                if (ch.targetPath != GltfAnimationTargetPath::Weights)
+                    continue;
+                if (ch.weightKeys.isEmpty())
+                    continue;
+
+                const int nodeIdx = nodeIndexInJson(ch.targetNodeName);
+                if (nodeIdx < 0)
+                {
+                    log(QStringLiteral("  [MORPH] Node '%1' not found in exported JSON — skipping")
+                        .arg(ch.targetNodeName), logCallback);
+                    continue;
+                }
+
+                // Skip if Assimp already wrote a "weights" channel for this node.
+                if (hasWeightsChannel(animObj, nodeIdx))
+                {
+                    log(QStringLiteral("  [MORPH] 'weights' channel for node '%1' already present — skipping injection")
+                        .arg(ch.targetNodeName), logCallback);
+                    continue;
+                }
+
+                // Build time values array.
+                QVector<float> times;
+                times.reserve(ch.weightKeys.size());
+                for (const GltfAnimationWeightsKey& wk : ch.weightKeys)
+                    times.append(static_cast<float>(wk.timeSeconds));
+
+                // Build packed weights array: [w0t0, w1t0, ..., w0t1, w1t1, ...].
+                const int numTargets = ch.weightKeys.isEmpty() ? 0 : ch.weightKeys[0].values.size();
+                QVector<float> weights;
+                weights.reserve(ch.weightKeys.size() * numTargets);
+                for (const GltfAnimationWeightsKey& wk : ch.weightKeys)
+                    for (float w : wk.values)
+                        weights.append(w);
+
+                if (times.isEmpty() || weights.isEmpty())
+                    continue;
+
+                // Compute min/max for input accessor.
+                float tMin = times.front(), tMax = times.back();
+
+                // Input accessor (time).
+                while (newBinary.size() % 4 != 0)
+                    newBinary.append('\0');
+                const int tByteOffset = byteOffsetBase + newBinary.size();
+                const int tByteLen    = times.size() * 4;
+                newBinary.append(reinterpret_cast<const char*>(times.constData()), tByteLen);
+
+                QJsonObject tBv;
+                tBv.insert(QStringLiteral("buffer"),     bufferIndex);
+                tBv.insert(QStringLiteral("byteOffset"), tByteOffset);
+                tBv.insert(QStringLiteral("byteLength"), tByteLen);
+                const int tBvIdx = static_cast<int>(bufferViews.size());
+                bufferViews.append(tBv);
+
+                QJsonObject tAcc;
+                tAcc.insert(QStringLiteral("bufferView"),    tBvIdx);
+                tAcc.insert(QStringLiteral("byteOffset"),    0);
+                tAcc.insert(QStringLiteral("componentType"), 5126);
+                tAcc.insert(QStringLiteral("count"),         times.size());
+                tAcc.insert(QStringLiteral("type"),          QStringLiteral("SCALAR"));
+                tAcc.insert(QStringLiteral("min"),           QJsonArray{static_cast<double>(tMin)});
+                tAcc.insert(QStringLiteral("max"),           QJsonArray{static_cast<double>(tMax)});
+                const int tAccIdx = static_cast<int>(accessors.size());
+                accessors.append(tAcc);
+
+                // Output accessor (packed weights).
+                const int wAccIdx = appendFloatAccessor(weights, QStringLiteral("SCALAR"), 1);
+
+                // Sampler.
+                QJsonObject sampler;
+                sampler.insert(QStringLiteral("input"),         tAccIdx);
+                sampler.insert(QStringLiteral("output"),        wAccIdx);
+                sampler.insert(QStringLiteral("interpolation"), QStringLiteral("LINEAR"));
+                const int samplerIdx = static_cast<int>(samplers.size());
+                samplers.append(sampler);
+
+                // Channel.
+                QJsonObject target;
+                target.insert(QStringLiteral("node"), nodeIdx);
+                target.insert(QStringLiteral("path"), QStringLiteral("weights"));
+                QJsonObject channel;
+                channel.insert(QStringLiteral("sampler"), samplerIdx);
+                channel.insert(QStringLiteral("target"),  target);
+                channels.append(channel);
+
+                modified = true;
+                log(QStringLiteral("  [MORPH] Injected 'weights' channel for node '%1' (%2 keys, %3 targets)")
+                    .arg(ch.targetNodeName).arg(times.size()).arg(numTargets), logCallback);
+            }
+
+            animObj[QStringLiteral("samplers")] = samplers;
+            animObj[QStringLiteral("channels")] = channels;
+
+            if (animIdx >= 0)
+                animations[animIdx] = animObj;
+            else
+                animations.append(animObj);
+        }
+    }
+
+    if (!modified)
+        return false;
+
+    if (!modified || newBinary.isEmpty())
+    {
+        // Even if no new binary was written, still update the JSON arrays
+        // so that any animation objects created above are written.
+        gltfJson[QStringLiteral("animations")] = animations;
+        return modified;
+    }
+
+    // Append new binary data to the GLB binary chunk or create a gltF buffer.
+    // Same pattern as injectPointerAnimationChannels: simple append, no header rebuild.
+    if (glbBinaryChunk)
+    {
+        // Update buffers[0].byteLength: base + new data size.
+        if (!buffers.isEmpty())
+        {
+            QJsonObject buf0 = buffers[0].toObject();
+            buf0[QStringLiteral("byteLength")] = byteOffsetBase + static_cast<int>(newBinary.size());
+            buffers[0] = buf0;
+        }
+        glbBinaryChunk->append(newBinary);
+    }
+    else
+    {
+        // gltF: embed as data URI.
+        QJsonObject buf;
+        buf.insert(QStringLiteral("byteLength"), static_cast<int>(newBinary.size()));
+        buf.insert(QStringLiteral("uri"),
+                   QStringLiteral("data:application/octet-stream;base64,")
+                   + QString::fromLatin1(newBinary.toBase64()));
+        buffers.append(buf);
+    }
+
+    gltfJson[QStringLiteral("accessors")]   = accessors;
+    gltfJson[QStringLiteral("bufferViews")] = bufferViews;
+    gltfJson[QStringLiteral("animations")]  = animations;
+    gltfJson[QStringLiteral("buffers")]     = buffers;
+
+    log(QStringLiteral("  [MORPH] Injected morph weight animation channels"), logCallback);
     return true;
 }

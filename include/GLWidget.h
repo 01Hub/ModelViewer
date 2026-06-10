@@ -320,6 +320,12 @@ public:
 		                                           : _currentRepositionedLights;
 	}
 
+	// Maps flat index i in _originalParsedLights / _currentRepositionedLights to
+	// { sourceFile, lightIndex } in SceneGraph::_lightDataByFile.
+	// Public so MVF serialisation in ModelViewer can build per-file light sections.
+	struct LightOrigin { QString file; int index; };
+	QVector<LightOrigin> getLightFileIndexMap() const { return _lightFileIndexMap; }
+
 	float getFloorSize() const { return _floorSize; }
 
 	bool isShaded() const;
@@ -400,6 +406,7 @@ public:
 	bool isSkyBoxHDRIEnabled() const { return _skyBoxTextureHDRI; }
 	int getSkyBoxBlurPercent() const { return _skyBoxBlurPercent; }
 	float getSkyBoxFOV() const { return _skyBoxFOV; }
+	float getPerspFOV()  const { return _FOV; }
 	float getSkyBoxZRotationDegrees() const { return _skyBoxZRotation; }
 	bool areReflectionsEnabled() const { return _reflectionsEnabled; }
 	bool isFloorTextureShown() const { return _floorTextureDisplayed; }
@@ -451,6 +458,11 @@ public:
 		std::vector<Vertex>       vertices;
 		std::vector<unsigned int> indices;
 		GLMaterial   material;
+		QVector<GltfSkinJoint>   skinJoints;  ///< Skeleton joints for skinned meshes
+
+		// Morph targets (blend shapes) — position/normal/tangent deltas.
+		QVector<MorphTargetData> morphTargets;
+		QVector<float>           defaultMorphWeights;
 
 		// Per-mesh user transform (gizmo TRS).  Non-identity when the user has moved,
 		// rotated, or scaled the mesh via the gizmo.  Applied by uploadPreparedMvfMeshes
@@ -559,6 +571,7 @@ public slots:
 	void setFloorTexRepeatT(double floorTexRepeatT);
 	void setFloorOffsetPercent(double value);
 	void setSkyBoxFOV(double fov);
+	void setPerspFOV(int fovDegrees);
 	void setSkyBoxZRotation(int index);
 	void setSkyBoxTextureHDRI(bool hdrSet);
 	void enableHDRToneMapping(bool hdrToneMapping);
@@ -1314,7 +1327,6 @@ private:
 	// → { sourceFile, lightIndex } in SceneGraph::_lightDataByFile.
 	// Used by updatePunctualLights() to honour per-light enabled flags without
 	// re-uploading ALL lights and discarding the user's checkbox state.
-	struct LightOrigin { QString file; int index; };
 	QVector<LightOrigin> _lightFileIndexMap;
 	float _originalBoundingRadius = 1.0f;
 	QString _animatedLightTransformSourceFile;

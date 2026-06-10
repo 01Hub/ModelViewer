@@ -2688,10 +2688,13 @@ void GLWidget::performWindowZoom()
 			const QVector3D target = _primaryCamera->getPosition();
 			const QVector3D viewDir = _primaryCamera->getViewDir().normalized();
 			const float dc = QVector3D::dotProduct(P - target, viewDir);
-			const float anchorDistanceOld = distanceOld - dc;
+			// eye-to-P depth along viewDir = distanceOld + dc.
+			// After zoom, we want the new eye-to-P = (distanceOld + dc) / ratio.
+			// With D_new + dc = (distanceOld + dc) / ratio  →  D_new = anchor/ratio - dc.
+			const float anchorDistanceOld = distanceOld + dc;
 			if (anchorDistanceOld > 0.0f)
 			{
-				const float newDistance = anchorDistanceOld / _rubberBandZoomRatio + dc;
+				const float newDistance = anchorDistanceOld / _rubberBandZoomRatio - dc;
 				if (newDistance > 0.0f)
 				{
 					const float distanceFactor = distanceOld / _currentViewRange;
@@ -2713,13 +2716,10 @@ void GLWidget::performWindowZoom()
 			_rubberBandZoomRatio = 8.0f + (_rubberBandZoomRatio - 8.0f) * 0.4f;
 	}
 
-	const float targetViewRange = (_rubberBandZoomRatio > 0.0f)
-		? (_currentViewRange / _rubberBandZoomRatio)
-		: _currentViewRange;
-	const float panScale = (_currentViewRange > 0.0f)
-		? (1.0f - targetViewRange / _currentViewRange)
-		: 0.0f;
-	_rubberBandPan = (P - O) * panScale;
+	// Compute the pan that brings the rubber-band centre to screen centre.
+	// Both P and O are unprojected at the same depthZ, so (P - O) is already
+	// perpendicular to viewDir — no depth stripping is needed.
+	_rubberBandPan = P - O;
 
 	if (!_animateWindowZoomTimer->isActive())
 	{
@@ -4767,15 +4767,14 @@ void GLWidget::applyTransforms(const QMap<int, TransformState>& transforms, bool
 		if (_activeGltfCameraIndex >= 0 && _activeGltfCameraIndex < camData.cameras.size())
 		{
 			const GltfCameraEntry& cam = camData.cameras[_activeGltfCameraIndex];
+			// Always apply the static transform first; then let applyAnimationPose
+			// override it for animated cameras (same logic as activateGltfCamera).
+			applyGltfCameraEntryTransform(cam);
 			const bool animationOwnsThisFile =
 				_activeAnimationFile == _activeGltfCameraFile && _activeAnimationClip >= 0;
 			if (animationOwnsThisFile)
 			{
 				applyAnimationPose(_activeAnimationFile, _activeAnimationClip, _animationCurrentTimeSeconds);
-			}
-			else
-			{
-				applyGltfCameraEntryTransform(cam);
 			}
 		}
 	}
@@ -8948,7 +8947,7 @@ void GLWidget::drawLights()
 	_lightCube->setSceneRenderTransformFast(model);
 	_lightCube->render();
 
-	// Draw punctual lights
+	// Draw punctual lights — only those whose enabled flag is set (tree checkbox AND Show Lights).
 	if (!_currentRepositionedLights.empty())
 	{
 		const float sceneRadius = std::max(_boundingSphere.getRadius(), 0.001f);
@@ -8959,14 +8958,35 @@ void GLWidget::drawLights()
 		const float directionalScale = pointSpotScale * 0.75f;
 		const QVector3D sceneCenter = _boundingSphere.getCenter();
 
-		for (const auto& light : _currentRepositionedLights)
-		{
-			// === Apply intensity with log scale ===
-			float normalizedIntensity = std::log10(light.intensity + 1.0f);
-			normalizedIntensity = std::min(normalizedIntensity, 3.0f);
+		// Build a fast enabled-lookup from the scene graph (same path used by the GPU upload).
+		// Falls back to "all enabled" when the map is absent (legacy/MVF path).
+		SceneGraph* sg = (_viewer ? _viewer->sceneGraph() : nullptr);
+		const bool hasEnabledMap = sg && !_lightFileIndexMap.isEmpty()
+		    && static_cast<int>(_currentRepositionedLights.size()) == _lightFileIndexMap.size();
 
-			// Multiply color * intensity in C++
-			glm::vec3 emissiveColor = light.color * normalizedIntensity;
+		for (int lightIdx = 0; lightIdx < static_cast<int>(_currentRepositionedLights.size()); ++lightIdx)
+		{
+			// Respect per-light enabled flag — disabled lights have no gizmo.
+			if (hasEnabledMap)
+			{
+				const LightOrigin& origin = _lightFileIndexMap[lightIdx];
+				const GltfLightData& ld   = sg->lightDataForFile(origin.file);
+				if (origin.index >= static_cast<int>(ld.lights.size()) || !ld.lights[origin.index].enabled)
+					continue;
+			}
+
+			const GPULight& light = _currentRepositionedLights[lightIdx];
+
+			// Map intensity logarithmically to [0.3, 1.0] so gizmos are always visible
+			// (even at intensity=0) while brighter lights appear more luminous.
+			// log10(intensity + 1) / 3  maps  0 → 0,  100 → 0.67,  999 → 1.0
+			const float logVal            = std::log10(light.intensity + 1.0f) / 3.0f;
+			const float displayBrightness = 0.3f + 0.7f * std::min(logVal, 1.0f);
+
+			// Emission colour: the light's own colour modulated by display brightness.
+			const QVector3D emissiveColor(light.color.x * displayBrightness,
+			                              light.color.y * displayBrightness,
+			                              light.color.z * displayBrightness);
 
 			QMatrix4x4 lightModel;
 			const LightType lightType = static_cast<LightType>(light.type);
@@ -8995,10 +9015,9 @@ void GLWidget::drawLights()
 			_lightCubeShader->setProperty("viewMatrix", QVariant::fromValue(viewMat));
 			_lightCubeShader->setUniformValue("viewMatrix", viewMat);
 			_lightCubeShader->setUniformValue("projectionMatrix", _projectionMatrix);
-			_lightCubeShader->setUniformValue("lightColor",
-				QVector3D(light.color.x, light.color.y, light.color.z));
-			_lightCubeShader->setUniformValue("intensity", normalizedIntensity);
-			_lightCubeShader->setUniformValue("intensityScale", 1.0f);  // Tune brightness
+			_lightCubeShader->setUniformValue("lightColor", emissiveColor);
+			_lightCubeShader->setUniformValue("intensity", 1.0f);
+			_lightCubeShader->setUniformValue("intensityScale", 1.0f);
 
 			if (lightType == LightType::Directional)
 			{
@@ -9962,8 +9981,23 @@ void GLWidget::syncFileNodeTransforms(const QString& sourceFile)
 			{
 				if (evaluatedWorlds.meshWorldByUuid.contains(uuid))
 					mesh->setSceneRenderTransform(evaluatedWorlds.meshWorldByUuid.value(uuid));
-				if (mesh->hasMorphTargets() && !runtime.defaultNodeMorphWeightsByUuid.contains(node->nodeUuid))
-					runtime.defaultNodeMorphWeightsByUuid.insert(node->nodeUuid, mesh->defaultMorphWeights());
+				if (mesh->hasMorphTargets())
+				{
+					// Assimp appends "_node" to mesh-owning nodes when re-importing a glTF/GLB
+					// whose node name matches its mesh name (e.g. "AnimatedMorphCube" → child
+					// "AnimatedMorphCube_node" owns the mesh).  The morph-weight animation
+					// targets the PARENT ("AnimatedMorphCube") in the JSON.  Use the parent
+					// UUID so that the animation lookup resolves correctly.
+					const SceneNode* morphNode = node;
+					if (node->parent
+					    && node->name.endsWith(QStringLiteral("_node"))
+					    && node->parent->name == node->name.left(node->name.length() - 5))
+					{
+						morphNode = node->parent;
+					}
+					if (!runtime.defaultNodeMorphWeightsByUuid.contains(morphNode->nodeUuid))
+						runtime.defaultNodeMorphWeightsByUuid.insert(morphNode->nodeUuid, mesh->defaultMorphWeights());
+				}
 				runtime.defaultMeshMaterials.insert(uuid, mesh->getMaterial());
 				if (mesh->getOriginalMaterialIndex() >= 0)
 					runtime.meshUuidsByMaterialIndex.insert(mesh->getOriginalMaterialIndex(), uuid);
@@ -10073,15 +10107,22 @@ void GLWidget::activateGltfCamera(const QString& sourceFile, int cameraIndex)
 	_activeGltfCameraFile  = sourceFile;
 	_activeGltfCameraIndex = cameraIndex;
 
+	// Always apply the static camera position/FOV from the parsed glTF camera
+	// entry.  This handles the common case of cameras with no animation
+	// (e.g. AnimationPointerUVs, where cameras have static matrix transforms
+	// but are not targeted by any animation channel).
+	applyGltfCameraEntryTransform(cam);
+
+	// If an animation clip is active for this file, re-run applyAnimationPose
+	// so that animated cameras (e.g. DiffuseTransmissionPlant) get overridden
+	// by the animation's worldTransforms.  For static (non-animated) cameras,
+	// applyAnimationPose's worldTransformsByNodeUuid won't contain the camera
+	// node UUID and the view set above is preserved unchanged.
 	const bool animationOwnsThisFile =
 		_activeAnimationFile == sourceFile && _activeAnimationClip >= 0;
 	if (animationOwnsThisFile)
 	{
 		applyAnimationPose(sourceFile, _activeAnimationClip, _animationCurrentTimeSeconds);
-	}
-	else
-	{
-		applyGltfCameraEntryTransform(cam);
 	}
 
 	update();
@@ -10634,9 +10675,25 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 			continue;
 
 		const SceneNode* ownerNode = _viewer->sceneGraph()->findNodeForMesh(mesh->uuid());
-		const QVector<float> weights = ownerNode
-			? sampledMorphWeightsByUuid.value(ownerNode->nodeUuid)
-			: QVector<float>();
+		if (!ownerNode)
+		{
+			mesh->resetMorphTargets();
+			continue;
+		}
+
+		// Assimp appends "_node" to mesh-owning nodes on glTF/GLB re-import when the
+		// node name matches the mesh name (e.g. node "AnimatedMorphCube" becomes a
+		// parent and "AnimatedMorphCube_node" is the actual mesh-owning child).
+		// The morph-weight animation channel targets the parent, so resolve via
+		// the same parent-node logic used in defaultNodeMorphWeightsByUuid init.
+		const SceneNode* lookupNode = ownerNode;
+		if (ownerNode->parent
+		    && ownerNode->name.endsWith(QStringLiteral("_node"))
+		    && ownerNode->parent->name == ownerNode->name.left(ownerNode->name.length() - 5))
+		{
+			lookupNode = ownerNode->parent;
+		}
+		const QVector<float> weights = sampledMorphWeightsByUuid.value(lookupNode->nodeUuid);
 		if (!weights.isEmpty())
 			mesh->applyMorphWeights(weights);
 		else
@@ -13638,10 +13695,17 @@ float GLWidget::computeFitViewRange(const std::vector<QVector3D>& corners,
 		viewRange = maxReq / shiftFactor * margin;
 	}
 
-	// For rounded/spherical geometry the AABB corners project much further than
-	// the actual silhouette.  The bounding sphere provides a tighter bound.
-	const float sphereViewRange = _boundingSphere.getRadius() * 2.0f * margin;
-	return std::max(std::min(viewRange, sphereViewRange), 0.0001f);
+	// For ortho, apply a bounding-sphere clamp: the AABB corners of a rounded
+	// object project further than the silhouette, and the sphere gives a tighter
+	// bound.  For perspective the AABB loop already accounts for depth (near-side
+	// corners increase maxReq), so a sphere clamp would incorrectly cut viewRange
+	// at large FOV where near-side corners dominate.  Skip the clamp for perspective.
+	if (_projection == ViewProjection::ORTHOGRAPHIC)
+	{
+		const float sphereViewRange = _boundingSphere.getRadius() * 2.0f * margin;
+		viewRange = std::min(viewRange, sphereViewRange);
+	}
+	return std::max(viewRange, 0.0001f);
 }
 
 // Improved approach based on rubberband zoom technique
@@ -13959,6 +14023,14 @@ void GLWidget::setFloorOffsetPercent(double value)
 void GLWidget::setSkyBoxFOV(double fov)
 {
 	_skyBoxFOV = static_cast<float>(fov);
+	update();
+}
+
+void GLWidget::setPerspFOV(int fovDegrees)
+{
+	_FOV = static_cast<float>(qBound(1, fovDegrees, 179));
+	_primaryCamera->setFOV(_FOV);
+	resizeGL(width(), height());
 	update();
 }
 
@@ -14741,6 +14813,10 @@ QVector<GLWidget::PreparedMvfMesh> GLWidget::prepareMvfMeshes(
             document.bufferViews, attribs[QStringLiteral("TEXCOORD_3")].toInt(-1));
         const std::vector<float> colors   = readFloatStream(geometryChunk, document.accessors,
             document.bufferViews, attribs[QStringLiteral("COLOR_0")].toInt(-1));
+        const std::vector<float> joints0  = readFloatStream(geometryChunk, document.accessors,
+            document.bufferViews, attribs[QStringLiteral("JOINTS_0")].toInt(-1));
+        const std::vector<float> weights0 = readFloatStream(geometryChunk, document.accessors,
+            document.bufferViews, attribs[QStringLiteral("WEIGHTS_0")].toInt(-1));
 
         const size_t vertexCount = positions.size() / 3;
         std::vector<Vertex> vertices(vertexCount);
@@ -14781,6 +14857,11 @@ QVector<GLWidget::PreparedMvfMesh> GLWidget::prepareMvfMeshes(
             v.Color = colors.size() >= vi*4+4
                       ? glm::vec4(colors[vi*4], colors[vi*4+1], colors[vi*4+2], colors[vi*4+3])
                       : glm::vec4(1.0f);
+
+            if (joints0.size() >= vi*4+4)
+                v.JointIndices = glm::vec4(joints0[vi*4], joints0[vi*4+1], joints0[vi*4+2], joints0[vi*4+3]);
+            if (weights0.size() >= vi*4+4)
+                v.JointWeights = glm::vec4(weights0[vi*4], weights0[vi*4+1], weights0[vi*4+2], weights0[vi*4+3]);
         }
 
         const bool hasNormals = normals.size() >= vertexCount * 3;
@@ -14813,6 +14894,29 @@ QVector<GLWidget::PreparedMvfMesh> GLWidget::prepareMvfMeshes(
         prepared.vertices      = std::move(vertices);
         prepared.indices       = std::move(indices);
         prepared.material      = std::move(material);
+
+        // Restore skin joints saved in primitiveExtras so the re-created mesh can
+        // drive skeletal animation after MVF load.
+        for (const QJsonValue& jointValue : extras[QStringLiteral("skinJoints")].toArray())
+        {
+            const QJsonObject jointObj = jointValue.toObject();
+            GltfSkinJoint joint;
+            joint.nodeName = jointObj[QStringLiteral("nodeName")].toString();
+            const QJsonArray matArr = jointObj[QStringLiteral("inverseBindMatrix")].toArray();
+            if (matArr.size() == 16)
+            {
+                aiMatrix4x4& m = joint.inverseBindMatrix;
+                m.a1 = static_cast<float>(matArr[0].toDouble());  m.a2 = static_cast<float>(matArr[1].toDouble());
+                m.a3 = static_cast<float>(matArr[2].toDouble());  m.a4 = static_cast<float>(matArr[3].toDouble());
+                m.b1 = static_cast<float>(matArr[4].toDouble());  m.b2 = static_cast<float>(matArr[5].toDouble());
+                m.b3 = static_cast<float>(matArr[6].toDouble());  m.b4 = static_cast<float>(matArr[7].toDouble());
+                m.c1 = static_cast<float>(matArr[8].toDouble());  m.c2 = static_cast<float>(matArr[9].toDouble());
+                m.c3 = static_cast<float>(matArr[10].toDouble()); m.c4 = static_cast<float>(matArr[11].toDouble());
+                m.d1 = static_cast<float>(matArr[12].toDouble()); m.d2 = static_cast<float>(matArr[13].toDouble());
+                m.d3 = static_cast<float>(matArr[14].toDouble()); m.d4 = static_cast<float>(matArr[15].toDouble());
+            }
+            prepared.skinJoints.append(joint);
+        }
 
         // Restore per-mesh user transform (gizmo TRS saved by MvfSceneBuilder).
         const QJsonObject meshTrs = extras[QStringLiteral("meshTrs")].toObject();
@@ -14850,6 +14954,67 @@ QVector<GLWidget::PreparedMvfMesh> GLWidget::prepareMvfMeshes(
                 key,
                 reconstructMvfMaterial(materialObj, imagePaths, document.textures, document.samplers));
 
+        }
+
+        // Restore morph target delta geometry saved by MvfSceneBuilder.
+        // Each entry in the "targets" array of the primitive carries accessor
+        // indices for POSITION, NORMAL, and TANGENT deltas.
+        {
+            const QJsonArray targetsArray = prim[QStringLiteral("targets")].toArray();
+            if (!targetsArray.isEmpty())
+            {
+                QVector<MorphTargetData> morphTargets;
+                morphTargets.reserve(targetsArray.size());
+                for (const QJsonValue& targetVal : targetsArray)
+                {
+                    const QJsonObject targetObj = targetVal.toObject();
+                    MorphTargetData mt;
+
+                    // POSITION deltas
+                    const std::vector<float> posD = readFloatStream(
+                        geometryChunk, document.accessors, document.bufferViews,
+                        targetObj[QStringLiteral("POSITION")].toInt(-1));
+                    if (!posD.empty())
+                    {
+                        mt.positionDeltas.reserve(posD.size() / 3);
+                        for (size_t i = 0; i + 2 < posD.size(); i += 3)
+                            mt.positionDeltas.push_back(glm::vec3(posD[i], posD[i+1], posD[i+2]));
+                    }
+
+                    // NORMAL deltas
+                    const std::vector<float> norD = readFloatStream(
+                        geometryChunk, document.accessors, document.bufferViews,
+                        targetObj[QStringLiteral("NORMAL")].toInt(-1));
+                    if (!norD.empty())
+                    {
+                        mt.normalDeltas.reserve(norD.size() / 3);
+                        for (size_t i = 0; i + 2 < norD.size(); i += 3)
+                            mt.normalDeltas.push_back(glm::vec3(norD[i], norD[i+1], norD[i+2]));
+                    }
+
+                    // TANGENT deltas
+                    const std::vector<float> tanD = readFloatStream(
+                        geometryChunk, document.accessors, document.bufferViews,
+                        targetObj[QStringLiteral("TANGENT")].toInt(-1));
+                    if (!tanD.empty())
+                    {
+                        mt.tangentDeltas.reserve(tanD.size() / 3);
+                        for (size_t i = 0; i + 2 < tanD.size(); i += 3)
+                            mt.tangentDeltas.push_back(glm::vec3(tanD[i], tanD[i+1], tanD[i+2]));
+                    }
+
+                    morphTargets.append(std::move(mt));
+                }
+                prepared.morphTargets = std::move(morphTargets);
+
+                // Restore default weights if saved.
+                const QJsonArray defWeightsJson = extras[QStringLiteral("defaultMorphWeights")].toArray();
+                QVector<float> defWeights;
+                defWeights.reserve(defWeightsJson.size());
+                for (const QJsonValue& wv : defWeightsJson)
+                    defWeights.append(static_cast<float>(wv.toDouble(0.0)));
+                prepared.defaultMorphWeights = std::move(defWeights);
+            }
         }
 
         result.append(std::move(prepared));
@@ -14905,6 +15070,14 @@ bool GLWidget::uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& meshes)
         mesh->setMeshData(pm.vertices, pm.indices);
         mesh->setVariantMappings(pm.variantMappings);
         mesh->setAllVariantMaterials(pm.allVariantMaterials);
+
+        // Restore skeletal skinning data so bone animations work after MVF reload.
+        if (!pm.skinJoints.isEmpty())
+            mesh->setSkinJoints(pm.skinJoints);
+
+        // Restore morph target geometry so blend-shape animations work after MVF reload.
+        if (!pm.morphTargets.isEmpty())
+            mesh->setMorphTargets(pm.morphTargets, pm.defaultMorphWeights);
 
         const GLMaterial resolved = resolveMaterialTextures(this, pm.material);
         mesh->setMaterial(resolved);
@@ -14991,6 +15164,14 @@ void GLWidget::uploadOneMvfMesh(const PreparedMvfMesh& pm)
 
     // Upload VBO data
     mesh->setMeshData(pm.vertices, pm.indices);
+
+    // Restore skeletal skinning data so bone animations work after MVF reload.
+    if (!pm.skinJoints.isEmpty())
+        mesh->setSkinJoints(pm.skinJoints);
+
+    // Restore morph target geometry so blend-shape animations work after MVF reload.
+    if (!pm.morphTargets.isEmpty())
+        mesh->setMorphTargets(pm.morphTargets, pm.defaultMorphWeights);
 
     // Resolve textures and set material
     const GLMaterial resolved = resolveMaterialTextures(this, pm.material);

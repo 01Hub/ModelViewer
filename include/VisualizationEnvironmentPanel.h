@@ -44,6 +44,10 @@ public:
 	// Called when geometry changes to update light position slider ranges
 	void updateLightPositionRanges(float range, float offset);
 
+	// Restore slider positions from a saved offset (e.g. on MVF load).
+	// Clamps to the current slider range so stale values are handled gracefully.
+	void restoreDefaultLightOffset(const QVector3D& offset);
+
 	bool isDetached() { return _detached; }
 	void setDetached(bool detached);
 
