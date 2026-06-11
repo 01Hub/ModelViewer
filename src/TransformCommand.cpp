@@ -1,5 +1,4 @@
 #include "TransformCommand.h"
-#include "MainWindow.h"
 #include "ModelViewer.h"
 #include "GLWidget.h"
 #include "TriangleMesh.h"
@@ -57,45 +56,9 @@ void TransformCommand::undo()
     if (!_viewer || !_glWidget)
         return;
 
-    // Check if any meshes can be undone
-    int skippedCount = 0;
-
-    // Apply old transformation states
-    for (auto it = _oldStates.begin(); it != _oldStates.end(); ++it)
-    {
-        const QUuid& uuid = it.key();
-
-        // Skip meshes that have been baked
-        if (_bakedMeshes.contains(uuid))
-        {
-            skippedCount++;
-            continue;
-        }
-
-        // Check if mesh still exists
-        int index = _glWidget->getIndexByUuid(uuid);
-        if (index < 0)
-        {
-            // Mesh was permanently deleted, skip
-            continue;
-        }
-    }
-
-    // Apply the old states that weren't skipped
+    // Apply old transformation states (meshes that were permanently deleted
+    // are skipped inside applyTransformStates via the UUID → index lookup).
     applyTransformStates(_oldStates);
-
-    // Show status message if some meshes were skipped due to baking
-    if (skippedCount > 0)
-    {
-        QString msg;
-        if (skippedCount == 1)
-            msg = QObject::tr("1 mesh was baked - transform undo skipped");
-        else
-            msg = QObject::tr("%1 meshes were baked - transform undo skipped").arg(skippedCount);
-
-        // Show in status bar
-		MainWindow::showStatusMessage(msg, 3000);   
-    }
 }
 
 void TransformCommand::redo()
@@ -115,10 +78,6 @@ void TransformCommand::applyTransformStates(const QMap<QUuid, TransformState>& s
     for (auto it = states.begin(); it != states.end(); ++it)
     {
         const QUuid& uuid = it.key();
-
-        // Skip baked meshes
-        if (_bakedMeshes.contains(uuid))
-            continue;
 
         // Get current index
         int index = _glWidget->getIndexByUuid(uuid);
@@ -152,18 +111,3 @@ QSet<QUuid> TransformCommand::getReferencedUuids() const
     return uuids;
 }
 
-bool TransformCommand::affectsAnyUuid(const QVector<QUuid>& uuids) const
-{
-    for (const QUuid& uuid : uuids)
-    {
-        if (_oldStates.contains(uuid))
-            return true;
-    }
-
-    return false;
-}
-
-void TransformCommand::markMeshBaked(const QUuid& uuid) const
-{
-    _bakedMeshes.insert(uuid);
-}

@@ -604,6 +604,44 @@ void SceneGraph::restoreMeshUuid(SceneNode*   node,
     emit structureChanged();
 }
 
+SceneNode* SceneGraph::detachEmptyFileNode(const QString& sourceFile, int& outPosition)
+{
+    outPosition = -1;
+
+    SceneNode* fileNode = findFileNode(sourceFile);
+    if (!fileNode)
+        return nullptr;
+
+    // Only detach when the whole subtree is mesh-less; a partially deleted
+    // file must keep its node so the remaining meshes stay anchored.
+    if (!collectMeshUuids(fileNode).isEmpty())
+        return nullptr;
+
+    outPosition = _root->children.indexOf(fileNode);
+    if (outPosition < 0)
+        return nullptr;
+
+    _root->children.removeAt(outPosition);
+    fileNode->parent = nullptr;
+    // Mesh UUIDs were already deregistered by removeMeshUuid(), so no lookup
+    // table work is needed here.
+
+    emit structureChanged();
+    return fileNode;
+}
+
+void SceneGraph::reattachFileNode(SceneNode* fileNode, int position)
+{
+    if (!fileNode)
+        return;
+
+    fileNode->parent = _root;
+    position = qBound(0, position, static_cast<int>(_root->children.size()));
+    _root->children.insert(position, fileNode);
+
+    emit structureChanged();
+}
+
 void SceneGraph::insertChildNode(SceneNode* parent, SceneNode* newChild, int position)
 {
     if (!parent || !newChild)

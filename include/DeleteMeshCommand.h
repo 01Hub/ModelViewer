@@ -1,6 +1,9 @@
 #pragma once
 
+#include "GltfAnimationData.h"
+#include "GltfCameraData.h"
 #include "GltfLightData.h"
+#include "GltfVariantData.h"
 #include "ModelViewerCommand.h"
 #include "SceneNode.h"
 #include <QHash>
@@ -27,6 +30,8 @@ public:
         const QVector<QUuid>& meshUuids,
         const QString& text = QObject::tr("Delete"));
 
+    ~DeleteMeshCommand() override;
+
     void undo() override;
     void redo() override;
 
@@ -51,8 +56,27 @@ private:
     };
     QMap<QUuid, SceneRemovalRecord> _sceneRecords;
 
-    // Snapshot of GltfLightData for files that will lose ALL their meshes in
-    // this deletion.  Populated at the start of redo() (before any removal so
-    // validateLightData hasn't cleared it yet) and restored in undo().
-    QHash<QString, GltfLightData> _savedLightData;
+    // Snapshots of the per-file glTF data for files that will lose ALL their
+    // meshes in this deletion.  The validate*Data() handlers fire on
+    // structureChanged and clear these from the SceneGraph synchronously
+    // inside redo(); we capture them before any removal and put them back in
+    // undo() so delete+undo round-trips do not lose animations, cameras,
+    // variants, or lights.
+    QHash<QString, GltfLightData>     _savedLightData;
+    QHash<QString, GltfAnimationData> _savedAnimationData;
+    QHash<QString, GltfCameraData>    _savedCameraData;
+    QHash<QString, GltfVariantData>   _savedVariantData;
+    QHash<QString, int>               _savedActiveClip;
+    QHash<QString, int>               _savedActiveVariant;
+
+    // File-level nodes detached from the SceneGraph because their subtree
+    // lost its last mesh in this deletion.  Held alive here so undo can
+    // reattach them at their original root position.  If the command dies
+    // while still in the redone state, the destructor frees the subtrees.
+    struct DetachedFileNode
+    {
+        SceneNode* node     = nullptr;
+        int        position = -1;
+    };
+    QHash<QString, DetachedFileNode> _detachedFileNodes;
 };

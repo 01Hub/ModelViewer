@@ -425,13 +425,6 @@
     </widget>
    </item>
    <item>
-    <widget class="QPushButton" name="pushButtonBakeTransformations">
-     <property name="text">
-      <string>Bake Transformations</string>
-     </property>
-    </widget>
-   </item>
-   <item>
     <widget class="QPushButton" name="pushButtonResetTransformations">
      <property name="text">
       <string>Reset Transformations</string>

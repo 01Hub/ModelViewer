@@ -15,9 +15,6 @@ ObjectTransformPanel::ObjectTransformPanel(QWidget* parent)
 	connect(ui->pushButtonApplyTransformations, &QPushButton::clicked,
 		this, &ObjectTransformPanel::onApplyButtonClicked);
 
-	connect(ui->pushButtonBakeTransformations, &QPushButton::clicked,
-		this, &ObjectTransformPanel::onBakeButtonClicked);
-
 	connect(ui->pushButtonResetTransformations, &QPushButton::clicked,
 		this, &ObjectTransformPanel::onResetButtonClicked);
 
@@ -152,7 +149,6 @@ void ObjectTransformPanel::setControlsEnabled(bool enabled)
 	ui->doubleSpinBoxSY->setEnabled(enabled);
 	ui->doubleSpinBoxSZ->setEnabled(enabled);
 	ui->pushButtonApplyTransformations->setEnabled(enabled);
-	ui->pushButtonBakeTransformations->setEnabled(enabled);
 	ui->pushButtonResetTransformations->setEnabled(enabled);
 }
 
@@ -167,11 +163,6 @@ void ObjectTransformPanel::setDetached(bool detached)
 void ObjectTransformPanel::onApplyButtonClicked()
 {
 	emit applyTransformationsRequested();
-}
-
-void ObjectTransformPanel::onBakeButtonClicked()
-{
-	emit bakeTransformationsRequested();
 }
 
 void ObjectTransformPanel::onResetButtonClicked()

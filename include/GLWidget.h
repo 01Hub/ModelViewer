@@ -134,7 +134,6 @@ public:
 
 	void setDisplayList(const std::vector<int>& ids);
 	GltfCameraData cameraDataForMvfSave(const GltfCameraData& source) const;
-	void resetModelTransformBasis();
 	void triggerShadowRecomputation();
 	void setShadowQuality(AdaptiveShadowMapper::QualityLevel quality);
 	float calculateLightDistance();
@@ -238,7 +237,6 @@ public:
 	void clearPBRClearcoatNormalTexMap(const std::vector<int>& ids);
 
 	void setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale);
-	void bakeTransformation(const std::vector<int>& ids);
 	void resetTransformation(const std::vector<int>& ids);
 	void applyTransforms(const QMap<int, TransformState>& transforms, bool fitView = true);
 
@@ -256,6 +254,12 @@ public:
 	bool isTransmissionEnabled() const { return _transmissionEnabled; }
 	void setActiveAnimation(const QString& sourceFile, int clipIndex);
 	void setAnimationPlaying(bool playing);
+
+	// Drop the cached animation runtime for a file whose meshes were removed
+	// from the document, stopping playback if that file was the active one.
+	// Without this the stale runtime (old UUIDs) survives deletion and can be
+	// picked up when the same file is imported again.
+	void clearAnimationRuntimeForFile(const QString& sourceFile);
 	void seekAnimation(double timeSeconds);
 	void setAnimationLooping(bool looping);
 	void setAnimationPlaybackSpeed(double speed);
@@ -1336,15 +1340,15 @@ private:
 	QString _animatedMeshVisibilitySourceFile;
 	QSet<QUuid> _animatedHiddenMeshUuids;
 
-	// Light repositioning based on model transformation
-	struct LightRepositioningBasis
-	{
-		glm::vec3 baselineCenter;
-		float baselineRadius;
-		glm::mat4 accumulatedRotation;
-	} _lightRepoBasis;
+	// Derive the user model transform for one file directly from its meshes'
+	// TRS state.  Returns true (and fills outTransform) only when every mesh
+	// of the file carries the same non-identity transformation — i.e. the
+	// user applied a model-level transform.  Lights and glTF cameras of that
+	// file follow this exact matrix; the visible-scene bounding sphere plays
+	// no role, so hide/show/delete of other models cannot disturb them.
+	bool userModelTransformForFile(const QString& sourceFile,
+	                               QMatrix4x4& outTransform) const;
 
-	float currentModelTransformScaleFactor() const;
 	void applyGltfCameraEntryTransform(const GltfCameraEntry& cam);
 
 	// Recycle bin (internal only - not exposed to user)

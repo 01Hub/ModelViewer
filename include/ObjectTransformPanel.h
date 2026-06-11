@@ -36,13 +36,11 @@ public:
 
 signals:
 	void applyTransformationsRequested();
-	void bakeTransformationsRequested();
 	void resetTransformationsRequested();
 	void detachRequested();
 
 private slots:
 	void onApplyButtonClicked();
-	void onBakeButtonClicked();
 	void onResetButtonClicked();
 	void onDetachButtonClicked();
 

@@ -1507,25 +1507,6 @@ const std::vector<float>& TriangleMesh::getTrsfPoints() const
 	return _trsfPoints;
 }
 
-void TriangleMesh::bakeTransformations()
-{
-	// Preserve the current visual volume thickness when baking scale into geometry.
-	const float appliedScale = (_scaleX + _scaleY + _scaleZ) / 3.0f;
-	_baseThicknessFactor *= appliedScale;
-	_baseAttenuationDistance *= appliedScale;
-
-	// Transform the points as permanently
-	_points   = _trsfPoints ;
-	_normals = _trsfNormals;
-	_tangents = _trsfTangents;
-	_bitangents = _trsfBitangents;
-
-	// Sync vertex data (positions/normals/tangents) to ensure export reads baked geometry
-	syncVertexDataAfterBake();
-
-	resetTransformations();
-}
-
 void TriangleMesh::resetTransformations()
 {
 	_transX = _transY = _transZ = 0.0f;

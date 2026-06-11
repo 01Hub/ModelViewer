@@ -53,7 +53,6 @@ public:
 	void setTextureSamplersToSelectedItems(const GLMaterial* material, GLMaterial::TextureType type);
 
 	void setTransformation();
-	void bakeTransformations();
 	void resetTransformation();
 	void syncLightPositionUiToScene();
 

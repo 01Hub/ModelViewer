@@ -496,8 +496,6 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(Ui_ModelViewer::objectTransformPanel, &ObjectTransformPanel::applyTransformationsRequested,
 		this, &ModelViewer::setTransformation);
 
-	connect(Ui_ModelViewer::objectTransformPanel, &ObjectTransformPanel::bakeTransformationsRequested,
-		this, &ModelViewer::bakeTransformations);
 
 	connect(Ui_ModelViewer::objectTransformPanel, &ObjectTransformPanel::resetTransformationsRequested,
 		this, [this]() {
@@ -840,67 +838,6 @@ void ModelViewer::setTransformation()
 	_glWidget->update();
 
 	QApplication::restoreOverrideCursor();
-}
-
-void ModelViewer::bakeTransformations()
-{
-	if (!checkForActiveSelection())
-		return;
-
-	// Updated warning dialog
-	QMessageBox::StandardButton reply = QMessageBox::question(
-		this,
-		tr("Bake Transformations"),
-		tr("This operation will permanently apply transformations to mesh vertices.\n"
-			"Transform undo/redo for these meshes will no longer work.\n"
-			"Other undo operations (selection, visibility, etc.) will still work.\n\n"
-			"Do you want to proceed?"),
-		QMessageBox::Yes | QMessageBox::No
-	);
-
-	if (reply != QMessageBox::Yes)
-		return;
-
-	QApplication::setOverrideCursor(Qt::WaitCursor);
-
-	// Get selected mesh IDs and UUIDs
-	std::vector<int> ids = getSelectedIDs();
-	QVector<QUuid> bakedUuids;
-	for (int id : ids)
-	{
-		QUuid uuid = _glWidget->getUuidByIndex(id);
-		if (!uuid.isNull())
-			bakedUuids.append(uuid);
-	}
-
-	// Bake the transformations
-	_glWidget->bakeTransformation(ids);
-
-	// Mark all TransformCommands affecting these meshes as obsolete
-	for (int i = 0; i < _undoStack->count(); ++i)
-	{
-		const TransformCommand* cmd =
-			dynamic_cast<const TransformCommand*>(_undoStack->command(i));
-		if (cmd && cmd->affectsAnyUuid(bakedUuids))
-		{
-			// Mark each baked mesh in the command
-			for (const QUuid& uuid : bakedUuids)
-			{
-				cmd->markMeshBaked(uuid);
-			}
-		}
-	}
-
-	// Panel values already reset (you handled this!)
-
-	QMessageBox::information(
-		this,
-		tr("Action Complete"),
-		tr("Baked the applied transformations into the mesh vertices")
-	);
-
-	QApplication::restoreOverrideCursor();
-	_glWidget->update();
 }
 
 void ModelViewer::resetTransformation()
@@ -2828,7 +2765,12 @@ void ModelViewer::validateAnimationData()
 			});
 
 		if (!hasLiveMesh)
+		{
 			_sceneGraph->clearAnimationData(sourceFile);
+			// Also drop GLWidget's cached runtime (default transforms, UUID
+			// lookup tables) for this file and stop playback if it was active.
+			_glWidget->clearAnimationRuntimeForFile(sourceFile);
+		}
 	}
 }
 
@@ -3744,27 +3686,53 @@ void ModelViewer::onFileExport()
 	// The autoOrient+autoScale correction is factored out inside buildExportScene()
 	// via the importCorrection stored on each fileNode.
 
-	// Apply inverse scene transform to punctual lights.
-	// Use the repositioned lights (user-visible state after slider / auto-rotate
-	// adjustments) rather than the raw parsed positions, so the exported file
-	// reflects exactly what the user sees in the viewer.
-	glm::mat4 transform = _glWidget->getGlobalSceneTransform();
-	glm::mat4 inverseTransform = glm::inverse(transform);
-	std::vector<GPULight> lights = _glWidget->getRepositionedLights();
-	for (GPULight& light : lights)
+	// Collect punctual lights per exported file from their PARSED positions
+	// and un-bake each file's importCorrection (the autoOrient/autoScale
+	// transform applied at load).  The geometry exporter factors the exact
+	// same per-fileNode correction out of the node tree, so lights stay
+	// aligned with the geometry.  Using the per-file correction — instead of
+	// GLWidget's global scene transform, which reflects only the LAST Assimp
+	// load — also keeps MVF-restored sessions correct, where that global
+	// transform is identity while the parsed light positions still carry the
+	// baked-in correction.
+	std::vector<GPULight> lights;
 	{
-		glm::vec4 transformedPos = inverseTransform * glm::vec4(light.position, 1.0f);
-		light.position = glm::vec3(transformedPos);
+		// Only the exported file's lights — other loaded models' lights must
+		// not leak into the output.
+		QStringList lightFiles;
+		if (selectedSourceFile.isEmpty())
+			lightFiles = _sceneGraph->filesWithLights();
+		else if (_sceneGraph->filesWithLights().contains(selectedSourceFile))
+			lightFiles << selectedSourceFile;
 
-		glm::vec4 transformedDir = inverseTransform * glm::vec4(light.direction, 0.0f);
-		light.direction = glm::normalize(glm::vec3(transformedDir));
+		for (const QString& file : lightFiles)
+		{
+			glm::mat4 inverseCorrection(1.0f);
+			if (const SceneNode* fileNode = _sceneGraph->findFileNode(file))
+			{
+				if (!fileNode->importCorrection.IsIdentity())
+					inverseCorrection = glm::inverse(
+						SceneUtils::aiMatrixToGlm(fileNode->importCorrection));
+			}
 
-		glm::vec3 scale(
-			glm::length(glm::vec3(inverseTransform[0])),
-			glm::length(glm::vec3(inverseTransform[1])),
-			glm::length(glm::vec3(inverseTransform[2])));
-		float avgScale = (scale.x + scale.y + scale.z) / 3.0f;
-		light.range *= avgScale;
+			const glm::vec3 invScale(
+				glm::length(glm::vec3(inverseCorrection[0])),
+				glm::length(glm::vec3(inverseCorrection[1])),
+				glm::length(glm::vec3(inverseCorrection[2])));
+			const float avgScale = (invScale.x + invScale.y + invScale.z) / 3.0f;
+
+			const GltfLightData ld = _sceneGraph->lightDataForFile(file);
+			for (const GltfLightEntry& entry : ld.lights)
+			{
+				GPULight light = entry.gpuLight;
+				light.position = glm::vec3(
+					inverseCorrection * glm::vec4(light.position, 1.0f));
+				light.direction = glm::normalize(glm::vec3(
+					inverseCorrection * glm::vec4(light.direction, 0.0f)));
+				light.range *= avgScale;
+				lights.push_back(light);
+			}
+		}
 	}
 
 	const bool formatSupportsTextures = (exportExt != "ply" && exportExt != "stl");
@@ -4619,7 +4587,6 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	// syncRuntimeNodeTransforms(), so preserved-node-transform assets can have
 	// incorrect bounds/camera framing until we recompute after the hierarchy is
 	// restored.
-	_glWidget->resetModelTransformBasis();
 	const bool shouldAutoFit = checkBoxAutoFitView->isChecked();
 	_glWidget->setAutoFitViewOnUpdate(shouldAutoFit);
 	_glWidget->setDisplayList(visibleIndicesFromState());
@@ -4822,19 +4789,17 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 	package.document.mvfSession.insert(QStringLiteral("viewerState"), viewerState);
 
 	// ---- Per-file punctual light data ----
-	// Save the repositioned positions (what the user actually sees) together
-	// with each light's display name and enabled flag, grouped by source file.
-	// The flat "lights" key written by older versions is superseded by this.
-	// On load (see Phase 4 of loadMVF()) the per-file structure is restored
-	// directly into SceneGraph so PunctualLightsPanel can show names and
-	// honour per-light checkboxes without needing the original model file.
+	// Save the ORIGINAL parsed positions together with each light's display
+	// name and enabled flag, grouped by source file.  Mesh user TRS is saved
+	// separately (meshTrs in primitive extras); on load the light positions
+	// are re-derived from parsed positions + restored mesh TRS by
+	// updatePunctualLights(), so baking the transform here would apply it
+	// twice.  The flat "lights" key written by older versions is superseded.
 	if (_glWidget && _sceneGraph)
 	{
-		const std::vector<GPULight>              repoLights  = _glWidget->getRepositionedLights();
-		const QVector<GLWidget::LightOrigin>     fileIndexMap = _glWidget->getLightFileIndexMap();
-		const QStringList                        lightFiles  = _sceneGraph->filesWithLights();
+		const QStringList lightFiles = _sceneGraph->filesWithLights();
 
-		if (!lightFiles.isEmpty() && !repoLights.empty())
+		if (!lightFiles.isEmpty())
 		{
 			// Helper to serialise one GPULight
 			auto gpuLightToJson = [](const GPULight& gl) -> QJsonObject {
@@ -4865,27 +4830,10 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 				{
 					const GltfLightEntry& entry = ld.lights[li];
 
-					// Find the repositioned GPULight for this (file, lightIndex) pair.
-					// The fileIndexMap maps flat index → (file, lightIndex); search it.
-					GPULight repoGpu = entry.gpuLight; // fallback: raw position
-					if (!fileIndexMap.isEmpty() &&
-					    fileIndexMap.size() == static_cast<int>(repoLights.size()))
-					{
-						for (int fi = 0; fi < fileIndexMap.size(); ++fi)
-						{
-							if (fileIndexMap[fi].file == sourceFile &&
-							    fileIndexMap[fi].index == li)
-							{
-								repoGpu = repoLights[static_cast<std::size_t>(fi)];
-								break;
-							}
-						}
-					}
-
 					QJsonObject lightObj;
 					lightObj.insert(QStringLiteral("name"),    entry.name);
 					lightObj.insert(QStringLiteral("enabled"), entry.enabled);
-					lightObj.insert(QStringLiteral("gpuLight"), gpuLightToJson(repoGpu));
+					lightObj.insert(QStringLiteral("gpuLight"), gpuLightToJson(entry.gpuLight));
 					lightsArr.append(lightObj);
 				}
 

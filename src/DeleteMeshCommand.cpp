@@ -4,6 +4,9 @@
 #include "SceneGraph.h"
 #include "TriangleMesh.h"
 
+#include <algorithm>
+#include <climits>
+
 DeleteMeshCommand::DeleteMeshCommand(ModelViewer* viewer,
     GLWidget* glWidget,
     const QVector<QUuid>& meshUuids,
@@ -20,11 +23,43 @@ DeleteMeshCommand::DeleteMeshCommand(ModelViewer* viewer,
     }
 }
 
+DeleteMeshCommand::~DeleteMeshCommand()
+{
+    // If the command is destroyed while in the redone state (e.g. the undo
+    // stack is cleared after a permanent delete), the detached file-node
+    // subtrees are no longer reachable from the SceneGraph — free them here.
+    for (const DetachedFileNode& detached : _detachedFileNodes)
+    {
+        if (detached.node && detached.node->parent == nullptr)
+            SceneGraph::deleteDetachedSubtree(detached.node);
+    }
+}
+
 void DeleteMeshCommand::undo()
 {
     SceneGraph* sg = _viewer->sceneGraph();
 
-    for (const QUuid& uuid : _meshUuids)
+    // Reattach file-level nodes that were pruned in redo() BEFORE restoring
+    // mesh UUIDs, so each restoreMeshUuid() targets a node that is back in
+    // the live tree.
+    if (sg)
+    {
+        for (auto it = _detachedFileNodes.cbegin(); it != _detachedFileNodes.cend(); ++it)
+            sg->reattachFileNode(it.value().node, it.value().position);
+        _detachedFileNodes.clear();
+    }
+
+    // Restore in ascending original-index order so each insertion lands at
+    // its recorded position — this reconstructs the exact pre-deletion
+    // _meshStore order, which the export path depends on.
+    QVector<QUuid> orderedUuids = _meshUuids;
+    std::sort(orderedUuids.begin(), orderedUuids.end(),
+        [this](const QUuid& a, const QUuid& b)
+        {
+            return _originalIndices.value(a, INT_MAX) < _originalIndices.value(b, INT_MAX);
+        });
+
+    for (const QUuid& uuid : orderedUuids)
     {
         // Restore mesh in the renderer's store
         if (_glWidget->isInRecycleBin(uuid))
@@ -44,13 +79,35 @@ void DeleteMeshCommand::undo()
         }
     }
 
-    // Re-register punctual light data for any files that had all their meshes
-    // deleted.  validateLightData() cleared this data during redo(); we put it
-    // back now that the meshes are live again.
+    // Re-register the per-file glTF data for any files that had all their
+    // meshes deleted.  The validate*Data() handlers cleared it during redo();
+    // we put it back now that the meshes are live again.
     if (sg)
     {
         for (auto it = _savedLightData.cbegin(); it != _savedLightData.cend(); ++it)
             sg->setLightData(it.key(), it.value());
+
+        for (auto it = _savedCameraData.cbegin(); it != _savedCameraData.cend(); ++it)
+            sg->setGltfCameraData(it.key(), it.value());
+
+        for (auto it = _savedVariantData.cbegin(); it != _savedVariantData.cend(); ++it)
+        {
+            sg->setVariantData(it.key(), it.value());
+            sg->setActiveVariant(it.key(), _savedActiveVariant.value(it.key(), -1));
+        }
+
+        for (auto it = _savedAnimationData.cbegin(); it != _savedAnimationData.cend(); ++it)
+        {
+            const QString& file = it.key();
+            sg->setAnimationData(file, it.value());
+            // Rebuild GLWidget's runtime tables (cleared together with the
+            // SceneGraph data during redo) and re-select the previously
+            // active clip so the Animations panel comes back functional.
+            _glWidget->syncRuntimeNodeTransforms(file);
+            const int activeClip = _savedActiveClip.value(file, -1);
+            if (activeClip >= 0 && activeClip < it.value().clips.size())
+                _glWidget->setActiveAnimation(file, activeClip);
+        }
     }
 
     _glWidget->updateView();
@@ -61,33 +118,23 @@ void DeleteMeshCommand::redo()
 {
     SceneGraph* sg = _viewer->sceneGraph();
 
-    // Snapshot punctual-light data for any file that is about to lose ALL its
-    // meshes.  This must happen before removeMeshUuid() because structureChanged
-    // → validateLightData() → clearLightData() fires synchronously inside that
-    // call and would destroy the data we need to save.
-    _savedLightData.clear();
-    if (sg)
+    // Collect unique source files for the meshes being deleted.
+    QSet<QString> candidateFiles;
+    for (const QUuid& uuid : _meshUuids)
+    {
+        if (TriangleMesh* m = _glWidget->getMeshByUuid(uuid))
+            candidateFiles.insert(m->getSourceFile());
+    }
+
+    // Determine which of those files will lose ALL their meshes — i.e. no
+    // live mesh of that file remains outside the deletion set.
+    QSet<QString> filesLosingAllMeshes;
     {
         const QSet<QUuid> deletingSet(_meshUuids.begin(), _meshUuids.end());
-
-        // Collect unique source files for the meshes being deleted.
-        QSet<QString> candidateFiles;
-        for (const QUuid& uuid : _meshUuids)
-        {
-            if (TriangleMesh* m = _glWidget->getMeshByUuid(uuid))
-                candidateFiles.insert(m->getSourceFile());
-        }
-
+        const std::vector<TriangleMesh*>& store = _glWidget->getMeshStore();
         for (const QString& file : candidateFiles)
         {
-            const GltfLightData& ld = sg->lightDataForFile(file);
-            if (ld.isEmpty())
-                continue;
-
-            // Only snapshot if every mesh belonging to this file is in the
-            // deletion set — i.e., the file will have no remaining live mesh.
             bool allDeleted = true;
-            const std::vector<TriangleMesh*>& store = _glWidget->getMeshStore();
             for (const TriangleMesh* mesh : store)
             {
                 if (mesh && mesh->getSourceFile() == file &&
@@ -98,7 +145,45 @@ void DeleteMeshCommand::redo()
                 }
             }
             if (allDeleted)
+                filesLosingAllMeshes.insert(file);
+        }
+    }
+
+    // Snapshot the per-file glTF data for any file that is about to lose ALL
+    // its meshes.  This must happen before removeMeshUuid() because
+    // structureChanged → validate*Data() → clear*Data() fires synchronously
+    // inside that call and would destroy the data we need to save.
+    _savedLightData.clear();
+    _savedAnimationData.clear();
+    _savedCameraData.clear();
+    _savedVariantData.clear();
+    _savedActiveClip.clear();
+    _savedActiveVariant.clear();
+    if (sg)
+    {
+        for (const QString& file : filesLosingAllMeshes)
+        {
+            const GltfLightData& ld = sg->lightDataForFile(file);
+            if (!ld.isEmpty())
                 _savedLightData[file] = ld;
+
+            const GltfAnimationData ad = sg->animationDataForFile(file);
+            if (!ad.isEmpty() || ad.hasSkinning)
+            {
+                _savedAnimationData[file] = ad;
+                _savedActiveClip[file] = sg->activeAnimationClipForFile(file);
+            }
+
+            const GltfCameraData cd = sg->gltfCameraDataForFile(file);
+            if (!cd.isEmpty())
+                _savedCameraData[file] = cd;
+
+            const GltfVariantData vd = sg->variantDataForFile(file);
+            if (!vd.isEmpty())
+            {
+                _savedVariantData[file] = vd;
+                _savedActiveVariant[file] = sg->activeVariantForFile(file);
+            }
         }
     }
 
@@ -115,6 +200,20 @@ void DeleteMeshCommand::redo()
         // Move mesh to recycle bin in the renderer's store
         int originalIndex = _originalIndices.value(uuid, -1);
         _glWidget->moveToRecycleBin(uuid, originalIndex);
+    }
+
+    // Prune file-level nodes whose subtree lost its last mesh.  A stale empty
+    // file node would shadow a freshly imported instance of the same file in
+    // findFileNode(), breaking node-transform sync on re-import.
+    if (sg)
+    {
+        for (const QString& file : filesLosingAllMeshes)
+        {
+            DetachedFileNode detached;
+            detached.node = sg->detachEmptyFileNode(file, detached.position);
+            if (detached.node)
+                _detachedFileNodes[file] = detached;
+        }
     }
 
     _glWidget->updateView();

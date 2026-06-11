@@ -1337,16 +1337,33 @@ bool GLWidget::restoreFromRecycleBin(const QUuid& uuid)
 	RecycleBinEntry entry = _recycleBin.take(uuid);
 	TriangleMesh* mesh = entry.mesh;
 
-	// Restore to end of _meshStore (simplest approach)
-	// Could use entry.originalIndex for smarter restoration
-	_meshStore.push_back(mesh);
-	int newIndex = static_cast<int>(_meshStore.size() - 1);
+	// Restore at the ORIGINAL index so _meshStore keeps the SceneGraph DFS
+	// order.  The export path pairs the export scene's meshes with the
+	// runtime mesh list by order — appending at the end scrambles material
+	// and texture assignment on any export after a delete + undo.
+	int insertIndex = entry.originalIndex;
+	if (insertIndex < 0 || insertIndex > static_cast<int>(_meshStore.size()))
+		insertIndex = static_cast<int>(_meshStore.size());
+	_meshStore.insert(_meshStore.begin() + insertIndex, mesh);
 
-	// Add to displayed objects
-	_displayedObjectsIds.push_back(newIndex);
+	// Shift existing display/hidden ids at or above the insertion point,
+	// then add the restored mesh to the displayed set (kept sorted —
+	// setDisplayList relies on sorted ids for std::set_difference).
+	for (int& id : _displayedObjectsIds)
+	{
+		if (id >= insertIndex)
+			id++;
+	}
+	for (int& id : _hiddenObjectsIds)
+	{
+		if (id >= insertIndex)
+			id++;
+	}
+	_displayedObjectsIds.push_back(insertIndex);
+	std::sort(_displayedObjectsIds.begin(), _displayedObjectsIds.end());
 
 	qDebug() << "Restored mesh from recycle bin:" << mesh->getName()
-		<< "uuid:" << uuid << "at index:" << newIndex;
+		<< "uuid:" << uuid << "at index:" << insertIndex;
 
 	return true;
 }
@@ -2949,23 +2966,8 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 	// starts with the standard global clamp, not a stale small value.
 	_zoomInLimit = _boundingSphere.getRadius();
 
-	// ===== CAPTURE BASELINE HERE - NOW BOUNDING SPHERE IS REAL =====
-	// Capture once per loaded scene so imported lights and glTF cameras can be
-	// compensated consistently when the user applies model-level transforms.
-	if (_lightRepoBasis.baselineRadius <= 0.0f)
-	{
-		_lightRepoBasis.baselineCenter = glm::vec3(
-			static_cast<float>(_boundingSphere.getCenter().x()),
-			static_cast<float>(_boundingSphere.getCenter().y()),
-			static_cast<float>(_boundingSphere.getCenter().z())
-		);
-		_lightRepoBasis.baselineRadius = _boundingSphere.getRadius();
-		_lightRepoBasis.accumulatedRotation = glm::mat4(1.0f);
-
-	}
-	// ================================================================
-
-	// Now update lights based on baseline
+	// Reposition lights from per-file user model transforms (derived from the
+	// current mesh TRS state — no bounding-sphere anchoring involved).
 	updatePunctualLights();
 
 	triggerShadowRecomputation();
@@ -2992,13 +2994,6 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 	update();
 
 	emit displayListSet();
-}
-
-void GLWidget::resetModelTransformBasis()
-{
-	_lightRepoBasis.baselineCenter = glm::vec3(0.0f);
-	_lightRepoBasis.baselineRadius = 0.0f;
-	_lightRepoBasis.accumulatedRotation = glm::mat4(1.0f);
 }
 
 void GLWidget::recalculateVisibleSceneStats(bool updateMemorySize)
@@ -3749,7 +3744,6 @@ void GLWidget::removeFromDisplay(int index)
 		_animatedLightVisibilityMask.clear();
 		_animatedMeshVisibilitySourceFile.clear();
 		_animatedHiddenMeshUuids.clear();
-		_lightRepoBasis.baselineRadius = 0.0f;  // Reset baseline
 		glLights->setLights({});
 		syncPunctualLightUniforms(0, false);
 	}
@@ -4639,42 +4633,13 @@ void GLWidget::setTransformation(const std::vector<int>& ids, const QVector3D& t
 		}
 	}
 
-	// If all meshes selected = model-level transformation
-	bool isModelLevelTransform = (ids.size() == _meshStore.size());
-
-	if (isModelLevelTransform)
-	{
-		// Build rotation matrix from Euler angles (same as mesh transformation)
-		// rot is QVector3D(x, y, z) in degrees
-		glm::mat4 rotX = glm::rotate(glm::mat4(1.0f), glm::radians(rot.x()), glm::vec3(1, 0, 0));
-		glm::mat4 rotY = glm::rotate(glm::mat4(1.0f), glm::radians(rot.y()), glm::vec3(0, 1, 0));
-		glm::mat4 rotZ = glm::rotate(glm::mat4(1.0f), glm::radians(rot.z()), glm::vec3(0, 0, 1));
-
-		// Apply rotation in same order as meshes (Z * Y * X)
-		_lightRepoBasis.accumulatedRotation = rotZ * rotY * rotX;		
-	}
-
+	// Lights/cameras follow automatically: updatePunctualLights() derives the
+	// per-file user transform straight from the meshes' TRS state.
 	recalculateVisibleSceneStats(false);
 	updatePunctualLights();
 	triggerShadowRecomputation();
 	updateFloorPlane();
 	fitAll();
-}
-
-void GLWidget::bakeTransformation(const std::vector<int>& ids)
-{
-	for (int id : ids)
-	{
-		try
-		{
-			TriangleMesh* mesh = _meshStore[id];
-			mesh->bakeTransformations();
-		}
-		catch (const std::exception& ex)
-		{
-			std::cout << "Exception in GLWidget::bakeTransformation\n" << ex.what() << std::endl;
-		}
-	}
 }
 
 void GLWidget::resetTransformation(const std::vector<int>& ids)
@@ -4696,7 +4661,6 @@ void GLWidget::resetTransformation(const std::vector<int>& ids)
 	_lightOffsetX = 0.0f;
 	_lightOffsetY = 0.0f;
 	_lightOffsetZ = 0.0f;
-	_lightRepoBasis.accumulatedRotation = glm::mat4(1.0f);  // Reset to identity
 
 	recalculateVisibleSceneStats(false);
 	updatePunctualLights();
@@ -4736,26 +4700,8 @@ void GLWidget::applyTransforms(const QMap<int, TransformState>& transforms, bool
 	// (all meshes are being transformed)
 	bool isModelLevelTransform = (transforms.size() == static_cast<int>(_meshStore.size()));
 
-	if (isModelLevelTransform && !transforms.isEmpty())
-	{
-		// For model-level transforms, update light repositioning basis
-		// Use the transformation from the first mesh (they should all be the same)
-		const TransformState& state = transforms.first();
-
-		// Build rotation matrix from Euler angles
-		glm::mat4 rotX = glm::rotate(glm::mat4(1.0f),
-			glm::radians(state.rotation.x()),
-			glm::vec3(1, 0, 0));
-		glm::mat4 rotY = glm::rotate(glm::mat4(1.0f),
-			glm::radians(state.rotation.y()),
-			glm::vec3(0, 1, 0));
-		glm::mat4 rotZ = glm::rotate(glm::mat4(1.0f),
-			glm::radians(state.rotation.z()),
-			glm::vec3(0, 0, 1));
-
-		// Apply rotation in same order as meshes (Z * Y * X)
-		_lightRepoBasis.accumulatedRotation = rotZ * rotY * rotX;
-	}
+	// Lights/cameras follow automatically: updatePunctualLights() derives the
+	// per-file user transform straight from the meshes' TRS state.
 
 	// Update all dependent systems once
 	recalculateVisibleSceneStats(false);
@@ -5201,9 +5147,51 @@ float GLWidget::updateFloorGeometry()
 	return halfObjectSize;
 }
 
+bool GLWidget::userModelTransformForFile(const QString& sourceFile,
+                                         QMatrix4x4& outTransform) const
+{
+	bool found = false;
+	QMatrix4x4 trsf;
+	for (TriangleMesh* mesh : _meshStore)
+	{
+		if (!mesh || mesh->getSourceFile() != sourceFile)
+			continue;
+		if (!found)
+		{
+			trsf = mesh->getTransformation();
+			found = true;
+		}
+		else if (mesh->getTransformation() != trsf)
+		{
+			// Meshes of this file were transformed individually — there is no
+			// single model-level transform the lights/cameras could follow.
+			return false;
+		}
+	}
+
+	if (!found || trsf.isIdentity())
+		return false;
+
+	outTransform = trsf;
+	return true;
+}
+
+namespace
+{
+// Average axis scale of the upper-3x3 — matches the avgScale convention used
+// for light range/intensity compensation elsewhere (export, import correction).
+float uniformScaleOf(const QMatrix4x4& m)
+{
+	const float sx = QVector3D(m(0, 0), m(1, 0), m(2, 0)).length();
+	const float sy = QVector3D(m(0, 1), m(1, 1), m(2, 1)).length();
+	const float sz = QVector3D(m(0, 2), m(1, 2), m(2, 2)).length();
+	return (sx + sy + sz) / 3.0f;
+}
+} // namespace
+
 void GLWidget::updatePunctualLights()
 {
-	if (_originalParsedLights.empty() || _lightRepoBasis.baselineRadius <= 0.0f)
+	if (_originalParsedLights.empty())
 	{
 		return;
 	}
@@ -5217,46 +5205,49 @@ void GLWidget::updatePunctualLights()
 		: _originalParsedLights;
 	_currentRepositionedLights = sourceLights;
 
-	// Get current bounding sphere state
-	glm::vec3 currentCenter(
-		static_cast<float>(_boundingSphere.getCenter().x()),
-		static_cast<float>(_boundingSphere.getCenter().y()),
-		static_cast<float>(_boundingSphere.getCenter().z())
-	);
-	float currentRadius = _boundingSphere.getRadius();
-
-	// Compute deltas from baseline
-	glm::vec3 centerDelta = currentCenter - _lightRepoBasis.baselineCenter;
-	float radiusDelta = currentRadius / _lightRepoBasis.baselineRadius;
-
-	
-	// Apply transformations to each light
-	for (int i = 0; i < _currentRepositionedLights.size(); ++i)
+	// Follow user model-level transforms: each light is moved by the exact
+	// TRS matrix its file's meshes carry (derived fresh from the mesh store,
+	// so undo/redo and every transform entry point are covered).  Lights of
+	// untransformed files keep their parsed absolute positions — the visible
+	// scene bounds are irrelevant by construction.
+	if (_lightFileIndexMap.size() == static_cast<int>(_currentRepositionedLights.size()))
 	{
-		auto& light = _currentRepositionedLights[i];
-
-		// STEP 1: Get offset from baseline center
-		glm::vec3 offsetFromBaseline = light.position - _lightRepoBasis.baselineCenter;
-
-		// STEP 2: ROTATION - Apply rotation matrix to offset
-		glm::vec3 rotatedOffset = glm::vec3(_lightRepoBasis.accumulatedRotation * glm::vec4(offsetFromBaseline, 0.0f));
-
-		// STEP 3: RADIAL SCALING - Scale the rotated offset by radius delta
-		glm::vec3 scaledOffset = rotatedOffset * radiusDelta;
-
-		// STEP 4: TRANSLATION - Apply translation and return to world space
-		light.position = _lightRepoBasis.baselineCenter + scaledOffset + centerDelta;
-				
-		// Scale range by radius delta (only scaling affects range)
-		if (light.range > 0.0f)
+		QHash<QString, QMatrix4x4> transformCache;
+		for (int i = 0; i < static_cast<int>(_currentRepositionedLights.size()); ++i)
 		{
-			light.range *= radiusDelta;
-		}
+			const QString& file = _lightFileIndexMap[i].file;
+			if (!transformCache.contains(file))
+			{
+				QMatrix4x4 m; // identity when no model-level transform exists
+				userModelTransformForFile(file, m);
+				transformCache.insert(file, m);
+			}
+			const QMatrix4x4& m = transformCache.value(file);
+			if (m.isIdentity())
+				continue;
 
-		// Scale intensity (inverse-square law) for point and spot lights only
-		if (light.type != static_cast<int>(LightType::Directional))
-		{
-			light.intensity *= (radiusDelta * radiusDelta);
+			auto& light = _currentRepositionedLights[i];
+
+			const QVector3D pos = m.map(
+				QVector3D(light.position.x, light.position.y, light.position.z));
+			light.position = glm::vec3(pos.x(), pos.y(), pos.z());
+
+			const QVector3D dir = m.mapVector(
+				QVector3D(light.direction.x, light.direction.y, light.direction.z)).normalized();
+			light.direction = glm::vec3(dir.x(), dir.y(), dir.z());
+
+			const float s = uniformScaleOf(m);
+
+			// Range scales with the model so attenuation reaches the same
+			// relative extent.
+			if (light.range > 0.0f)
+				light.range *= s;
+
+			// Appearance-preserving intensity compensation (inverse-square
+			// law) for point and spot lights: a light moved s× further from
+			// the scaled surfaces needs s² the candela to light them equally.
+			if (light.type != static_cast<int>(LightType::Directional))
+				light.intensity *= (s * s);
 		}
 	}
 
@@ -10031,6 +10022,20 @@ void GLWidget::setActiveAnimation(const QString& sourceFile, int clipIndex)
 	emit animationStateChanged();
 }
 
+void GLWidget::clearAnimationRuntimeForFile(const QString& sourceFile)
+{
+	_runtimeAnimationsByFile.remove(sourceFile);
+	if (_activeAnimationFile == sourceFile)
+	{
+		_animationTimer->stop();
+		_animationPlaying = false;
+		_activeAnimationFile.clear();
+		_activeAnimationClip = -1;
+		_animationCurrentTimeSeconds = 0.0;
+		emit animationStateChanged();
+	}
+}
+
 void GLWidget::syncRuntimeNodeTransforms(const QString& sourceFile)
 {
 	syncFileNodeTransforms(sourceFile);
@@ -10154,22 +10159,15 @@ void GLWidget::resetToSystemCamera()
 	update();
 }
 
-float GLWidget::currentModelTransformScaleFactor() const
-{
-	if (_lightRepoBasis.baselineRadius <= 0.0f)
-		return 1.0f;
-
-	const float currentRadius = _boundingSphere.getRadius();
-	if (currentRadius <= 0.0f)
-		return 1.0f;
-
-	return currentRadius / _lightRepoBasis.baselineRadius;
-}
-
 GltfCameraData GLWidget::cameraDataForMvfSave(const GltfCameraData& source) const
 {
 	GltfCameraData result = source;
-	const float radiusDelta = currentModelTransformScaleFactor();
+
+	// Bake the user model-level transform (if any) of the cameras' own file —
+	// the same matrix the meshes and lights follow.
+	QMatrix4x4 userTransform;
+	const bool hasUserTransform =
+		userModelTransformForFile(result.sourceFile, userTransform);
 
 	for (GltfCameraEntry& cam : result.cameras)
 	{
@@ -10182,33 +10180,11 @@ GltfCameraData GLWidget::cameraDataForMvfSave(const GltfCameraData& source) cons
 		// Without this guard, each save/reload cycle bakes another rotation
 		// layer that activation never applies back (flag is already false after
 		// the first round-trip), causing cameras to drift on every save.
-		if (cam.needsModelTransformCompensation && _lightRepoBasis.baselineRadius > 0.0f)
+		if (cam.needsModelTransformCompensation && hasUserTransform)
 		{
-			const glm::vec3 baselineCenter = _lightRepoBasis.baselineCenter;
-			const glm::vec3 currentCenter(
-				static_cast<float>(_boundingSphere.getCenter().x()),
-				static_cast<float>(_boundingSphere.getCenter().y()),
-				static_cast<float>(_boundingSphere.getCenter().z())
-			);
-			const glm::vec3 centerDelta = currentCenter - baselineCenter;
-
-			const glm::vec3 offsetFromBaseline(
-				worldPos.x() - baselineCenter.x,
-				worldPos.y() - baselineCenter.y,
-				worldPos.z() - baselineCenter.z
-			);
-			const glm::vec3 rotatedOffset = glm::vec3(
-				_lightRepoBasis.accumulatedRotation * glm::vec4(offsetFromBaseline, 0.0f));
-			const glm::vec3 transformedPos =
-				baselineCenter + rotatedOffset * radiusDelta + centerDelta;
-			worldPos = QVector3D(transformedPos.x, transformedPos.y, transformedPos.z);
-
-			const glm::vec3 rotatedDir = glm::normalize(glm::vec3(
-				_lightRepoBasis.accumulatedRotation * glm::vec4(worldDir.x(), worldDir.y(), worldDir.z(), 0.0f)));
-			const glm::vec3 rotatedUp = glm::normalize(glm::vec3(
-				_lightRepoBasis.accumulatedRotation * glm::vec4(worldUp.x(), worldUp.y(), worldUp.z(), 0.0f)));
-			worldDir = QVector3D(rotatedDir.x, rotatedDir.y, rotatedDir.z).normalized();
-			worldUp = QVector3D(rotatedUp.x, rotatedUp.y, rotatedUp.z).normalized();
+			worldPos = userTransform.map(worldPos);
+			worldDir = userTransform.mapVector(worldDir).normalized();
+			worldUp  = userTransform.mapVector(worldUp).normalized();
 		}
 
 		cam.worldPosition = worldPos;
@@ -10228,35 +10204,23 @@ void GLWidget::applyGltfCameraEntryTransform(const GltfCameraEntry& cam)
 	QVector3D worldPos = cam.worldPosition;
 	QVector3D worldDir = cam.worldDirection.normalized();
 	QVector3D worldUp  = cam.worldUp.normalized();
-	const float radiusDelta = currentModelTransformScaleFactor();
 
-	if (cam.needsModelTransformCompensation && _lightRepoBasis.baselineRadius > 0.0f)
+	// Follow the user model-level transform of the camera's own file — the
+	// same matrix the meshes and lights follow.  modelScale also widens the
+	// orthographic view range below so the framing tracks a scaled model.
+	float modelScale = 1.0f;
 	{
-		const glm::vec3 baselineCenter = _lightRepoBasis.baselineCenter;
-		const glm::vec3 currentCenter(
-			static_cast<float>(_boundingSphere.getCenter().x()),
-			static_cast<float>(_boundingSphere.getCenter().y()),
-			static_cast<float>(_boundingSphere.getCenter().z())
-		);
-		const glm::vec3 centerDelta = currentCenter - baselineCenter;
-
-		const glm::vec3 offsetFromBaseline(
-			worldPos.x() - baselineCenter.x,
-			worldPos.y() - baselineCenter.y,
-			worldPos.z() - baselineCenter.z
-		);
-		const glm::vec3 rotatedOffset = glm::vec3(
-			_lightRepoBasis.accumulatedRotation * glm::vec4(offsetFromBaseline, 0.0f));
-		const glm::vec3 transformedPos =
-			baselineCenter + rotatedOffset * radiusDelta + centerDelta;
-		worldPos = QVector3D(transformedPos.x, transformedPos.y, transformedPos.z);
-
-		const glm::vec3 rotatedDir = glm::normalize(glm::vec3(
-			_lightRepoBasis.accumulatedRotation * glm::vec4(worldDir.x(), worldDir.y(), worldDir.z(), 0.0f)));
-		const glm::vec3 rotatedUp = glm::normalize(glm::vec3(
-			_lightRepoBasis.accumulatedRotation * glm::vec4(worldUp.x(), worldUp.y(), worldUp.z(), 0.0f)));
-		worldDir = QVector3D(rotatedDir.x, rotatedDir.y, rotatedDir.z).normalized();
-		worldUp  = QVector3D(rotatedUp.x, rotatedUp.y, rotatedUp.z).normalized();
+		QMatrix4x4 userTransform;
+		if (userModelTransformForFile(_activeGltfCameraFile, userTransform))
+		{
+			modelScale = uniformScaleOf(userTransform);
+			if (cam.needsModelTransformCompensation)
+			{
+				worldPos = userTransform.map(worldPos);
+				worldDir = userTransform.mapVector(worldDir).normalized();
+				worldUp  = userTransform.mapVector(worldUp).normalized();
+			}
+		}
 	}
 
 	if (cam.type == GltfCameraType::Perspective)
@@ -10282,7 +10246,7 @@ void GLWidget::applyGltfCameraEntryTransform(const GltfCameraEntry& cam)
 	else
 	{
 		_primaryCamera->setProjectionType(GLCamera::ProjectionType::ORTHOGRAPHIC);
-		const float orthoRange = std::max(cam.xMag, cam.yMag) * 2.0f * radiusDelta;
+		const float orthoRange = std::max(cam.xMag, cam.yMag) * 2.0f * modelScale;
 		_primaryCamera->setViewRange(std::max(orthoRange, 0.0001f));
 		_projection = ViewProjection::ORTHOGRAPHIC;
 		_previousProjection = GLCamera::ProjectionType::ORTHOGRAPHIC;
@@ -15239,7 +15203,6 @@ void GLWidget::setParsedLights(const GltfLightData& lightData)
     _animatedLightVisibilityMask.clear();
     _animatedMeshVisibilitySourceFile.clear();
     _animatedHiddenMeshUuids.clear();
-    _lightRepoBasis.baselineRadius = 0.0f;
 
     syncPunctualLightUniforms(static_cast<int>(_originalParsedLights.size()),
                               !_originalParsedLights.empty());
@@ -15279,7 +15242,6 @@ void GLWidget::onSceneLightDataChanged()
     if (_originalParsedLights.empty())
     {
         // All lights have been removed — clear the GPU buffer immediately.
-        _lightRepoBasis.baselineRadius = 0.0f;
         _currentRepositionedLights.clear();
         makeCurrent();
         glLights->setLights({});
@@ -15287,19 +15249,11 @@ void GLWidget::onSceneLightDataChanged()
         return;
     }
 
-    // Non-empty lights remain.  Always reset the repositioning anchor so the
-    // next bounding-sphere update (recalculateVisibleSceneStats → line 2955)
-    // re-anchors all surviving lights against the correct post-change scene.
-    //
-    // Without this reset the deletion path would reach updatePunctualLights()
-    // inside setDisplayList() with the old combined-scene basis but the new
-    // smaller bounding sphere, producing wrong radiusDelta / centerDelta and
-    // visibly misplaced light gizmos.
-    //
-    // For model loading setParsedLights() already reset the basis to zero
-    // before this slot fires, so this is a no-op in that case.
-    _lightRepoBasis.baselineRadius = 0.0f;
-    _currentRepositionedLights.clear();
+    // Rebuild the working light set from the new per-file registrations.
+    // Positions derive from each file's parsed lights plus that file's own
+    // user model transform — adding/removing other files cannot move them.
+    makeCurrent();
+    updatePunctualLights();
 }
 
 // ---------------------------------------------------------------------------

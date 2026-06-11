@@ -215,6 +215,19 @@ public:
     // Return the SceneNode whose nodeUuid matches, or nullptr.  O(n) DFS.
     SceneNode* findNodeByUuid(const QUuid& nodeUuid) const;
 
+    // Detach the file-level node for sourceFile from the root if its subtree
+    // no longer owns any mesh UUIDs.  The subtree is NOT freed — ownership
+    // passes to the caller (DeleteMeshCommand) so undo can reattach it.
+    // Leaving an empty file node in the graph makes findFileNode() resolve to
+    // the stale node when the same file is imported again, breaking node
+    // transform sync for the re-imported model.
+    // outPosition receives the index the node held in root->children.
+    // Returns nullptr if no file node exists or it still owns meshes.
+    SceneNode* detachEmptyFileNode(const QString& sourceFile, int& outPosition);
+
+    // Reattach a file node previously detached by detachEmptyFileNode().
+    void reattachFileNode(SceneNode* fileNode, int position);
+
     // Delete a subtree that is no longer attached to this SceneGraph.
     // Used by PasteCommand destructor to free cloned nodes when the command
     // is destroyed in the undone state.  Does NOT touch _meshUuidToNode.

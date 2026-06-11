@@ -50,7 +50,6 @@ struct TransformState
  * @brief Undoable command for mesh transformations
  *
  * Handles transformation of one or more meshes (translation, rotation, scale).
- * Supports partial undo when some meshes have been baked.
  *
  * Each mesh can have different transformation values, so states are stored
  * per-mesh using UUID as key.
@@ -100,28 +99,9 @@ public:
      */
     QSet<QUuid> getReferencedUuids() const;
 
-    /**
-     * @brief Check if this command affects any of the given UUIDs
-     * @param uuids UUIDs to check
-     * @return true if any UUID is affected by this command
-     *
-     * Used when baking to find commands that should be marked obsolete
-     */
-    bool affectsAnyUuid(const QVector<QUuid>& uuids) const;
-
-    /**
-     * @brief Mark a mesh as baked
-     * @param uuid UUID of the baked mesh
-     *
-     * When a mesh is baked, transformations to it can no longer be undone.
-     * This marks the mesh so undo/redo will skip it.
-     */
-    void markMeshBaked(const QUuid& uuid) const;
-
 private:
     QMap<QUuid, TransformState> _oldStates;  // Transform states before command
     QMap<QUuid, TransformState> _newStates;  // Transform states after command
-    mutable QSet<QUuid> _bakedMeshes;                // Meshes that have been baked
     bool _fitView = true;
 
     /**
