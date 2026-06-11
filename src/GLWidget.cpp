@@ -3325,7 +3325,12 @@ void GLWidget::showClippingPlaneEditor(bool show)
 
 void GLWidget::showExplodedViewPanel(bool show)
 {
-	show ? _explodedViewPanel->show() : _explodedViewPanel->hide();
+	if (show) {
+		_explodedViewPanel->captureCurrentSelection();
+		_explodedViewPanel->show();
+	} else {
+		_explodedViewPanel->hide();
+	}
 }
 
 QWidget* GLWidget::attachOverlayPanel(QWidget* contentWidget, const QRect& geometry,

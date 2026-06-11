@@ -426,6 +426,14 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		        this,         &ModelViewer::refreshNavigationSubTabs);
 	}
 
+	// Exploded View Panel — created inside GLWidget; wire SceneGraph + selection clearing here.
+	{
+		ExplodedViewPanel* evPanel = _glWidget->getExplodedViewPanel();
+		evPanel->setSceneGraph(_sceneGraph);
+		connect(evPanel, &ExplodedViewPanel::selectionClearRequested,
+		        this,    &ModelViewer::deselectAll);
+	}
+
 	// Texture Debug Panel — created once per viewer, shown on demand via
 	// Tools → Texture Debugger (visible only when the setting is enabled).
 	{

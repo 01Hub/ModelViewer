@@ -154,6 +154,7 @@ public:
 	void updateClippingPlane();
 	void showClippingPlaneEditor(bool show);
 	void showExplodedViewPanel(bool show);
+	ExplodedViewPanel* getExplodedViewPanel() const { return _explodedViewPanel; }
 	QWidget* attachOverlayPanel(QWidget* contentWidget, const QRect& geometry,
 	                            Qt::Alignment alignment = Qt::AlignTop | Qt::AlignLeft,
 	                            const QString& objectName = QString());
