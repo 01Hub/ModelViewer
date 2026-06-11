@@ -1,5 +1,6 @@
 ﻿
 #include "ClippingPlanesEditor.h"
+#include "ExplodedViewPanel.h"
 #include "Cone.h"
 #include "Cube.h"
 #include "FloorPlane.h"
@@ -680,6 +681,7 @@ _textShader(nullptr),
 _textRenderer(nullptr),
 _axisTextRenderer(nullptr),
 _clippingPlanesEditor(nullptr),
+_explodedViewPanel(nullptr),
 _clippingPlaneXY(nullptr),
 _clippingPlaneYZ(nullptr),
 _clippingPlaneZX(nullptr),
@@ -764,6 +766,10 @@ _floorPlane(nullptr),
 
 	 connect(_viewToolbar, &ViewToolbar::sectionViewToggled, this, [this](bool enabled) {
 		 showClippingPlaneEditor(enabled);
+		 });
+
+	 connect(_viewToolbar, &ViewToolbar::explodedViewToggled, this, [this](bool enabled) {
+		 showExplodedViewPanel(enabled);
 		 });
 
 	 connect(_viewToolbar, &ViewToolbar::swapVisibleToggled, this, [this](bool enabled) {
@@ -1054,6 +1060,12 @@ _floorPlane(nullptr),
 		? QColor(255, 255, 255)
 		: QColor(0, 0, 0));
 	_clippingPlanesEditor->hide();
+
+	_explodedViewPanel = new ExplodedViewPanel(this);
+	_lowerLayout->addWidget(_explodedViewPanel);
+	_explodedViewPanel->applyContrastTheme((_bgBotColor.lightnessF() < 0.5)
+		? QColor(Qt::white) : QColor(Qt::black));
+	_explodedViewPanel->hide();
 
 	//_displayedObjectsIds.push_back(0);
 
@@ -3309,6 +3321,11 @@ void GLWidget::updateClippingPlane()
 void GLWidget::showClippingPlaneEditor(bool show)
 {
 	show ? _clippingPlanesEditor->show() : _clippingPlanesEditor->hide();
+}
+
+void GLWidget::showExplodedViewPanel(bool show)
+{
+	show ? _explodedViewPanel->show() : _explodedViewPanel->hide();
 }
 
 QWidget* GLWidget::attachOverlayPanel(QWidget* contentWidget, const QRect& geometry,

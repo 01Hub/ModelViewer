@@ -54,6 +54,7 @@ signals:
     void windowZoomRequested();
     void multiViewToggled(bool enabled);
     void sectionViewToggled(bool enabled);
+    void explodedViewToggled(bool enabled);
     void swapVisibleToggled(bool enabled);
     void axisDisplayToggled(bool enabled);
 
@@ -131,6 +132,7 @@ private:
 
     // Other buttons
     QToolButton* _sectionBtn;
+    QToolButton* _explodedBtn;
     QToolButton* _swapBtn;
     QToolButton* _axisBtn;
 
