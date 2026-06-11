@@ -12,7 +12,6 @@
 #include <BRepTools.hxx>
 #include <cmath>
 #include <gp_Pnt.hxx>
-#include <gp_Vec.hxx>
 #include <Poly_Triangulation.hxx>
 #include <ShapeFix_Face.hxx>
 #include <ShapeFix_Wire.hxx>
@@ -908,7 +907,6 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 
 		if (triangulation.IsNull()) continue;
 
-		const gp_Trsf trsf = loc.Transformation();
 		const int nNodes = triangulation->NbNodes();
 		const int nTriangles = triangulation->NbTriangles();
 
@@ -927,7 +925,7 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 		// OPTIMIZATION 5: Batch vertex transformation
 		for (int i = 1; i <= nNodes; ++i)
 		{
-			const gp_Pnt p = triangulation->Node(i).Transformed(trsf);
+			const gp_Pnt p = triangulation->Node(i).Transformed(loc.Transformation());
 			localVertices.emplace_back(static_cast<float>(p.X()),
 				static_cast<float>(p.Y()),
 				static_cast<float>(p.Z()));

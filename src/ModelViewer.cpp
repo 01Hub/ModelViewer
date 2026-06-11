@@ -51,6 +51,7 @@
 #include <QScrollArea>
 #include <QtMath>
 #include <cmath>
+#include <limits>
 
 QString ModelViewer::_lastOpenedDir;
 QString ModelViewer::_lastSelectedFilter;
@@ -448,6 +449,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	        this, &ModelViewer::validateAnimationData);
 	connect(_sceneGraph, &SceneGraph::structureChanged,
 	        this, &ModelViewer::validateCameraData);
+	connect(_sceneGraph, &SceneGraph::structureChanged,
+	        this, &ModelViewer::validateLightData);
 	treeWidgetModel->installEventFilter(this);
 	treeWidgetModel->viewport()->installEventFilter(this);
 
@@ -1037,8 +1040,6 @@ void ModelViewer::detachMaterialPanel()
 		return;
 	}
 
-	qDebug() << "detachMaterialPanel: Found previewFrame" << previewFrame;
-
 	// Get the scroll area directly from the UI
 	QScrollArea* scrollArea = findChild<QScrollArea*>("scrollAreaMaterial");
 	if (!scrollArea)
@@ -1059,15 +1060,11 @@ void ModelViewer::detachMaterialPanel()
 
 	// STEP 2: Reparent the entire previewFrame to the container
 	// This moves the complete preview section with all controls
-	qDebug() << "Reparenting previewFrame to container";
-
 	previewFrame->setParent(_materialPreviewContainer);
 	previewContainerLayout->addWidget(previewFrame, 1);  // Stretch to fill
 	previewFrame->show();
 	previewContainerLayout->activate();  // Ensure layout is processed
 	_materialPreviewContainer->adjustSize();  // Adjust container size
-
-	qDebug() << "PreviewFrame reparented, container size:" << _materialPreviewContainer->size();
 
 	// STEP 3: Save the material panel's original index BEFORE inserting preview tab
 	// This is crucial because inserting at index 0 will shift existing tabs
@@ -1080,16 +1077,12 @@ void ModelViewer::detachMaterialPanel()
 	tabWidgetVizAttribs->insertTab(_materialPreviewContainerTabIndex, _materialPreviewContainer, tr("Preview"));
 	tabWidgetVizAttribs->setTabIcon(_materialPreviewContainerTabIndex, QIcon(":/icons/res/preview.png"));
 
-	qDebug() << "Preview tab inserted at index 0 (first position)";
-	qDebug() << "Material panel original index saved as:" << _materialPageIndex;
-
 	// STEP 5: Make sure the container is visible and the tab is current
 	_materialPreviewContainer->show();
 	_materialPreviewContainer->raise();  // Bring to front
 	if (_materialPreviewContainerTabIndex >= 0)
 	{
 		tabWidgetVizAttribs->setCurrentIndex(_materialPreviewContainerTabIndex);
-		qDebug() << "Set current tab to preview index";
 	}
 
 	// Ensure the preview frame is properly initialized in the new context
@@ -1102,7 +1095,6 @@ void ModelViewer::detachMaterialPanel()
 	{
 		int currentMaterialIndex = tabWidgetVizAttribs->indexOf(scrollArea->parentWidget());
 		tabWidgetVizAttribs->removeTab(currentMaterialIndex);
-		qDebug() << "Removed material panel tab at shifted index:" << currentMaterialIndex << "(was originally at" << _materialPageIndex << ")";
 	}
 
 	// STEP 6: The previewFrame has been moved, leaving the panel with just the library tree
@@ -1135,7 +1127,6 @@ void ModelViewer::detachMaterialPanel()
 	connect(floatingMatDlg, &FloatingPanelDialog::reattachRequested,
 		this, &ModelViewer::reattachMaterialPanel);
 
-	qDebug() << "Material panel detached. Preview widget kept in main thread in new 'Preview' tab.";
 }
 
 void ModelViewer::reattachMaterialPanel()
@@ -1150,8 +1141,6 @@ void ModelViewer::reattachMaterialPanel()
 		// STEP 1: Move the previewFrame back into the panel
 		if (_materialPreviewContainer)
 		{
-			qDebug() << "Reattaching: Moving previewFrame back to panel";
-
 			// Find the previewFrame in the container
 			QFrame* previewFrame = _materialPreviewContainer->findChild<QFrame*>("previewFrame");
 			if (previewFrame)
@@ -1159,14 +1148,10 @@ void ModelViewer::reattachMaterialPanel()
 				// Remove from container
 				QLayout* containerLayout = _materialPreviewContainer->layout();
 				if (containerLayout)
-				{
 					containerLayout->removeWidget(previewFrame);
-					qDebug() << "Removed previewFrame from container layout";
-				}
 
 				// Use the panel's helper method to restore the previewFrame to its original location
 				predefinedMaterialsPanel->restorePreviewFrame(previewFrame);
-				qDebug() << "Restored previewFrame to panel";
 			}
 
 			// Remove the preview tab from the tab widget
@@ -1174,13 +1159,11 @@ void ModelViewer::reattachMaterialPanel()
 			{
 				tabWidgetVizAttribs->removeTab(_materialPreviewContainerTabIndex);
 				_materialPreviewContainerTabIndex = -1;
-				qDebug() << "Removed preview tab from tab widget";
 			}
 
 			// Delete the temporary container
 			_materialPreviewContainer->deleteLater();
 			_materialPreviewContainer = nullptr;
-			qDebug() << "Deleted preview container";
 		}
 
 		// STEP 2: Re-parent panel back to the scroll area
@@ -1206,7 +1189,6 @@ void ModelViewer::reattachMaterialPanel()
 	_detachedMaterialDialog = nullptr;
 	_materialOriginalParent = nullptr;
 
-	qDebug() << "Material panel reattached. Preview widget moved back into panel.";
 }
 
 void ModelViewer::detachTransformationsPanel()
@@ -1957,7 +1939,6 @@ bool ModelViewer::saveMaterialsBeforeClose()
 			materialPanel->removeMaterialFromUnsaved(key);
 			_ownedUnsavedMaterials.remove(key);
 			savedCount++;
-			qDebug() << "Successfully saved material:" << materialName << "(" << key << ")";
 		}
 		else
 		{
@@ -2000,10 +1981,7 @@ void ModelViewer::cleanupUnsavedMaterialsFromLibrary()
 	// This allows other MDIs' unsaved materials to remain visible
 
 	if (_ownedUnsavedMaterials.isEmpty())
-	{
-		qDebug() << "No unsaved materials owned by this MDI to clean up";
 		return;
-	}
 
 	// Remove from shared material map - only owned materials
 	auto& sharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
@@ -2011,10 +1989,7 @@ void ModelViewer::cleanupUnsavedMaterialsFromLibrary()
 
 	for (const QString& key : _ownedUnsavedMaterials)
 	{
-		if (sharedMap.remove(key) > 0)
-		{
-			qDebug() << "Removed owned unsaved material from shared map:" << key;
-		}
+		sharedMap.remove(key);
 	}
 
 	// Remove from shared groups - only owned materials
@@ -2034,7 +2009,6 @@ void ModelViewer::cleanupUnsavedMaterialsFromLibrary()
 		);
 	}
 
-	qDebug() << "Cleaned up" << _ownedUnsavedMaterials.size() << "unsaved material(s) owned by this MDI";
 }
 
 QSet<QUuid> ModelViewer::scanStackForReferencedUuids()
@@ -2090,7 +2064,10 @@ void ModelViewer::updateDisplayList()
 		!_glWidget->getMeshStore().empty() &&
 		_glWidget->cameraMode() == GLCamera::CameraMode::Orbit)
 	{
-		_glWidget->fitAll();
+		if (!_glWidget->isGltfCameraActive())
+		{
+			_glWidget->fitAll();
+		}
 	}
 
 	
@@ -2884,6 +2861,29 @@ void ModelViewer::validateCameraData()
 	}
 }
 
+void ModelViewer::validateLightData()
+{
+	if (!_sceneGraph || !_glWidget)
+		return;
+
+	const QStringList files = _sceneGraph->filesWithLights();
+	const std::vector<TriangleMesh*>& meshes = _glWidget->getMeshStore();
+
+	for (const QString& sourceFile : files)
+	{
+		const bool hasLiveMesh = std::any_of(meshes.cbegin(), meshes.cend(),
+			[&](TriangleMesh* mesh)
+			{
+				return mesh
+					&& mesh->getSourceFile() == sourceFile
+					&& _sceneGraph->findNodeForMesh(mesh->uuid()) != nullptr;
+			});
+
+		if (!hasLiveMesh)
+			_sceneGraph->clearLightData(sourceFile);
+	}
+}
+
 void ModelViewer::invalidateCutClipboard()
 {
 	_clipboard.clear();
@@ -3618,151 +3618,269 @@ void ModelViewer::importFiles(QStringList& fileNames)
 #include <AssImpMesh.h>
 #include "SceneUtils.h"
 #include "SceneGraphExporter.h"
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QLabel>
+#include <QListWidget>
 void ModelViewer::onFileExport()
 {
-	Assimp::Exporter exporter;
+	if (!_sceneGraph || !_sceneGraph->root() || !_glWidget)
+		return;
+
+	// --- Build the format filter list (shared for all file dialogs) ---------------
+	Assimp::Exporter assimpExporter;
 	QStringList filters;
 	QStringList allExtensions;
-	QMap<QString, QString> filterToExtension; // Map filter -> extension
+	QMap<QString, QString> filterToExtension;
 
-	// Build filters and track extensions
-	for (unsigned int i = 0; i < exporter.GetExportFormatCount(); ++i)
+	for (unsigned int i = 0; i < assimpExporter.GetExportFormatCount(); ++i)
 	{
-		const aiExportFormatDesc* desc = exporter.GetExportFormatDescription(i);
-		QString ext = QString::fromUtf8(desc->fileExtension);
+		const aiExportFormatDesc* desc = assimpExporter.GetExportFormatDescription(i);
+		QString ext  = QString::fromUtf8(desc->fileExtension);
 		QString descStr = QString::fromUtf8(desc->description);
-		QString filter = QString("%1 (*.%2)").arg(descStr).arg(ext);
-
+		QString filter  = QString("%1 (*.%2)").arg(descStr).arg(ext);
 		filters.append(filter);
 		allExtensions.append("*." + ext);
 		filterToExtension[filter] = ext;
 	}
-
-	// All Supported Files filter
 	QString allSupportedFilter = QString("All Supported Files (%1)").arg(allExtensions.join(' '));
 	filters.prepend(allSupportedFilter);
-
-	// Map the "All Supported Files" to empty extension (no default append)
 	filterToExtension[allSupportedFilter] = "";
+	// ------------------------------------------------------------------------------
 
-	QString selectedFilter;
-	QString fileName = QFileDialog::getSaveFileName(this, tr("Export Model"), _lastOpenedDir, filters.join(";;"), &selectedFilter);
+	// --- Scene selection: if multiple files are loaded, ask which one to export ---
+	// The dialog is shown BEFORE the filename dialog so the user picks a single scene
+	// first, then provides exactly one output filename for it.
+	QString selectedSourceFile;   // empty = no filter (single scene loaded)
+	const QList<SceneNode*>& fileNodes = _sceneGraph->root()->children;
 
-	if (!fileName.isEmpty())
+	if (fileNodes.size() > 1)
 	{
-		QString extToAppend = filterToExtension[selectedFilter];
+		QDialog selDlg(this);
+		selDlg.setWindowTitle(tr("Select Scene to Export"));
+		selDlg.setMinimumWidth(440);
 
-		// Append extension only if not present already
-		if (!extToAppend.isEmpty() && !fileName.endsWith("." + extToAppend, Qt::CaseInsensitive))
+		QVBoxLayout* vlay = new QVBoxLayout(&selDlg);
+		vlay->addWidget(new QLabel(
+			tr("Multiple scenes are loaded. Select one to export:"), &selDlg));
+
+		QListWidget* list = new QListWidget(&selDlg);
+		list->setSelectionMode(QAbstractItemView::SingleSelection);
+		for (const SceneNode* fileNode : fileNodes)
 		{
-			fileName += "." + extToAppend;
+			QListWidgetItem* item = new QListWidgetItem(fileNode->name, list);
+			item->setData(Qt::UserRole, fileNode->sourceFile);
 		}
+		list->setCurrentRow(0);   // select first by default
+		vlay->addWidget(list);
 
-		// Export
-		AssImpMeshExporter exporter(this);
-		std::vector<TriangleMesh*> triMeshes = _glWidget->getMeshStore();
-		std::vector<AssImpMesh*> assImpMeshes;
-		for (TriangleMesh* triMesh : triMeshes)
-			assImpMeshes.push_back(dynamic_cast<AssImpMesh*>(triMesh));
+		QDialogButtonBox* bbox = new QDialogButtonBox(
+			QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &selDlg);
+		connect(bbox, &QDialogButtonBox::accepted, &selDlg, &QDialog::accept);
+		connect(bbox, &QDialogButtonBox::rejected, &selDlg, &QDialog::reject);
+		vlay->addWidget(bbox);
 
-		// Check the user settings
-		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-		bool exportScene = settings.value("radioButtonExportScene", true).toBool();
-				
-		// Export a copy of the the original aiScene
-		//aiScene* copyScene = SceneUtils::deepCopyScene(_glWidget->getAssImpScene());
-
-
-		auto resolver = [this](const QUuid& uuid) -> TriangleMesh* {
-			return _glWidget->getMeshByUuid(uuid);
-			};
-
-		aiScene* copyScene =
-			SceneGraphExporter::buildExportScene(_sceneGraph, resolver);
-
-		if (!copyScene)
-		{
-			QMessageBox::critical(this, tr("Error"),
-				tr("Failed to build export scene."));
+		if (selDlg.exec() != QDialog::Accepted)
 			return;
+
+		QListWidgetItem* sel = list->currentItem();
+		if (!sel)
+			return;
+
+		selectedSourceFile = sel->data(Qt::UserRole).toString();
+	}
+	// ------------------------------------------------------------------------------
+
+	// --- Filename dialog ----------------------------------------------------------
+	QString selectedFilter;
+	QString fileName = QFileDialog::getSaveFileName(
+		this, tr("Export Model"), _lastOpenedDir,
+		filters.join(";;"), &selectedFilter);
+
+	if (fileName.isEmpty())
+		return;
+
+	QString extToAppend = filterToExtension[selectedFilter];
+	if (!extToAppend.isEmpty() && !fileName.endsWith("." + extToAppend, Qt::CaseInsensitive))
+		fileName += "." + extToAppend;
+	// ------------------------------------------------------------------------------
+
+	// --- Build export scene and mesh list ----------------------------------------
+	QStringList allowedSourceFiles;
+	if (!selectedSourceFile.isEmpty())
+		allowedSourceFiles << selectedSourceFile;
+
+	auto resolver = [this](const QUuid& uuid) -> TriangleMesh* {
+		return _glWidget->getMeshByUuid(uuid);
+	};
+
+	const QString exportExt = QFileInfo(fileName).suffix().toLower();
+	const bool flattenTransforms = (exportExt == "obj" || exportExt == "ply" || exportExt == "stl");
+
+	QMap<QString, unsigned int> animMatRemap; // "origMatIdx@sourceFile" → export material index
+	aiScene* copyScene = SceneGraphExporter::buildExportScene(
+		_sceneGraph, resolver, flattenTransforms, allowedSourceFiles, &animMatRemap);
+
+	if (!copyScene)
+	{
+		QMessageBox::critical(this, tr("Error"), tr("Failed to build export scene."));
+		return;
+	}
+
+	// Filter the runtime mesh list to match the exported scene.
+	// Keeping ALL meshes when only a subset was exported causes a count mismatch in
+	// AssImpMeshExporter::exportScene(), which triggers an incorrect fallback path
+	// and can produce malformed texture image entries in GLB output.
+	std::vector<TriangleMesh*> allMeshes = _glWidget->getMeshStore();
+	std::vector<TriangleMesh*> triMeshes;
+	triMeshes.reserve(allMeshes.size());
+	for (TriangleMesh* m : allMeshes)
+	{
+		if (allowedSourceFiles.isEmpty() || allowedSourceFiles.contains(m->getSourceFile()))
+			triMeshes.push_back(m);
+	}
+	// ------------------------------------------------------------------------------
+
+	// The autoOrient+autoScale correction is factored out inside buildExportScene()
+	// via the importCorrection stored on each fileNode.
+
+	// Apply inverse scene transform to punctual lights.
+	// Use the repositioned lights (user-visible state after slider / auto-rotate
+	// adjustments) rather than the raw parsed positions, so the exported file
+	// reflects exactly what the user sees in the viewer.
+	glm::mat4 transform = _glWidget->getGlobalSceneTransform();
+	glm::mat4 inverseTransform = glm::inverse(transform);
+	std::vector<GPULight> lights = _glWidget->getRepositionedLights();
+	for (GPULight& light : lights)
+	{
+		glm::vec4 transformedPos = inverseTransform * glm::vec4(light.position, 1.0f);
+		light.position = glm::vec3(transformedPos);
+
+		glm::vec4 transformedDir = inverseTransform * glm::vec4(light.direction, 0.0f);
+		light.direction = glm::normalize(glm::vec3(transformedDir));
+
+		glm::vec3 scale(
+			glm::length(glm::vec3(inverseTransform[0])),
+			glm::length(glm::vec3(inverseTransform[1])),
+			glm::length(glm::vec3(inverseTransform[2])));
+		float avgScale = (scale.x + scale.y + scale.z) / 3.0f;
+		light.range *= avgScale;
+	}
+
+	const bool formatSupportsTextures = (exportExt != "ply" && exportExt != "stl");
+	AssImpMeshExporter::ExportSettings expSettings;
+	expSettings.outputDirectory  = QFileInfo(fileName).absolutePath();
+	expSettings.copyTextures     = formatSupportsTextures;
+	expSettings.useRelativePaths = true;
+	expSettings.deduplicateTextures = true;
+	expSettings.verbose = true;
+	expSettings.lights  = lights;
+
+	// Collect glTF cameras for all exported files.
+	{
+		const QStringList camFiles = _sceneGraph->filesWithGltfCameras();
+		for (const QString& file : camFiles)
+		{
+			// Only include cameras from files that are part of this export.
+			if (!selectedSourceFile.isEmpty() && file != selectedSourceFile)
+				continue;
+			const GltfCameraData camData = _sceneGraph->gltfCameraDataForFile(file);
+			for (const GltfCameraEntry& cam : camData.cameras)
+				expSettings.cameras.append(cam);
+		}
+	}
+
+	// Collect variant names so KHR_materials_variants is preserved on glTF export.
+	{
+		// Use variant data from the selected source file if known, else first available.
+		QString variantFile = selectedSourceFile.isEmpty()
+		                      ? (_sceneGraph->filesWithVariants().isEmpty()
+		                         ? QString() : _sceneGraph->filesWithVariants().first())
+		                      : selectedSourceFile;
+		if (!variantFile.isEmpty())
+		{
+			GltfVariantData vd = _sceneGraph->variantDataForFile(variantFile);
+			expSettings.variantNames = vd.variantNames;
+		}
+	}
+
+	// Collect glTF animation data for Pointer-channel injection (KHR_animation_pointer).
+	// Pointer channels (material texture-transform, node visibility) are stored in
+	// GltfAnimationData but cannot be expressed as Assimp aiAnimation channels.
+	// We pass them to GltfPostProcessor via ExportSettings so they are re-injected
+	// into the output glTF/GLB after Assimp writes the file.
+	{
+		const QStringList animFiles = _sceneGraph->filesWithAnimations();
+		for (const QString& file : animFiles)
+		{
+			if (!selectedSourceFile.isEmpty() && file != selectedSourceFile)
+				continue;
+			const GltfAnimationData animData = _sceneGraph->animationDataForFile(file);
+			if (!animData.isEmpty() && (animData.hasPointerAnimations || animData.hasMorphAnimations))
+				expSettings.animationDataList.append(animData);
 		}
 
-
-		// Apply inverse global transform to meshes before export, since we have applied 
-		// auto scaling and rotation based on the up vector of the model and user settings.
-		glm::mat4 transform = _glWidget->getGlobalSceneTransform();
-		// Invert the transform
-		glm::mat4 inverseTransform = glm::inverse(transform);
-		// Apply to the root node of the scene, which will affect all meshes
-		aiNode* node = copyScene->mRootNode;
-		aiMatrix4x4 aiTransform = SceneUtils::glmToAiMatrix(inverseTransform);
-		node->mTransformation = aiTransform * node->mTransformation;
-
-		// Apply inverse transforms to the punctual lights as well
-		std::vector<GPULight> lights = _glWidget->getParsedLights();
-		for (GPULight& light : lights)
+		// Remap pointer-animation targetMaterialIndex values to the actual indices used
+		// in the exported aiScene.  The original material indices stored in
+		// GltfAnimationChannel::targetMaterialIndex were assigned by the ORIGINAL glTF
+		// loader and may not match the export-scene order (which depends on the DFS
+		// traversal order of the scene graph).  Without this remap the injected
+		// KHR_animation_pointer paths reference the wrong material on re-import.
+		if (!animMatRemap.isEmpty())
 		{
-			// Transform position (with translation)
-			glm::vec4 transformedPos = inverseTransform * glm::vec4(light.position, 1.0f);
-			light.position = glm::vec3(transformedPos);
-
-			// Transform direction (no translation)
-			glm::vec4 transformedDir = inverseTransform * glm::vec4(light.direction, 0.0f);
-			light.direction = glm::normalize(glm::vec3(transformedDir));
-
-			// Extract scale from transform matrix
-			glm::vec3 scale(
-				glm::length(glm::vec3(inverseTransform[0])),
-				glm::length(glm::vec3(inverseTransform[1])),
-				glm::length(glm::vec3(inverseTransform[2]))
-			);
-			float avgScale = (scale.x + scale.y + scale.z) / 3.0f;
-			light.range *= avgScale;
-		}
-
-		// Export the meshes loaded in the scene
-		AssImpMeshExporter::ExportSettings expSettings;
-		expSettings.outputDirectory = QFileInfo(fileName).absolutePath();
-		expSettings.copyTextures = true;
-		expSettings.useRelativePaths = true;
-		expSettings.deduplicateTextures = true;
-		expSettings.verbose = true;
-		expSettings.lights = lights;
-
-		// Collect variant names so KHR_materials_variants is preserved on glTF export
-		{
-			QStringList filesWithVariants = _sceneGraph->filesWithVariants();
-			if (!filesWithVariants.isEmpty())
+			for (GltfAnimationData& animData : expSettings.animationDataList)
 			{
-				// Use the first variant-bearing file's names.
-				// For multi-file scenes with different variant namespaces, this is
-				// a best-effort approach; full multi-namespace support would require
-				// per-mesh variant index remapping which is out of scope here.
-				GltfVariantData vd = _sceneGraph->variantDataForFile(filesWithVariants.first());
-				expSettings.variantNames = vd.variantNames;
-				qDebug() << "[Export] Will preserve" << vd.variantNames.size()
-				         << "material variants:" << vd.variantNames;
+				for (GltfAnimationClip& clip : animData.clips)
+				{
+					for (GltfAnimationChannel& ch : clip.channels)
+					{
+						if (ch.targetPath != GltfAnimationTargetPath::Pointer)
+							continue;
+						if (ch.targetMaterialIndex < 0)
+							continue;
+
+						const QString remapKey =
+							QString::number(ch.targetMaterialIndex)
+							+ QLatin1Char('@')
+							+ animData.sourceFile;
+						const auto it = animMatRemap.constFind(remapKey);
+						if (it != animMatRemap.constEnd())
+						{
+							const int newIdx = static_cast<int>(it.value());
+							if (newIdx != ch.targetMaterialIndex)
+							{
+								qDebug() << "[EXPORT-ANIM-REMAP] sourceFile=" << animData.sourceFile
+								         << "material" << ch.targetMaterialIndex << "->" << newIdx;
+								ch.targetMaterialIndex = newIdx;
+							}
+						}
+					}
+				}
 			}
 		}
-
-		aiReturn res = aiReturn_FAILURE;
-		if (exportScene)
-		{			
-			res = exporter.exportScene(copyScene, triMeshes, fileName.toStdString(), expSettings);
-			qDebug() << "Exporting scene result:" << res;
-			delete copyScene;
-		}
-		else
-		{			
-			res = exporter.exportMeshes(copyScene, triMeshes, fileName, expSettings);
-			qDebug() << "Exporting meshes result:" << res;
-		}
-
-		if (res == aiReturn_SUCCESS)
-			QMessageBox::information(this, tr("Information"), tr("Exported %1").arg(QFileInfo(fileName).fileName()));
-		else
-			QMessageBox::critical(this, tr("Error"), tr("Export failed!"));
 	}
+
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	bool useScenePath = settings.value("radioButtonExportScene", true).toBool();
+
+	AssImpMeshExporter meshExporter(this);
+	aiReturn res = aiReturn_FAILURE;
+	if (useScenePath)
+	{
+		res = meshExporter.exportScene(copyScene, triMeshes, fileName.toStdString(), expSettings);
+		qDebug() << "Exporting scene result:" << res;
+		delete copyScene;
+	}
+	else
+	{
+		res = meshExporter.exportMeshes(copyScene, triMeshes, fileName, expSettings);
+		qDebug() << "Exporting meshes result:" << res;
+	}
+
+	if (res == aiReturn_SUCCESS)
+		QMessageBox::information(this, tr("Information"), tr("Exported %1").arg(QFileInfo(fileName).fileName()));
+	else
+		QMessageBox::critical(this, tr("Error"), tr("Export failed!"));
 }
 
 
@@ -3862,6 +3980,15 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	struct LoadResult
 	{
 		Mvf::Document document;
+		std::vector<GPULight> lights;
+		QVector<GltfVariantData> variantDataByFile;
+		QHash<QString, int> activeVariantByFile;
+		QVector<GltfAnimationData> animationDataByFile;
+		QHash<QString, int> activeAnimationByFile;
+		QVector<GltfCameraData> cameraDataByFile;
+		QString       activeGltfCameraFile;
+		int           activeGltfCameraIndex = -1;
+		QJsonObject   viewerState;
 		bool          ok       = false;
 		bool          badMagic = false;
 	};
@@ -3925,6 +4052,317 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		}, Qt::BlockingQueuedConnection);
 
 		result.document = Mvf::fromJsonBytes(jsonPayload);
+		const QJsonObject session = result.document.mvfSession;
+
+		auto jsonArrayToVec3 = [](const QJsonArray& arr, const QVector3D& fallback = QVector3D()) {
+			if (arr.size() < 3)
+				return fallback;
+			return QVector3D(
+				static_cast<float>(arr[0].toDouble()),
+				static_cast<float>(arr[1].toDouble()),
+				static_cast<float>(arr[2].toDouble()));
+		};
+
+		auto jsonArrayToGlmVec3 = [&](const QJsonArray& arr, const glm::vec3& fallback = glm::vec3(0.0f)) {
+			const QVector3D vec = jsonArrayToVec3(
+				arr, QVector3D(fallback.x, fallback.y, fallback.z));
+			return glm::vec3(vec.x(), vec.y(), vec.z());
+		};
+
+		for (const QJsonValue& lightValue : session[QStringLiteral("lights")].toArray())
+		{
+			const QJsonObject lightObj = lightValue.toObject();
+			GPULight light{};
+			light.type = lightObj[QStringLiteral("type")].toInt(static_cast<int>(LightType::Point));
+			light.range = static_cast<float>(lightObj[QStringLiteral("range")].toDouble(0.0));
+			light.intensity = static_cast<float>(lightObj[QStringLiteral("intensity")].toDouble(1.0));
+			light.direction = jsonArrayToGlmVec3(lightObj[QStringLiteral("direction")].toArray());
+			light.color = jsonArrayToGlmVec3(lightObj[QStringLiteral("color")].toArray(), glm::vec3(1.0f));
+			light.position = jsonArrayToGlmVec3(lightObj[QStringLiteral("position")].toArray());
+			light.innerConeCos = static_cast<float>(lightObj[QStringLiteral("innerConeCos")].toDouble(0.0));
+			light.outerConeCos = static_cast<float>(lightObj[QStringLiteral("outerConeCos")].toDouble(0.0));
+			result.lights.push_back(light);
+		}
+
+		for (const QJsonValue& fileValue : session[QStringLiteral("variantFiles")].toArray())
+		{
+			const QJsonObject fileObj = fileValue.toObject();
+			const QString sourceFile = fileObj[QStringLiteral("sourceFile")].toString();
+			if (sourceFile.isEmpty())
+				continue;
+
+			GltfVariantData variantData;
+			variantData.sourceFile = sourceFile;
+
+			for (const QJsonValue& nameValue : fileObj[QStringLiteral("variantNames")].toArray())
+				variantData.variantNames.append(nameValue.toString());
+
+			for (const QJsonValue& mappingValue : fileObj[QStringLiteral("meshVariantMappings")].toArray())
+			{
+				const QJsonObject mappingObj = mappingValue.toObject();
+				const int sceneIndex = mappingObj[QStringLiteral("sceneIndex")].toInt(-1);
+				if (sceneIndex < 0)
+					continue;
+
+				QVector<GltfVariantMapping> mappings;
+				for (const QJsonValue& variantMappingValue : mappingObj[QStringLiteral("variantMappings")].toArray())
+				{
+					const QJsonObject variantMappingObj = variantMappingValue.toObject();
+					GltfVariantMapping mapping;
+					mapping.materialIndex = variantMappingObj[QStringLiteral("materialIndex")].toInt(-1);
+					for (const QJsonValue& variantIndexValue : variantMappingObj[QStringLiteral("variantIndices")].toArray())
+						mapping.variantIndices.append(variantIndexValue.toInt(-1));
+					mappings.append(mapping);
+				}
+				variantData.meshVariantMappings.insert(sceneIndex, mappings);
+			}
+
+			result.variantDataByFile.append(variantData);
+			result.activeVariantByFile.insert(
+				sourceFile,
+				fileObj[QStringLiteral("activeVariant")].toInt(-1));
+		}
+
+		for (const QJsonValue& fileValue : session[QStringLiteral("cameraFiles")].toArray())
+		{
+			const QJsonObject fileObj = fileValue.toObject();
+			const QString sourceFile = fileObj[QStringLiteral("sourceFile")].toString();
+			if (sourceFile.isEmpty())
+				continue;
+
+			GltfCameraData cameraData;
+			cameraData.sourceFile = sourceFile;
+			const QString cameraSourceSuffix = QFileInfo(sourceFile).suffix().toLower();
+			const bool isDirectGltfCameraSource =
+				(cameraSourceSuffix == QLatin1String("gltf") || cameraSourceSuffix == QLatin1String("glb"));
+
+			for (const QJsonValue& cameraValue : fileObj[QStringLiteral("cameras")].toArray())
+			{
+				const QJsonObject cameraObj = cameraValue.toObject();
+				GltfCameraEntry camera;
+				camera.name = cameraObj[QStringLiteral("name")].toString();
+				camera.nodeName = cameraObj[QStringLiteral("nodeName")].toString();
+				camera.nodeIndex = cameraObj[QStringLiteral("nodeIndex")].toInt(-1);
+				camera.hasAiChildPath = cameraObj[QStringLiteral("hasAiChildPath")].toBool(false);
+				for (const QJsonValue& pathValue : cameraObj[QStringLiteral("aiChildPath")].toArray())
+					camera.aiChildPath.append(pathValue.toInt(-1));
+				camera.type = cameraObj[QStringLiteral("type")].toString() == QLatin1String("orthographic")
+					? GltfCameraType::Orthographic
+					: GltfCameraType::Perspective;
+				camera.fovYRadians = static_cast<float>(cameraObj[QStringLiteral("fovYRadians")].toDouble(camera.fovYRadians));
+				camera.zNear = static_cast<float>(cameraObj[QStringLiteral("zNear")].toDouble(camera.zNear));
+				camera.zFar = static_cast<float>(cameraObj[QStringLiteral("zFar")].toDouble(camera.zFar));
+				camera.xMag = static_cast<float>(cameraObj[QStringLiteral("xMag")].toDouble(camera.xMag));
+				camera.yMag = static_cast<float>(cameraObj[QStringLiteral("yMag")].toDouble(camera.yMag));
+				camera.worldPosition = jsonArrayToVec3(cameraObj[QStringLiteral("worldPosition")].toArray());
+				camera.worldDirection = jsonArrayToVec3(
+					cameraObj[QStringLiteral("worldDirection")].toArray(), QVector3D(0.0f, 0.0f, -1.0f));
+				camera.worldUp = jsonArrayToVec3(
+					cameraObj[QStringLiteral("worldUp")].toArray(), QVector3D(0.0f, 1.0f, 0.0f));
+				camera.needsModelTransformCompensation =
+					cameraObj[QStringLiteral("needsModelTransformCompensation")].toBool(false);
+				if (isDirectGltfCameraSource)
+					camera.needsModelTransformCompensation = false;
+				cameraData.cameras.append(camera);
+			}
+
+			result.cameraDataByFile.append(cameraData);
+		}
+
+		result.activeGltfCameraFile = session[QStringLiteral("activeGltfCameraFile")].toString();
+		result.activeGltfCameraIndex = session[QStringLiteral("activeGltfCameraIndex")].toInt(-1);
+		result.viewerState = session[QStringLiteral("viewerState")].toObject();
+
+		auto jsonArrayToQuat = [](const QJsonArray& arr, const QQuaternion& fallback = QQuaternion()) {
+			if (arr.size() < 4)
+				return fallback;
+			return QQuaternion(
+				static_cast<float>(arr[0].toDouble()),
+				static_cast<float>(arr[1].toDouble()),
+				static_cast<float>(arr[2].toDouble()),
+				static_cast<float>(arr[3].toDouble()));
+		};
+
+		auto jsonToAiMatrix = [](const QJsonArray& mat) {
+			aiMatrix4x4 m;
+			if (mat.size() == 16)
+			{
+				m.a1 = static_cast<float>(mat[0].toDouble());  m.a2 = static_cast<float>(mat[1].toDouble());
+				m.a3 = static_cast<float>(mat[2].toDouble());  m.a4 = static_cast<float>(mat[3].toDouble());
+				m.b1 = static_cast<float>(mat[4].toDouble());  m.b2 = static_cast<float>(mat[5].toDouble());
+				m.b3 = static_cast<float>(mat[6].toDouble());  m.b4 = static_cast<float>(mat[7].toDouble());
+				m.c1 = static_cast<float>(mat[8].toDouble());  m.c2 = static_cast<float>(mat[9].toDouble());
+				m.c3 = static_cast<float>(mat[10].toDouble()); m.c4 = static_cast<float>(mat[11].toDouble());
+				m.d1 = static_cast<float>(mat[12].toDouble()); m.d2 = static_cast<float>(mat[13].toDouble());
+				m.d3 = static_cast<float>(mat[14].toDouble()); m.d4 = static_cast<float>(mat[15].toDouble());
+			}
+			return m;
+		};
+
+		for (const QJsonValue& fileValue : session[QStringLiteral("animationFiles")].toArray())
+		{
+			const QJsonObject fileObj = fileValue.toObject();
+			const QString sourceFile = fileObj[QStringLiteral("sourceFile")].toString();
+			if (sourceFile.isEmpty())
+				continue;
+
+			GltfAnimationData animationData;
+			animationData.sourceFile = sourceFile;
+			animationData.hasNodeAnimations = fileObj[QStringLiteral("hasNodeAnimations")].toBool(false);
+			animationData.hasSkinning = fileObj[QStringLiteral("hasSkinning")].toBool(false);
+			animationData.hasMorphAnimations = fileObj[QStringLiteral("hasMorphAnimations")].toBool(false);
+			animationData.hasPointerAnimations = fileObj[QStringLiteral("hasPointerAnimations")].toBool(false);
+			animationData.rootInverseTransform = jsonToAiMatrix(
+				fileObj[QStringLiteral("rootInverseTransform")].toArray());
+
+			for (const QJsonValue& bindingValue : fileObj[QStringLiteral("nodeBindings")].toArray())
+			{
+				const QJsonObject bindingObj = bindingValue.toObject();
+				GltfAnimationNodeBinding binding;
+				binding.nodeIndex = bindingObj[QStringLiteral("nodeIndex")].toInt(-1);
+				binding.nodeName = bindingObj[QStringLiteral("nodeName")].toString();
+				binding.hasAiChildPath = bindingObj[QStringLiteral("hasAiChildPath")].toBool(false);
+				for (const QJsonValue& pathValue : bindingObj[QStringLiteral("aiChildPath")].toArray())
+					binding.aiChildPath.append(pathValue.toInt(-1));
+				animationData.nodeBindings.append(binding);
+			}
+
+			for (const QJsonValue& stateValue : fileObj[QStringLiteral("nodeVisibilityStates")].toArray())
+			{
+				const QJsonObject stateObj = stateValue.toObject();
+				GltfAnimationNodeVisibilityState state;
+				state.nodeIndex = stateObj[QStringLiteral("nodeIndex")].toInt(-1);
+				state.parentNodeIndex = stateObj[QStringLiteral("parentNodeIndex")].toInt(-1);
+				state.nodeName = stateObj[QStringLiteral("nodeName")].toString();
+				state.defaultVisible = stateObj[QStringLiteral("defaultVisible")].toBool(true);
+				animationData.nodeVisibilityStates.append(state);
+			}
+
+			for (const QJsonValue& bindingValue : fileObj[QStringLiteral("lightBindings")].toArray())
+			{
+				const QJsonObject bindingObj = bindingValue.toObject();
+				GltfAnimationLightBinding binding;
+				binding.parsedLightIndex = bindingObj[QStringLiteral("parsedLightIndex")].toInt(-1);
+				binding.lightDefinitionIndex = bindingObj[QStringLiteral("lightDefinitionIndex")].toInt(-1);
+				binding.nodeIndex = bindingObj[QStringLiteral("nodeIndex")].toInt(-1);
+				binding.nodeName = bindingObj[QStringLiteral("nodeName")].toString();
+				animationData.lightBindings.append(binding);
+			}
+
+			for (const QJsonValue& clipValue : fileObj[QStringLiteral("clips")].toArray())
+			{
+				const QJsonObject clipObj = clipValue.toObject();
+				GltfAnimationClip clip;
+				clip.name = clipObj[QStringLiteral("name")].toString();
+				clip.durationSeconds = clipObj[QStringLiteral("durationSeconds")].toDouble(0.0);
+				clip.hasNodeTransforms = clipObj[QStringLiteral("hasNodeTransforms")].toBool(false);
+				clip.hasSkinning = clipObj[QStringLiteral("hasSkinning")].toBool(false);
+				clip.hasMorphAnimations = clipObj[QStringLiteral("hasMorphAnimations")].toBool(false);
+				clip.hasPointerAnimations = clipObj[QStringLiteral("hasPointerAnimations")].toBool(false);
+
+				for (const QJsonValue& channelValue : clipObj[QStringLiteral("channels")].toArray())
+				{
+					const QJsonObject channelObj = channelValue.toObject();
+					GltfAnimationChannel channel;
+					channel.targetNodeName = channelObj[QStringLiteral("targetNodeName")].toString();
+					channel.targetNodeIndex = channelObj[QStringLiteral("targetNodeIndex")].toInt(-1);
+					channel.targetPath = static_cast<GltfAnimationTargetPath>(
+						channelObj[QStringLiteral("targetPath")].toInt(static_cast<int>(GltfAnimationTargetPath::Translation)));
+					channel.targetPointer = channelObj[QStringLiteral("targetPointer")].toString();
+					channel.pointerTargetKind = static_cast<GltfAnimationPointerTargetKind>(
+						channelObj[QStringLiteral("pointerTargetKind")].toInt(static_cast<int>(GltfAnimationPointerTargetKind::None)));
+					channel.targetMaterialIndex = channelObj[QStringLiteral("targetMaterialIndex")].toInt(-1);
+					channel.textureTarget = static_cast<GltfAnimationTextureTarget>(
+						channelObj[QStringLiteral("textureTarget")].toInt(static_cast<int>(GltfAnimationTextureTarget::Unknown)));
+					channel.pointerProperty = static_cast<GltfAnimationPointerProperty>(
+						channelObj[QStringLiteral("pointerProperty")].toInt(static_cast<int>(GltfAnimationPointerProperty::None)));
+
+					for (const QJsonValue& keyValue : channelObj[QStringLiteral("vec3Keys")].toArray())
+					{
+						const QJsonObject keyObj = keyValue.toObject();
+						channel.vec3Keys.append(GltfAnimationVec3Key{
+							keyObj[QStringLiteral("timeSeconds")].toDouble(0.0),
+							jsonArrayToVec3(keyObj[QStringLiteral("value")].toArray())
+						});
+					}
+
+					for (const QJsonValue& keyValue : channelObj[QStringLiteral("vec4Keys")].toArray())
+					{
+						const QJsonObject keyObj = keyValue.toObject();
+						const QJsonArray value = keyObj[QStringLiteral("value")].toArray();
+						channel.vec4Keys.append(GltfAnimationVec4Key{
+							keyObj[QStringLiteral("timeSeconds")].toDouble(0.0),
+							value.size() >= 4 ? QVector4D(
+								static_cast<float>(value[0].toDouble()),
+								static_cast<float>(value[1].toDouble()),
+								static_cast<float>(value[2].toDouble()),
+								static_cast<float>(value[3].toDouble())) : QVector4D()
+						});
+					}
+
+					for (const QJsonValue& keyValue : channelObj[QStringLiteral("quatKeys")].toArray())
+					{
+						const QJsonObject keyObj = keyValue.toObject();
+						channel.quatKeys.append(GltfAnimationQuatKey{
+							keyObj[QStringLiteral("timeSeconds")].toDouble(0.0),
+							jsonArrayToQuat(keyObj[QStringLiteral("value")].toArray())
+						});
+					}
+
+					for (const QJsonValue& keyValue : channelObj[QStringLiteral("vec2Keys")].toArray())
+					{
+						const QJsonObject keyObj = keyValue.toObject();
+						const QJsonArray value = keyObj[QStringLiteral("value")].toArray();
+						channel.vec2Keys.append(GltfAnimationVec2Key{
+							keyObj[QStringLiteral("timeSeconds")].toDouble(0.0),
+							value.size() >= 2 ? QVector2D(
+								static_cast<float>(value[0].toDouble()),
+								static_cast<float>(value[1].toDouble())) : QVector2D()
+						});
+					}
+
+					for (const QJsonValue& keyValue : channelObj[QStringLiteral("floatKeys")].toArray())
+					{
+						const QJsonObject keyObj = keyValue.toObject();
+						channel.floatKeys.append(GltfAnimationFloatKey{
+							keyObj[QStringLiteral("timeSeconds")].toDouble(0.0),
+							static_cast<float>(keyObj[QStringLiteral("value")].toDouble(0.0))
+						});
+					}
+
+					for (const QJsonValue& keyValue : channelObj[QStringLiteral("boolKeys")].toArray())
+					{
+						const QJsonObject keyObj = keyValue.toObject();
+						channel.boolKeys.append(GltfAnimationBoolKey{
+							keyObj[QStringLiteral("timeSeconds")].toDouble(0.0),
+							keyObj[QStringLiteral("value")].toBool(false)
+						});
+					}
+
+					for (const QJsonValue& keyValue : channelObj[QStringLiteral("weightKeys")].toArray())
+					{
+						const QJsonObject keyObj = keyValue.toObject();
+						QVector<float> weights;
+						for (const QJsonValue& weightValue : keyObj[QStringLiteral("values")].toArray())
+							weights.append(static_cast<float>(weightValue.toDouble(0.0)));
+						channel.weightKeys.append(GltfAnimationWeightsKey{
+							keyObj[QStringLiteral("timeSeconds")].toDouble(0.0),
+							weights
+						});
+					}
+
+					clip.channels.append(channel);
+				}
+
+				animationData.clips.append(clip);
+			}
+
+			result.animationDataByFile.append(animationData);
+			result.activeAnimationByFile.insert(
+				sourceFile,
+				fileObj[QStringLiteral("activeClip")].toInt(animationData.clips.isEmpty() ? -1 : 0));
+		}
+
 		QVector<GLWidget::PreparedMvfMesh> prepared =
 			GLWidget::prepareMvfMeshes(result.document, geomChunk, imgChunk);
 
@@ -3978,6 +4416,21 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		QMetaObject::invokeMethod(this,
 			[this, &result, &visibleUuids, &fileName]()
 		{
+			// Wrap flat MVF light list into a GltfLightData with unnamed entries.
+			// Source file is not tracked per-light in the MVF format yet, so the
+			// panel won't show these; they still render correctly via _originalParsedLights.
+			{
+				GltfLightData ld;
+				for (const GPULight& gl : result.lights)
+				{
+					GltfLightEntry e;
+					e.gpuLight = gl;
+					e.enabled  = true;
+					ld.lights.append(e);
+				}
+				_glWidget->setParsedLights(ld);
+			}
+
 			// Ensure all mesh UUIDs in _pendingSceneUuids are marked visible
 			// In progressive mode, this was already called during Phase 3.
 			// In non-progressive mode, this is the first call, so all meshes appear together.
@@ -4045,6 +4498,248 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	const QJsonArray sceneRootNodes =
 		result.document.scenes[sceneIndex][QStringLiteral("nodes")].toArray();
 	_sceneGraph->rebuildFromMvf(result.document.nodes, sceneRootNodes);
+	// Restore punctual light data.  New MVF files store a per-file structure
+	// ("punctualLightsByFile") with display names, enabled flags, and the
+	// user's repositioned positions.  Older files fall back to the flat
+	// "lights" array under a synthetic "__mvf__" key so they still render.
+	{
+		const QJsonArray perFileArr =
+			result.document.mvfSession[QStringLiteral("punctualLightsByFile")].toArray();
+
+		if (!perFileArr.isEmpty())
+		{
+			// New format: restore per-file GltfLightData so PunctualLightsPanel
+			// can show names and per-light checkboxes.
+			auto jsonToVec3 = [](const QJsonArray& a) -> glm::vec3 {
+				return glm::vec3(
+					static_cast<float>(a[0].toDouble()),
+					static_cast<float>(a[1].toDouble()),
+					static_cast<float>(a[2].toDouble()));
+			};
+
+			for (const QJsonValue& fileVal : perFileArr)
+			{
+				const QJsonObject fileObj = fileVal.toObject();
+				const QString sourceFile  = fileObj[QStringLiteral("sourceFile")].toString();
+				if (sourceFile.isEmpty())
+					continue;
+
+				GltfLightData ld;
+				ld.sourceFile = sourceFile;
+
+				const QJsonArray lightsArr = fileObj[QStringLiteral("lights")].toArray();
+				for (const QJsonValue& lightVal : lightsArr)
+				{
+					const QJsonObject lightObj = lightVal.toObject();
+					const QJsonObject gpuObj   = lightObj[QStringLiteral("gpuLight")].toObject();
+
+					GltfLightEntry entry;
+					entry.name    = lightObj[QStringLiteral("name")].toString();
+					entry.enabled = lightObj[QStringLiteral("enabled")].toBool(true);
+
+					entry.gpuLight.type         = gpuObj[QStringLiteral("type")].toInt();
+					entry.gpuLight.range        = static_cast<float>(gpuObj[QStringLiteral("range")].toDouble());
+					entry.gpuLight.intensity    = static_cast<float>(gpuObj[QStringLiteral("intensity")].toDouble());
+					entry.gpuLight.innerConeCos = static_cast<float>(gpuObj[QStringLiteral("innerConeCos")].toDouble());
+					entry.gpuLight.outerConeCos = static_cast<float>(gpuObj[QStringLiteral("outerConeCos")].toDouble());
+					entry.gpuLight.color     = jsonToVec3(gpuObj[QStringLiteral("color")].toArray());
+					entry.gpuLight.position  = jsonToVec3(gpuObj[QStringLiteral("position")].toArray());
+					entry.gpuLight.direction = jsonToVec3(gpuObj[QStringLiteral("direction")].toArray());
+
+					ld.lights.append(entry);
+				}
+
+				_sceneGraph->setLightData(sourceFile, ld);
+			}
+		}
+		else if (!result.lights.empty())
+		{
+			// Legacy flat list: store under a synthetic key.  Lights render correctly
+			// but PunctualLightsPanel won't show per-file names or checkboxes.
+			GltfLightData ld;
+			ld.sourceFile = QStringLiteral("__mvf__");
+			for (const GPULight& gl : result.lights)
+			{
+				GltfLightEntry e;
+				e.gpuLight = gl;
+				e.enabled  = true;
+				ld.lights.append(e);
+			}
+			_sceneGraph->setLightData(ld.sourceFile, ld);
+		}
+	}
+
+	for (const GltfVariantData& variantData : result.variantDataByFile)
+	{
+		if (variantData.sourceFile.isEmpty())
+			continue;
+
+		_sceneGraph->setVariantData(variantData.sourceFile, variantData);
+		const int activeVariant = result.activeVariantByFile.value(variantData.sourceFile, -1);
+		_sceneGraph->setActiveVariant(variantData.sourceFile, activeVariant);
+		if (activeVariant >= 0)
+			applyVariant(variantData.sourceFile, activeVariant);
+	}
+
+	for (const GltfAnimationData& animationData : result.animationDataByFile)
+	{
+		if (animationData.sourceFile.isEmpty())
+			continue;
+
+		_sceneGraph->setAnimationData(animationData.sourceFile, animationData);
+		_sceneGraph->setActiveAnimationClip(
+			animationData.sourceFile,
+			result.activeAnimationByFile.value(animationData.sourceFile, -1));
+	}
+
+	for (const GltfCameraData& cameraData : result.cameraDataByFile)
+	{
+		if (!cameraData.sourceFile.isEmpty())
+			_sceneGraph->setGltfCameraData(cameraData.sourceFile, cameraData);
+	}
+
+	for (SceneNode* fileNode : _sceneGraph->root()->children)
+	{
+		if (fileNode && fileNode->isSynthetic && !fileNode->sourceFile.isEmpty())
+			_glWidget->syncRuntimeNodeTransforms(fileNode->sourceFile);
+	}
+
+	for (const GltfAnimationData& animationData : result.animationDataByFile)
+	{
+		if (animationData.sourceFile.isEmpty())
+			continue;
+
+		const int activeClip = result.activeAnimationByFile.value(animationData.sourceFile, -1);
+		if (activeClip >= 0 && activeClip < animationData.clips.size())
+			_glWidget->setActiveAnimation(animationData.sourceFile, activeClip);
+	}
+
+	// Refit from the authoritative restored scene-graph state. During MVF load
+	// the initial Phase 3.5 display list is built before rebuildFromMvf() and
+	// syncRuntimeNodeTransforms(), so preserved-node-transform assets can have
+	// incorrect bounds/camera framing until we recompute after the hierarchy is
+	// restored.
+	_glWidget->resetModelTransformBasis();
+	const bool shouldAutoFit = checkBoxAutoFitView->isChecked();
+	_glWidget->setAutoFitViewOnUpdate(shouldAutoFit);
+	_glWidget->setDisplayList(visibleIndicesFromState());
+	_glWidget->setAutoFitViewOnUpdate(shouldAutoFit);
+
+	auto jsonToColor = [](const QJsonArray& arr, const QColor& fallback = QColor()) {
+		if (arr.size() < 4)
+			return fallback;
+		return QColor(arr[0].toInt(fallback.red()),
+		              arr[1].toInt(fallback.green()),
+		              arr[2].toInt(fallback.blue()),
+		              arr[3].toInt(fallback.alpha()));
+	};
+
+	if (!result.viewerState.isEmpty())
+	{
+		const QJsonObject& viewerState = result.viewerState;
+		_glWidget->setDisplayMode(static_cast<DisplayMode>(
+			viewerState[QStringLiteral("displayMode")].toInt(static_cast<int>(_glWidget->getDisplayMode()))));
+		_glWidget->setRenderingMode(static_cast<RenderingMode>(
+			viewerState[QStringLiteral("renderingMode")].toInt(static_cast<int>(_glWidget->getRenderingMode()))));
+		_glWidget->setGroundMode(static_cast<GroundMode>(
+			viewerState[QStringLiteral("groundMode")].toInt(static_cast<int>(_glWidget->groundMode()))));
+		_glWidget->showFloorTexture(
+			viewerState[QStringLiteral("floorTextureShown")].toBool(_glWidget->isFloorTextureShown()));
+		_glWidget->showReflections(
+			viewerState[QStringLiteral("reflectionsEnabled")].toBool(_glWidget->areReflectionsEnabled()));
+		_glWidget->showShadows(
+			viewerState[QStringLiteral("shadowsEnabled")].toBool(_glWidget->areShadowsEnabled()));
+		_glWidget->showSelfShadows(
+			viewerState[QStringLiteral("selfShadowsEnabled")].toBool(_glWidget->areSelfShadowsEnabled()));
+		_glWidget->showEnvironment(
+			viewerState[QStringLiteral("environmentEnabled")].toBool(_glWidget->isEnvironmentMapEnabled()));
+		_glWidget->useIBL(
+			viewerState[QStringLiteral("iblEnabled")].toBool(_glWidget->isIBLEnabled()));
+		_glWidget->showSkyBox(
+			viewerState[QStringLiteral("skyBoxEnabled")].toBool(_glWidget->isSkyBoxShown()));
+		_glWidget->setSkyBoxTextureHDRI(
+			viewerState[QStringLiteral("skyBoxHDRIEnabled")].toBool(_glWidget->isSkyBoxHDRIEnabled()));
+		_glWidget->setSkyBoxBlurPercent(
+			viewerState[QStringLiteral("skyBoxBlurPercent")].toInt(_glWidget->getSkyBoxBlurPercent()));
+		_glWidget->setSkyBoxFOV(
+			viewerState[QStringLiteral("skyBoxFOV")].toDouble(_glWidget->getSkyBoxFOV()));
+		_glWidget->useDefaultLights(
+			viewerState[QStringLiteral("defaultLightsEnabled")].toBool(_glWidget->areDefaultLightsEnabled()));
+		_glWidget->usePunctualLights(
+			viewerState[QStringLiteral("punctualLightsEnabled")].toBool(_glWidget->arePunctualLightsEnabled()));
+		_glWidget->showLights(
+			viewerState[QStringLiteral("showLights")].toBool(_glWidget->areLightsShown()));
+		_glWidget->enableHDRToneMapping(
+			viewerState[QStringLiteral("hdrToneMapping")].toBool(_glWidget->getHdrToneMapping()));
+		_glWidget->setHDRToneMappingMode(static_cast<HDRToneMapMode>(
+			viewerState[QStringLiteral("hdrToneMappingMode")].toInt(static_cast<int>(_glWidget->getHDRToneMappingMode()))));
+		_glWidget->enableGammaCorrection(
+			viewerState[QStringLiteral("gammaCorrection")].toBool(_glWidget->getGammaCorrection()));
+		_glWidget->setScreenGamma(
+			viewerState[QStringLiteral("screenGamma")].toDouble(_glWidget->getScreenGamma()));
+		_glWidget->setEnvMapExposure(
+			viewerState[QStringLiteral("envMapExposureStops")].toDouble(std::log2(std::max(_glWidget->getEnvMapExposure(), 1.0e-6f))));
+		_glWidget->setIBLExposure(
+			viewerState[QStringLiteral("iblExposureStops")].toDouble(std::log2(std::max(_glWidget->getIBLExposure(), 1.0e-6f))));
+
+		const QJsonArray defaultLightColor = viewerState[QStringLiteral("defaultLightColor")].toArray();
+		if (defaultLightColor.size() == 4)
+		{
+			_glWidget->setDefaultLightColor(QVector4D(
+				static_cast<float>(defaultLightColor[0].toDouble(1.0)),
+				static_cast<float>(defaultLightColor[1].toDouble(1.0)),
+				static_cast<float>(defaultLightColor[2].toDouble(1.0)),
+				static_cast<float>(defaultLightColor[3].toDouble(1.0))));
+		}
+
+		const QJsonArray lightOffset = viewerState[QStringLiteral("defaultLightOffset")].toArray();
+		if (lightOffset.size() == 3)
+		{
+			const QVector3D off(
+				static_cast<float>(lightOffset[0].toDouble(0.0)),
+				static_cast<float>(lightOffset[1].toDouble(0.0)),
+				static_cast<float>(lightOffset[2].toDouble(0.0)));
+			_glWidget->setLightOffset(off);
+			// Also push the value back into the panel sliders — updateLightPositionRanges
+			// (called earlier via setDisplayList) resets them to defaults, so we need
+			// an explicit override here to keep the UI in sync with the restored state.
+			visualizationEnvironmentPanel->restoreDefaultLightOffset(off);
+		}
+
+		const QString skyboxFolder =
+			viewerState[QStringLiteral("skyBoxFolder")].toString(_glWidget->getCurrentSkyboxFolder());
+		if (!skyboxFolder.isEmpty() && skyboxFolder != _glWidget->getCurrentSkyboxFolder())
+			_glWidget->setSkyBoxTextureFolder(skyboxFolder);
+
+		const double skyBoxZRotation = viewerState[QStringLiteral("skyBoxZRotationDegrees")]
+			.toDouble(_glWidget->getSkyBoxZRotationDegrees());
+		const struct { double angle; int index; } rotationMap[] = {
+			{0.0, 0}, {180.0, 1}, {90.0, 2}, {270.0, 3}
+		};
+		int bestIndex = 0;
+		double bestDelta = std::numeric_limits<double>::max();
+		for (const auto& entry : rotationMap)
+		{
+			const double delta = std::abs(entry.angle - skyBoxZRotation);
+			if (delta < bestDelta)
+			{
+				bestDelta = delta;
+				bestIndex = entry.index;
+			}
+		}
+		_glWidget->setSkyBoxZRotation(bestIndex);
+
+		const QJsonArray bgTop = viewerState[QStringLiteral("bgTopColor")].toArray();
+		if (bgTop.size() == 4)
+			_glWidget->setBgTopColor(jsonToColor(bgTop, _glWidget->getBgTopColor()));
+
+		const QJsonArray bgBot = viewerState[QStringLiteral("bgBotColor")].toArray();
+		if (bgBot.size() == 4)
+			_glWidget->setBgBotColor(jsonToColor(bgBot, _glWidget->getBgBotColor()));
+	}
+
+	if (!result.activeGltfCameraFile.isEmpty() && result.activeGltfCameraIndex >= 0)
+		_glWidget->activateGltfCamera(result.activeGltfCameraFile, result.activeGltfCameraIndex);
 
 	MainWindow::hideProgressBar();
 	return true;
@@ -4056,14 +4751,181 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 	for (const QUuid& uuid : treeWidgetModel->selectedMeshUuids())
 		selectedSet.insert(uuid);
 
-	return Mvf::buildMVFPackage(*_sceneGraph,
-	                                _glWidget->getMeshStore(),
-	                                _visibleMeshUuids,
-	                                selectedSet);
+	QVector<GltfCameraData> cameraDataByFile;
+	const QStringList cameraFiles = _sceneGraph->filesWithGltfCameras();
+	cameraDataByFile.reserve(cameraFiles.size());
+	for (const QString& sourceFile : cameraFiles)
+	{
+		const GltfCameraData cameraData = _sceneGraph->gltfCameraDataForFile(sourceFile);
+		if (cameraData.isEmpty())
+			continue;
+
+		cameraDataByFile.append(
+			_glWidget ? _glWidget->cameraDataForMvfSave(cameraData) : cameraData);
+	}
+
+	Mvf::MVFPackage package = Mvf::buildMVFPackage(*_sceneGraph,
+	                                               _glWidget->getMeshStore(),
+	                                               _visibleMeshUuids,
+	                                               selectedSet,
+	                                               cameraDataByFile);
+
+	if (_glWidget && _glWidget->isGltfCameraActive())
+	{
+		package.document.mvfSession.insert(
+			QStringLiteral("activeGltfCameraFile"),
+			_glWidget->activeGltfCameraFile());
+		package.document.mvfSession.insert(
+			QStringLiteral("activeGltfCameraIndex"),
+			_glWidget->activeGltfCameraIndex());
+	}
+
+	auto colorToJson = [](const QColor& color) {
+		return QJsonArray{ color.red(), color.green(), color.blue(), color.alpha() };
+	};
+
+	QJsonObject viewerState;
+	viewerState.insert(QStringLiteral("displayMode"), static_cast<int>(_glWidget->getDisplayMode()));
+	viewerState.insert(QStringLiteral("renderingMode"), static_cast<int>(_glWidget->getRenderingMode()));
+	viewerState.insert(QStringLiteral("groundMode"), static_cast<int>(_glWidget->groundMode()));
+	viewerState.insert(QStringLiteral("floorTextureShown"), _glWidget->isFloorTextureShown());
+	viewerState.insert(QStringLiteral("reflectionsEnabled"), _glWidget->areReflectionsEnabled());
+	viewerState.insert(QStringLiteral("shadowsEnabled"), _glWidget->areShadowsEnabled());
+	viewerState.insert(QStringLiteral("selfShadowsEnabled"), _glWidget->areSelfShadowsEnabled());
+	viewerState.insert(QStringLiteral("environmentEnabled"), _glWidget->isEnvironmentMapEnabled());
+	viewerState.insert(QStringLiteral("iblEnabled"), _glWidget->isIBLEnabled());
+	viewerState.insert(QStringLiteral("skyBoxEnabled"), _glWidget->isSkyBoxShown());
+	viewerState.insert(QStringLiteral("skyBoxHDRIEnabled"), _glWidget->isSkyBoxHDRIEnabled());
+	viewerState.insert(QStringLiteral("skyBoxBlurPercent"), _glWidget->getSkyBoxBlurPercent());
+	viewerState.insert(QStringLiteral("skyBoxFOV"), _glWidget->getSkyBoxFOV());
+	viewerState.insert(QStringLiteral("skyBoxZRotationDegrees"), _glWidget->getSkyBoxZRotationDegrees());
+	viewerState.insert(QStringLiteral("skyBoxFolder"), _glWidget->getCurrentSkyboxFolder());
+	viewerState.insert(QStringLiteral("defaultLightsEnabled"), _glWidget->areDefaultLightsEnabled());
+	viewerState.insert(QStringLiteral("punctualLightsEnabled"), _glWidget->arePunctualLightsEnabled());
+	viewerState.insert(QStringLiteral("showLights"), _glWidget->areLightsShown());
+	viewerState.insert(QStringLiteral("hdrToneMapping"), _glWidget->getHdrToneMapping());
+	viewerState.insert(QStringLiteral("hdrToneMappingMode"), static_cast<int>(_glWidget->getHDRToneMappingMode()));
+	viewerState.insert(QStringLiteral("gammaCorrection"), _glWidget->getGammaCorrection());
+	viewerState.insert(QStringLiteral("screenGamma"), _glWidget->getScreenGamma());
+	viewerState.insert(QStringLiteral("envMapExposureStops"), std::log2(std::max(_glWidget->getEnvMapExposure(), 1.0e-6f)));
+	viewerState.insert(QStringLiteral("iblExposureStops"), std::log2(std::max(_glWidget->getIBLExposure(), 1.0e-6f)));
+	viewerState.insert(QStringLiteral("defaultLightColor"), QJsonArray{
+		_glWidget->getDefaultLightColor().x(),
+		_glWidget->getDefaultLightColor().y(),
+		_glWidget->getDefaultLightColor().z(),
+		_glWidget->getDefaultLightColor().w()});
+	const QVector3D lightOffset = _glWidget->getLightOffset();
+	viewerState.insert(QStringLiteral("defaultLightOffset"), QJsonArray{
+		lightOffset.x(), lightOffset.y(), lightOffset.z()});
+	viewerState.insert(QStringLiteral("bgTopColor"), colorToJson(_glWidget->getBgTopColor()));
+	viewerState.insert(QStringLiteral("bgBotColor"), colorToJson(_glWidget->getBgBotColor()));
+	package.document.mvfSession.insert(QStringLiteral("viewerState"), viewerState);
+
+	// ---- Per-file punctual light data ----
+	// Save the repositioned positions (what the user actually sees) together
+	// with each light's display name and enabled flag, grouped by source file.
+	// The flat "lights" key written by older versions is superseded by this.
+	// On load (see Phase 4 of loadMVF()) the per-file structure is restored
+	// directly into SceneGraph so PunctualLightsPanel can show names and
+	// honour per-light checkboxes without needing the original model file.
+	if (_glWidget && _sceneGraph)
+	{
+		const std::vector<GPULight>              repoLights  = _glWidget->getRepositionedLights();
+		const QVector<GLWidget::LightOrigin>     fileIndexMap = _glWidget->getLightFileIndexMap();
+		const QStringList                        lightFiles  = _sceneGraph->filesWithLights();
+
+		if (!lightFiles.isEmpty() && !repoLights.empty())
+		{
+			// Helper to serialise one GPULight
+			auto gpuLightToJson = [](const GPULight& gl) -> QJsonObject {
+				return QJsonObject{
+					{QStringLiteral("type"),         gl.type},
+					{QStringLiteral("range"),        static_cast<double>(gl.range)},
+					{QStringLiteral("intensity"),    static_cast<double>(gl.intensity)},
+					{QStringLiteral("innerConeCos"), static_cast<double>(gl.innerConeCos)},
+					{QStringLiteral("outerConeCos"), static_cast<double>(gl.outerConeCos)},
+					{QStringLiteral("color"),        QJsonArray{gl.color.x, gl.color.y, gl.color.z}},
+					{QStringLiteral("position"),     QJsonArray{gl.position.x, gl.position.y, gl.position.z}},
+					{QStringLiteral("direction"),    QJsonArray{gl.direction.x, gl.direction.y, gl.direction.z}},
+				};
+			};
+
+			QJsonArray fileArray;
+			for (const QString& sourceFile : lightFiles)
+			{
+				const GltfLightData& ld = _sceneGraph->lightDataForFile(sourceFile);
+				if (ld.isEmpty())
+					continue;
+
+				QJsonObject fileObj;
+				fileObj.insert(QStringLiteral("sourceFile"), sourceFile);
+
+				QJsonArray lightsArr;
+				for (int li = 0; li < ld.lights.size(); ++li)
+				{
+					const GltfLightEntry& entry = ld.lights[li];
+
+					// Find the repositioned GPULight for this (file, lightIndex) pair.
+					// The fileIndexMap maps flat index → (file, lightIndex); search it.
+					GPULight repoGpu = entry.gpuLight; // fallback: raw position
+					if (!fileIndexMap.isEmpty() &&
+					    fileIndexMap.size() == static_cast<int>(repoLights.size()))
+					{
+						for (int fi = 0; fi < fileIndexMap.size(); ++fi)
+						{
+							if (fileIndexMap[fi].file == sourceFile &&
+							    fileIndexMap[fi].index == li)
+							{
+								repoGpu = repoLights[static_cast<std::size_t>(fi)];
+								break;
+							}
+						}
+					}
+
+					QJsonObject lightObj;
+					lightObj.insert(QStringLiteral("name"),    entry.name);
+					lightObj.insert(QStringLiteral("enabled"), entry.enabled);
+					lightObj.insert(QStringLiteral("gpuLight"), gpuLightToJson(repoGpu));
+					lightsArr.append(lightObj);
+				}
+
+				fileObj.insert(QStringLiteral("lights"), lightsArr);
+				fileArray.append(fileObj);
+			}
+
+			if (!fileArray.isEmpty())
+				package.document.mvfSession.insert(
+					QStringLiteral("punctualLightsByFile"), fileArray);
+		}
+	}
+
+	return package;
 }
 
 bool ModelViewer::saveToFile(const QString& fileName)
 {
+	// Flush any unsaved material-panel changes to the mesh before building the MVF package.
+	// The panel works on a copy of the mesh material; changes become visible in the viewport
+	// via texture-cache warming but the mesh's stored material is only updated when the user
+	// explicitly clicks Apply.  Silently committing the current panel state here ensures that
+	// "save without clicking Apply" still captures the intended textures/properties.
+	if (!_currentEditingMeshUuid.isNull())
+	{
+		const GLMaterial* panelMat = Ui_ModelViewer::predefinedMaterialsPanel->material();
+		if (panelMat && _glWidget)
+		{
+			TriangleMesh* mesh = _glWidget->getMeshByUuid(_currentEditingMeshUuid);
+			if (mesh)
+			{
+				_glWidget->makeCurrent();
+				GLMaterial resolved = GLWidget::resolveMaterialTextures(_glWidget, *panelMat);
+				resolved.setIsGLTFMaterial(true);
+				mesh->setMaterial(resolved);
+				mesh->setTextureMaps(resolved);
+			}
+		}
+	}
+
 	const Mvf::MVFPackage package = buildMVFPackage();
 	const QByteArray jsonPayload = Mvf::toJsonBytes(package.document);
 	const QByteArray& geometryPayload = package.geometryChunk;

@@ -3,53 +3,36 @@
 
 // Adpated from https://learnopengl.com/
 
-in vec3 g_position;
-in vec3 g_normal;
-in vec4 g_color;
-in vec4 g_rawVertexColor;
-in vec2 g_texCoord0;
-in vec2 g_texCoord1;
-in vec2 g_texCoord2;
-in vec2 g_texCoord3;
-in vec3 g_tangent;
-in vec3 g_bitangent;
-in vec3 g_worldTangent;
-in vec3 g_worldBitangent;
-in vec3 g_reflectionPosition;
-in vec3 g_reflectionNormal;
-in vec3 g_tangentLightPos;
-in vec3 g_tangentViewPos;
-in vec3 g_tangentFragPos;
-flat in vec3 g_flatNormal;
-flat in vec3 g_flatReflectionNormal;
+in vec3 v_position;
+in vec3 v_normal;
+in vec4 v_color;
+in vec4 v_rawVertexColor;
+in vec2 v_texCoord0;
+in vec2 v_texCoord1;
+in vec2 v_texCoord2;
+in vec2 v_texCoord3;
+in vec3 v_tangent;
+in vec3 v_bitangent;
+in vec3 v_worldTangent;
+in vec3 v_worldBitangent;
+in vec3 v_reflectionPosition;
+in vec3 v_reflectionNormal;
+flat in vec3 v_flatNormal;
+flat in vec3 v_reflectionFlatNormal;
+flat in vec3 v_positionFlat;
+noperspective in vec3 v_positionLinear;
+in vec3 v_tangentLightPos;
+in vec3 v_tangentViewPos;
+in vec3 v_tangentFragPos;
 
-in GS_OUT_SHADOW{
+in VS_OUT_SHADOW{
 	vec3 FragPos;
 	vec3 Normal;
 	vec2 TexCoords;
 	vec4 FragPosLightSpace;
 	vec3 cameraPos;
 	vec3 lightPos;
-} g_shadow;
-
-#define v_position g_position
-#define v_normal g_normal
-#define v_color g_color
-#define v_rawVertexColor g_rawVertexColor
-#define v_texCoord0 g_texCoord0
-#define v_texCoord1 g_texCoord1
-#define v_texCoord2 g_texCoord2
-#define v_texCoord3 g_texCoord3
-#define v_tangent g_tangent
-#define v_bitangent g_bitangent
-#define v_worldTangent g_worldTangent
-#define v_worldBitangent g_worldBitangent
-#define v_reflectionPosition g_reflectionPosition
-#define v_reflectionNormal g_reflectionNormal
-#define v_tangentLightPos g_tangentLightPos
-#define v_tangentViewPos g_tangentViewPos
-#define v_tangentFragPos g_tangentFragPos
-#define fs_in_shadow g_shadow
+} fs_in_shadow;
 
 uniform bool hasVertexColors;
 uniform bool hasNegativeScale;
@@ -590,6 +573,52 @@ vec4    shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3
 vec4    calculatePBRLighting(int renderMode, float side);
 vec4    calculatePBRLightingKHR(int renderMode, float side);
 
+// ---- Flat shading normal helpers -------------------------------------------
+vec3 safeNormalizeGeom(vec3 value, vec3 fallback)
+{
+    float len = length(value);
+    return len > 1e-8 ? value / len : fallback;
+}
+
+vec3 getUnsignedViewGeometryNormal()
+{
+    vec3 baseN = safeNormalizeGeom(v_normal, vec3(0.0, 0.0, 1.0));
+    if (displayMode == 4)
+    {
+        // v_flatNormal is set by main_scene_flat.geom to the true geometric face
+        // normal (cross(edge0, edge1), view-space, same value for all 3 vertices).
+        // This is exact and zoom-independent — no dFdx/dFdy needed.
+        return safeNormalizeGeom(v_flatNormal, baseN);
+    }
+    return baseN;
+}
+
+vec3 getSignedViewGeometryNormal()
+{
+    vec3 n = getUnsignedViewGeometryNormal();
+    bool front = hasNegativeScale ? !gl_FrontFacing : gl_FrontFacing;
+    return front ? n : -n;
+}
+
+vec3 getUnsignedWorldGeometryNormal()
+{
+    vec3 baseN = safeNormalizeGeom(v_reflectionNormal, vec3(0.0, 0.0, 1.0));
+    if (displayMode == 4)
+    {
+        // v_reflectionFlatNormal is set by the GS to the true world-space face normal.
+        return safeNormalizeGeom(v_reflectionFlatNormal, baseN);
+    }
+    return baseN;
+}
+
+// In flat shading mode use the provoking vertex position so that view and light
+// directions are constant per face, preventing smooth shading gradients on large
+// triangles at extreme zoom.
+vec3 getFragPosition()
+{
+    return (displayMode == 4) ? v_positionFlat : v_position;
+}
+
 // ---- Texture & Normal utilities --------------------------------------------
 float	samplePackedChannelValue(sampler2D tex, bool hasTexture, vec2 uv,
 								 int channel, int invert, float scale, float bias,
@@ -599,12 +628,6 @@ mat3    getTBNFromMap(sampler2D map);
 vec3    calcBumpedNormal(sampler2D map, vec2 texCoord);
 vec2    parallaxOcclusionMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap, float heightScale);
 vec2	applyParallaxMapping(vec2 baseUV, sampler2D heightMap, float heightScale, bool enabled);
-bool    isGeometryFrontFacing();
-vec3    safeNormalizeGeom(vec3 value, vec3 fallback);
-vec3    getUnsignedViewGeometryNormal();
-vec3    getSignedViewGeometryNormal();
-vec3    getUnsignedWorldGeometryNormal();
-
 // ---- Core BRDF primitives (NDF * G * F) ------------------------------------
 float   distributionGGX(vec3 N, vec3 H, float roughness);
 float   geometrySchlickGGX(float NdotV, float roughness);
@@ -623,44 +646,6 @@ float	lambdaSheenNumericHelper(float x, float alphaG);
 float	max3(vec3 v);
 vec3    calculateSheen(vec3 N, vec3 V, vec3 L, vec3 sheenColor, float sheenRoughness);
 const float kSheenStrength = 1.0;
-
-bool isGeometryFrontFacing()
-{
-	bool frontFacing = gl_FrontFacing;
-	if (hasNegativeScale)
-		frontFacing = !frontFacing;
-	return frontFacing;
-}
-
-vec3 safeNormalizeGeom(vec3 value, vec3 fallback)
-{
-	float len = length(value);
-	if (len > 1e-8)
-		return value / len;
-	return fallback;
-}
-
-vec3 getUnsignedViewGeometryNormal()
-{
-	vec3 smoothNormal = safeNormalizeGeom(v_normal, vec3(0.0, 0.0, 1.0));
-	if (displayMode == 4)
-		return safeNormalizeGeom(g_flatNormal, smoothNormal);
-	return smoothNormal;
-}
-
-vec3 getSignedViewGeometryNormal()
-{
-	vec3 normal = getUnsignedViewGeometryNormal();
-	return isGeometryFrontFacing() ? normal : -normal;
-}
-
-vec3 getUnsignedWorldGeometryNormal()
-{
-	vec3 smoothNormal = safeNormalizeGeom(v_reflectionNormal, vec3(0.0, 0.0, 1.0));
-	if (displayMode == 4)
-		return safeNormalizeGeom(g_flatReflectionNormal, smoothNormal);
-	return smoothNormal;
-}
 
 // ---- KHR Anisotropy --------------------------------------------------------
 float	V_GGX_anisotropic(float NdotL, float NdotV, float BdotV, float TdotV, float TdotL, float BdotL, float at, float ab);
@@ -727,7 +712,6 @@ vec3  computeDielectricF0(float ior, float specularFactor, vec3 specularColor, b
 vec3  computeF90(float metallic, float specularFactor);
 float computeVolumeScaleFactor();
 float computeVolumeThickness(float thickness);
-float computeScaledAttenuationDistance(float attenuationDistance);
 vec3  computeBaseColor(vec2 uv,
 					   vec3 matBaseColor_linear,
 					   sampler2D albedoTex,
@@ -816,7 +800,12 @@ void main()
 	vec4 v_color;
 
 	// Discard backfaces if not twoSided
-	bool isFrontFacing = isGeometryFrontFacing();
+	bool isFrontFacing = gl_FrontFacing;
+
+	if (hasNegativeScale)
+	{
+		isFrontFacing = !isFrontFacing;  // Invert because negative scale reverses winding
+	}
 
 	if (!twoSided && !isFrontFacing && !floorRendering)
 	{
@@ -2752,15 +2741,11 @@ SurfaceFrame buildSurfaceFrame(float side, vec2 normalUV, vec2 clearcoatNormalUV
 {
 	SurfaceFrame frame;
 
-	frame.V = normalize(cameraPos - v_position);
+	frame.V = normalize(cameraPos - getFragPosition());
 	frame.I = -frame.V;
 	frame.L = normalize(lightDirection);
 	float frameSide = side < 0.0 ? -1.0 : 1.0;
-	if (displayMode == 4)
-	{
-		frame.Ng = getUnsignedWorldGeometryNormal();
-	}
-	else if (length(v_reflectionNormal) < 0.01)
+	if (length(v_reflectionNormal) < 0.01)
 	{
 		// No vertex normals: derive face normal from screen-space position derivatives
 		vec3 dx = dFdx(v_position);
@@ -2824,7 +2809,7 @@ SurfaceFrame buildSurfaceFrame(float side, vec2 normalUV, vec2 clearcoatNormalUV
 	frame.B = bitangent;
 
 	frame.N = frame.Ng;
-	if (displayMode != 4 && hasNormalMap)
+	if (hasNormalMap)
 	{
 		frame.N = sampleMappedNormal(
 			normalMap,
@@ -2886,11 +2871,6 @@ float computeVolumeThickness(float thickness)
 	return thickness * computeVolumeScaleFactor();
 }
 
-float computeScaledAttenuationDistance(float attenuationDistance)
-{
-	return attenuationDistance * computeVolumeScaleFactor();
-}
-
 vec3 computeBaseColor(vec2 uv,
 	vec3 matBaseColor_linear,
 	sampler2D albedoTex,
@@ -2943,7 +2923,7 @@ MaterialParams gatherMaterialParams()
 	params.diffuseTransmissionFactor = pbrLighting.diffuseTransmissionFactor;
 	params.diffuseTransmissionColor = pbrLighting.diffuseTransmissionColorFactor;
 	params.attenuationColor = pbrLighting.attenuationColor;
-	params.attenuationDistance = computeScaledAttenuationDistance(pbrLighting.attenuationDistance);
+	params.attenuationDistance = pbrLighting.attenuationDistance;
 	params.dispersion = pbrLighting.dispersion;
 	params.specularFactor = pbrLighting.specularFactor;
 	params.specularColor = pbrLighting.specularColorFactor;
@@ -3737,7 +3717,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	vec3 lightDir, viewDir;
 
 	viewDir = normalize(vec3(0, 0, 1));
-	lightDir = normalize(source.position - v_position);
+	lightDir = normalize(source.position - getFragPosition());
 
 	vec3 halfVector = normalize(lightDir + viewDir);
 	float nDotVP = max(dot(normal, normalize(lightDir + viewDir)), 0.0);
@@ -3940,13 +3920,13 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 vec4 calculatePBRLightingKHR(int renderMode, float side)
 {
 	vec2 normalUV = getNormalUV();
-	if (displayMode != 4 && hasHeightMap)
+	if (hasHeightMap)
 	{
 		normalUV = applyParallaxMapping(getNormalUV(), heightMap, heightScale, hasHeightMap);
 	}
 
 	vec2 clearcoatNormalUV = getClearcoatNormalUV();
-	if (displayMode != 4 && hasHeightMap)
+	if (hasHeightMap)
 	{
 		clearcoatNormalUV = applyParallaxMapping(getClearcoatNormalUV(), heightMap, heightScale, hasHeightMap);
 	}

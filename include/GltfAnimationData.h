@@ -156,6 +156,8 @@ struct GltfAnimationNodeBinding
 {
     int     nodeIndex = -1;
     QString nodeName;
+    bool    hasAiChildPath = false;
+    QVector<int> aiChildPath;
 };
 
 struct GltfAnimationLightBinding

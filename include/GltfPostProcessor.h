@@ -11,7 +11,9 @@
 #include <vector>
 
 #include "GLLights.h"
+#include "GltfCameraData.h"
 #include "GltfVariantData.h"
+#include "GltfAnimationData.h"
 
 #include "GLMaterial.h"
 
@@ -126,6 +128,11 @@ public:
 	 *
 	 * This adds a KHR_lights_punctual extension with light definitions based on the provided GPULight data.
 	 */
+    static bool writeGltfCameras(
+        QJsonObject& gltfJson,
+        const QVector<GltfCameraEntry>& cameras,
+        std::function<void(const QString&)> logCallback);
+
     static bool writePunctualLights(
         QJsonObject& gltfJson,
         const std::vector<GPULight>& lights,
@@ -157,6 +164,14 @@ public:
      * @param entries       Per-mesh export entries built by AssImpMeshExporter
      *                      (one entry per exported mesh, in output order).
      */
+    /**
+     * Register glTF camera entries to be injected into the next export.
+     * Call before postProcessGlb/GltfFileWithMaterials and clear afterwards
+     * (clearVariantExportData also clears camera data).
+     */
+    static void setGltfCameraData(const QVector<GltfCameraEntry>& cameras);
+    static void clearGltfCameraData();
+
     static void setVariantExportData(
         const QStringList& variantNames,
         const QVector<MeshVariantExportEntry>& entries);
@@ -174,6 +189,22 @@ public:
     static void setVariantMaterialData(const QMap<int, GLMaterial>& variantMats);
 
     static void clearVariantExportData();
+
+    /**
+     * Register glTF animation data for Pointer-channel injection.
+     * The next postProcess*FileWithMaterials call will inject KHR_animation_pointer
+     * channels (material texture-transform and node-visibility) that Assimp cannot
+     * represent in its aiAnimation structure.
+     *
+     * @param animDataList  Animation data objects (one per source file) that may
+     *                      contain Pointer-path channels to be re-injected.
+     * @param nodeIndexToName  Map from glTF node index → exported node name, used to
+     *                         resolve targetNodeIndex → JSON node array index.
+     */
+    static void setPointerAnimationData(
+        const QVector<GltfAnimationData>& animDataList,
+        const QMap<int, QString>& nodeIndexToName);
+    static void clearPointerAnimationData();
 
 private:
     // Material signature for robust matching during export
@@ -294,6 +325,8 @@ private:
     static QMap<int, int> _materialToSourceMeshIndex;
 
     // KHR_materials_variants export state (set by setVariantExportData before post-processing)
+    static QVector<GltfCameraEntry> _gltfCameras;
+
     static QStringList _variantNames;
     static QVector<MeshVariantExportEntry> _variantEntries;
     // GLMaterials for non-default variant materials keyed by JSON material index.
@@ -302,9 +335,28 @@ private:
     // corresponding source TriangleMesh in the main patching loop.
     static QMap<int, GLMaterial> _variantMatByJsonIdx;
 
+    // Pointer-animation injection state (set by setPointerAnimationData).
+    static QVector<GltfAnimationData> _pointerAnimData;
+    static QMap<int, QString>         _pointerAnimNodeNames; // glTF nodeIndex → name
+
     // Write KHR_materials_variants extension to the JSON using the stored variant data.
     static bool writeKhrMaterialsVariantsExtension(
         QJsonObject& gltfJson,
+        std::function<void(const QString&)> logCallback);
+
+    // Inject KHR_animation_pointer channels (Visibility + MaterialTextureTransform)
+    // into the existing animation clips that were written by Assimp.
+    static bool injectPointerAnimationChannels(
+        QJsonObject& gltfJson,
+        QByteArray*  glbBinaryChunk,  // nullptr for .gltf, non-null for .glb
+        std::function<void(const QString&)> logCallback);
+
+    // Inject standard glTF2 "weights" animation channels for morph-target animations.
+    // Called after Assimp export; supplements or replaces whatever Assimp may have
+    // written, ensuring the round-trip works regardless of Assimp version.
+    static bool injectMorphWeightAnimations(
+        QJsonObject& gltfJson,
+        QByteArray*  glbBinaryChunk,  // nullptr for .gltf, non-null for .glb
         std::function<void(const QString&)> logCallback);
 };
 

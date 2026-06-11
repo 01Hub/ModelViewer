@@ -32,6 +32,19 @@ struct SceneNode
     // Absolute path of the source file.  Populated only on synthetic nodes.
     QString sourceFile;
 
+    // Import-time coordinate/scale correction applied to the Assimp root node's
+    // mTransformation (autoOrient + autoScale).  Stored on the synthetic fileNode so
+    // that exporters can factor it out and produce uncorrected output.
+    // Identity (default) means no correction was applied.
+    aiMatrix4x4 importCorrection;
+
+    // Explicit flags recording which corrections the loader applied at import time.
+    // These are the authoritative signal used to recover importCorrection when loading
+    // an older MVF that did not persist the full matrix.  The flags are more reliable
+    // than heuristically analysing the matrix structure.
+    bool autoOrientApplied = false;
+    bool autoScaleApplied  = false;
+
     // Local transform copied from aiNode::mTransformation at build time.
     // Identity matrix for synthetic nodes.
     aiMatrix4x4 localTransform;

@@ -28,19 +28,29 @@ namespace TextureUtil
         stbi_set_flip_vertically_on_load(flipY ? 1 : 0);
 
         int w = 0, h = 0, comp = 0;
-        unsigned char* data = stbi_load(path, &w, &h, &comp, 0);
+        // Probe the channel count without decoding.
+        stbi_info(path, &w, &h, &comp);
+
+        // Grayscale images (comp==1) would be uploaded as GL_RED, leaving G and B
+        // at 0 and making the texture appear red.  Force expansion to RGBA so all
+        // three colour channels are populated with the grey value.
+        int reqComp = (comp == 1) ? STBI_rgb_alpha : 0;
+        w = 0; h = 0;
+        unsigned char* data = stbi_load(path, &w, &h, &comp, reqComp);
         if (!data)
         {
             std::cerr << "Texture failed to load: " << path << "\n";
             return 0;
         }
+        if (reqComp != 0)
+            comp = reqComp; // stb_image reports original comp; update to actual
 
         GLenum externalFmt = GL_RGBA;
         GLenum internalFmt = GL_RGBA8;
 
         switch (comp)
         {
-        case 1: externalFmt = GL_RED; internalFmt = GL_R8; break;
+        case 1: externalFmt = GL_RED; internalFmt = GL_R8; break; // never reached for grayscale
         case 2: externalFmt = GL_RG;  internalFmt = GL_RG8; break;
         case 3:
             externalFmt = GL_RGB;

@@ -5,14 +5,18 @@
 #include "SceneGraph.h"
 #include "SceneNode.h"
 #include "TextureLocationManager.h"
+#include "GltfCameraData.h"
 #include "TriangleMesh.h"
 
+#include <QCryptographicHash>
 #include <QFile>
+#include <QDebug>
 #include <QFileInfo>
 #include <QHash>
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QVector2D>
+#include <QVector3D>
 
 #include <cstring>
 #include <limits>
@@ -98,6 +102,148 @@ QString textureTypeKey(GLMaterial::TextureType type)
     }
 }
 
+QString texturePathForType(const GLMaterial& material, GLMaterial::TextureType type)
+{
+    switch (type)
+    {
+    case GLMaterial::TextureType::Albedo: return material.albedoMapPath();
+    case GLMaterial::TextureType::Normal: return material.normalMapPath();
+    case GLMaterial::TextureType::AmbientOcclusion: return material.aoMapPath();
+    case GLMaterial::TextureType::Emissive: return material.emissiveMapPath();
+    case GLMaterial::TextureType::Metallic: return material.metallicMapPath();
+    case GLMaterial::TextureType::Roughness: return material.roughnessMapPath();
+    case GLMaterial::TextureType::Transmission: return material.transmissionMapPath();
+    case GLMaterial::TextureType::IOR: return material.iorMapPath();
+    case GLMaterial::TextureType::SheenColor: return material.sheenColorMapPath();
+    case GLMaterial::TextureType::SheenRoughness: return material.sheenRoughnessMapPath();
+    case GLMaterial::TextureType::ClearcoatColor: return material.clearcoatColorMapPath();
+    case GLMaterial::TextureType::ClearcoatRoughness: return material.clearcoatRoughnessMapPath();
+    case GLMaterial::TextureType::ClearcoatNormal: return material.clearcoatNormalMapPath();
+    case GLMaterial::TextureType::Iridescence: return material.iridescenceMap();
+    case GLMaterial::TextureType::IridescenceThickness: return material.iridescenceThicknessMap();
+    case GLMaterial::TextureType::SpecularFactor: return material.specularFactorMap();
+    case GLMaterial::TextureType::SpecularColor: return material.specularColorMap();
+    case GLMaterial::TextureType::Anisotropy: return material.anisotropyMap();
+    case GLMaterial::TextureType::DiffuseTransmission: return material.diffuseTransmissionMap();
+    case GLMaterial::TextureType::DiffuseTransmissionColor: return material.diffuseTransmissionColorMap();
+    case GLMaterial::TextureType::Thickness: return material.thicknessMap();
+    case GLMaterial::TextureType::Diffuse: return material.diffuseMap();
+    case GLMaterial::TextureType::SpecularGlossiness: return material.specularGlossinessMap();
+    case GLMaterial::TextureType::Opacity: return material.opacityMapPath();
+    case GLMaterial::TextureType::Height: return material.heightMapPath();
+    case GLMaterial::TextureType::Count:
+    default: return QString();
+    }
+}
+
+void populateTextureFallbackMetadata(const GLMaterial& material,
+                                     GLMaterial::TextureType type,
+                                     GLMaterial::Texture& texture)
+{
+    auto setTransform = [&](int texCoord, const QVector2D& scale,
+                            const QVector2D& offset, float rotation)
+    {
+        texture.texCoordIndex = texCoord;
+        texture.scale = glm::vec2(scale.x(), scale.y());
+        texture.offset = glm::vec2(offset.x(), offset.y());
+        texture.rotation = rotation;
+    };
+
+    switch (type)
+    {
+    case GLMaterial::TextureType::Albedo:
+        setTransform(material.albedoTexCoord(), material.albedoTexScale(),
+                     material.albedoTexOffset(), material.albedoTexRotation());
+        break;
+    case GLMaterial::TextureType::Normal:
+        setTransform(material.normalTexCoord(), material.normalTexScale(),
+                     material.normalTexOffset(), material.normalTexRotation());
+        break;
+    case GLMaterial::TextureType::AmbientOcclusion:
+        setTransform(material.occlusionTexCoord(), material.occlusionTexScale(),
+                     material.occlusionTexOffset(), material.occlusionTexRotation());
+        break;
+    case GLMaterial::TextureType::Emissive:
+        setTransform(material.emissiveTexCoord(), material.emissiveTexScale(),
+                     material.emissiveTexOffset(), material.emissiveTexRotation());
+        break;
+    case GLMaterial::TextureType::Metallic:
+        setTransform(material.metallicTexCoord(), material.metallicTexScale(),
+                     material.metallicTexOffset(), material.metallicTexRotation());
+        break;
+    case GLMaterial::TextureType::Roughness:
+        setTransform(material.roughnessTexCoord(), material.roughnessTexScale(),
+                     material.roughnessTexOffset(), material.roughnessTexRotation());
+        break;
+    case GLMaterial::TextureType::Transmission:
+        setTransform(material.transmissionTexCoord(), material.transmissionTexScale(),
+                     material.transmissionTexOffset(), material.transmissionTexRotation());
+        break;
+    case GLMaterial::TextureType::IOR:
+        setTransform(material.iorTexCoord(), material.iorTexScale(),
+                     material.iorTexOffset(), material.iorTexRotation());
+        break;
+    case GLMaterial::TextureType::SheenColor:
+        setTransform(material.sheenColorTexCoord(), material.sheenColorTexScale(),
+                     material.sheenColorTexOffset(), material.sheenColorTexRotation());
+        break;
+    case GLMaterial::TextureType::SheenRoughness:
+        setTransform(material.sheenRoughnessTexCoord(), material.sheenRoughnessTexScale(),
+                     material.sheenRoughnessTexOffset(), material.sheenRoughnessTexRotation());
+        break;
+    case GLMaterial::TextureType::ClearcoatColor:
+        setTransform(material.clearcoatColorTexCoord(), material.clearcoatColorTexScale(),
+                     material.clearcoatColorTexOffset(), material.clearcoatColorTexRotation());
+        break;
+    case GLMaterial::TextureType::ClearcoatRoughness:
+        setTransform(material.clearcoatRoughnessTexCoord(), material.clearcoatRoughnessTexScale(),
+                     material.clearcoatRoughnessTexOffset(), material.clearcoatRoughnessTexRotation());
+        break;
+    case GLMaterial::TextureType::ClearcoatNormal:
+        setTransform(material.clearcoatNormalTexCoord(), material.clearcoatNormalTexScale(),
+                     material.clearcoatNormalTexOffset(), material.clearcoatNormalTexRotation());
+        break;
+    case GLMaterial::TextureType::SpecularFactor:
+        setTransform(material.specularFactorTexCoord(), material.specularFactorTexScale(),
+                     material.specularFactorTexOffset(), material.specularFactorTexRotation());
+        break;
+    case GLMaterial::TextureType::SpecularColor:
+        setTransform(material.specularColorTexCoord(), material.specularColorTexScale(),
+                     material.specularColorTexOffset(), material.specularColorTexRotation());
+        break;
+    case GLMaterial::TextureType::Anisotropy:
+        setTransform(material.anisotropyTexCoord(), material.anisotropyTexScale(),
+                     material.anisotropyTexOffset(), material.anisotropyTexRotation());
+        break;
+    case GLMaterial::TextureType::Thickness:
+        setTransform(material.thicknessTexCoord(), material.thicknessTexScale(),
+                     material.thicknessTexOffset(), material.thicknessTexRotation());
+        break;
+    case GLMaterial::TextureType::DiffuseTransmission:
+        setTransform(material.diffuseTransmissionTexCoord(), material.diffuseTransmissionTexScale(),
+                     material.diffuseTransmissionTexOffset(), material.diffuseTransmissionTexRotation());
+        break;
+    case GLMaterial::TextureType::DiffuseTransmissionColor:
+        setTransform(material.diffuseTransmissionColorTexCoord(), material.diffuseTransmissionColorTexScale(),
+                     material.diffuseTransmissionColorTexOffset(), material.diffuseTransmissionColorTexRotation());
+        break;
+    case GLMaterial::TextureType::SpecularGlossiness:
+        setTransform(material.specularGlossinessTexCoord(), material.specularGlossinessTexScale(),
+                     material.specularGlossinessTexOffset(), material.specularGlossinessTexRotation());
+        break;
+    case GLMaterial::TextureType::Opacity:
+        setTransform(material.opacityTexCoord(), material.opacityTexScale(),
+                     material.opacityTexOffset(), material.opacityTexRotation());
+        break;
+    case GLMaterial::TextureType::Height:
+        setTransform(material.heightTexCoord(), material.heightTexScale(),
+                     material.heightTexOffset(), material.heightTexRotation());
+        break;
+    default:
+        break;
+    }
+}
+
 QJsonObject buildTextureInfoObject(int textureIndex, const GLMaterial::Texture& texture)
 {
     QJsonObject obj;
@@ -179,14 +325,163 @@ QJsonObject makeAccessor(int bufferView,
         obj.insert(QStringLiteral("max"), max);
     return obj;
 }
+
+QJsonArray variantMappingsToJson(const QVector<GltfVariantMapping>& mappings)
+{
+    QJsonArray arr;
+    for (const GltfVariantMapping& mapping : mappings)
+    {
+        QJsonObject obj;
+        obj.insert(QStringLiteral("materialIndex"), mapping.materialIndex);
+        QJsonArray variantIndices;
+        for (int variantIndex : mapping.variantIndices)
+            variantIndices.append(variantIndex);
+        obj.insert(QStringLiteral("variantIndices"), variantIndices);
+        arr.append(obj);
+    }
+    return arr;
+}
+
+QJsonObject gpuLightToJson(const GPULight& light)
+{
+    return QJsonObject{
+        {QStringLiteral("type"), light.type},
+        {QStringLiteral("range"), light.range},
+        {QStringLiteral("intensity"), light.intensity},
+        {QStringLiteral("direction"), QJsonArray{light.direction.x, light.direction.y, light.direction.z}},
+        {QStringLiteral("color"), QJsonArray{light.color.x, light.color.y, light.color.z}},
+        {QStringLiteral("position"), QJsonArray{light.position.x, light.position.y, light.position.z}},
+        {QStringLiteral("innerConeCos"), light.innerConeCos},
+        {QStringLiteral("outerConeCos"), light.outerConeCos}
+    };
+}
+
+QJsonArray vec2ToJson(const QVector2D& v)
+{
+    return QJsonArray{v.x(), v.y()};
+}
+
+QJsonArray vec4ToJson(const QVector4D& v)
+{
+    return QJsonArray{v.x(), v.y(), v.z(), v.w()};
+}
+
+QJsonArray quatToJson(const QQuaternion& q)
+{
+    return QJsonArray{q.scalar(), q.x(), q.y(), q.z()};
+}
+
+QJsonObject animationClipToJson(const GltfAnimationClip& clip)
+{
+    QJsonObject clipObj;
+    clipObj.insert(QStringLiteral("name"), clip.name);
+    clipObj.insert(QStringLiteral("durationSeconds"), clip.durationSeconds);
+    clipObj.insert(QStringLiteral("hasNodeTransforms"), clip.hasNodeTransforms);
+    clipObj.insert(QStringLiteral("hasSkinning"), clip.hasSkinning);
+    clipObj.insert(QStringLiteral("hasMorphAnimations"), clip.hasMorphAnimations);
+    clipObj.insert(QStringLiteral("hasPointerAnimations"), clip.hasPointerAnimations);
+
+    QJsonArray channelsArray;
+    for (const GltfAnimationChannel& channel : clip.channels)
+    {
+        QJsonObject channelObj;
+        channelObj.insert(QStringLiteral("targetNodeName"), channel.targetNodeName);
+        channelObj.insert(QStringLiteral("targetNodeIndex"), channel.targetNodeIndex);
+        channelObj.insert(QStringLiteral("targetPath"), static_cast<int>(channel.targetPath));
+        channelObj.insert(QStringLiteral("targetPointer"), channel.targetPointer);
+        channelObj.insert(QStringLiteral("pointerTargetKind"), static_cast<int>(channel.pointerTargetKind));
+        channelObj.insert(QStringLiteral("targetMaterialIndex"), channel.targetMaterialIndex);
+        channelObj.insert(QStringLiteral("textureTarget"), static_cast<int>(channel.textureTarget));
+        channelObj.insert(QStringLiteral("pointerProperty"), static_cast<int>(channel.pointerProperty));
+
+        QJsonArray vec3Keys;
+        for (const GltfAnimationVec3Key& key : channel.vec3Keys)
+        {
+            vec3Keys.append(QJsonObject{
+                {QStringLiteral("timeSeconds"), key.timeSeconds},
+                {QStringLiteral("value"), vec3ToJson(key.value)}
+            });
+        }
+        channelObj.insert(QStringLiteral("vec3Keys"), vec3Keys);
+
+        QJsonArray vec4Keys;
+        for (const GltfAnimationVec4Key& key : channel.vec4Keys)
+        {
+            vec4Keys.append(QJsonObject{
+                {QStringLiteral("timeSeconds"), key.timeSeconds},
+                {QStringLiteral("value"), vec4ToJson(key.value)}
+            });
+        }
+        channelObj.insert(QStringLiteral("vec4Keys"), vec4Keys);
+
+        QJsonArray quatKeys;
+        for (const GltfAnimationQuatKey& key : channel.quatKeys)
+        {
+            quatKeys.append(QJsonObject{
+                {QStringLiteral("timeSeconds"), key.timeSeconds},
+                {QStringLiteral("value"), quatToJson(key.value)}
+            });
+        }
+        channelObj.insert(QStringLiteral("quatKeys"), quatKeys);
+
+        QJsonArray vec2Keys;
+        for (const GltfAnimationVec2Key& key : channel.vec2Keys)
+        {
+            vec2Keys.append(QJsonObject{
+                {QStringLiteral("timeSeconds"), key.timeSeconds},
+                {QStringLiteral("value"), vec2ToJson(key.value)}
+            });
+        }
+        channelObj.insert(QStringLiteral("vec2Keys"), vec2Keys);
+
+        QJsonArray floatKeys;
+        for (const GltfAnimationFloatKey& key : channel.floatKeys)
+        {
+            floatKeys.append(QJsonObject{
+                {QStringLiteral("timeSeconds"), key.timeSeconds},
+                {QStringLiteral("value"), key.value}
+            });
+        }
+        channelObj.insert(QStringLiteral("floatKeys"), floatKeys);
+
+        QJsonArray boolKeys;
+        for (const GltfAnimationBoolKey& key : channel.boolKeys)
+        {
+            boolKeys.append(QJsonObject{
+                {QStringLiteral("timeSeconds"), key.timeSeconds},
+                {QStringLiteral("value"), key.value}
+            });
+        }
+        channelObj.insert(QStringLiteral("boolKeys"), boolKeys);
+
+        QJsonArray weightKeys;
+        for (const GltfAnimationWeightsKey& key : channel.weightKeys)
+        {
+            QJsonArray values;
+            for (float weight : key.values)
+                values.append(weight);
+            weightKeys.append(QJsonObject{
+                {QStringLiteral("timeSeconds"), key.timeSeconds},
+                {QStringLiteral("values"), values}
+            });
+        }
+        channelObj.insert(QStringLiteral("weightKeys"), weightKeys);
+
+        channelsArray.append(channelObj);
+    }
+
+    clipObj.insert(QStringLiteral("channels"), channelsArray);
+    return clipObj;
+}
 }
 
 namespace Mvf
 {
 MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
-                                   const std::vector<TriangleMesh*>& meshStore,
-                                   const QSet<QUuid>& visibleMeshUuids,
-                                   const QSet<QUuid>& selectedMeshUuids)
+                           const std::vector<TriangleMesh*>& meshStore,
+                           const QSet<QUuid>& visibleMeshUuids,
+                           const QSet<QUuid>& selectedMeshUuids,
+                           const QVector<GltfCameraData>& cameraDataByFile)
 {
     MVFPackage package;
     Document& document = package.document;
@@ -209,6 +504,131 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
     QHash<QString, int> samplerIndexBySignature;
     QHash<QString, int> textureIndexBySignature;
 
+    auto buildMaterialJsonObject =
+        [&](const GLMaterial& material,
+            const QString& id,
+            const QString& nameForFallback) -> QJsonObject
+    {
+        QJsonObject materialObj;
+        materialObj.insert(QStringLiteral("id"), id);
+        materialObj.insert(QStringLiteral("name"), material.name().isEmpty() ? nameForFallback : material.name());
+        materialObj.insert(QStringLiteral("shadingModel"), shadingModelToString(material.shadingModel()));
+        materialObj.insert(QStringLiteral("blendMode"), blendModeToString(material.blendMode()));
+        materialObj.insert(QStringLiteral("doubleSided"), material.twoSided());
+        materialObj.insert(QStringLiteral("alphaCutoff"), material.alphaThreshold());
+        materialObj.insert(QStringLiteral("opacity"), material.opacity());
+
+        QJsonObject pbr;
+        pbr.insert(QStringLiteral("baseColorFactor"),
+                   QJsonArray{material.albedoColor().x(), material.albedoColor().y(),
+                              material.albedoColor().z(), material.opacity()});
+        pbr.insert(QStringLiteral("metallicFactor"), material.metalness());
+        pbr.insert(QStringLiteral("roughnessFactor"), material.roughness());
+        materialObj.insert(QStringLiteral("pbr"), pbr);
+
+        QJsonObject extensions;
+        extensions.insert(QStringLiteral("MVF_material_runtime"),
+                          QJsonObject::fromVariantMap(material.toVariantMap()));
+
+        QJsonObject ads;
+        ads.insert(QStringLiteral("ambient"), vec3ToJson(material.ambient()));
+        ads.insert(QStringLiteral("diffuse"), vec3ToJson(material.diffuse()));
+        ads.insert(QStringLiteral("specular"), vec3ToJson(material.specular()));
+        ads.insert(QStringLiteral("emissive"), vec3ToJson(material.emissive()));
+        ads.insert(QStringLiteral("shininess"), material.shininess());
+        extensions.insert(QStringLiteral("MVF_material_ads"), ads);
+
+        QJsonObject mvfPbr;
+        mvfPbr.insert(QStringLiteral("ior"), material.ior());
+        mvfPbr.insert(QStringLiteral("transmission"), material.transmission());
+        mvfPbr.insert(QStringLiteral("clearcoat"), material.clearcoat());
+        mvfPbr.insert(QStringLiteral("clearcoatRoughness"), material.clearcoatRoughness());
+        mvfPbr.insert(QStringLiteral("sheenColor"), vec3ToJson(material.sheenColor()));
+        mvfPbr.insert(QStringLiteral("sheenRoughness"), material.sheenRoughness());
+
+        for (int textureTypeIndex = 0;
+             textureTypeIndex < static_cast<int>(GLMaterial::TextureType::Count);
+             ++textureTypeIndex)
+        {
+            const auto type = static_cast<GLMaterial::TextureType>(textureTypeIndex);
+            GLMaterial::Texture texture = material.texture(type);
+            if (texture.path.empty())
+            {
+                const QString canonicalPath = texturePathForType(material, type);
+                if (!canonicalPath.isEmpty())
+                {
+                    texture.path = canonicalPath.toStdString();
+                    populateTextureFallbackMetadata(material, type, texture);
+                }
+            }
+
+            if (texture.path.empty())
+                continue;
+
+            const QString imagePath = QString::fromStdString(texture.path);
+            int imageIndex = imageIndexByPath.value(imagePath, -1);
+            if (imageIndex < 0)
+            {
+                imageIndex = document.images.size();
+                imageIndexByPath.insert(imagePath, imageIndex);
+
+                QJsonObject imageObj;
+                imageObj.insert(QStringLiteral("name"), QFileInfo(imagePath).fileName());
+                imageObj.insert(QStringLiteral("originalUri"), imagePath);
+                imageObj.insert(QStringLiteral("bufferView"), -1);
+                imageObj.insert(QStringLiteral("mimeType"), QString());
+                imageObj.insert(QStringLiteral("byteLength"), 0);
+                document.images.append(imageObj);
+            }
+
+            const QString samplerSignature = QStringLiteral("%1|%2|%3|%4")
+                .arg(static_cast<int>(texture.magFilter))
+                .arg(static_cast<int>(texture.minFilter))
+                .arg(static_cast<int>(texture.wrapS))
+                .arg(static_cast<int>(texture.wrapT));
+
+            int samplerIndex = samplerIndexBySignature.value(samplerSignature, -1);
+            if (samplerIndex < 0)
+            {
+                samplerIndex = document.samplers.size();
+                samplerIndexBySignature.insert(samplerSignature, samplerIndex);
+
+                QJsonObject samplerObj;
+                samplerObj.insert(QStringLiteral("magFilter"), static_cast<int>(texture.magFilter));
+                samplerObj.insert(QStringLiteral("minFilter"), static_cast<int>(texture.minFilter));
+                samplerObj.insert(QStringLiteral("wrapS"), static_cast<int>(texture.wrapS));
+                samplerObj.insert(QStringLiteral("wrapT"), static_cast<int>(texture.wrapT));
+                document.samplers.append(samplerObj);
+            }
+
+            const QString textureSignature = QStringLiteral("%1|%2")
+                .arg(imageIndex)
+                .arg(samplerIndex);
+
+            int textureIndex = textureIndexBySignature.value(textureSignature, -1);
+            if (textureIndex < 0)
+            {
+                textureIndex = document.textures.size();
+                textureIndexBySignature.insert(textureSignature, textureIndex);
+
+                QJsonObject textureObj;
+                textureObj.insert(QStringLiteral("image"), imageIndex);
+                textureObj.insert(QStringLiteral("sampler"), samplerIndex);
+                document.textures.append(textureObj);
+            }
+
+            const QString key = textureTypeKey(type);
+            if (!key.isEmpty())
+            {
+                mvfPbr.insert(key, buildTextureInfoObject(textureIndex, texture));
+            }
+        }
+
+        extensions.insert(QStringLiteral("MVF_material_pbr"), mvfPbr);
+        materialObj.insert(QStringLiteral("extensions"), extensions);
+        return materialObj;
+    };
+
     for (TriangleMesh* mesh : meshStore)
     {
         if (!mesh)
@@ -228,6 +648,58 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
         primitiveExtras.insert(QStringLiteral("sceneIndex"), mesh->getSceneIndex());
         primitiveExtras.insert(QStringLiteral("meshUuid"), meshUuid.toString(QUuid::WithoutBraces));
         primitiveExtras.insert(QStringLiteral("hasGeometryChunk"), true);
+        primitiveExtras.insert(QStringLiteral("hasNegativeScale"), mesh->hasNegativeScale());
+        primitiveExtras.insert(QStringLiteral("originalMaterialIndex"), mesh->getOriginalMaterialIndex());
+        if (!mesh->getSourceFile().isEmpty())
+            primitiveExtras.insert(QStringLiteral("sourceFile"), mesh->getSourceFile());
+        if (!mesh->getSourceNodeName().isEmpty())
+            primitiveExtras.insert(QStringLiteral("sourceNodeName"), mesh->getSourceNodeName());
+        if (mesh->hasVariants())
+            primitiveExtras.insert(QStringLiteral("variantMappings"), variantMappingsToJson(mesh->variantMappings()));
+
+        // Per-mesh user transform (gizmo TRS applied on top of scene hierarchy).
+        // Stored as separate translation/rotation-quaternion/scale so that the load path
+        // can call setTranslation / setRotationQuaternion / setScaling directly.
+        {
+            const QVector3D    t  = mesh->getTranslation();
+            const QQuaternion  q  = mesh->getRotationQuaternion();
+            const QVector3D    r  = mesh->getRotation();   // Euler display values
+            const QVector3D    s  = mesh->getScaling();
+
+            QJsonObject meshTrs;
+            meshTrs.insert(QStringLiteral("tx"), t.x());
+            meshTrs.insert(QStringLiteral("ty"), t.y());
+            meshTrs.insert(QStringLiteral("tz"), t.z());
+            meshTrs.insert(QStringLiteral("qx"), q.x());
+            meshTrs.insert(QStringLiteral("qy"), q.y());
+            meshTrs.insert(QStringLiteral("qz"), q.z());
+            meshTrs.insert(QStringLiteral("qw"), q.scalar());
+            meshTrs.insert(QStringLiteral("rx"), r.x());
+            meshTrs.insert(QStringLiteral("ry"), r.y());
+            meshTrs.insert(QStringLiteral("rz"), r.z());
+            meshTrs.insert(QStringLiteral("sx"), s.x());
+            meshTrs.insert(QStringLiteral("sy"), s.y());
+            meshTrs.insert(QStringLiteral("sz"), s.z());
+            primitiveExtras.insert(QStringLiteral("meshTrs"), meshTrs);
+        }
+
+        if (!mesh->allVariantMaterials().isEmpty())
+        {
+            QJsonArray variantMaterialsArray;
+            for (auto it = mesh->allVariantMaterials().cbegin(); it != mesh->allVariantMaterials().cend(); ++it)
+            {
+                QJsonObject variantMaterialObj;
+                variantMaterialObj.insert(QStringLiteral("key"), it.key());
+                variantMaterialObj.insert(
+                    QStringLiteral("material"),
+                    buildMaterialJsonObject(
+                        it.value(),
+                        QStringLiteral("%1.variant.%2").arg(meshUuid.toString(QUuid::WithoutBraces)).arg(it.key()),
+                        mesh->getName()));
+                variantMaterialsArray.append(variantMaterialObj);
+            }
+            primitiveExtras.insert(QStringLiteral("variantMaterials"), variantMaterialsArray);
+        }
 
         if (const auto* assImpMesh = dynamic_cast<const AssImpMesh*>(mesh))
         {
@@ -265,6 +737,12 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
             bool hasUv1 = false;
             bool hasUv2 = false;
             bool hasUv3 = false;
+            bool hasSkinData = false;
+
+            std::vector<float> jointIndices;
+            std::vector<float> jointWeights;
+            jointIndices.reserve(vertices.size() * 4);
+            jointWeights.reserve(vertices.size() * 4);
 
             for (const Vertex& v : vertices)
             {
@@ -294,6 +772,20 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
                 uv3.push_back(v.TexCoords[3].x);
                 uv3.push_back(v.TexCoords[3].y);
 
+                jointIndices.push_back(v.JointIndices.x);
+                jointIndices.push_back(v.JointIndices.y);
+                jointIndices.push_back(v.JointIndices.z);
+                jointIndices.push_back(v.JointIndices.w);
+                jointWeights.push_back(v.JointWeights.x);
+                jointWeights.push_back(v.JointWeights.y);
+                jointWeights.push_back(v.JointWeights.z);
+                jointWeights.push_back(v.JointWeights.w);
+
+                if (!hasSkinData &&
+                    (v.JointWeights.x > 0.0f || v.JointWeights.y > 0.0f ||
+                     v.JointWeights.z > 0.0f || v.JointWeights.w > 0.0f))
+                    hasSkinData = true;
+
                 minX = std::min(minX, v.Position.x);
                 minY = std::min(minY, v.Position.y);
                 minZ = std::min(minZ, v.Position.z);
@@ -306,6 +798,9 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
                 hasUv2 = hasUv2 || v.TexCoords[2] != glm::vec2(0.0f);
                 hasUv3 = hasUv3 || v.TexCoords[3] != glm::vec2(0.0f);
             }
+            // Also flag as skin data if the mesh has skin joints defined
+            if (!hasSkinData && mesh->hasSkinning())
+                hasSkinData = true;
 
             QJsonObject attributes;
 
@@ -395,6 +890,28 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
                 attributes.insert(QStringLiteral("COLOR_0"), colorAccessor);
             }
 
+            // --- Skinning: JOINTS_0 and WEIGHTS_0 ---
+            if (hasSkinData)
+            {
+                const int jointsOffset = appendBinary(package.geometryChunk, jointIndices.data(), static_cast<int>(jointIndices.size()));
+                const int jointsView = document.bufferViews.size();
+                document.bufferViews.append(makeBufferView(0, jointsOffset, jointIndices.size() * sizeof(float), BufferTargetArray,
+                                                           QStringLiteral("%1_JOINTS_0").arg(mesh->getName())));
+                const int jointsAccessor = document.accessors.size();
+                document.accessors.append(makeAccessor(jointsView, 0, ComponentTypeFloat, vertices.size(), QStringLiteral("VEC4"),
+                                                       QStringLiteral("%1_JOINTS_0").arg(mesh->getName())));
+                attributes.insert(QStringLiteral("JOINTS_0"), jointsAccessor);
+
+                const int weightsOffset = appendBinary(package.geometryChunk, jointWeights.data(), static_cast<int>(jointWeights.size()));
+                const int weightsView = document.bufferViews.size();
+                document.bufferViews.append(makeBufferView(0, weightsOffset, jointWeights.size() * sizeof(float), BufferTargetArray,
+                                                           QStringLiteral("%1_WEIGHTS_0").arg(mesh->getName())));
+                const int weightsAccessor = document.accessors.size();
+                document.accessors.append(makeAccessor(weightsView, 0, ComponentTypeFloat, vertices.size(), QStringLiteral("VEC4"),
+                                                       QStringLiteral("%1_WEIGHTS_0").arg(mesh->getName())));
+                attributes.insert(QStringLiteral("WEIGHTS_0"), weightsAccessor);
+            }
+
             primitive.insert(QStringLiteral("attributes"), attributes);
 
             const int indexOffset = appendBinary(package.geometryChunk, indices.data(), static_cast<int>(indices.size()));
@@ -405,111 +922,96 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
             document.accessors.append(makeAccessor(indexView, 0, ComponentTypeUnsignedInt, indices.size(), QStringLiteral("SCALAR"),
                                                    QStringLiteral("%1_INDICES").arg(mesh->getName())));
             primitive.insert(QStringLiteral("indices"), indexAccessor);
+
+            // --- Morph targets (blend shapes) ---
+            // Write each morph target's position/normal/tangent delta arrays as
+            // VEC3 float accessors into the geometryChunk, then record them in
+            // the primitive "targets" array (glTF-compatible layout).  The default
+            // weights are stored in primitiveExtras so the read path can restore
+            // the mesh's initial weight state.
+            const QVector<MorphTargetData>& morphTargets = assImpMesh->getMorphTargets();
+            if (!morphTargets.isEmpty())
+            {
+                QJsonArray targetsArray;
+                const QString meshName = mesh->getName();
+                for (int ti = 0; ti < morphTargets.size(); ++ti)
+                {
+                    const MorphTargetData& mt = morphTargets[ti];
+                    QJsonObject targetAttribs;
+                    const QString tiStr = QString::number(ti);
+
+                    // POSITION deltas
+                    if (!mt.positionDeltas.empty())
+                    {
+                        std::vector<float> posD;
+                        posD.reserve(mt.positionDeltas.size() * 3);
+                        for (const auto& p : mt.positionDeltas) { posD.push_back(p.x); posD.push_back(p.y); posD.push_back(p.z); }
+                        const int offset = appendBinary(package.geometryChunk, posD.data(), static_cast<int>(posD.size()));
+                        const int bv = document.bufferViews.size();
+                        document.bufferViews.append(makeBufferView(0, offset, posD.size() * sizeof(float), BufferTargetArray,
+                                                                   QStringLiteral("%1_MORPH%2_POSITION").arg(meshName, tiStr)));
+                        const int acc = document.accessors.size();
+                        document.accessors.append(makeAccessor(bv, 0, ComponentTypeFloat,
+                                                               static_cast<int>(mt.positionDeltas.size()),
+                                                               QStringLiteral("VEC3"),
+                                                               QStringLiteral("%1_MORPH%2_POSITION").arg(meshName, tiStr)));
+                        targetAttribs.insert(QStringLiteral("POSITION"), acc);
+                    }
+
+                    // NORMAL deltas
+                    if (!mt.normalDeltas.empty())
+                    {
+                        std::vector<float> norD;
+                        norD.reserve(mt.normalDeltas.size() * 3);
+                        for (const auto& n : mt.normalDeltas) { norD.push_back(n.x); norD.push_back(n.y); norD.push_back(n.z); }
+                        const int offset = appendBinary(package.geometryChunk, norD.data(), static_cast<int>(norD.size()));
+                        const int bv = document.bufferViews.size();
+                        document.bufferViews.append(makeBufferView(0, offset, norD.size() * sizeof(float), BufferTargetArray,
+                                                                   QStringLiteral("%1_MORPH%2_NORMAL").arg(meshName, tiStr)));
+                        const int acc = document.accessors.size();
+                        document.accessors.append(makeAccessor(bv, 0, ComponentTypeFloat,
+                                                               static_cast<int>(mt.normalDeltas.size()),
+                                                               QStringLiteral("VEC3"),
+                                                               QStringLiteral("%1_MORPH%2_NORMAL").arg(meshName, tiStr)));
+                        targetAttribs.insert(QStringLiteral("NORMAL"), acc);
+                    }
+
+                    // TANGENT deltas
+                    if (!mt.tangentDeltas.empty())
+                    {
+                        std::vector<float> tanD;
+                        tanD.reserve(mt.tangentDeltas.size() * 3);
+                        for (const auto& t : mt.tangentDeltas) { tanD.push_back(t.x); tanD.push_back(t.y); tanD.push_back(t.z); }
+                        const int offset = appendBinary(package.geometryChunk, tanD.data(), static_cast<int>(tanD.size()));
+                        const int bv = document.bufferViews.size();
+                        document.bufferViews.append(makeBufferView(0, offset, tanD.size() * sizeof(float), BufferTargetArray,
+                                                                   QStringLiteral("%1_MORPH%2_TANGENT").arg(meshName, tiStr)));
+                        const int acc = document.accessors.size();
+                        document.accessors.append(makeAccessor(bv, 0, ComponentTypeFloat,
+                                                               static_cast<int>(mt.tangentDeltas.size()),
+                                                               QStringLiteral("VEC3"),
+                                                               QStringLiteral("%1_MORPH%2_TANGENT").arg(meshName, tiStr)));
+                        targetAttribs.insert(QStringLiteral("TANGENT"), acc);
+                    }
+
+                    targetsArray.append(targetAttribs);
+                }
+                primitive.insert(QStringLiteral("targets"), targetsArray);
+
+                // Save default weights in extras for read path restoration.
+                const QVector<float> defWeights = assImpMesh->defaultMorphWeights();
+                QJsonArray defWeightsJson;
+                for (float w : defWeights)
+                    defWeightsJson.append(static_cast<double>(w));
+                primitiveExtras.insert(QStringLiteral("defaultMorphWeights"), defWeightsJson);
+            }
         }
 
         const GLMaterial material = mesh->getMaterial();
-        QJsonObject materialObj;
-        materialObj.insert(QStringLiteral("id"), meshUuid.toString(QUuid::WithoutBraces));
-        materialObj.insert(QStringLiteral("name"), material.name());
-        materialObj.insert(QStringLiteral("shadingModel"), shadingModelToString(material.shadingModel()));
-        materialObj.insert(QStringLiteral("blendMode"), blendModeToString(material.blendMode()));
-        materialObj.insert(QStringLiteral("doubleSided"), material.twoSided());
-        materialObj.insert(QStringLiteral("alphaCutoff"), material.alphaThreshold());
-        materialObj.insert(QStringLiteral("opacity"), material.opacity());
-
-        QJsonObject pbr;
-        pbr.insert(QStringLiteral("baseColorFactor"),
-                   QJsonArray{material.albedoColor().x(), material.albedoColor().y(),
-                              material.albedoColor().z(), material.opacity()});
-        pbr.insert(QStringLiteral("metallicFactor"), material.metalness());
-        pbr.insert(QStringLiteral("roughnessFactor"), material.roughness());
-        materialObj.insert(QStringLiteral("pbr"), pbr);
-
-        QJsonObject extensions;
-        QJsonObject ads;
-        ads.insert(QStringLiteral("ambient"), vec3ToJson(material.ambient()));
-        ads.insert(QStringLiteral("diffuse"), vec3ToJson(material.diffuse()));
-        ads.insert(QStringLiteral("specular"), vec3ToJson(material.specular()));
-        ads.insert(QStringLiteral("emissive"), vec3ToJson(material.emissive()));
-        ads.insert(QStringLiteral("shininess"), material.shininess());
-        extensions.insert(QStringLiteral("MVF_material_ads"), ads);
-
-        QJsonObject mvfPbr;
-        mvfPbr.insert(QStringLiteral("ior"), material.ior());
-        mvfPbr.insert(QStringLiteral("transmission"), material.transmission());
-        mvfPbr.insert(QStringLiteral("clearcoat"), material.clearcoat());
-        mvfPbr.insert(QStringLiteral("clearcoatRoughness"), material.clearcoatRoughness());
-        mvfPbr.insert(QStringLiteral("sheenColor"), vec3ToJson(material.sheenColor()));
-        mvfPbr.insert(QStringLiteral("sheenRoughness"), material.sheenRoughness());
-
-        for (int textureTypeIndex = 0;
-             textureTypeIndex < static_cast<int>(GLMaterial::TextureType::Count);
-             ++textureTypeIndex)
-        {
-            const auto type = static_cast<GLMaterial::TextureType>(textureTypeIndex);
-            const GLMaterial::Texture& texture = material.texture(type);
-            if (texture.path.empty())
-                continue;
-
-            const QString imagePath = QString::fromStdString(texture.path);
-            int imageIndex = imageIndexByPath.value(imagePath, -1);
-            if (imageIndex < 0)
-            {
-                imageIndex = document.images.size();
-                imageIndexByPath.insert(imagePath, imageIndex);
-
-                QJsonObject imageObj;
-                imageObj.insert(QStringLiteral("name"), QFileInfo(imagePath).fileName());
-                imageObj.insert(QStringLiteral("originalUri"), imagePath);
-                imageObj.insert(QStringLiteral("bufferView"), -1);
-                imageObj.insert(QStringLiteral("mimeType"), QString());
-                imageObj.insert(QStringLiteral("byteLength"), 0);
-                document.images.append(imageObj);
-            }
-
-            const QString samplerSignature = QStringLiteral("%1|%2|%3|%4")
-                .arg(static_cast<int>(texture.magFilter))
-                .arg(static_cast<int>(texture.minFilter))
-                .arg(static_cast<int>(texture.wrapS))
-                .arg(static_cast<int>(texture.wrapT));
-
-            int samplerIndex = samplerIndexBySignature.value(samplerSignature, -1);
-            if (samplerIndex < 0)
-            {
-                samplerIndex = document.samplers.size();
-                samplerIndexBySignature.insert(samplerSignature, samplerIndex);
-
-                QJsonObject samplerObj;
-                samplerObj.insert(QStringLiteral("magFilter"), static_cast<int>(texture.magFilter));
-                samplerObj.insert(QStringLiteral("minFilter"), static_cast<int>(texture.minFilter));
-                samplerObj.insert(QStringLiteral("wrapS"), static_cast<int>(texture.wrapS));
-                samplerObj.insert(QStringLiteral("wrapT"), static_cast<int>(texture.wrapT));
-                document.samplers.append(samplerObj);
-            }
-
-            const QString textureSignature = QStringLiteral("%1|%2")
-                .arg(imageIndex)
-                .arg(samplerIndex);
-
-            int textureIndex = textureIndexBySignature.value(textureSignature, -1);
-            if (textureIndex < 0)
-            {
-                textureIndex = document.textures.size();
-                textureIndexBySignature.insert(textureSignature, textureIndex);
-
-                QJsonObject textureObj;
-                textureObj.insert(QStringLiteral("image"), imageIndex);
-                textureObj.insert(QStringLiteral("sampler"), samplerIndex);
-                document.textures.append(textureObj);
-            }
-
-            const QString key = textureTypeKey(type);
-            if (!key.isEmpty())
-                mvfPbr.insert(key, buildTextureInfoObject(textureIndex, texture));
-        }
-
-        extensions.insert(QStringLiteral("MVF_material_pbr"), mvfPbr);
-        materialObj.insert(QStringLiteral("extensions"), extensions);
+        QJsonObject materialObj = buildMaterialJsonObject(
+            material,
+            meshUuid.toString(QUuid::WithoutBraces),
+            mesh->getName());
         materialObj.insert(QStringLiteral("extras"), QJsonObject{
             {QStringLiteral("meshUuid"), meshUuid.toString(QUuid::WithoutBraces)}
         });
@@ -517,6 +1019,25 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
         const int materialIndex = document.materials.size() - 1;
         materialIndexByUuid.insert(meshUuid, materialIndex);
         primitive.insert(QStringLiteral("material"), materialIndex);
+
+        // Save skin joints (inverse bind matrices + node names) so MVF reload can
+        // restore per-vertex skinning and drive skeletal animation.
+        {
+            const QVector<GltfSkinJoint>& skinJoints = mesh->skinJoints();
+            if (!skinJoints.isEmpty())
+            {
+                QJsonArray skinJointsArray;
+                for (const GltfSkinJoint& joint : skinJoints)
+                {
+                    skinJointsArray.append(QJsonObject{
+                        {QStringLiteral("nodeName"), joint.nodeName},
+                        {QStringLiteral("inverseBindMatrix"), matrixToJson(joint.inverseBindMatrix)}
+                    });
+                }
+                primitiveExtras.insert(QStringLiteral("skinJoints"), skinJointsArray);
+            }
+        }
+
         primitive.insert(QStringLiteral("extras"), primitiveExtras);
 
         QJsonArray primitives;
@@ -530,7 +1051,18 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
         QJsonObject nodeObj;
         nodeObj.insert(QStringLiteral("id"), node->nodeUuid.toString(QUuid::WithoutBraces));
         nodeObj.insert(QStringLiteral("name"), node->name);
+        nodeObj.insert(QStringLiteral("isSynthetic"), node->isSynthetic);
+        if (!node->sourceFile.isEmpty())
+            nodeObj.insert(QStringLiteral("sourceFile"), node->sourceFile);
         nodeObj.insert(QStringLiteral("matrix"), matrixToJson(node->localTransform));
+        // Persist the autoOrient+autoScale correction so the exporter can factor it
+        // out on the next export even after a save/load round-trip via MVF.
+        if (!node->importCorrection.IsIdentity())
+            nodeObj.insert(QStringLiteral("importCorrection"), matrixToJson(node->importCorrection));
+        if (node->autoOrientApplied)
+            nodeObj.insert(QStringLiteral("autoOrientApplied"), true);
+        if (node->autoScaleApplied)
+            nodeObj.insert(QStringLiteral("autoScaleApplied"), true);
 
         if (!node->meshUuids.isEmpty())
         {
@@ -583,8 +1115,186 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
     document.mvfSession.insert(QStringLiteral("visibleMeshUuids"), visibleArray);
     document.mvfSession.insert(QStringLiteral("selectedMeshUuids"), selectedArray);
     document.mvfSession.insert(QStringLiteral("geometryChunkPresent"), !package.geometryChunk.isEmpty());
+
+    // Per-file punctual light data (names, enabled flags, repositioned positions)
+    // is written by ModelViewer::buildMVFPackage() which has access to GLWidget's
+    // repositioned state.  This builder only sees the raw SceneGraph positions and
+    // has no way to apply the user's slider / model-rotation repositioning.
+
+    const QStringList variantFiles = sceneGraph.filesWithVariants();
+    if (!variantFiles.isEmpty())
+    {
+        QJsonArray variantFilesArray;
+        for (const QString& sourceFile : variantFiles)
+        {
+            const GltfVariantData variantData = sceneGraph.variantDataForFile(sourceFile);
+            if (variantData.isEmpty())
+                continue;
+
+            QJsonObject fileObj;
+            fileObj.insert(QStringLiteral("sourceFile"), sourceFile);
+
+            QJsonArray variantNames;
+            for (const QString& variantName : variantData.variantNames)
+                variantNames.append(variantName);
+            fileObj.insert(QStringLiteral("variantNames"), variantNames);
+            const int activeVariant = sceneGraph.activeVariantForFile(sourceFile);
+            fileObj.insert(QStringLiteral("activeVariant"), activeVariant);
+
+            QJsonArray meshVariantMappingsArray;
+            for (auto it = variantData.meshVariantMappings.cbegin();
+                 it != variantData.meshVariantMappings.cend();
+                 ++it)
+            {
+                QJsonObject mappingObj;
+                mappingObj.insert(QStringLiteral("sceneIndex"), it.key());
+                mappingObj.insert(QStringLiteral("variantMappings"), variantMappingsToJson(it.value()));
+                meshVariantMappingsArray.append(mappingObj);
+            }
+            fileObj.insert(QStringLiteral("meshVariantMappings"), meshVariantMappingsArray);
+            variantFilesArray.append(fileObj);
+        }
+
+        if (!variantFilesArray.isEmpty())
+            document.mvfSession.insert(QStringLiteral("variantFiles"), variantFilesArray);
+    }
+
+    QVector<GltfCameraData> camerasToSave = cameraDataByFile;
+    if (camerasToSave.isEmpty())
+    {
+        const QStringList cameraFiles = sceneGraph.filesWithGltfCameras();
+        for (const QString& sourceFile : cameraFiles)
+        {
+            const GltfCameraData cameraData = sceneGraph.gltfCameraDataForFile(sourceFile);
+            if (!cameraData.isEmpty())
+                camerasToSave.append(cameraData);
+        }
+    }
+
+    if (!camerasToSave.isEmpty())
+    {
+        QJsonArray cameraFilesArray;
+        for (const GltfCameraData& cameraData : camerasToSave)
+        {
+            if (cameraData.isEmpty() || cameraData.sourceFile.isEmpty())
+                continue;
+
+            QJsonObject fileObj;
+            fileObj.insert(QStringLiteral("sourceFile"), cameraData.sourceFile);
+
+            QJsonArray camerasArray;
+            for (const GltfCameraEntry& camera : cameraData.cameras)
+            {
+                QJsonObject cameraObj;
+                cameraObj.insert(QStringLiteral("name"), camera.name);
+                cameraObj.insert(QStringLiteral("nodeName"), camera.nodeName);
+                cameraObj.insert(QStringLiteral("nodeIndex"), camera.nodeIndex);
+                cameraObj.insert(QStringLiteral("hasAiChildPath"), camera.hasAiChildPath);
+                QJsonArray aiChildPath;
+                for (int childIndex : camera.aiChildPath)
+                    aiChildPath.append(childIndex);
+                cameraObj.insert(QStringLiteral("aiChildPath"), aiChildPath);
+                cameraObj.insert(QStringLiteral("type"),
+                                 camera.type == GltfCameraType::Orthographic
+                                     ? QStringLiteral("orthographic")
+                                     : QStringLiteral("perspective"));
+                cameraObj.insert(QStringLiteral("fovYRadians"), camera.fovYRadians);
+                cameraObj.insert(QStringLiteral("zNear"), camera.zNear);
+                cameraObj.insert(QStringLiteral("zFar"), camera.zFar);
+                cameraObj.insert(QStringLiteral("xMag"), camera.xMag);
+                cameraObj.insert(QStringLiteral("yMag"), camera.yMag);
+                cameraObj.insert(QStringLiteral("worldPosition"),
+                                 QJsonArray{camera.worldPosition.x(), camera.worldPosition.y(), camera.worldPosition.z()});
+                cameraObj.insert(QStringLiteral("worldDirection"),
+                                 QJsonArray{camera.worldDirection.x(), camera.worldDirection.y(), camera.worldDirection.z()});
+                cameraObj.insert(QStringLiteral("worldUp"),
+                                 QJsonArray{camera.worldUp.x(), camera.worldUp.y(), camera.worldUp.z()});
+                cameraObj.insert(QStringLiteral("needsModelTransformCompensation"),
+                                 camera.needsModelTransformCompensation);
+                camerasArray.append(cameraObj);
+            }
+
+            fileObj.insert(QStringLiteral("cameras"), camerasArray);
+            cameraFilesArray.append(fileObj);
+        }
+
+        if (!cameraFilesArray.isEmpty())
+            document.mvfSession.insert(QStringLiteral("cameraFiles"), cameraFilesArray);
+    }
+
+    const QStringList animationFiles = sceneGraph.filesWithAnimations();
+    if (!animationFiles.isEmpty())
+    {
+        QJsonArray animationFilesArray;
+        for (const QString& sourceFile : animationFiles)
+        {
+            const GltfAnimationData animationData = sceneGraph.animationDataForFile(sourceFile);
+            if (animationData.isEmpty() && !animationData.hasSkinning)
+                continue;
+
+            QJsonObject fileObj;
+            fileObj.insert(QStringLiteral("sourceFile"), sourceFile);
+            fileObj.insert(QStringLiteral("hasNodeAnimations"), animationData.hasNodeAnimations);
+            fileObj.insert(QStringLiteral("hasSkinning"), animationData.hasSkinning);
+            fileObj.insert(QStringLiteral("hasMorphAnimations"), animationData.hasMorphAnimations);
+            fileObj.insert(QStringLiteral("hasPointerAnimations"), animationData.hasPointerAnimations);
+            fileObj.insert(QStringLiteral("activeClip"), sceneGraph.activeAnimationClipForFile(sourceFile));
+            fileObj.insert(QStringLiteral("rootInverseTransform"), matrixToJson(animationData.rootInverseTransform));
+
+            QJsonArray nodeBindingsArray;
+            for (const GltfAnimationNodeBinding& binding : animationData.nodeBindings)
+            {
+                QJsonObject bindingObj;
+                bindingObj.insert(QStringLiteral("nodeIndex"), binding.nodeIndex);
+                bindingObj.insert(QStringLiteral("nodeName"), binding.nodeName);
+                bindingObj.insert(QStringLiteral("hasAiChildPath"), binding.hasAiChildPath);
+                QJsonArray childPath;
+                for (int pathIndex : binding.aiChildPath)
+                    childPath.append(pathIndex);
+                bindingObj.insert(QStringLiteral("aiChildPath"), childPath);
+                nodeBindingsArray.append(bindingObj);
+            }
+            fileObj.insert(QStringLiteral("nodeBindings"), nodeBindingsArray);
+
+            QJsonArray visibilityStatesArray;
+            for (const GltfAnimationNodeVisibilityState& state : animationData.nodeVisibilityStates)
+            {
+                visibilityStatesArray.append(QJsonObject{
+                    {QStringLiteral("nodeIndex"), state.nodeIndex},
+                    {QStringLiteral("parentNodeIndex"), state.parentNodeIndex},
+                    {QStringLiteral("nodeName"), state.nodeName},
+                    {QStringLiteral("defaultVisible"), state.defaultVisible}
+                });
+            }
+            fileObj.insert(QStringLiteral("nodeVisibilityStates"), visibilityStatesArray);
+
+            QJsonArray lightBindingsArray;
+            for (const GltfAnimationLightBinding& binding : animationData.lightBindings)
+            {
+                lightBindingsArray.append(QJsonObject{
+                    {QStringLiteral("parsedLightIndex"), binding.parsedLightIndex},
+                    {QStringLiteral("lightDefinitionIndex"), binding.lightDefinitionIndex},
+                    {QStringLiteral("nodeIndex"), binding.nodeIndex},
+                    {QStringLiteral("nodeName"), binding.nodeName}
+                });
+            }
+            fileObj.insert(QStringLiteral("lightBindings"), lightBindingsArray);
+
+            QJsonArray clipsArray;
+            for (const GltfAnimationClip& clip : animationData.clips)
+                clipsArray.append(animationClipToJson(clip));
+            fileObj.insert(QStringLiteral("clips"), clipsArray);
+
+            animationFilesArray.append(fileObj);
+        }
+
+        if (!animationFilesArray.isEmpty())
+            document.mvfSession.insert(QStringLiteral("animationFiles"), animationFilesArray);
+    }
+
     document.extensionsUsed.append(QStringLiteral("MVF_material_ads"));
     document.extensionsUsed.append(QStringLiteral("MVF_material_pbr"));
+    document.extensionsUsed.append(QStringLiteral("MVF_material_runtime"));
 
     QJsonObject updatedGeomBuffer = document.buffers.at(0).toObject();
     updatedGeomBuffer.insert(QStringLiteral("byteLength"), package.geometryChunk.size());

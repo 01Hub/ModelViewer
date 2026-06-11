@@ -445,7 +445,7 @@ void SettingsDialog::setDefaultValues()
     refreshViewCubeAvailability();
     ui->showGridCheckBox->setChecked(true);            // Explicitly set to true
     ui->showWireframeCheckBox->setChecked(false);      // No 'checked' property found
-    ui->fieldOfViewSpinBox->setValue(60);              // Explicitly set
+    ui->fieldOfViewSpinBox->setValue(45);              // Explicitly set
     ui->nearPlaneSpinBox->setValue(0.1);               // Explicitly set
     ui->farPlaneSpinBox->setValue(1000.0);             // Explicitly set
     if (ui->comboBoxHoverHighlightMode)

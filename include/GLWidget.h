@@ -133,6 +133,8 @@ public:
 	void performWindowZoom();
 
 	void setDisplayList(const std::vector<int>& ids);
+	GltfCameraData cameraDataForMvfSave(const GltfCameraData& source) const;
+	void resetModelTransformBasis();
 	void triggerShadowRecomputation();
 	void setShadowQuality(AdaptiveShadowMapper::QualityLevel quality);
 	float calculateLightDistance();
@@ -257,6 +259,7 @@ public:
 	void seekAnimation(double timeSeconds);
 	void setAnimationLooping(bool looping);
 	void setAnimationPlaybackSpeed(double speed);
+	void syncRuntimeNodeTransforms(const QString& sourceFile);
 	void refreshAnimationMaterialState(const QString& sourceFile);
 	QString activeAnimationFile() const { return _activeAnimationFile; }
 	int activeAnimationClip() const { return _activeAnimationClip; }
@@ -304,9 +307,24 @@ public:
 	void setDefaultLightColor(const QVector4D& defaultLightColor);
 
 	QVector3D getLightPosition() const;
+	QVector3D getLightOffset() const { return QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ); }
 	void setLightOffset(const QVector3D& offset);
 
 	std::vector<GPULight> getParsedLights() const { return _originalParsedLights; }
+
+	// Returns the current repositioned lights (what the user sees after slider/auto-rotate
+	// adjustments). Falls back to _originalParsedLights if repositioning hasn't run yet.
+	std::vector<GPULight> getRepositionedLights() const
+	{
+		return _currentRepositionedLights.empty() ? _originalParsedLights
+		                                           : _currentRepositionedLights;
+	}
+
+	// Maps flat index i in _originalParsedLights / _currentRepositionedLights to
+	// { sourceFile, lightIndex } in SceneGraph::_lightDataByFile.
+	// Public so MVF serialisation in ModelViewer can build per-file light sections.
+	struct LightOrigin { QString file; int index; };
+	QVector<LightOrigin> getLightFileIndexMap() const { return _lightFileIndexMap; }
 
 	float getFloorSize() const { return _floorSize; }
 
@@ -382,11 +400,23 @@ public:
 	bool isEnvironmentMapEnabled() const { return _envMapEnabled; }
 	bool isIBLEnabled() const { return _useIBL; }
 	float getIBLExposure() const { return _iblExposure; }
+	float getEnvMapExposure() const { return _envMapExposure; }
 	QString getCurrentSkyboxFolder() const { return _currentSkyboxFolder; }
+	bool isSkyBoxShown() const { return _skyBoxEnabled; }
+	bool isSkyBoxHDRIEnabled() const { return _skyBoxTextureHDRI; }
+	int getSkyBoxBlurPercent() const { return _skyBoxBlurPercent; }
+	float getSkyBoxFOV() const { return _skyBoxFOV; }
+	float getPerspFOV()  const { return _FOV; }
+	float getSkyBoxZRotationDegrees() const { return _skyBoxZRotation; }
+	bool areReflectionsEnabled() const { return _reflectionsEnabled; }
+	bool isFloorTextureShown() const { return _floorTextureDisplayed; }
+	bool areShadowsEnabled() const { return _shadowsEnabled; }
+	bool areSelfShadowsEnabled() const { return _selfShadowsEnabled; }
+	bool areDefaultLightsEnabled() const { return _useDefaultLights; }
+	bool arePunctualLightsEnabled() const { return _usePunctualLights; }
+	bool areLightsShown() const;
 
 	ViewToolbar* getViewToolbar() const { return _viewToolbar; }
-
-	bool areLightsShown() const;
 
 	void cleanUpShaders();
 
@@ -419,9 +449,28 @@ public:
 		QUuid        uuid;
 		GLenum       primitiveMode = GL_TRIANGLES;
 		int          sceneIndex    = -1;
+		bool         hasNegativeScale = false;
+		int          originalMaterialIndex = -1;
+		QString      sourceFile;
+		QString      sourceNodeName;
+		QVector<GltfVariantMapping> variantMappings;
+		QMap<int, GLMaterial> allVariantMaterials;
 		std::vector<Vertex>       vertices;
 		std::vector<unsigned int> indices;
 		GLMaterial   material;
+		QVector<GltfSkinJoint>   skinJoints;  ///< Skeleton joints for skinned meshes
+
+		// Morph targets (blend shapes) — position/normal/tangent deltas.
+		QVector<MorphTargetData> morphTargets;
+		QVector<float>           defaultMorphWeights;
+
+		// Per-mesh user transform (gizmo TRS).  Non-identity when the user has moved,
+		// rotated, or scaled the mesh via the gizmo.  Applied by uploadPreparedMvfMeshes
+		// after the mesh is created so interactive transforms survive save/load.
+		QVector3D   meshTranslation  = QVector3D(0.0f, 0.0f, 0.0f);
+		QVector3D   meshRotation     = QVector3D(0.0f, 0.0f, 0.0f);  // Euler display
+		QQuaternion meshRotationQuat = QQuaternion();
+		QVector3D   meshScale        = QVector3D(1.0f, 1.0f, 1.0f);
 	};
 
 	/// CPU-only preparation: reads geometry streams, builds vertex arrays,
@@ -447,8 +496,13 @@ public:
 
 	// Legacy combined entry point (kept for compatibility).
 	bool loadMvfMeshes(const Mvf::Document& document,
-	                    const QByteArray& geometryChunk,
-	                    const QByteArray& imageChunk);
+	                   const QByteArray& geometryChunk,
+	                   const QByteArray& imageChunk);
+	void setParsedLights(const GltfLightData& lights);
+
+	/// Rebuilds _originalParsedLights from all SceneGraph-registered light data.
+	/// Connected to SceneGraph::lightDataChanged to stay current on model add/remove.
+	void onSceneLightDataChanged();
 
 	/// Accessor for the foreground shader (for pre-load shader validation).
 	ShaderProgram* getShader() const { return _fgShader.get(); }
@@ -465,10 +519,18 @@ public:
 	struct RuntimeAnimationFileState
 	{
 		GltfAnimationData data;
-		QHash<QString, RuntimeNodeTransform> defaultNodeTransforms;
-		QHash<QString, QVector<float>> defaultNodeMorphWeights;
+		// Stable runtime state keyed by SceneNode identity rather than imported
+		// node names. This is the authoritative glTF runtime transform contract.
+		QHash<QUuid, RuntimeNodeTransform> defaultNodeTransformsByUuid;
+		QHash<QUuid, QVector<float>> defaultNodeMorphWeightsByUuid;
 		QHash<QUuid, GLMaterial> defaultMeshMaterials;
 		QMultiHash<int, QUuid> meshUuidsByMaterialIndex;
+
+		// Transitional lookup tables from imported glTF animation/light/camera
+		// references into stable SceneNode UUIDs for the currently loaded file.
+		QHash<QString, QUuid> nodeUuidByName;
+		QHash<int, QUuid> nodeUuidByIndex;
+		QHash<QUuid, int> nodeIndexByUuid;
 	};
 
 signals:
@@ -509,6 +571,7 @@ public slots:
 	void setFloorTexRepeatT(double floorTexRepeatT);
 	void setFloorOffsetPercent(double value);
 	void setSkyBoxFOV(double fov);
+	void setPerspFOV(int fovDegrees);
 	void setSkyBoxZRotation(int index);
 	void setSkyBoxTextureHDRI(bool hdrSet);
 	void enableHDRToneMapping(bool hdrToneMapping);
@@ -525,6 +588,10 @@ public slots:
 	void showLights(bool showLights);
 	void useDefaultLights(bool useDefaultLights);
 	void usePunctualLights(bool usePunctualLights);
+
+	// Upload a new GPU light list (e.g. after a per-light checkbox toggle) and
+	// sync the hasPunctualLights / lightCount shader uniforms in one call.
+	void applyEnabledLightList(const std::vector<GPULight>& enabledLights);
 	void useIBL(bool useIBL);
 	void showFileReadingProgress(float percent);
 	void showMeshLoadingProgress(float percent);
@@ -625,6 +692,7 @@ protected:
 private:
 
 	void createShaderPrograms();
+	void syncUniformsToFlatShader();
 	void createLights();
 
 	// Fullscreen triangle methods for IBL
@@ -644,6 +712,8 @@ private:
 	void updateMainLightPosition(float halfObjectSize);
 	float updateFloorGeometry();
 	void syncDefaultLightColorUniforms();
+	void syncPunctualLightUniforms(int lightCount, bool hasPunctualLights);
+	bool shouldUseFallbackLightForVisibleScene() const;
 
 	void updatePunctualLights();  // Update lights based on bounding sphere changes
 	void setAnimatedLightVisibilityState(const QString& sourceFile, const QVector<bool>& visibleByParsedLight);
@@ -665,7 +735,10 @@ private:
 
 	// Visibility culling
 	void extractFrustumPlanes();
-	bool isMeshOutsideFrustum(const TriangleMesh* mesh) const;
+	bool  isMeshOutsideFrustum(const TriangleMesh* mesh) const;
+	bool  isMeshFullyInsideFrustum(const TriangleMesh* mesh) const;
+	float computeFullyVisibleMinMeshRadius() const;
+	void  updateZoomInLimit();
 	bool isMeshFullyClipped_X(const TriangleMesh* mesh) const;
 	bool isMeshFullyClipped_Y(const TriangleMesh* mesh) const;
 	bool isMeshFullyClipped_Z(const TriangleMesh* mesh) const;
@@ -786,7 +859,7 @@ private:
 	void applyAnimationPose(const QString& sourceFile, int clipIndex, double timeSeconds);
 	void resetAnimationPose(const QString& sourceFile);
 	void updateAnimatedMeshState(const QString& sourceFile,
-		const QHash<QString, QMatrix4x4>& worldTransforms);
+		const QHash<QUuid, QMatrix4x4>& worldTransformsByNodeUuid);
 
 	GLuint createGPUTextureFromImage(const QImage& image, const TextureSamplerSettings& samplers);
 	GLuint uploadDecodedTextureImage(const QImage& image, const TextureSamplerSettings& samplers);
@@ -932,6 +1005,10 @@ private:
 
 	// Frustum planes extracted each frame for AABB culling (Gribb-Hartmann, world space)
 	QVector4D _frustumPlanes[6];
+	// Minimum allowed _viewRange (closest the camera may zoom in).
+	// Drops immediately when a smaller focus radius is found so zoom-in is never blocked;
+	// rises gradually to prevent snap-back when the focused mesh exits the frustum.
+	float _zoomInLimit = 1.0f;
 
 	bool _showVertexNormals;
 	bool _showFaceNormals;
@@ -983,6 +1060,7 @@ private:
 	QMatrix4x4 _viewportMatrix;
 
 	std::unique_ptr<ShaderProgram> _fgShader;
+	std::unique_ptr<ShaderProgram> _fgFlatShader;   // flat shading: vert + geom (face normals) + frag
 	std::unique_ptr<ShaderProgram> _axisShader;
 	std::unique_ptr<ShaderProgram> _vertexNormalShader;
 	std::unique_ptr<ShaderProgram> _faceNormalShader;
@@ -1241,8 +1319,15 @@ private:
 	AdaptiveShadowMapper shadowMapper;
 
 	std::unique_ptr<GLLights> glLights;
-	std::vector<GPULight> _originalParsedLights;      // ORIGINAL - never modified
-	std::vector<GPULight> _currentRepositionedLights; // Working copy
+	GltfLightData         _pendingLightData;           // Full named data for SceneGraph
+	std::vector<GPULight> _originalParsedLights;       // GPU list extracted from _pendingLightData; used for animation/repositioning
+	std::vector<GPULight> _currentRepositionedLights;  // Working copy (ALL lights; gizmo rendering uses this)
+
+	// Maps flat index i in _originalParsedLights / _currentRepositionedLights
+	// → { sourceFile, lightIndex } in SceneGraph::_lightDataByFile.
+	// Used by updatePunctualLights() to honour per-light enabled flags without
+	// re-uploading ALL lights and discarding the user's checkbox state.
+	QVector<LightOrigin> _lightFileIndexMap;
 	float _originalBoundingRadius = 1.0f;
 	QString _animatedLightTransformSourceFile;
 	std::vector<GPULight> _animatedParsedLights;

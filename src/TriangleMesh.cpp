@@ -1210,218 +1210,12 @@ void TriangleMesh::setMaterial(const GLMaterial& material)
 
 void TriangleMesh::setTextureMaps(const GLMaterial& material)
 {
+	// Resolved GLMaterial instances can carry shared texture ids from GLWidget's
+	// cache. Treat this call as a state sync only; deleting/recreating ids here
+	// can invalidate the very cached textures we are about to keep using.
 	_material = material;
 	cacheBaseVolumeProperties();
 	applyScaledVolumeProperties();
-
-	// Keep mesh-bound PBR texture units in sync with the active material.
-	// Variant switching can replace the full GLMaterial, so leaving any of
-	// these as stale ids from the previous material noticeably changes the
-	// final look even when the new scalar factors are correct.
-	if (material.hasAlbedoMap())
-	{
-		setAlbedoPBRMap(material.albedoTextureId());
-	}
-
-	if (material.hasNormalMap())
-	{
-		setNormalPBRMap(material.normalTextureId());
-	}
-	else
-	{
-		clearNormalPBRMap();
-	}
-
-	if (material.hasMetallicMap())
-	{
-		setMetallicPBRMap(material.metallicTextureId());
-	}
-	else
-	{
-		clearMetallicPBRMap();
-	}
-
-	if (material.hasRoughnessMap())
-	{
-		setRoughnessPBRMap(material.roughnessTextureId());
-	}
-	else
-	{
-		clearRoughnessPBRMap();
-	}
-
-	if (material.hasAOMap())
-	{
-		setAOPBRMap(material.occlusionTextureId());
-	}
-	else
-	{
-		clearAOPBRMap();
-	}
-
-	if (material.hasHeightMap())
-	{
-		setHeightPBRMap(material.heightTextureId());
-	}
-	else
-	{
-		clearHeightPBRMap();
-	}
-
-	if (material.hasOpacityMap())
-	{
-		setOpacityPBRMap(material.opacityTextureId());
-	}
-	else
-	{
-		clearOpacityPBRMap();
-	}
-
-	if (material.hasTransmissionMap())
-	{
-		setTransmissionPBRMap(material.transmissionTextureId());
-	}
-	else
-	{
-		clearTransmissionPBRMap();
-	}
-
-	if (material.hasIORMap())
-	{
-		setIORPBRMap(material.iorTextureId());
-	}
-	else
-	{
-		clearIORPBRMap();
-	}
-
-	if (material.hasSheenColorMap())
-	{
-		setSheenColorPBRMap(material.sheenColorTextureId());
-	}
-	else
-	{
-		clearSheenColorPBRMap();
-	}
-
-	if (material.hasSheenRoughnessMap())
-	{
-		setSheenRoughnessPBRMap(material.sheenRoughnessTextureId());
-	}
-	else
-	{
-		clearSheenRoughnessPBRMap();
-	}
-
-	if (material.hasClearcoatColorMap())
-	{
-		setClearcoatPBRMap(material.clearcoatColorTextureId());
-	}
-	else
-	{
-		clearClearcoatPBRMap();
-	}
-
-	if (material.hasClearcoatRoughnessMap())
-	{
-		setClearcoatRoughnessPBRMap(material.clearcoatRoughnessTextureId());
-	}
-	else
-	{
-		clearClearcoatRoughnessPBRMap();
-	}
-
-	if (material.hasClearcoatNormalMap())
-	{
-		setClearcoatNormalPBRMap(material.clearcoatNormalTextureId());
-	}
-	else
-	{
-		clearClearcoatNormalPBRMap();
-	}
-
-	if (material.hasSpecularGlossinessMap())
-	{
-		setSpecularGlossinessMap(material.specularGlossinessTextureId());
-	}
-	else
-	{
-		clearSpecularGlossinessMap();
-	}
-
-	if (material.hasEmissiveMap())
-	{
-		setEmissivePBRMap(material.emissiveTextureId());
-	}
-	else
-	{
-		setEmissivePBRMap(0);
-	}
-
-	_material.setInvertOpacityMap(material.isOpacityMapInverted());
-
-	// Keep ADS texture units derived from the active material too.
-	// This lets interactive material edits update a mesh from GLMaterial
-	// state directly instead of patching ADS bindings through GLWidget.
-	if (material.hasAlbedoMap())
-	{
-		setDiffuseADSMap(material.albedoTextureId());
-	}
-	else if (material.hasDiffuseMap())
-	{
-		setDiffuseADSMap(material.diffuseTextureId());
-	}
-	else
-	{
-		clearDiffuseADSMap();
-	}
-
-	// Map: Emissive is same for both PBR and ADS
-	if (material.hasEmissiveMap())
-	{
-		setEmissiveADSMap(material.emissiveTextureId());
-	}
-	else
-	{
-		clearEmissiveADSMap();
-	}
-
-	// Keep the shared ADS normal path aligned with the active glTF normal map.
-	if (material.hasNormalMap())
-	{
-		setNormalADSMap(material.normalTextureId());
-	}
-	else
-	{
-		clearNormalADSMap();
-	}
-
-	if (material.hasMetallicMap())
-	{
-		setSpecularADSMap(material.metallicTextureId());
-	}
-	else
-	{
-		clearSpecularADSMap();
-	}
-
-	if (material.hasHeightMap())
-	{
-		setHeightADSMap(material.heightTextureId());
-	}
-	else
-	{
-		clearHeightADSMap();
-	}
-
-	if (material.hasOpacityMap())
-	{
-		setOpacityADSMap(material.opacityTextureId());
-	}
-	else
-	{
-		clearOpacityADSMap();
-	}
 
 	markTexturesDirty();
 	markUniformsDirty();
@@ -1551,29 +1345,15 @@ void TriangleMesh::renderShadow()
 
 void TriangleMesh::deleteTextures()
 {
-	glDeleteTextures(1, &_fallbackTexture);
-	GLuint pbrIds[] = {
-		static_cast<GLuint>(_material.albedoTextureId()),
-		static_cast<GLuint>(_material.metallicTextureId()),
-		static_cast<GLuint>(_material.roughnessTextureId()),
-		static_cast<GLuint>(_material.normalTextureId()),
-		static_cast<GLuint>(_material.occlusionTextureId()),
-		static_cast<GLuint>(_material.heightTextureId()),
-		static_cast<GLuint>(_material.opacityTextureId()),
-		static_cast<GLuint>(_material.transmissionTextureId()),
-		static_cast<GLuint>(_material.iorTextureId()),
-		static_cast<GLuint>(_material.sheenColorTextureId()),
-		static_cast<GLuint>(_material.sheenRoughnessTextureId()),
-		static_cast<GLuint>(_material.clearcoatColorTextureId()),
-		static_cast<GLuint>(_material.clearcoatRoughnessTextureId()),
-		static_cast<GLuint>(_material.clearcoatNormalTextureId()),
-		static_cast<GLuint>(_material.specularGlossinessTextureId())
-	};
-	for (GLuint id : pbrIds)
+	if (_fallbackTexture != 0)
 	{
-		if (id != 0)
-			glDeleteTextures(1, &id);
+		glDeleteTextures(1, &_fallbackTexture);
+		_fallbackTexture = 0;
 	}
+
+	// Material texture IDs are resolved through GLWidget's shared texture cache
+	// and may be referenced by multiple meshes or UI previews. Deleting them here
+	// lets one mesh teardown invalidate another mesh's live bindings.
 }
 
 TriangleMesh::~TriangleMesh()
@@ -1937,6 +1717,82 @@ void TriangleMesh::setSceneRenderTransformFast(const QMatrix4x4& trsf)
 }
 
 void TriangleMesh::setupTransformation()
+{
+	updateRuntimeBounds();
+}
+
+// ---------------------------------------------------------------------------
+// Fast TRS setters — for interactive gizmo drag
+// ---------------------------------------------------------------------------
+// These update _transformation and recompute the world-space bounding box from
+// the 8 local AABB corners only (O(1)), skipping the full O(N) vertex transform.
+// Call fullUpdateRuntimeBounds() once when the drag ends to resync _trsfPoints.
+
+// Helper: update _boundingBox from _localBoundingBox corners via combinedRenderTransform.
+void TriangleMesh::fastUpdateWorldBounds()
+{
+	const QMatrix4x4 combined = combinedRenderTransform();
+	float xMin =  std::numeric_limits<float>::max();
+	float yMin =  std::numeric_limits<float>::max();
+	float zMin =  std::numeric_limits<float>::max();
+	float xMax = -std::numeric_limits<float>::max();
+	float yMax = -std::numeric_limits<float>::max();
+	float zMax = -std::numeric_limits<float>::max();
+	for (const QVector3D& corner : _localBoundingBox.getCorners())
+	{
+		const QVector3D tc = combined.map(corner);
+		xMin = std::min(xMin, tc.x());
+		yMin = std::min(yMin, tc.y());
+		zMin = std::min(zMin, tc.z());
+		xMax = std::max(xMax, tc.x());
+		yMax = std::max(yMax, tc.y());
+		zMax = std::max(zMax, tc.z());
+	}
+	_boundingBox.setLimits(
+		static_cast<double>(xMin), static_cast<double>(xMax),
+		static_cast<double>(yMin), static_cast<double>(yMax),
+		static_cast<double>(zMin), static_cast<double>(zMax));
+}
+
+void TriangleMesh::setTranslationFast(const QVector3D& trans)
+{
+	_transX = trans.x();
+	_transY = trans.y();
+	_transZ = trans.z();
+	rebuildAbsoluteTransformation();
+	fastUpdateWorldBounds();
+}
+
+void TriangleMesh::setRotationFast(const QVector3D& rota)
+{
+	_rotateX = rota.x();
+	_rotateY = rota.y();
+	_rotateZ = rota.z();
+	_rotationQuat = meshEulerToQuaternion(rota);
+	rebuildAbsoluteTransformation();
+	fastUpdateWorldBounds();
+}
+
+void TriangleMesh::setRotationQuaternionFast(const QQuaternion& quat, const QVector3D& displayEuler)
+{
+	_rotationQuat = quat.normalized();
+	_rotateX = displayEuler.x();
+	_rotateY = displayEuler.y();
+	_rotateZ = displayEuler.z();
+	rebuildAbsoluteTransformation();
+	fastUpdateWorldBounds();
+}
+
+void TriangleMesh::setScalingFast(const QVector3D& scale)
+{
+	_scaleX = scale.x();
+	_scaleY = scale.y();
+	_scaleZ = scale.z();
+	rebuildAbsoluteTransformation();
+	fastUpdateWorldBounds();
+}
+
+void TriangleMesh::fullUpdateRuntimeBounds()
 {
 	updateRuntimeBounds();
 }

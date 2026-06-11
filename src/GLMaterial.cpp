@@ -3537,6 +3537,7 @@ GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 	if (m.contains("shininess"))        { mat._shininess = readFloat(m.value("shininess"), mat._shininess); }
 	if (m.contains("emissiveStrength")) mat._emissiveStrength = readFloat(m.value("emissiveStrength"), mat._emissiveStrength);
 	if (m.contains("opacity"))          mat._opacity = readFloat(m.value("opacity"), mat._opacity);
+	if (m.contains("occlusionStrength")) mat._occlusionStrength = readFloat(m.value("occlusionStrength"), mat._occlusionStrength);
 
 	// ---------------- PBR core (assign internal members directly) ----------------
 	if (m.contains("albedo"))           mat._albedoColor = readVec3(m.value("albedo"), mat._albedoColor);
@@ -3564,6 +3565,15 @@ GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 	if (m.contains("attenuationDistance")) mat._attenuationDistance = readFloat(m.value("attenuationDistance"), mat._attenuationDistance);
 	if (m.contains("attenuationColor"))  mat._attenuationColor = readVec3(m.value("attenuationColor"), mat._attenuationColor);
 	if (m.contains("dispersion")) 	  mat._dispersion = readFloat(m.value("dispersion"), mat._dispersion);
+	if (m.contains("specularFactor"))   mat._specularFactor = qBound(0.0f, readFloat(m.value("specularFactor"), mat._specularFactor), 1.0f);
+	if (m.contains("specularColorFactor")) mat._specularColorFactor = readVec3(m.value("specularColorFactor"), mat._specularColorFactor);
+	if (m.contains("anisotropyStrength")) mat._anisotropyStrength = qBound(0.0f, readFloat(m.value("anisotropyStrength"), mat._anisotropyStrength), 1.0f);
+	if (m.contains("anisotropyRotation")) mat._anisotropyRotation = readFloat(m.value("anisotropyRotation"), mat._anisotropyRotation);
+	if (m.contains("diffuseTransmissionFactor")) mat._diffuseTransmissionFactor = qBound(0.0f, readFloat(m.value("diffuseTransmissionFactor"), mat._diffuseTransmissionFactor), 1.0f);
+	if (m.contains("diffuseTransmissionColorFactor")) mat._diffuseTransmissionColorFactor = readVec3(m.value("diffuseTransmissionColorFactor"), mat._diffuseTransmissionColorFactor);
+	if (m.contains("unlit"))            mat._unlit = readBool(m.value("unlit"), mat._unlit);
+	if (m.contains("multiScatterColor")) mat._multiScatterColor = readVec3(m.value("multiScatterColor"), mat._multiScatterColor);
+	if (m.contains("hasVolumeScattering")) mat._hasVolumeScattering = readBool(m.value("hasVolumeScattering"), mat._hasVolumeScattering);
 
 	// KHR_materials_clearcoat
 	if (m.contains("clearcoat"))        mat._clearcoat = readFloat(m.value("clearcoat"), mat._clearcoat);
@@ -3689,6 +3699,10 @@ GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 	if (m.contains("uvTilingV"))                  mat._uvTilingV = readFloat(m.value("uvTilingV"), mat._uvTilingV);
 	if (m.contains("uvOffsetU"))                  mat._uvOffsetU = readFloat(m.value("uvOffsetU"), mat._uvOffsetU);
 	if (m.contains("uvOffsetV"))                  mat._uvOffsetV = readFloat(m.value("uvOffsetV"), mat._uvOffsetV);
+	if (m.contains("diffuseColor"))               mat._diffuseColor = readVec3(m.value("diffuseColor"), mat._diffuseColor);
+	if (m.contains("glossinessFactor"))           mat._glossinessFactor = qBound(0.0f, readFloat(m.value("glossinessFactor"), mat._glossinessFactor), 1.0f);
+	if (m.contains("useSpecularGlossiness"))      mat._useSpecularGlossiness = readBool(m.value("useSpecularGlossiness"), mat._useSpecularGlossiness);
+	if (m.contains("isGLTFMaterial"))             mat._isGLTFMaterial = readBool(m.value("isGLTFMaterial"), mat._isGLTFMaterial);
 
 	// ---------------- Rendering flags & enums ----------------
 	if (m.contains("shadingModel"))
@@ -3816,6 +3830,7 @@ QVariantMap GLMaterial::toVariantMap() const
 	m.insert("emissive", vec3ToList(emissive()));  // emissive is independent of shading model
 	m.insert("emissiveStrength", QVariant(emissiveStrength()));
 	m.insert("opacity", QVariant(opacity()));
+	m.insert("occlusionStrength", QVariant(occlusionStrength()));
 
 	// --- PBR core ---
 	m.insert("albedo", vec3ToList(albedoColor()));
@@ -3832,6 +3847,15 @@ QVariantMap GLMaterial::toVariantMap() const
 	m.insert("attenuationDistance", QVariant(attenuationDistance()));
 	m.insert("attenuationColor", vec3ToList(attenuationColor()));
 	m.insert("dispersion", QVariant(dispersion()));
+	m.insert("specularFactor", QVariant(specularFactor()));
+	m.insert("specularColorFactor", vec3ToList(specularColorFactor()));
+	m.insert("anisotropyStrength", QVariant(anisotropyStrength()));
+	m.insert("anisotropyRotation", QVariant(anisotropyRotation()));
+	m.insert("diffuseTransmissionFactor", QVariant(diffuseTransmissionFactor()));
+	m.insert("diffuseTransmissionColorFactor", vec3ToList(diffuseTransmissionColorFactor()));
+	m.insert("unlit", QVariant(isUnlit()));
+	m.insert("multiScatterColor", vec3ToList(multiScatterColor()));
+	m.insert("hasVolumeScattering", QVariant(hasVolumeScattering()));
 	m.insert("clearcoat", QVariant(clearcoat()));
 	m.insert("clearcoatRoughness", QVariant(clearcoatRoughness()));
 	m.insert("sheenColor", vec3ToList(sheenColor()));
@@ -3890,6 +3914,10 @@ QVariantMap GLMaterial::toVariantMap() const
 	m.insert("uvTilingV", QVariant(uvTilingV()));
 	m.insert("uvOffsetU", QVariant(uvOffsetU()));
 	m.insert("uvOffsetV", QVariant(uvOffsetV()));
+	m.insert("diffuseColor", vec3ToList(diffuseColor()));
+	m.insert("glossinessFactor", QVariant(glossinessFactor()));
+	m.insert("useSpecularGlossiness", QVariant(getUseSpecularGlossiness()));
+	m.insert("isGLTFMaterial", QVariant(isGLTFMaterial()));
 
 	// --- Rendering flags / shading model / blend ---
 	// shadingModel -> string (we emit lowercase to match fromVariantMap checks)

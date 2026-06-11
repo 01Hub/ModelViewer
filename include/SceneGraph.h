@@ -4,15 +4,23 @@
 #include "GLLights.h"
 #include "GltfAnimationData.h"
 #include "GltfCameraData.h"
+#include "GltfLightData.h"
 #include "GltfVariantData.h"
 
 #include <QHash>
 #include <QJsonArray>
+#include <QMatrix4x4>
 #include <QObject>
 #include <QString>
 #include <QStringList>
 #include <QDataStream>
 #include <assimp/scene.h>
+
+struct SceneGraphWorldTransforms
+{
+    QHash<QUuid, QMatrix4x4> nodeWorldByUuid;
+    QHash<QUuid, QMatrix4x4> meshWorldByUuid;
+};
 
 // ---------------------------------------------------------------------------
 // SceneGraph
@@ -51,10 +59,17 @@ public:
     //                      The cursor-based DFS inside buildSubtree() assigns
     //                      these UUIDs to the matching aiNodes automatically.
     // lights             — optional punctual lights from KHR_lights_punctual extension.
+    // importCorrection   — autoOrient+autoScale matrix the loader applied to the Assimp root
+    //                      node before the SceneGraph was built; stored on the synthetic
+    //                      fileNode so exporters can factor it out.  Pass identity if none.
+    // autoOrientApplied  — true if the loader applied a coordinate-system rotation.
+    // autoScaleApplied   — true if the loader applied an auto-scale to normalise scene size.
     void appendFromScene(const aiScene*                   scene,
                          const QString&                   sourceFile,
                          const QList<QUuid>&              meshUuidsInOrder,
-                         const std::vector<GPULight>&    lights = {});
+                         const aiMatrix4x4&               importCorrection = aiMatrix4x4(),
+                         bool                             autoOrientApplied = false,
+                         bool                             autoScaleApplied  = false);
 
     // Build a flat synthetic session node that owns all meshes directly.
     // Used as a fallback for native-session files that do not carry a full
@@ -93,11 +108,35 @@ public:
     // then children left-to-right), which matches the original load order.
     QList<QUuid> collectMeshUuids(const SceneNode* node) const;
 
-    // Get all punctual lights in the scene.
-    const std::vector<GPULight>& lights() const { return _lights; }
+    // Evaluate authoritative world transforms from the stored localTransform
+    // hierarchy.  The returned maps are keyed by stable nodeUuid / meshUuid.
+    SceneGraphWorldTransforms evaluateWorldTransforms(const SceneNode* subtreeRoot = nullptr) const;
+    SceneGraphWorldTransforms evaluateWorldTransformsForFile(const QString& sourceFile) const;
 
-    // Set lights in the scene (called during import).
-    void setLights(const std::vector<GPULight>& lights) { _lights = lights; }
+    // -----------------------------------------------------------------------
+    // KHR_lights_punctual
+    // -----------------------------------------------------------------------
+
+    // Register punctual light data for a source file (called after import).
+    void setLightData(const QString& sourceFile, const GltfLightData& data);
+
+    // Remove punctual light data when a file's meshes are cleared.
+    void clearLightData(const QString& sourceFile);
+
+    // Returns the light data for a specific source file, or an empty struct.
+    GltfLightData lightDataForFile(const QString& sourceFile) const;
+
+    // Returns all source files that carry KHR_lights_punctual data.
+    QStringList filesWithLights() const;
+
+    // Enable or disable one individual light within a source file.
+    // lightIndex is the index into GltfLightData::lights for that file.
+    void setLightEnabled(const QString& sourceFile, int lightIndex, bool enabled);
+
+    // Build the flat GPU list from all currently-enabled per-file lights.
+    // Call this whenever a light is toggled or a file is added/removed, then
+    // pass the result to GLLights::setLights().
+    std::vector<GPULight> buildEnabledLightList() const;
 
     SceneNode* findFileNode(const QString& sourceFile) const;
 
@@ -193,6 +232,11 @@ signals:
     void animationDataChanged();
     void gltfCameraDataChanged();
 
+    // Emitted when punctual light data is added, removed, or an individual
+    // light's enabled state changes.  PunctualLightsPanel connects to this
+    // to refresh its tree; GLWidget connects to rebuild the GPU light list.
+    void lightDataChanged();
+
 private:
     // Recursively build a SceneNode subtree that mirrors ainode and its
     // descendants.  cursor advances through uuids as mesh UUIDs are assigned
@@ -220,8 +264,9 @@ private:
     // removeMeshUuid / clear.
     QHash<QUuid, SceneNode*> _meshUuidToNode;
 
-    // Punctual lights from KHR_lights_punctual extension.
-    std::vector<GPULight> _lights;
+    // KHR_lights_punctual: one entry per source file that carries the extension.
+    // Individual GltfLightEntry::enabled flags track per-light activation state.
+    QHash<QString, GltfLightData> _lightDataByFile;
 
     // KHR_materials_variants: one entry per source file that carries the extension.
     QHash<QString, GltfVariantData> _variantDataByFile;

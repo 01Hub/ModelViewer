@@ -16,7 +16,7 @@
 //////////////////////////////////////////////////////////////////////
 
 // GLCamera
-GLCamera::GLCamera() : _width(100.0f), _height(50.0f), _viewRange(200.0f), _FOV(45.0f)
+GLCamera::GLCamera() : _width(100.0f), _height(50.0f), _viewRange(200.0f), _sceneRadius(100.0f), _FOV(45.0f)
 {
 	_projectionType = ProjectionType::ORTHOGRAPHIC;
 	_previousProjection = _projectionType;
@@ -24,7 +24,7 @@ GLCamera::GLCamera() : _width(100.0f), _height(50.0f), _viewRange(200.0f), _FOV(
 	resetAll();
 }
 
-GLCamera::GLCamera(float width, float height, float range, float fov) :_width(width), _height(height), _viewRange(range), _FOV(fov)
+GLCamera::GLCamera(float width, float height, float range, float fov) :_width(width), _height(height), _viewRange(range), _sceneRadius(range * 0.5f), _FOV(fov)
 {
 	_projectionType = ProjectionType::ORTHOGRAPHIC;
 	_viewProj = ViewProjection::SE_ISOMETRIC_VIEW;
@@ -66,6 +66,17 @@ void GLCamera::setViewRange(float range)
 	_viewRange = range;
 	updateProjectionMatrix();
 	updateViewMatrix();
+}
+
+void GLCamera::setSceneRadius(float radius)
+{
+	_sceneRadius = std::max(radius, 0.0001f);
+	updateProjectionMatrix();
+}
+
+float GLCamera::getSceneRadius() const
+{
+	return _sceneRadius;
 }
 
 float GLCamera::getViewRange() const
@@ -152,8 +163,23 @@ void GLCamera::updateProjectionMatrix(void)
 		if (_cameraMode == CameraMode::Orbit)
 		{
 			const float depthCenter = getOrthoViewDistance();
-			nearPlane = std::max(depthCenter - viewRange * 20.0f, 0.001f);
-			farPlane = depthCenter + viewRange * 20.0f;
+			// Use the larger of viewRange-relative extent or a scene-radius floor.
+			// Without the floor, heavy zoom-in (small viewRange) shrinks the far
+			// plane well below the scene extent, clipping the back of the model.
+			// Example at 200× zoom: viewRange=R/100, depthCenter=0.06R,
+			//   plain far = 0.06R + 0.2R = 0.26R, but model back is at 1.06R.
+			// With sceneRadius*40 floor: far >= 0.06R + 40R — always covers the
+			// full scene regardless of zoom depth, including animated models whose
+			// geometry can extend well beyond the bind-pose bounding sphere.
+			// Orthographic uses linear depth (no perspective divide) so a large
+			// near/far range does not cause z-fighting — this is completely safe.
+			const float depthExtent = std::max(viewRange * 200.0f, _sceneRadius * 40.0f);
+			// Orthographic projection allows a negative near plane (no perspective
+			// singularity at z=0).  Do NOT clamp to 0 — at heavy zoom depthCenter
+			// is tiny so the positive clamp was cutting off all geometry between
+			// the eye and the orbit centre, causing the tear-into-model artefact.
+			nearPlane = depthCenter - depthExtent;
+			farPlane  = depthCenter + depthExtent;
 		}
 
 		if (w <= h)
@@ -176,13 +202,14 @@ void GLCamera::updateProjectionMatrix(void)
 	else // Perspective
 	{
 		float aspect = w / h;
-		// Use 0.1 % of viewRange for the near plane so that close-up views
-		// (e.g. a glTF camera positioned near a surface, or heavy zoom-in in
-		// Orbit mode) do not clip into geometry.  The resulting near:far ratio
-		// of 1 : 1 000 000 is comfortable for a 24-bit depth buffer in a
-		// model-viewer context where the full depth range is rarely in use.
+		// Near plane: 0.1% of viewRange keeps close-up views from clipping into
+		// geometry, floored at an absolute minimum so it never reaches zero.
 		float nearPlane = std::max(_viewRange * 0.001f, 0.0001f);
-		float farPlane = _viewRange * 1000.0f;
+		// Far plane: 1000× viewRange gives a 1:1 000 000 near:far ratio, comfortable
+		// for a 24-bit depth buffer.  Floor at 200× sceneRadius so the full model
+		// is never clipped when zoomed deep into a small sub-mesh (where viewRange
+		// is tiny but the rest of the scene is still far away).
+		float farPlane = std::max(_viewRange * 1000.0f, _sceneRadius * 200.0f);
 
 		float fovY = _FOV;
 		float fovYRad = fovY * PI / 180.0f;

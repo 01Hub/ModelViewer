@@ -326,6 +326,8 @@ bool loadAnimationJsonAndBuffer(const QString& gltfPath, QJsonDocument& doc, QVe
 		bufferData.clear();
 		bufferData.append(QByteArray(reinterpret_cast<const char*>(glbBinaryBuffer.data()),
 			static_cast<int>(glbBinaryBuffer.size())));
+		qDebug() << "[ANIM-GLB-LOAD] loaded GLB binary buffer size=" << (int)glbBinaryBuffer.size()
+		         << "path=" << gltfPath;
 		return true;
 	}
 
@@ -933,14 +935,18 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		return;
 	}
 
-	// === Parse glTF primitive modes and correct material structure ===
+	// Route every imported aiScene through runtime node/world transforms. Formats
+	// with authored aiNode transforms are positioned by model matrices, while
+	// identity-transform scenes continue to render from their vertex data as-is.
 	QString qPath = QString::fromStdString(path);
+	const bool isGltfLike = qPath.endsWith(".gltf", Qt::CaseInsensitive) ||
+		qPath.endsWith(".glb", Qt::CaseInsensitive);
 
-	// CRITICAL: Capture original material indices BEFORE deduplication
-	// This ensures we preserve the true glTF material indices for later export matching
+	// Capture original glTF material indices before deduplication so import,
+	// variants, and export continue to share the authored material numbering.
 	_meshIndexToOriginalMaterialIndex.clear();
 	_aiMatToGltfMat.clear();
-	if (qPath.endsWith(".gltf", Qt::CaseInsensitive) || qPath.endsWith(".glb", Qt::CaseInsensitive))
+	if (isGltfLike)
 	{
 		// Save the original material indices before they get remapped
 		for (unsigned int i = 0; i < _scene->mNumMeshes; ++i)
@@ -960,8 +966,6 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		parseGltfVariants(qPath);
 		_animationData = GltfAnimationData();
 		parseSceneAnimations();
-		_preserveNodeTransformsForRuntime =
-			(_animationData.hasNodeAnimations || _animationData.hasSkinning);
 		// parseSceneCameras() is deferred to after applyCoordinateSystemTransformations()
 		// so that findNodeWorldTransform() sees the corrected root-node matrix
 		// (auto-orient rotation + auto-scale) that is also applied to mesh vertices.
@@ -971,7 +975,6 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	{
 		_animationData = GltfAnimationData();
 		_cameraData    = GltfCameraData();
-		_preserveNodeTransformsForRuntime = false;
 	}
 
 	_sceneStats = collectSceneMeshInfo(_scene);
@@ -1104,22 +1107,26 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	}
 
 	// === Parse KHR_lights_punctual extension ===
-	std::vector<GPULight> parsedLights;
+	GltfLightData parsedLights;
 	QString gltfPath = QString::fromStdString(path);
 
 	if (gltfPath.endsWith(".gltf", Qt::CaseInsensitive) || gltfPath.endsWith(".glb", Qt::CaseInsensitive))
 	{
 		parsedLights = _materialProcessor.parseKHRLightsPunctual(gltfPath);
-		if (!parsedLights.empty())
+		if (!parsedLights.isEmpty())
 		{
-			qDebug() << "AssImpModelLoader: Loaded" << parsedLights.size() << "KHR lights with transforms";
+			qDebug() << "AssImpModelLoader: Loaded" << parsedLights.lights.size() << "KHR lights with transforms";
 		}
 	}
 
-	if (!parsedLights.empty() && (_autoScale || _autoOrient))
+	// Apply the same autoOrient / autoScale correction to each light's position,
+	// direction, and range so they stay consistent with the transformed geometry.
+	if (!parsedLights.isEmpty() && (_autoScale || _autoOrient))
 	{
-		for (auto& light : parsedLights)
+		for (auto& entry : parsedLights.lights)
 		{
+			GPULight& light = entry.gpuLight;
+
 			// Transform position (with translation)
 			glm::vec4 transformedPos = _appliedTransform * glm::vec4(light.position, 1.0f);
 			light.position = glm::vec3(transformedPos);
@@ -1128,7 +1135,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			glm::vec4 transformedDir = _appliedTransform * glm::vec4(light.direction, 0.0f);
 			light.direction = glm::normalize(glm::vec3(transformedDir));
 
-			// Extract scale from transform matrix
+			// Scale range by the uniform scale factor
 			glm::vec3 scale(
 				glm::length(glm::vec3(_appliedTransform[0])),
 				glm::length(glm::vec3(_appliedTransform[1])),
@@ -1137,7 +1144,6 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			float avgScale = (scale.x + scale.y + scale.z) / 3.0f;
 			light.range *= avgScale;
 		}
-
 	}
 
 	// Emit lights for GLWidget to handle
@@ -1273,53 +1279,18 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 		float determinant = glm::determinant(glmTransform);
 		hasNegativeScale = determinant < 0.0f;
 
-		// Transform Position
 		aiVector3D pos = mesh->mVertices[i];
-		if (_preserveNodeTransformsForRuntime)
-		{
-			vertex.Position = glm::vec3(pos.x, pos.y, pos.z);
-		}
-		else
-		{
-			aiVector3D transformedPos = transform * pos;
-			vertex.Position = glm::vec3(transformedPos.x, transformedPos.y, transformedPos.z);
-		}
+		vertex.Position = glm::vec3(pos.x, pos.y, pos.z);
 
-		// Transform Normals - improved logic
 		if (hasNormals)
 		{
-			// Use existing normals from the mesh
 			aiVector3D normal = mesh->mNormals[i];
-			aiVector3D transformedNormal = normalMatrix * normal;
-			transformedNormal.Normalize();
-
-			// Flip normal if negative scale detected
-			if (hasNegativeScale)
-			{
-				transformedNormal = -transformedNormal;
-			}
-
-			if (_preserveNodeTransformsForRuntime)
-				vertex.Normal = glm::vec3(normal.x, normal.y, normal.z);
-			else
-				vertex.Normal = glm::vec3(transformedNormal.x, transformedNormal.y, transformedNormal.z);
+			vertex.Normal = glm::vec3(normal.x, normal.y, normal.z);
 		}
 		else if (!generatedNormals.empty())
 		{
-			// Use generated face normals
 			glm::vec3 normal = generatedNormals[i];
-			aiVector3D aiNormal(normal.x, normal.y, normal.z);
-			aiVector3D transformedNormal = normalMatrix * aiNormal;
-			transformedNormal.Normalize();
-			// Flip normal if negative scale detected
-			if (hasNegativeScale)
-			{
-				transformedNormal = -transformedNormal;
-			}
-			if (_preserveNodeTransformsForRuntime)
-				vertex.Normal = normal;
-			else
-				vertex.Normal = glm::vec3(transformedNormal.x, transformedNormal.y, transformedNormal.z);
+			vertex.Normal = normal;
 		}
 		else
 		{
@@ -1331,24 +1302,11 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 			}
 			else
 			{
-				// Fallback for other geometry without normals
-				// Use transformed up vector instead of position
-				aiVector3D upVector(0.0f, 1.0f, 0.0f);
-				aiVector3D transformedUp = normalMatrix * upVector;
-				transformedUp.Normalize();
-				// Flip normal if negative scale detected
-				if (hasNegativeScale)
-				{
-					transformedUp = -transformedUp;
-				}
-				if (_preserveNodeTransformsForRuntime)
-					vertex.Normal = glm::vec3(0.0f, 1.0f, 0.0f);
-				else
-					vertex.Normal = glm::vec3(transformedUp.x, transformedUp.y, transformedUp.z);
+				vertex.Normal = glm::vec3(0.0f, 1.0f, 0.0f);
 			}
 		}
 
-		// Texture Coordinates - Extract ALL available sets (0-3)
+		// Extract up to four UV sets used by the runtime vertex layout.
 		bool hasAnyTexCoords = false;
 		for (int texCoordSet = 0; texCoordSet < 4; texCoordSet++)
 		{
@@ -1362,7 +1320,6 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 			}
 			else
 			{
-				// Initialize unused sets to zero (for safety)
 				vertex.TexCoords[texCoordSet] = glm::vec2(0.0f);
 			}
 		}
@@ -1371,38 +1328,16 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 		{
 			assignFallbackTangentBasis(vertex);
 
-			// Tangent (only process if we have texCoords)
 			if (mesh->mTangents)
 			{
 				aiVector3D tangent = mesh->mTangents[i];
-				aiVector3D transformedTangent = normalMatrix * tangent;
-				transformedTangent.Normalize();
-				// Flip tangent if negative scale detected
-				if (hasNegativeScale)
-				{
-					transformedTangent = -transformedTangent;
-				}
-				if (_preserveNodeTransformsForRuntime)
-					vertex.Tangent = glm::vec3(tangent.x, tangent.y, tangent.z);
-				else
-					vertex.Tangent = glm::vec3(transformedTangent.x, transformedTangent.y, transformedTangent.z);
+				vertex.Tangent = glm::vec3(tangent.x, tangent.y, tangent.z);
 			}
 
-			// Bitangent
 			if (mesh->mBitangents)
 			{
 				aiVector3D bitangent = mesh->mBitangents[i];
-				aiVector3D transformedBitangent = normalMatrix * bitangent;
-				transformedBitangent.Normalize();
-				// Flip bitangent if negative scale detected
-				if (hasNegativeScale)
-				{
-					transformedBitangent = -transformedBitangent;
-				}
-				if (_preserveNodeTransformsForRuntime)
-					vertex.Bitangent = glm::vec3(bitangent.x, bitangent.y, bitangent.z);
-				else
-					vertex.Bitangent = glm::vec3(transformedBitangent.x, transformedBitangent.y, transformedBitangent.z);
+				vertex.Bitangent = glm::vec3(bitangent.x, bitangent.y, bitangent.z);
 			}
 		}
 		else
@@ -1421,7 +1356,7 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 		}
 		else
 		{
-			vertex.Color = glm::vec4(1.0f); // Default color (white)
+			vertex.Color = glm::vec4(1.0f);
 		}
 
 		vertices.push_back(vertex);
@@ -1527,60 +1462,25 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	}
 
 	const QString importPath = QString::fromStdString(_path);
-	if ((importPath.endsWith(".gltf", Qt::CaseInsensitive) || importPath.endsWith(".glb", Qt::CaseInsensitive)) &&
-		loadMorphTargetsForAiMesh(importPath, scene, meshIndex, mesh->mNumVertices, morphTargets, defaultMorphWeights, &morphBaseBasis))
+	if (importPath.endsWith(".gltf", Qt::CaseInsensitive) || importPath.endsWith(".glb", Qt::CaseInsensitive))
 	{
+		loadMorphTargetsForAiMesh(
+			importPath, scene, meshIndex, mesh->mNumVertices, morphTargets, defaultMorphWeights, &morphBaseBasis);
 	}
 
 	if (!morphTargets.isEmpty() &&
 		morphBaseBasis.positions.size() == vertices.size())
 	{
 		GltfPrimitiveVertexBasis importedBasis = morphBaseBasis;
-		if (!_preserveNodeTransformsForRuntime)
-		{
-			for (glm::vec3& position : importedBasis.positions)
-			{
-				const aiVector3D transformed = transform * aiVector3D(position.x, position.y, position.z);
-				position = glm::vec3(transformed.x, transformed.y, transformed.z);
-			}
-
-			for (glm::vec3& normal : importedBasis.normals)
-			{
-				aiVector3D transformed = normalMatrix * aiVector3D(normal.x, normal.y, normal.z);
-				if (transformed.Length() > 0.0001f)
-					transformed.Normalize();
-				if (hasNegativeScale)
-					transformed = -transformed;
-				normal = glm::vec3(transformed.x, transformed.y, transformed.z);
-			}
-
-			for (glm::vec3& tangent : importedBasis.tangents)
-			{
-				aiVector3D transformed = normalMatrix * aiVector3D(tangent.x, tangent.y, tangent.z);
-				if (transformed.Length() > 0.0001f)
-					transformed.Normalize();
-				if (hasNegativeScale)
-					transformed = -transformed;
-				tangent = glm::vec3(transformed.x, transformed.y, transformed.z);
-			}
-		}
-
 		const std::vector<unsigned int> morphRemap = buildMorphVertexRemap(vertices, importedBasis);
 		if (!morphRemap.empty())
 			reorderMorphTargetsToImportedVertexOrder(morphTargets, morphRemap);
 	}
 
-	if (!_preserveNodeTransformsForRuntime && !morphTargets.isEmpty())
+	if (!morphTargets.isEmpty())
 	{
 		for (MorphTargetData& morphTarget : morphTargets)
 		{
-			for (glm::vec3& delta : morphTarget.positionDeltas)
-			{
-				const aiVector3D transformed =
-					transform * aiVector3D(delta.x, delta.y, delta.z);
-				delta = glm::vec3(transformed.x, transformed.y, transformed.z);
-			}
-
 			for (glm::vec3& delta : morphTarget.normalDeltas)
 			{
 				aiVector3D transformed =
@@ -1605,7 +1505,7 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 		}
 	}
 
-	// Now wak through each of the mesh's faces (a face is a mesh its triangle) and retrieve the corresponding vertex indices.
+	// Walk each face and record its vertex indices.
 	for (unsigned int i = 0; i < mesh->mNumFaces; i++)
 	{
 		aiFace face = mesh->mFaces[i];
@@ -1755,20 +1655,6 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 				const_cast<aiScene*>(scene),
 				QString::fromStdString(_path));
 			
-			// Match the effective optical thickness to the baked node scale that was
-			// already applied to vertex positions above. Keep attenuationDistance in
-			// material space so scaled glTF instances still show stronger/weaker
-			// absorption, as intended by sample assets such as AttenuationTest.
-			const glm::mat3 meshTransform(
-				transform.a1, transform.a2, transform.a3,
-				transform.b1, transform.b2, transform.b3,
-				transform.c1, transform.c2, transform.c3);
-			const float scaleX = glm::length(glm::vec3(meshTransform[0]));
-			const float scaleY = glm::length(glm::vec3(meshTransform[1]));
-			const float scaleZ = glm::length(glm::vec3(meshTransform[2]));
-			const float materialScale = (scaleX + scaleY + scaleZ) / 3.0f;
-
-			mat.setThicknessFactor(mat.thicknessFactor() * materialScale);
 			mat.setIsGLTFMaterial(true);
 			qDebug() << "GLTF Material Loaded";
 		}
@@ -1807,7 +1693,7 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	meshData.originalMaterialIndex = originalMaterialIndex;
 	meshData.sourceFile = QString::fromStdString(_path);
 	meshData.sourceNodeName = QString::fromUtf8(nodeName);
-	meshData.preserveNodeTransform = _preserveNodeTransformsForRuntime;
+	meshData.preserveNodeTransform = true;
 	meshData.skinJoints = skinJoints;
 	meshData.morphTargets = morphTargets;
 	meshData.defaultMorphWeights = defaultMorphWeights;
@@ -2232,6 +2118,8 @@ void AssImpModelLoader::applyCoordinateSystemTransformations(const std::string& 
 		{
 			glm::mat4 coordTransform = getCoordinateSystemTransform(_scene, path);
 			_appliedTransform = coordTransform;
+			// Record whether a non-identity orientation rotation was actually applied
+			_autoOrientWasApplied = (coordTransform != glm::mat4(1.0f));
 		}
 
 		// Apply scaling separately
@@ -3027,7 +2915,12 @@ void AssImpModelLoader::parseSceneAnimations()
 		if (sceneIdx >= 0 && sceneIdx < scenes.size())
 			rootNodeIndices = scenes[sceneIdx].toObject().value("nodes").toArray();
 
-		struct NodeFrame { aiNode* aiNodePtr; int gltfNodeIdx; };
+		struct NodeFrame
+		{
+			aiNode* aiNodePtr;
+			int gltfNodeIdx;
+			QVector<int> aiChildPath;
+		};
 		QVector<NodeFrame> stack;
 		aiNode* aiRoot = _scene->mRootNode;
 		if (rootNodeIndices.size() == 1)
@@ -3038,16 +2931,16 @@ void AssImpModelLoader::parseSceneAnimations()
 			const QString aiRootName = QString::fromUtf8(aiRoot->mName.C_Str());
 
 			if (aiRootName == gltfRootName || aiRoot->mNumMeshes > 0 || aiRoot->mNumChildren == 0)
-				stack.append({ aiRoot, rootGltfIdx });
+				stack.append({ aiRoot, rootGltfIdx, {} });
 			else if (aiRoot->mNumMeshes == 0 && aiRoot->mNumChildren == 1)
-				stack.append({ aiRoot->mChildren[0], rootGltfIdx });
+				stack.append({ aiRoot->mChildren[0], rootGltfIdx, { 0 } });
 		}
 		else
 		{
 			for (int i = rootNodeIndices.size() - 1; i >= 0; --i)
 			{
 				if (i < static_cast<int>(aiRoot->mNumChildren))
-					stack.append({ aiRoot->mChildren[i], rootNodeIndices[i].toInt() });
+					stack.append({ aiRoot->mChildren[i], rootNodeIndices[i].toInt(), { i } });
 			}
 		}
 
@@ -3064,7 +2957,11 @@ void AssImpModelLoader::parseSceneAnimations()
 				frame.aiNodePtr->mName = aiString(aiNodeName.toUtf8().constData());
 			}
 			if (frame.gltfNodeIdx < _animationData.nodeBindings.size())
+			{
 				_animationData.nodeBindings[frame.gltfNodeIdx].nodeName = aiNodeName;
+				_animationData.nodeBindings[frame.gltfNodeIdx].hasAiChildPath = true;
+				_animationData.nodeBindings[frame.gltfNodeIdx].aiChildPath = frame.aiChildPath;
+			}
 			if (frame.gltfNodeIdx < _animationData.nodeVisibilityStates.size())
 				_animationData.nodeVisibilityStates[frame.gltfNodeIdx].nodeName = aiNodeName;
 			for (GltfAnimationLightBinding& binding : _animationData.lightBindings)
@@ -3077,7 +2974,11 @@ void AssImpModelLoader::parseSceneAnimations()
 			for (int childOffset = childIndices.size() - 1; childOffset >= 0; --childOffset)
 			{
 				if (childOffset < static_cast<int>(frame.aiNodePtr->mNumChildren))
-					stack.append({ frame.aiNodePtr->mChildren[childOffset], childIndices[childOffset].toInt() });
+				{
+					QVector<int> childPath = frame.aiChildPath;
+					childPath.append(childOffset);
+					stack.append({ frame.aiNodePtr->mChildren[childOffset], childIndices[childOffset].toInt(), childPath });
+				}
 			}
 		}
 	}
@@ -3465,6 +3366,99 @@ void AssImpModelLoader::parseSceneCameras()
 
     _cameraData.sourceFile = QString::fromStdString(_path);
 
+    struct CameraNodeBinding
+    {
+        int nodeIndex = -1;
+        int cameraIndex = -1;
+        QVector<int> aiChildPath;
+        aiMatrix4x4 worldTransform;
+        bool hasWorldTransform = false;
+    };
+    QVector<CameraNodeBinding> cameraBindingsByOrdinal;
+    QJsonArray cameraDefs;
+    if (_scene->mRootNode)
+    {
+        QJsonDocument doc;
+        QVector<QByteArray> bufferData;
+        if (loadAnimationJsonAndBuffer(QString::fromStdString(_path), doc, bufferData) && doc.isObject())
+        {
+            const QJsonObject root = doc.object();
+            const QJsonArray nodes = root.value("nodes").toArray();
+            const QJsonArray scenes = root.value("scenes").toArray();
+            cameraDefs = root.value("cameras").toArray();
+
+            const int sceneIdx = root.value("scene").toInt(0);
+            QJsonArray rootNodeIndices;
+            if (sceneIdx >= 0 && sceneIdx < scenes.size())
+                rootNodeIndices = scenes[sceneIdx].toObject().value("nodes").toArray();
+
+            struct NodeFrame
+            {
+                aiNode* aiNodePtr;
+                int gltfNodeIdx;
+                QVector<int> aiChildPath;
+                aiMatrix4x4 worldTransform;
+            };
+            QVector<NodeFrame> stack;
+            aiNode* aiRoot = _scene->mRootNode;
+
+            if (rootNodeIndices.size() == 1)
+            {
+                const int rootGltfIdx = rootNodeIndices[0].toInt();
+                const QString gltfRootName = (rootGltfIdx >= 0 && rootGltfIdx < nodes.size())
+                    ? nodes[rootGltfIdx].toObject().value("name").toString() : QString();
+                const QString aiRootName = QString::fromUtf8(aiRoot->mName.C_Str());
+
+                if (aiRootName == gltfRootName || aiRoot->mNumMeshes > 0 || aiRoot->mNumChildren == 0)
+                    stack.append({ aiRoot, rootGltfIdx, {}, aiRoot->mTransformation });
+                else if (aiRoot->mNumMeshes == 0 && aiRoot->mNumChildren == 1)
+                    stack.append({ aiRoot->mChildren[0], rootGltfIdx, { 0 }, aiRoot->mTransformation * aiRoot->mChildren[0]->mTransformation });
+            }
+            else
+            {
+                for (int i = rootNodeIndices.size() - 1; i >= 0; --i)
+                {
+                    if (i < static_cast<int>(aiRoot->mNumChildren))
+                        stack.append({ aiRoot->mChildren[i], rootNodeIndices[i].toInt(), { i }, aiRoot->mTransformation * aiRoot->mChildren[i]->mTransformation });
+                }
+            }
+
+            while (!stack.isEmpty())
+            {
+                const NodeFrame frame = stack.takeLast();
+                if (!frame.aiNodePtr || frame.gltfNodeIdx < 0 || frame.gltfNodeIdx >= nodes.size())
+                    continue;
+
+                const QJsonObject nodeObj = nodes[frame.gltfNodeIdx].toObject();
+                if (nodeObj.contains("camera"))
+                {
+                    CameraNodeBinding binding;
+                    binding.nodeIndex = frame.gltfNodeIdx;
+                    binding.cameraIndex = nodeObj.value("camera").toInt(-1);
+                    binding.aiChildPath = frame.aiChildPath;
+                    binding.worldTransform = frame.worldTransform;
+                    binding.hasWorldTransform = true;
+                    cameraBindingsByOrdinal.append(binding);
+                }
+
+                const QJsonArray childIndices = nodeObj.value("children").toArray();
+                for (int childOffset = childIndices.size() - 1; childOffset >= 0; --childOffset)
+                {
+                    if (childOffset < static_cast<int>(frame.aiNodePtr->mNumChildren))
+                    {
+                        QVector<int> childPath = frame.aiChildPath;
+                        childPath.append(childOffset);
+                        aiNode* childNode = frame.aiNodePtr->mChildren[childOffset];
+                        stack.append({ childNode,
+                                       childIndices[childOffset].toInt(),
+                                       childPath,
+                                       frame.worldTransform * childNode->mTransformation });
+                    }
+                }
+            }
+        }
+    }
+
     for (unsigned int i = 0; i < _scene->mNumCameras; ++i)
     {
         const aiCamera* cam = _scene->mCameras[i];
@@ -3473,35 +3467,102 @@ void AssImpModelLoader::parseSceneCameras()
 
         GltfCameraEntry entry;
         entry.name     = QString::fromUtf8(cam->mName.C_Str());
+        // Imported glTF camera poses are already authored in the same scene
+        // space as the preserved node-transform hierarchy, so they should be
+        // applied directly.  Model-transform compensation is reserved for
+        // MVF-restored cameras that were saved after user-driven global
+        // model transforms.
+        entry.needsModelTransformCompensation = false;
         // Assimp's glTF2 importer sets aiCamera::mName to the scene-node name
         // that references the camera.  That node name is the key used by the
         // animation runtime's worldTransforms map, so store it directly.
         entry.nodeName = entry.name;
-
-        // Projection type: orthographic when mOrthographicWidth > 0
-        if (cam->mOrthographicWidth > 0.0f)
+        if (static_cast<int>(i) < cameraBindingsByOrdinal.size())
         {
-            entry.type  = GltfCameraType::Orthographic;
-            entry.xMag  = cam->mOrthographicWidth;
-            // mAspect = xmag / ymag  →  ymag = xmag / aspect (guard against zero)
-            entry.yMag  = (cam->mAspect > 0.0f)
-                        ? cam->mOrthographicWidth / cam->mAspect
-                        : cam->mOrthographicWidth;
+            const CameraNodeBinding& binding = cameraBindingsByOrdinal.at(static_cast<int>(i));
+            entry.nodeIndex = binding.nodeIndex;
+            entry.aiChildPath = binding.aiChildPath;
+            entry.hasAiChildPath = !entry.aiChildPath.isEmpty();
+
+            if (binding.cameraIndex >= 0 && binding.cameraIndex < cameraDefs.size())
+            {
+                const QJsonObject cameraObj = cameraDefs.at(binding.cameraIndex).toObject();
+                const QString type = cameraObj.value("type").toString();
+                if (type == QLatin1String("orthographic"))
+                {
+                    entry.type = GltfCameraType::Orthographic;
+                    const QJsonObject orthoObj = cameraObj.value("orthographic").toObject();
+                    entry.xMag = static_cast<float>(orthoObj.value("xmag").toDouble(entry.xMag));
+                    entry.yMag = static_cast<float>(orthoObj.value("ymag").toDouble(entry.yMag));
+                    entry.zNear = static_cast<float>(orthoObj.value("znear").toDouble(entry.zNear));
+                    entry.zFar = static_cast<float>(orthoObj.value("zfar").toDouble(entry.zFar));
+                }
+                else
+                {
+                    entry.type = GltfCameraType::Perspective;
+                    const QJsonObject perspObj = cameraObj.value("perspective").toObject();
+                    entry.fovYRadians = static_cast<float>(perspObj.value("yfov").toDouble(entry.fovYRadians));
+                    entry.zNear = static_cast<float>(perspObj.value("znear").toDouble(entry.zNear));
+                    entry.zFar = static_cast<float>(perspObj.value("zfar").toDouble(entry.zFar));
+                }
+            }
+            else if (cam->mOrthographicWidth > 0.0f)
+            {
+                entry.type  = GltfCameraType::Orthographic;
+                entry.xMag  = cam->mOrthographicWidth;
+                entry.yMag  = (cam->mAspect > 0.0f)
+                            ? cam->mOrthographicWidth / cam->mAspect
+                            : cam->mOrthographicWidth;
+                entry.zNear = cam->mClipPlaneNear;
+                entry.zFar  = cam->mClipPlaneFar;
+            }
+            else
+            {
+                entry.type = GltfCameraType::Perspective;
+                entry.fovYRadians = cam->mHorizontalFOV;
+                entry.zNear = cam->mClipPlaneNear;
+                entry.zFar  = cam->mClipPlaneFar;
+            }
         }
         else
         {
-            entry.type = GltfCameraType::Perspective;
-            // For glTF files Assimp stores yfov in mHorizontalFOV.
-            entry.fovYRadians = cam->mHorizontalFOV;
+            if (cam->mOrthographicWidth > 0.0f)
+            {
+                entry.type  = GltfCameraType::Orthographic;
+                entry.xMag  = cam->mOrthographicWidth;
+                entry.yMag  = (cam->mAspect > 0.0f)
+                            ? cam->mOrthographicWidth / cam->mAspect
+                            : cam->mOrthographicWidth;
+            }
+            else
+            {
+                entry.type = GltfCameraType::Perspective;
+                entry.fovYRadians = cam->mHorizontalFOV;
+            }
+            entry.zNear = cam->mClipPlaneNear;
+            entry.zFar  = cam->mClipPlaneFar;
         }
 
-        entry.zNear = cam->mClipPlaneNear;
-        entry.zFar  = cam->mClipPlaneFar;
-
-        // Compute world-space transform by walking the node hierarchy.
-        aiMatrix4x4 identity;
         aiMatrix4x4 worldMat;
-        if (findNodeWorldTransform(_scene->mRootNode, cam->mName, identity, worldMat))
+        bool hasWorldMat = false;
+        if (static_cast<int>(i) < cameraBindingsByOrdinal.size())
+        {
+            const CameraNodeBinding& binding = cameraBindingsByOrdinal.at(static_cast<int>(i));
+            if (binding.hasWorldTransform)
+            {
+                worldMat = binding.worldTransform;
+                hasWorldMat = true;
+            }
+        }
+
+        // Fallback for non-glTF or malformed bindings.
+        if (!hasWorldMat)
+        {
+            aiMatrix4x4 identity;
+            hasWorldMat = findNodeWorldTransform(_scene->mRootNode, cam->mName, identity, worldMat);
+        }
+
+        if (hasWorldMat)
         {
             // World position = translation component of the 4×4 matrix
             entry.worldPosition = QVector3D(worldMat.a4, worldMat.b4, worldMat.c4);

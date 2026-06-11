@@ -1492,7 +1492,6 @@ void MaterialPreviewWidget::syncTextureFromMaterial(
 				texData.magFilter,       // Use material's mag filter
 				4);
 
-			qDebug() << "Texture reloaded with ID" << cache.id;
 		}
 
 		cache.lastPath = path;

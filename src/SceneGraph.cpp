@@ -3,11 +3,17 @@
 #include <QFileInfo>
 #include <QJsonObject>
 #include <QJsonValue>
+#include <QVector4D>
+#include <cmath>
 #include <functional>
 
 namespace
 {
-constexpr quint32 SCENEGRAPH_SESSION_VERSION = 1;
+// Version history:
+//   1 — initial
+//   2 — added importCorrection matrix to fileNode serialization
+//   3 — added autoOrientApplied / autoScaleApplied flags to fileNode serialization
+constexpr quint32 SCENEGRAPH_SESSION_VERSION = 3;
 
 void writeMatrix(QDataStream& out, const aiMatrix4x4& m)
 {
@@ -24,6 +30,16 @@ bool readMatrix(QDataStream& in, aiMatrix4x4& m)
        >> m.c1 >> m.c2 >> m.c3 >> m.c4
        >> m.d1 >> m.d2 >> m.d3 >> m.d4;
     return in.status() == QDataStream::Ok;
+}
+
+QMatrix4x4 aiToQMatrix(const aiMatrix4x4& m)
+{
+    QMatrix4x4 out;
+    out.setRow(0, QVector4D(m.a1, m.a2, m.a3, m.a4));
+    out.setRow(1, QVector4D(m.b1, m.b2, m.b3, m.b4));
+    out.setRow(2, QVector4D(m.c1, m.c2, m.c3, m.c4));
+    out.setRow(3, QVector4D(m.d1, m.d2, m.d3, m.d4));
+    return out;
 }
 }
 
@@ -51,13 +67,17 @@ SceneGraph::~SceneGraph()
 void SceneGraph::appendFromScene(const aiScene*                   scene,
                                  const QString&                   sourceFile,
                                  const QList<QUuid>&              meshUuidsInOrder,
-                                 const std::vector<GPULight>&    lights)
+                                 const aiMatrix4x4&               importCorrection,
+                                 bool                             autoOrientApplied,
+                                 bool                             autoScaleApplied)
 {
     if (!scene || !scene->mRootNode)
         return;
 
-    // Store lights from this import (replaces any previous lights)
-    _lights = lights;
+    // Store per-file punctual lights (full GltfLightData with names, already
+    // set by the caller before or after this call via setLightData()).
+    // appendFromScene itself does not touch _lightDataByFile — the caller
+    // (GLWidget) calls setLightData() separately, which emits lightDataChanged().
 
     // --- Synthetic file-level node ------------------------------------------
     // This sits directly under _root and provides a clean per-import boundary
@@ -65,8 +85,11 @@ void SceneGraph::appendFromScene(const aiScene*                   scene,
     SceneNode* fileNode        = new SceneNode();
     fileNode->nodeUuid         = QUuid::createUuid();
     fileNode->name             = QFileInfo(sourceFile).fileName();
-    fileNode->isSynthetic      = true;
-    fileNode->sourceFile       = sourceFile;
+    fileNode->isSynthetic        = true;
+    fileNode->sourceFile         = sourceFile;
+    fileNode->importCorrection   = importCorrection;
+    fileNode->autoOrientApplied  = autoOrientApplied;
+    fileNode->autoScaleApplied   = autoScaleApplied;
     // localTransform stays default-constructed (identity).
     fileNode->parent           = _root;
     _root->children.append(fileNode);
@@ -89,7 +112,7 @@ void SceneGraph::rebuildFlat(const QString& sessionName,
                              const QList<QUuid>& meshUuids)
 {
     _meshUuidToNode.clear();
-    _lights.clear();
+    _lightDataByFile.clear();
     _variantDataByFile.clear();
     _activeVariantByFile.clear();
     _animationDataByFile.clear();
@@ -159,7 +182,7 @@ SceneNode* SceneGraph::buildSubtree(const aiNode*       ainode,
 void SceneGraph::clear()
 {
     _meshUuidToNode.clear();
-    _lights.clear();
+    _lightDataByFile.clear();
     _variantDataByFile.clear();
     _activeVariantByFile.clear();
     _animationDataByFile.clear();
@@ -177,11 +200,12 @@ void SceneGraph::rebuildFromMvf(const QJsonArray& documentNodes,
                                 const QJsonArray& sceneRootNodes)
 {
     _meshUuidToNode.clear();
-    _lights.clear();
+    _lightDataByFile.clear();
     _variantDataByFile.clear();
     _activeVariantByFile.clear();
     _animationDataByFile.clear();
     _activeAnimationClipByFile.clear();
+    _gltfCameraDataByFile.clear();
     freeSubtree(_root);
 
     _root           = new SceneNode();
@@ -203,11 +227,11 @@ void SceneGraph::rebuildFromMvf(const QJsonArray& documentNodes,
         node->nodeUuid = idStr.isEmpty() ? QUuid::createUuid()
                                          : QUuid::fromString(idStr);
         node->name = obj[QStringLiteral("name")].toString();
+        node->isSynthetic = obj[QStringLiteral("isSynthetic")].toBool(false);
+        node->sourceFile = obj[QStringLiteral("sourceFile")].toString();
 
-        const QJsonArray mat = obj[QStringLiteral("matrix")].toArray();
-        if (mat.size() == 16)
-        {
-            aiMatrix4x4& m = node->localTransform;
+        auto readJsonMatrix = [](const QJsonArray& mat, aiMatrix4x4& m) {
+            if (mat.size() != 16) return;
             m.a1 = (float)mat[0].toDouble();  m.a2 = (float)mat[1].toDouble();
             m.a3 = (float)mat[2].toDouble();  m.a4 = (float)mat[3].toDouble();
             m.b1 = (float)mat[4].toDouble();  m.b2 = (float)mat[5].toDouble();
@@ -216,7 +240,19 @@ void SceneGraph::rebuildFromMvf(const QJsonArray& documentNodes,
             m.c3 = (float)mat[10].toDouble(); m.c4 = (float)mat[11].toDouble();
             m.d1 = (float)mat[12].toDouble(); m.d2 = (float)mat[13].toDouble();
             m.d3 = (float)mat[14].toDouble(); m.d4 = (float)mat[15].toDouble();
-        }
+        };
+
+        readJsonMatrix(obj[QStringLiteral("matrix")].toArray(), node->localTransform);
+
+        // Restore autoOrient+autoScale correction (written since MVF format v2).
+        // Older MVF files omit this key; in that case importCorrection stays identity,
+        // meaning the exporter will not factor it out on the next export — acceptable
+        // for old files since the correction data is simply unavailable.
+        const QJsonArray corrMat = obj[QStringLiteral("importCorrection")].toArray();
+        if (!corrMat.isEmpty())
+            readJsonMatrix(corrMat, node->importCorrection);
+        node->autoOrientApplied = obj[QStringLiteral("autoOrientApplied")].toBool(false);
+        node->autoScaleApplied  = obj[QStringLiteral("autoScaleApplied")].toBool(false);
 
         const QJsonArray bindings = obj[QStringLiteral("meshBindings")].toArray();
         for (const QJsonValue& b : bindings)
@@ -248,6 +284,83 @@ void SceneGraph::rebuildFromMvf(const QJsonArray& documentNodes,
             _root->children.append(child);
     }
 
+    // --- Recover importCorrection from assimpRoot localTransform ---
+    //
+    // PRIMARY PATH (new MVF with flags):
+    //   If autoOrientApplied || autoScaleApplied is set, the loader recorded that it applied a
+    //   correction.  The matrix was pre-multiplied into assimpRoot->localTransform; when
+    //   importCorrection is still identity (e.g. the matrix key was absent), recover it from there.
+    //
+    // LEGACY FALLBACK (old MVF without flags or importCorrection key):
+    //   Old MVF files pre-date both keys.  We apply a narrow structural heuristic: if
+    //   assimpRoot->localTransform matches one of the seven known auto-orient patterns
+    //   (identity or +-90 degree cardinal-axis rotation with optional uniform scale), treat it
+    //   as the correction.  User gizmo transforms live in TriangleMesh::_transformation and
+    //   never reach SceneNode::localTransform, so there is no collision with user edits.
+    auto looksLikeAutoOrientCorrection = [](const aiMatrix4x4& m) -> bool
+    {
+        // NOTE: Do NOT reject on translation (a4/b4/c4).  The globalSceneTransform that is
+        // stored in assimpRoot->localTransform includes a centering translation in addition
+        // to the autoOrient rotation and autoScale.  Old MVF files carry the full combined
+        // matrix there, so we must accept translations when checking for auto-orient patterns.
+        const float sx = std::sqrt(m.a1*m.a1 + m.b1*m.b1 + m.c1*m.c1);
+        const float sy = std::sqrt(m.a2*m.a2 + m.b2*m.b2 + m.c2*m.c2);
+        const float sz = std::sqrt(m.a3*m.a3 + m.b3*m.b3 + m.c3*m.c3);
+        if (sx < 1e-6f || sy < 1e-6f || sz < 1e-6f) return false;
+        if (std::abs(sx - sy) > sx * 0.01f || std::abs(sx - sz) > sx * 0.01f) return false;
+        const float r11 = m.a1/sx, r21 = m.b1/sx, r31 = m.c1/sx;
+        const float r12 = m.a2/sy, r22 = m.b2/sy, r32 = m.c2/sy;
+        const float r13 = m.a3/sz, r23 = m.b3/sz, r33 = m.c3/sz;
+        auto near = [](float v, float t) { return std::abs(v - t) < 0.02f; };
+        // identity
+        if (near(r11,1) && near(r22,1) && near(r33,1) && near(r12,0) && near(r13,0) && near(r21,0) && near(r23,0) && near(r31,0) && near(r32,0)) return true;
+        // Rx(+90): [1,0,0 / 0,0,-1 / 0,1,0]
+        if (near(r11,1) && near(r12,0) && near(r13, 0) && near(r21,0) && near(r22,0) && near(r23,-1) && near(r31,0) && near(r32,1) && near(r33, 0)) return true;
+        // Rx(-90): [1,0,0 / 0,0,1 / 0,-1,0]
+        if (near(r11,1) && near(r12,0) && near(r13,0) && near(r21,0) && near(r22,0) && near(r23,1) && near(r31,0) && near(r32,-1) && near(r33,0)) return true;
+        // Ry(+90): [0,0,1 / 0,1,0 / -1,0,0]
+        if (near(r11,0) && near(r12,0) && near(r13, 1) && near(r21,0) && near(r22,1) && near(r23, 0) && near(r31,-1) && near(r32,0) && near(r33,0)) return true;
+        // Ry(-90): [0,0,-1 / 0,1,0 / 1,0,0]
+        if (near(r11,0) && near(r12,0) && near(r13,-1) && near(r21,0) && near(r22,1) && near(r23, 0) && near(r31,1) && near(r32,0) && near(r33, 0)) return true;
+        // Rz(+90): [0,-1,0 / 1,0,0 / 0,0,1]
+        if (near(r11,0) && near(r12,-1) && near(r13,0) && near(r21,1) && near(r22, 0) && near(r23,0) && near(r31,0) && near(r32, 0) && near(r33,1)) return true;
+        // Rz(-90): [0,1,0 / -1,0,0 / 0,0,1]
+        if (near(r11, 0) && near(r12,1) && near(r13,0) && near(r21,-1) && near(r22,0) && near(r23,0) && near(r31, 0) && near(r32,0) && near(r33,1)) return true;
+        return false;
+    };
+
+    for (SceneNode* fileNode : _root->children)
+    {
+        if (!fileNode->isSynthetic)
+            continue;
+        // If importCorrection is already populated (new MVF with matrix key), nothing to do.
+        if (!fileNode->importCorrection.IsIdentity())
+            continue;
+
+        SceneNode* assimpRoot = fileNode->children.isEmpty()
+                                ? nullptr : fileNode->children.first();
+        if (!assimpRoot)
+            continue;
+
+        if (fileNode->autoOrientApplied || fileNode->autoScaleApplied)
+        {
+            // Flags confirm a correction was applied at load time.
+            // Copy the correction into importCorrection so the exporter can factor it out.
+            // Do NOT zero assimpRoot->localTransform — the renderer needs it for correct
+            // display, and the exporter already handles it with a save/restore around the
+            // hierarchy build (corrInv * localTransform = identity temporarily during export).
+            fileNode->importCorrection = assimpRoot->localTransform;
+        }
+        else
+        {
+            // Legacy fallback for old MVF files that have neither flags nor the correction key.
+            if (looksLikeAutoOrientCorrection(assimpRoot->localTransform))
+                fileNode->importCorrection = assimpRoot->localTransform;
+            // Same principle: do not zero localTransform — leave it for the renderer and
+            // let the exporter's save/restore mechanism handle the temporary removal.
+        }
+    }
+
     emit structureChanged();
 }
 
@@ -261,6 +374,8 @@ void SceneGraph::serialize(QDataStream& out) const
             << node->isSynthetic
             << node->sourceFile;
         writeMatrix(out, node->localTransform);
+        writeMatrix(out, node->importCorrection);  // v2: persists autoOrient+autoScale correction
+        out << node->autoOrientApplied << node->autoScaleApplied;  // v3
 
         out << static_cast<quint32>(node->meshUuids.size());
         for (const QUuid& uuid : node->meshUuids)
@@ -309,6 +424,12 @@ bool SceneGraph::deserialize(QDataStream& in)
             delete node;
             return nullptr;
         }
+        if (!readMatrix(in, node->importCorrection))  // v2
+        {
+            delete node;
+            return nullptr;
+        }
+        in >> node->autoOrientApplied >> node->autoScaleApplied;  // v3
 
         in >> meshCount;
         for (quint32 i = 0; i < meshCount; ++i)
@@ -374,6 +495,68 @@ QList<QUuid> SceneGraph::collectMeshUuids(const SceneNode* node) const
 {
     QList<QUuid> result;
     collectUuidsRecursive(node, result);
+    return result;
+}
+
+SceneGraphWorldTransforms SceneGraph::evaluateWorldTransforms(const SceneNode* subtreeRoot) const
+{
+    SceneGraphWorldTransforms result;
+
+    const SceneNode* traversalRoot = subtreeRoot ? subtreeRoot : _root;
+    if (!traversalRoot)
+        return result;
+
+    std::function<void(const SceneNode*, const QMatrix4x4&)> eval =
+        [&](const SceneNode* node, const QMatrix4x4& parentWorld)
+    {
+        if (!node)
+            return;
+
+        const QMatrix4x4 local = aiToQMatrix(node->localTransform);
+        const QMatrix4x4 world = parentWorld * local;
+        result.nodeWorldByUuid.insert(node->nodeUuid, world);
+        for (const QUuid& meshUuid : node->meshUuids)
+            result.meshWorldByUuid.insert(meshUuid, world);
+
+        for (const SceneNode* child : node->children)
+            eval(child, world);
+    };
+
+    eval(traversalRoot, QMatrix4x4());
+    return result;
+}
+
+SceneGraphWorldTransforms SceneGraph::evaluateWorldTransformsForFile(const QString& sourceFile) const
+{
+    SceneGraphWorldTransforms result;
+
+    const SceneNode* fileNode = findFileNode(sourceFile);
+    if (!fileNode)
+        return result;
+
+    std::function<void(const SceneNode*, const QMatrix4x4&)> eval =
+        [&](const SceneNode* node, const QMatrix4x4& parentWorld)
+    {
+        if (!node)
+            return;
+
+        const QMatrix4x4 local = aiToQMatrix(node->localTransform);
+        const QMatrix4x4 world = parentWorld * local;
+        result.nodeWorldByUuid.insert(node->nodeUuid, world);
+        for (const QUuid& meshUuid : node->meshUuids)
+            result.meshWorldByUuid.insert(meshUuid, world);
+
+        for (const SceneNode* child : node->children)
+            eval(child, world);
+    };
+
+    const QMatrix4x4 identity;
+    result.nodeWorldByUuid.insert(fileNode->nodeUuid, identity);
+    for (const QUuid& meshUuid : fileNode->meshUuids)
+        result.meshWorldByUuid.insert(meshUuid, identity);
+    for (const SceneNode* child : fileNode->children)
+        eval(child, identity);
+
     return result;
 }
 
@@ -623,4 +806,62 @@ QStringList SceneGraph::filesWithGltfCameras() const
             files.append(it.key());
     }
     return files;
+}
+
+// ---------------------------------------------------------------------------
+// KHR_lights_punctual
+// ---------------------------------------------------------------------------
+
+void SceneGraph::setLightData(const QString& sourceFile, const GltfLightData& data)
+{
+    _lightDataByFile[sourceFile] = data;
+    emit lightDataChanged();
+}
+
+void SceneGraph::clearLightData(const QString& sourceFile)
+{
+    if (_lightDataByFile.remove(sourceFile) != 0)
+        emit lightDataChanged();
+}
+
+GltfLightData SceneGraph::lightDataForFile(const QString& sourceFile) const
+{
+    return _lightDataByFile.value(sourceFile, GltfLightData{});
+}
+
+QStringList SceneGraph::filesWithLights() const
+{
+    QStringList files;
+    for (auto it = _lightDataByFile.cbegin(); it != _lightDataByFile.cend(); ++it)
+    {
+        if (!it.value().isEmpty())
+            files.append(it.key());
+    }
+    return files;
+}
+
+void SceneGraph::setLightEnabled(const QString& sourceFile, int lightIndex, bool enabled)
+{
+    auto it = _lightDataByFile.find(sourceFile);
+    if (it == _lightDataByFile.end())
+        return;
+    if (lightIndex < 0 || lightIndex >= it->lights.size())
+        return;
+    it->lights[lightIndex].enabled = enabled;
+    emit lightDataChanged();
+}
+
+std::vector<GPULight> SceneGraph::buildEnabledLightList() const
+{
+    std::vector<GPULight> result;
+    // Iterate in source-file insertion order so the GPU list is deterministic.
+    for (auto it = _lightDataByFile.cbegin(); it != _lightDataByFile.cend(); ++it)
+    {
+        for (const GltfLightEntry& entry : it->lights)
+        {
+            if (entry.enabled)
+                result.push_back(entry.gpuLight);
+        }
+    }
+    return result;
 }

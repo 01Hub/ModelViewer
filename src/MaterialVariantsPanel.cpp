@@ -82,6 +82,7 @@ void MaterialVariantsPanel::refresh()
         const GltfVariantData vd  = _sceneGraph->variantDataForFile(sourceFile);
         const int             active = _sceneGraph->activeVariantForFile(sourceFile);
 
+        // --- Single-file: one tree item per file ---
         const QString displayName = QFileInfo(sourceFile).fileName();
         QTreeWidgetItem* fileItem = makeFileItem(sourceFile, displayName);
         _tree->addTopLevelItem(fileItem);
