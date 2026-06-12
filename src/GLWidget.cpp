@@ -1,6 +1,8 @@
 ﻿
 #include "ClippingPlanesEditor.h"
 #include "ExplodedViewPanel.h"
+#include "ExplodedViewManager.h"
+#include "SceneGraph.h"
 #include "Cone.h"
 #include "Cube.h"
 #include "FloorPlane.h"
@@ -682,6 +684,7 @@ _textRenderer(nullptr),
 _axisTextRenderer(nullptr),
 _clippingPlanesEditor(nullptr),
 _explodedViewPanel(nullptr),
+_explodedViewManager(new ExplodedViewManager()),
 _clippingPlaneXY(nullptr),
 _clippingPlaneYZ(nullptr),
 _clippingPlaneZX(nullptr),
@@ -1066,6 +1069,8 @@ _floorPlane(nullptr),
 	_explodedViewPanel->applyContrastTheme((_bgBotColor.lightnessF() < 0.5)
 		? QColor(Qt::white) : QColor(Qt::black));
 	_explodedViewPanel->hide();
+	connect(_explodedViewPanel, &ExplodedViewPanel::explosionParametersChanged,
+	        this, &GLWidget::updateExplosion);
 
 	//_displayedObjectsIds.push_back(0);
 
@@ -3330,7 +3335,118 @@ void GLWidget::showExplodedViewPanel(bool show)
 		_explodedViewPanel->show();
 	} else {
 		_explodedViewPanel->hide();
+		_explodedViewManager->reset();
+		// Clear explosion offsets from all meshes.
+		for (size_t i = 0; i < _meshStore.size(); ++i)
+			if (_meshStore[i]) _meshStore[i]->setExplosionOffset(QVector3D());
+		update();
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Explosion: recompute offsets from current panel state and trigger repaint.
+// ---------------------------------------------------------------------------
+void GLWidget::updateExplosion()
+{
+    if (!_explodedViewPanel || !_explodedViewManager)
+        return;
+
+    const QSet<QUuid>& assemblyUuids = _explodedViewPanel->assemblyUuids();
+    if (assemblyUuids.isEmpty()) {
+        _explodedViewManager->reset();
+        for (size_t i = 0; i < _meshStore.size(); ++i)
+            if (_meshStore[i]) _meshStore[i]->setExplosionOffset(QVector3D());
+        update();
+        return;
+    }
+
+    // Clear any previous offsets BEFORE building centroids so that getBoundingSphere()
+    // (used in the no-scene-graph fallback) returns the original non-exploded centers.
+    for (size_t i = 0; i < _meshStore.size(); ++i)
+        if (_meshStore[i]) _meshStore[i]->setExplosionOffset(QVector3D());
+
+    // Build world-space centroids and AABBs for each assembly mesh.
+    // Offsets were cleared above, so getBoundingBox() returns the unmodified
+    // world-space AABB at the mesh's original (non-exploded) position.
+    QHash<QUuid, QVector3D>                          worldCentroids;
+    QHash<QUuid, QPair<QVector3D, QVector3D>>        worldBoxes;
+
+    SceneGraph* sg = (_viewer && _viewer->sceneGraph()) ? _viewer->sceneGraph() : nullptr;
+    if (sg)
+    {
+        const auto wt = sg->evaluateWorldTransforms();
+        for (const QUuid& uuid : assemblyUuids)
+        {
+            TriangleMesh* mesh = getMeshByUuid(uuid);
+            if (!mesh) continue;
+
+            const BoundingBox bb = mesh->getBoundingBox();
+            const QVector3D bbMin(static_cast<float>(bb.xMin()),
+                                  static_cast<float>(bb.yMin()),
+                                  static_cast<float>(bb.zMin()));
+            const QVector3D bbMax(static_cast<float>(bb.xMax()),
+                                  static_cast<float>(bb.yMax()),
+                                  static_cast<float>(bb.zMax()));
+
+            // Centroid = midpoint of world-space AABB.
+            worldCentroids.insert(uuid, (bbMin + bbMax) * 0.5f);
+            worldBoxes.insert(uuid, {bbMin, bbMax});
+        }
+    }
+    else
+    {
+        // No scene graph — fall back to bounding sphere centres.
+        for (const QUuid& uuid : assemblyUuids)
+        {
+            TriangleMesh* mesh = getMeshByUuid(uuid);
+            if (!mesh) continue;
+
+            const BoundingBox bb = mesh->getBoundingBox();
+            const QVector3D bbMin(static_cast<float>(bb.xMin()),
+                                  static_cast<float>(bb.yMin()),
+                                  static_cast<float>(bb.zMin()));
+            const QVector3D bbMax(static_cast<float>(bb.xMax()),
+                                  static_cast<float>(bb.yMax()),
+                                  static_cast<float>(bb.zMax()));
+
+            worldCentroids.insert(uuid, (bbMin + bbMax) * 0.5f);
+            worldBoxes.insert(uuid, {bbMin, bbMax});
+        }
+    }
+
+    _explodedViewManager->recompute(
+        assemblyUuids,
+        _explodedViewPanel->anchorUuid(),
+        _explodedViewPanel->mode(),
+        _explodedViewPanel->userVector(),
+        _explodedViewPanel->factor(),
+        worldCentroids,
+        worldBoxes);
+
+    // Push computed offsets onto the meshes so combinedRenderTransform() returns
+    // the exploded position for every render path (main, selection, shadow, etc.).
+    for (const QUuid& uuid : assemblyUuids)
+    {
+        TriangleMesh* mesh = getMeshByUuid(uuid);
+        if (mesh)
+            mesh->setExplosionOffset(_explodedViewManager->offsetForMesh(uuid));
+    }
+
+    if (_autoFitViewOnUpdate)
+        fitAll();
+    else
+        update();
+}
+
+// ---------------------------------------------------------------------------
+// Render wrapper: explosion offsets are baked directly into each mesh's
+// combinedRenderTransform() via TriangleMesh::_explosionOffset, so both the
+// main render and the selection pass see the correct exploded positions
+// automatically without any per-call shader state manipulation.
+// ---------------------------------------------------------------------------
+void GLWidget::renderMeshExploded(TriangleMesh* mesh, DisplayMode mode)
+{
+    renderMeshWithDisplayMode(mesh, mode);
 }
 
 QWidget* GLWidget::attachOverlayPanel(QWidget* contentWidget, const QRect& geometry,
@@ -6534,7 +6650,7 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 		{
 			mesh->setProg(prog);
 			//mesh->render();             // render must NOT disable depth writes here
-			renderMeshWithDisplayMode(mesh, _displayMode);
+			renderMeshExploded(mesh, _displayMode);
 		}
 	}
 
@@ -6553,7 +6669,7 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 		{
 			mesh->setProg(prog);
 			//mesh->render();             // render must preserve writes-off for this pass
-			renderMeshWithDisplayMode(mesh, _displayMode);
+			renderMeshExploded(mesh, _displayMode);
 		}
 	}
 
@@ -6610,7 +6726,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 				hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
 			if (sssObjectIdLocation >= 0)
 				prog->setUniformValue(sssObjectIdLocation, float(id + 1));
-			renderMeshWithDisplayMode(mesh, _displayMode);
+			renderMeshExploded(mesh, _displayMode);
 		}
 	}
 }
@@ -6672,7 +6788,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 				hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
 			if (sssObjectIdLocation >= 0)
 				prog->setUniformValue(sssObjectIdLocation, float(id + 1));
-			renderMeshWithDisplayMode(mesh, _displayMode);
+			renderMeshExploded(mesh, _displayMode);
 		}
 	}
 
@@ -9358,6 +9474,8 @@ int GLWidget::processSelection(const QPoint& pixel)
 				const float a = pickColor.alphaF();
 
 				_selectionShader->setUniformValue("pickingColor", QVector4D(r, g, b, a));
+				// Explosion offset is baked into combinedRenderTransform() via
+				// TriangleMesh::_explosionOffset — no extra handling needed here.
 				_selectionShader->setUniformValue("modelMatrix", mesh->combinedRenderTransform());
 				_selectionShader->setUniformValue("hasSkinning", mesh->hasSkinning());
 				_selectionShader->setUniformValue("jointCount", static_cast<int>(mesh->jointPalette().size()));
@@ -13525,11 +13643,13 @@ std::vector<QVector3D> GLWidget::collectVisibleCorners() const
 			const std::vector<float>& pts = mesh->getTrsfPoints();
 			const int nVerts = static_cast<int>(pts.size()) / 3;
 
+			const QVector3D expOff = mesh->explosionOffset();
+
 			if (nVerts <= 0)
 			{
 				// Fallback: use the 8 AABB corners if vertex data is absent
 				for (const QVector3D& c : mesh->getBoundingBox().getCorners())
-					points.push_back(c);
+					points.push_back(c + expOff);
 				continue;
 			}
 
@@ -13540,22 +13660,41 @@ std::vector<QVector3D> GLWidget::collectVisibleCorners() const
 			for (int j = 0; j < nVerts; j += stride)
 			{
 				const int b = j * 3;
-				points.emplace_back(pts[b], pts[b + 1], pts[b + 2]);
+				points.emplace_back(pts[b] + expOff.x(), pts[b + 1] + expOff.y(), pts[b + 2] + expOff.z());
 			}
 			// Always include the last vertex so we never miss a boundary point
 			if (nVerts > 0)
 			{
 				const int b = (nVerts - 1) * 3;
-				points.emplace_back(pts[b], pts[b + 1], pts[b + 2]);
+				points.emplace_back(pts[b] + expOff.x(), pts[b + 1] + expOff.y(), pts[b + 2] + expOff.z());
 			}
 		}
 		catch (const std::out_of_range&) {}
 	}
 
-	// Fallback: if somehow empty, use the scene AABB corners
-	if (points.empty())
-		return _boundingBox.getCorners();
-	return points;
+    // Fallback: if somehow empty, use visible mesh AABBs with explosion offsets.
+    if (points.empty())
+    {
+        for (int i : ids)
+        {
+            try
+            {
+                TriangleMesh* mesh = _meshStore.at(i);
+                if (!mesh)
+                    continue;
+
+                const QVector3D expOff = mesh->explosionOffset();
+                for (const QVector3D& c : mesh->getBoundingBox().getCorners())
+                    points.push_back(c + expOff);
+            }
+            catch (const std::out_of_range&) {}
+        }
+    }
+
+    // Final fallback: scene AABB if no visible mesh points could be gathered.
+    if (points.empty())
+        return _boundingBox.getCorners();
+    return points;
 }
 
 // Convenience: read axes from the current view matrix, then delegate.
@@ -13681,16 +13820,6 @@ float GLWidget::computeFitViewRange(const std::vector<QVector3D>& corners,
 		viewRange = maxReq / shiftFactor * margin;
 	}
 
-	// For ortho, apply a bounding-sphere clamp: the AABB corners of a rounded
-	// object project further than the silhouette, and the sphere gives a tighter
-	// bound.  For perspective the AABB loop already accounts for depth (near-side
-	// corners increase maxReq), so a sphere clamp would incorrectly cut viewRange
-	// at large FOV where near-side corners dominate.  Skip the clamp for perspective.
-	if (_projection == ViewProjection::ORTHOGRAPHIC)
-	{
-		const float sphereViewRange = _boundingSphere.getRadius() * 2.0f * margin;
-		viewRange = std::min(viewRange, sphereViewRange);
-	}
 	return std::max(viewRange, 0.0001f);
 }
 

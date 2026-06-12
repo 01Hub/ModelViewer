@@ -3437,6 +3437,12 @@ void ModelViewer::handleTreeWidgetSelectionChanged()
 	_glWidget->update();
 	updateSelectionStatusMessage();
 
+	// Keep SelectionManager in sync so panels that call getSelectedIds() see
+	// the same list regardless of whether the selection came from the tree or
+	// the viewport.
+	_glWidget->getSelectionManager()->syncSelectedIds(
+	    QList<int>(selectedVec.begin(), selectedVec.end()));
+
 	// Notify panels connected to GLWidget::selectionChanged (e.g. TextureDebugPanel).
 	// An empty list correctly clears the panel when nothing is selected in the tree.
 	_glWidget->broadcastSelectionChanged(QList<int>(selectedVec.begin(), selectedVec.end()));

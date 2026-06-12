@@ -5,12 +5,46 @@
 #include "SelectionManager.h"
 #include <QMenu>
 
+// ---------------------------------------------------------------------------
+// Parameter accessors
+// ---------------------------------------------------------------------------
+ExplodedViewManager::Mode ExplodedViewPanel::mode() const
+{
+    switch (comboBoxMode->currentIndex())
+    {
+    case 1: return ExplodedViewManager::Mode::AxisX;
+    case 2: return ExplodedViewManager::Mode::AxisY;
+    case 3: return ExplodedViewManager::Mode::AxisZ;
+    case 4: return ExplodedViewManager::Mode::Vector;
+    default: return ExplodedViewManager::Mode::Auto;
+    }
+}
+
+QVector3D ExplodedViewPanel::userVector() const
+{
+    return QVector3D(
+        static_cast<float>(doubleSpinBoxVectorX->value()),
+        static_cast<float>(doubleSpinBoxVectorY->value()),
+        static_cast<float>(doubleSpinBoxVectorZ->value()));
+}
+
+float ExplodedViewPanel::factor() const
+{
+    return sliderExplosion->value() / 100.0f;
+}
+
 ExplodedViewPanel::ExplodedViewPanel(GLWidget* parent)
     : QWidget(parent)
     , _glWidget(parent)
 {
     setupUi(this);
     frameVector->setVisible(false);
+
+    // Emit explosionParametersChanged when custom vector spinboxes change.
+    auto emitParamChanged = [this]() { emit explosionParametersChanged(); };
+    connect(doubleSpinBoxVectorX, &QDoubleSpinBox::valueChanged, this, emitParamChanged);
+    connect(doubleSpinBoxVectorY, &QDoubleSpinBox::valueChanged, this, emitParamChanged);
+    connect(doubleSpinBoxVectorZ, &QDoubleSpinBox::valueChanged, this, emitParamChanged);
 
     // Right-click context menu: clear assembly selection
     lineEditAssembly->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -158,6 +192,8 @@ void ExplodedViewPanel::applyAssemblySelection(const QList<int>& ids)
         lineEditAnchor->clear();
         _anchorUuid = QUuid();
     }
+
+    emit explosionParametersChanged();
 }
 
 void ExplodedViewPanel::applyAnchorSelection(const QList<int>& ids)
@@ -181,6 +217,7 @@ void ExplodedViewPanel::applyAnchorSelection(const QList<int>& ids)
         name = tr("Mesh");
     }
     lineEditAnchor->setText(name);
+    emit explosionParametersChanged();
 }
 
 QString ExplodedViewPanel::describeAssemblySelection(const QList<int>& ids) const
@@ -228,12 +265,14 @@ QString ExplodedViewPanel::describeAssemblySelection(const QList<int>& ids) cons
 void ExplodedViewPanel::on_comboBoxMode_currentIndexChanged(int index)
 {
     frameVector->setVisible(index == 4); // 4 = Custom Vector
+    emit explosionParametersChanged();
 }
 
 void ExplodedViewPanel::on_sliderExplosion_valueChanged(int value)
 {
     labelDistancePercent->setText(QString("%1%").arg(value));
     updateCaptureButton();
+    emit explosionParametersChanged();
 }
 
 void ExplodedViewPanel::on_pushButtonCapture_clicked()
@@ -272,6 +311,10 @@ void ExplodedViewPanel::on_pushButtonReset_clicked()
     doubleSpinBoxVectorZ->setValue(0.0);
 
     updateCaptureButton();
+
+    // Clear exploded view rendering and any lingering viewport selection.
+    emit explosionParametersChanged();
+    emit selectionClearRequested();
 }
 
 void ExplodedViewPanel::updateCaptureButton()

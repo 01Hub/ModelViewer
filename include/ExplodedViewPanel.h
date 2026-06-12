@@ -2,8 +2,10 @@
 
 #include <QSet>
 #include <QUuid>
+#include <QVector3D>
 #include <QWidget>
 #include "ui_ExplodedViewPanel.h"
+#include "ExplodedViewManager.h"
 
 class GLWidget;
 class SceneGraph;
@@ -22,13 +24,18 @@ public:
     // field from whatever is already selected in the viewport / tree.
     void captureCurrentSelection();
 
-    // Stored selection state — consumed by ExplodedViewManager (Phase 1 logic).
+    // Stored selection state — consumed by ExplodedViewManager.
     const QSet<QUuid>& assemblyUuids() const { return _assemblyUuids; }
     QUuid               anchorUuid()   const { return _anchorUuid; }
+    ExplodedViewManager::Mode mode()   const;
+    QVector3D           userVector()   const;
+    float               factor()       const;  // sliderValue / 100.0f
 
 signals:
     // Emitted after picking capture so ModelViewer can clear the screen selection.
     void selectionClearRequested();
+    // Emitted when any parameter that affects the explosion changes.
+    void explosionParametersChanged();
 
 private slots:
     void on_comboBoxMode_currentIndexChanged(int index);

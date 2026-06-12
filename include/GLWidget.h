@@ -35,6 +35,7 @@ namespace Mvf { struct Document; }
 class TextRenderer;
 class ClippingPlanesEditor;
 class ExplodedViewPanel;
+class ExplodedViewManager;
 class AssImpModelLoader;
 class Plane;
 class Cube;
@@ -155,6 +156,7 @@ public:
 	void showClippingPlaneEditor(bool show);
 	void showExplodedViewPanel(bool show);
 	ExplodedViewPanel* getExplodedViewPanel() const { return _explodedViewPanel; }
+	void updateExplosion();
 	QWidget* attachOverlayPanel(QWidget* contentWidget, const QRect& geometry,
 	                            Qt::Alignment alignment = Qt::AlignTop | Qt::AlignLeft,
 	                            const QString& objectName = QString());
@@ -789,6 +791,7 @@ private:
 	void renderToShadowBuffer();
 	void renderQuad();
 	void renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode);
+	void renderMeshExploded(TriangleMesh* mesh, DisplayMode mode);
 
 	void gradientBackground(float top_r, float top_g, float top_b, float top_a,
 		float bot_r, float bot_g, float bot_b, float bot_a, int gradientStyle);
@@ -1189,7 +1192,8 @@ private:
 	QFormLayout* _upperLayout;
 
 	ClippingPlanesEditor* _clippingPlanesEditor;
-	ExplodedViewPanel*   _explodedViewPanel;
+	ExplodedViewPanel*    _explodedViewPanel;
+	ExplodedViewManager*  _explodedViewManager;
 	Plane* _clippingPlaneXY;
 	Plane* _clippingPlaneYZ;
 	Plane* _clippingPlaneZX;

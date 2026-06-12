@@ -52,7 +52,14 @@ public:
 		markUniformsDirty();
 	}
 
-	virtual BoundingSphere getBoundingSphere() const { return _boundingSphere; }
+	virtual BoundingSphere getBoundingSphere() const
+	{
+		if (_explosionOffset.isNull())
+			return _boundingSphere;
+		BoundingSphere s = _boundingSphere;
+		s.setCenter(_boundingSphere.getCenter() + _explosionOffset);
+		return s;
+	}
 	virtual BoundingBox getBoundingBox() const { return _boundingBox; }
 	QVector3D getStableTransformCenter() const;
 	float getStableTransformRadius() const;
@@ -122,6 +129,12 @@ public:
 	QMatrix4x4 getTransformation() const;
 	QMatrix4x4 getSceneRenderTransform() const;
 	QMatrix4x4 combinedRenderTransform() const;
+
+	// Explosion offset — world-space translation added by ExplodedViewManager.
+	// Baked into combinedRenderTransform() so every render path (main + selection)
+	// automatically draws and picks the mesh at the correct exploded position.
+	void setExplosionOffset(const QVector3D& offset) { _explosionOffset = offset; }
+	QVector3D explosionOffset() const { return _explosionOffset; }
 
 	std::vector<unsigned int> getIndices() const;
 	std::vector<float> getPoints() const;
@@ -509,6 +522,7 @@ protected:
 	float _scaleZ;
 
 	QMatrix4x4 _transformation;
+	QVector3D  _explosionOffset;
 
 	unsigned long long _memorySize;
 };
