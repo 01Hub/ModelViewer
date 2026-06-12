@@ -10152,6 +10152,11 @@ void GLWidget::setActiveAnimation(const QString& sourceFile, int clipIndex)
 	if (clipIndex < 0 || clipIndex >= data.clips.size())
 		return;
 
+	// Rebuild runtime defaults from the authoritative SceneGraph state before
+	// sampling frame 0. Newly-created clips can otherwise be applied against a
+	// stale runtime cache, which makes meshes appear to "stick" in the wrong pose.
+	syncFileNodeTransforms(sourceFile);
+
 	_activeAnimationFile = sourceFile;
 	_activeAnimationClip = clipIndex;
 	_animationCurrentTimeSeconds = 0.0;

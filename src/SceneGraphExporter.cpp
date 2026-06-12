@@ -20,7 +20,9 @@
 #include <glm/vec3.hpp>
 
 #include <QDebug>
+#include <QHash>
 #include <QMatrix4x4>
+#include <QSet>
 #include <cmath>
 #include <functional>
 #include <initializer_list>
@@ -28,6 +30,37 @@
 
 namespace
 {
+    struct ExportNodeTrs
+    {
+        aiVector3D translation = aiVector3D(0.0f, 0.0f, 0.0f);
+        aiQuaternion rotation = aiQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+        aiVector3D scale = aiVector3D(1.0f, 1.0f, 1.0f);
+    };
+
+    ExportNodeTrs decomposeNodeTrs(const aiMatrix4x4& matrix)
+    {
+        aiVector3D scaling;
+        aiQuaternion rotation;
+        aiVector3D position;
+        matrix.Decompose(scaling, rotation, position);
+
+        ExportNodeTrs trs;
+        trs.translation = position;
+        trs.rotation = rotation;
+        trs.scale = scaling;
+        return trs;
+    }
+
+    void collectExportNodeBaseTrs(const aiNode* node, QMap<QString, ExportNodeTrs>& out)
+    {
+        if (!node)
+            return;
+
+        out.insert(QString::fromUtf8(node->mName.C_Str()), decomposeNodeTrs(node->mTransformation));
+        for (unsigned int i = 0; i < node->mNumChildren; ++i)
+            collectExportNodeBaseTrs(node->mChildren[i], out);
+    }
+
     GLMaterial exportBaseMaterial(const TriangleMesh* mesh)
     {
         if (!mesh)
@@ -385,6 +418,41 @@ namespace
         return node->name;
     }
 
+    QString makeUniqueExportNodeName(const QString& baseName, QSet<QString>& usedNames)
+    {
+        QString candidate = baseName.trimmed();
+        if (candidate.isEmpty())
+            candidate = QStringLiteral("Node");
+
+        if (!usedNames.contains(candidate))
+        {
+            usedNames.insert(candidate);
+            return candidate;
+        }
+
+        for (int suffix = 2;; ++suffix)
+        {
+            const QString uniqueCandidate = QStringLiteral("%1__%2").arg(candidate).arg(suffix);
+            if (!usedNames.contains(uniqueCandidate))
+            {
+                usedNames.insert(uniqueCandidate);
+                return uniqueCandidate;
+            }
+        }
+    }
+
+    SceneNode* findSceneNodeByAiChildPath(SceneNode* aiRootNode, const QVector<int>& aiChildPath)
+    {
+        SceneNode* node = aiRootNode;
+        for (int childIndex : aiChildPath)
+        {
+            if (!node || childIndex < 0 || childIndex >= node->children.size())
+                return nullptr;
+            node = node->children[childIndex];
+        }
+        return node;
+    }
+
     QString textureKeyPart(const GLMaterial::Texture& tex, const QString& label)
     {
         if (tex.path.empty())
@@ -461,6 +529,8 @@ aiScene* SceneGraphExporter::buildExportScene(
 
     std::vector<aiMaterial*> builtMaterials;
     builtMaterials.reserve(64);
+    QHash<QUuid, QString> exportedNodeNameByUuid;
+    QSet<QString> usedExportNodeNames;
 
 
     // Export root (invisible SceneGraph root becomes a real aiNode container).
@@ -524,7 +594,9 @@ aiScene* SceneGraphExporter::buildExportScene(
             }
             // ---------------------------------------------------------------------
 
-            aiNode* dstChild = buildNodeRecursive(fileNode, resolveMesh, builtMeshes, builtMaterials, materialKeyToIndex, aiMatrix4x4(), flattenTransforms, fileNode->importCorrection, outAnimMatRemap);
+            aiNode* dstChild = buildNodeRecursive(fileNode, resolveMesh, builtMeshes, builtMaterials,
+                materialKeyToIndex, exportedNodeNameByUuid, usedExportNodeNames,
+                aiMatrix4x4(), flattenTransforms, fileNode->importCorrection, outAnimMatRemap);
             exportRoot->mChildren[i] = dstChild;
             if (dstChild)
                 dstChild->mParent = exportRoot;
@@ -685,6 +757,8 @@ aiScene* SceneGraphExporter::buildExportScene(
     // additional transform is needed.
     {
         std::vector<aiAnimation*> builtAnims;
+        QMap<QString, ExportNodeTrs> exportNodeBaseTrsByName;
+        collectExportNodeBaseTrs(scene->mRootNode, exportNodeBaseTrsByName);
 
         for (const SceneNode* fileNode : exportFileNodes)
         {
@@ -702,6 +776,44 @@ aiScene* SceneGraphExporter::buildExportScene(
 
                 for (const GltfAnimationChannel& ch : clip.channels)
                 {
+                    SceneNode* resolvedTargetNode = nullptr;
+                    if (ch.targetNodeIndex >= 0 && ch.targetNodeIndex < animData.nodeBindings.size())
+                    {
+                        const GltfAnimationNodeBinding& binding = animData.nodeBindings[ch.targetNodeIndex];
+                        SceneNode* fileNodeMutable = const_cast<SceneNode*>(fileNode);
+                        SceneNode* aiRootNode = fileNodeMutable->children.isEmpty() ? nullptr : fileNodeMutable->children.first();
+                        if (binding.hasAiChildPath)
+                            resolvedTargetNode = findSceneNodeByAiChildPath(aiRootNode, binding.aiChildPath);
+
+                        if (!resolvedTargetNode && !binding.nodeName.isEmpty())
+                        {
+                            std::function<SceneNode*(SceneNode*)> findByName = [&](SceneNode* node) -> SceneNode*
+                            {
+                                if (!node)
+                                    return nullptr;
+                                if (node->name == binding.nodeName)
+                                    return node;
+                                for (SceneNode* child : node->children)
+                                {
+                                    if (SceneNode* match = findByName(child))
+                                        return match;
+                                }
+                                return nullptr;
+                            };
+
+                            for (SceneNode* child : fileNodeMutable->children)
+                            {
+                                resolvedTargetNode = findByName(child);
+                                if (resolvedTargetNode)
+                                    break;
+                            }
+                        }
+                    }
+
+                    const QString exportedTargetName = resolvedTargetNode
+                        ? exportedNodeNameByUuid.value(resolvedTargetNode->nodeUuid)
+                        : QString();
+
                     const bool isTRS = (ch.targetPath == GltfAnimationTargetPath::Translation ||
                                         ch.targetPath == GltfAnimationTargetPath::Rotation    ||
                                         ch.targetPath == GltfAnimationTargetPath::Scale);
@@ -718,7 +830,7 @@ aiScene* SceneGraphExporter::buildExportScene(
                         if (ch.weightKeys.isEmpty())
                             continue;
 
-                        const QString& meshName = ch.targetNodeName; // best approximation
+                        const QString meshName = !exportedTargetName.isEmpty() ? exportedTargetName : ch.targetNodeName;
                         if (!morphAnimByName.contains(meshName))
                         {
                             aiMeshMorphAnim* ma = new aiMeshMorphAnim();
@@ -750,17 +862,18 @@ aiScene* SceneGraphExporter::buildExportScene(
                         continue;
                     }
 
-                    const std::string nodeName = ch.targetNodeName.toStdString();
-                    qDebug() << "[EXPORT-ANIMS-TRS] TRS channel target:" << ch.targetNodeName
+                    const QString targetNodeName = !exportedTargetName.isEmpty() ? exportedTargetName : ch.targetNodeName;
+                    const std::string nodeName = targetNodeName.toStdString();
+                    qDebug() << "[EXPORT-ANIMS-TRS] TRS channel target:" << targetNodeName
                              << "path:" << static_cast<int>(ch.targetPath);
 
-                    if (!nodeAnimByName.contains(ch.targetNodeName))
+                    if (!nodeAnimByName.contains(targetNodeName))
                     {
                         aiNodeAnim* na = new aiNodeAnim();
                         na->mNodeName.Set(nodeName);
-                        nodeAnimByName[ch.targetNodeName] = na;
+                        nodeAnimByName[targetNodeName] = na;
                     }
-                    aiNodeAnim* na = nodeAnimByName[ch.targetNodeName];
+                    aiNodeAnim* na = nodeAnimByName[targetNodeName];
 
                     // Use milliseconds as ticks (mTicksPerSecond = 1000) for
                     // sub-millisecond precision with integer-safe timestamps.
@@ -825,26 +938,29 @@ aiScene* SceneGraphExporter::buildExportScene(
                 constexpr double kZeroTime = 0.0;
                 for (aiNodeAnim* na : nodeAnimByName)
                 {
+                    const QString nodeName = QString::fromUtf8(na->mNodeName.C_Str());
+                    const ExportNodeTrs baseTrs = exportNodeBaseTrsByName.value(nodeName, ExportNodeTrs());
+
                     if (na->mNumPositionKeys == 0 || na->mPositionKeys == nullptr)
                     {
                         na->mNumPositionKeys = 1;
                         na->mPositionKeys    = new aiVectorKey[1];
                         na->mPositionKeys[0].mTime  = kZeroTime;
-                        na->mPositionKeys[0].mValue = aiVector3D(0.0f, 0.0f, 0.0f);
+                        na->mPositionKeys[0].mValue = baseTrs.translation;
                     }
                     if (na->mNumRotationKeys == 0 || na->mRotationKeys == nullptr)
                     {
                         na->mNumRotationKeys = 1;
                         na->mRotationKeys    = new aiQuatKey[1];
                         na->mRotationKeys[0].mTime  = kZeroTime;
-                        na->mRotationKeys[0].mValue = aiQuaternion(1.0f, 0.0f, 0.0f, 0.0f); // identity (w,x,y,z)
+                        na->mRotationKeys[0].mValue = baseTrs.rotation;
                     }
                     if (na->mNumScalingKeys == 0 || na->mScalingKeys == nullptr)
                     {
                         na->mNumScalingKeys = 1;
                         na->mScalingKeys    = new aiVectorKey[1];
                         na->mScalingKeys[0].mTime  = kZeroTime;
-                        na->mScalingKeys[0].mValue = aiVector3D(1.0f, 1.0f, 1.0f);
+                        na->mScalingKeys[0].mValue = baseTrs.scale;
                     }
                 }
 
@@ -973,6 +1089,8 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
     std::vector<aiMesh*>& outMeshes,
     std::vector<aiMaterial*>& outMaterials,
     QMap<QString, unsigned int>& materialKeyToIndex,
+    QHash<QUuid, QString>& exportedNodeNameByUuid,
+    QSet<QString>& usedExportNodeNames,
     const aiMatrix4x4& parentWorldTransform,
     bool flattenTransforms,
     const aiMatrix4x4& importCorrection,
@@ -1011,7 +1129,9 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
     const bool isLeafMeshNode = !srcNode->meshUuids.isEmpty() && srcNode->children.isEmpty();
     const bool useParentSpaceEncoding = !flattenTransforms && isLeafMeshNode && srcNode->localTransform.IsIdentity();
 
-    aiNode* dstNode = makeIdentityNode(exportedNodeName(srcNode));
+    const QString uniqueExportNodeName = makeUniqueExportNodeName(exportedNodeName(srcNode), usedExportNodeNames);
+    exportedNodeNameByUuid.insert(srcNode->nodeUuid, uniqueExportNodeName);
+    aiNode* dstNode = makeIdentityNode(uniqueExportNodeName);
     // flattenTransforms: every node is identity — Assimp OBJ/PLY/STL writer ignores them anyway.
     // useParentSpaceEncoding: node also identity — parent-offset is baked into vertex data.
     // normal: write the node's local transform so the hierarchy writer can reconstruct world space.
@@ -1317,7 +1437,9 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
         for (int i = 0; i < srcNode->children.size(); ++i)
         {
             SceneNode* srcChild = srcNode->children.at(i);
-            aiNode* dstChild = buildNodeRecursive(srcChild, resolveMesh, outMeshes, outMaterials, materialKeyToIndex, worldTransform, flattenTransforms, importCorrection, animMatRemap);
+            aiNode* dstChild = buildNodeRecursive(srcChild, resolveMesh, outMeshes, outMaterials,
+                materialKeyToIndex, exportedNodeNameByUuid, usedExportNodeNames,
+                worldTransform, flattenTransforms, importCorrection, animMatRemap);
             dstNode->mChildren[childIndex++] = dstChild;
             if (dstChild)
                 dstChild->mParent = dstNode;

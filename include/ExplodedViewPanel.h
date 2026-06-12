@@ -1,9 +1,14 @@
 #pragma once
 
+#include <QIcon>
+#include <QHash>
 #include <QSet>
+#include <QString>
 #include <QUuid>
+#include <QVector>
 #include <QVector3D>
 #include <QWidget>
+
 #include "ui_ExplodedViewPanel.h"
 #include "ExplodedViewManager.h"
 
@@ -48,6 +53,24 @@ private slots:
 private:
     enum class PickingTarget { None, Assembly, Anchor };
 
+    struct CapturedTransformTrack
+    {
+        QUuid     meshUuid;
+        QUuid     ownerNodeUuid;
+        QString   sourceFile;
+        QString   targetNodeName;
+        int       targetNodeIndex = -1;
+        QVector3D startPosition;
+        QVector3D endPosition;
+    };
+
+    struct CapturedExplosionStep
+    {
+        QUuid                         id;
+        QString                       name;
+        QVector<CapturedTransformTrack> tracks;
+    };
+
     // Receives the selectionChanged signal while in picking mode.
     void onPickingSelectionChanged(const QList<int>& ids);
 
@@ -60,6 +83,11 @@ private:
 
     void updateCaptureButton();
     void cancelPickingMode();
+    void updateAssemblyPickButtonVisual(bool awaitingCommit);
+    void clearAssemblySelection();
+    void updateCapturedViewsList();
+    bool captureCurrentExplosionStep();
+    bool createAnimationsFromCapturedSteps();
 
     GLWidget*    _glWidget   = nullptr;
     SceneGraph*  _sceneGraph = nullptr;
@@ -69,4 +97,13 @@ private:
 
     QSet<QUuid> _assemblyUuids;
     QUuid       _anchorUuid;
+    QIcon       _assemblySelectIdleIcon;
+    QIcon       _assemblySelectCommitIcon;
+    QVector<CapturedExplosionStep> _capturedSteps;
+    int _capturedStepCounter = 1;
+    int _createdAnimationCounter = 1;
+
+private slots:
+    void on_pushButtonCaptureView_clicked();
+    void on_pushButtonRemoveCapture_clicked();
 };
