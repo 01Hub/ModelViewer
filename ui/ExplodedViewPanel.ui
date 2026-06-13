@@ -32,7 +32,97 @@
       <string>Exploded View</string>
      </property>
      <layout class="QGridLayout" name="gridLayout">
-     <item row="0" column="0">
+      <item row="0" column="0">
+       <layout class="QGridLayout" name="layoutPresetSection">
+        <item row="0" column="0">
+         <widget class="QLabel" name="labelPreset">
+          <property name="minimumSize">
+           <size>
+            <width>70</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>Preset</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1" colspan="3">
+         <widget class="QComboBox" name="comboBoxPreset">
+          <property name="styleSheet">
+           <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+          </property>
+          <item>
+           <property name="text">
+            <string>Explosion 1</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="0" column="4">
+         <widget class="QPushButton" name="pushButtonPresetNew">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>Preset actions will be wired in the next step of the implementation</string>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+          </property>
+          <property name="text">
+           <string>New</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QPushButton" name="pushButtonPresetDuplicate">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>Preset actions will be wired in the next step of the implementation</string>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+          </property>
+          <property name="text">
+           <string>Duplicate</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="2">
+         <widget class="QPushButton" name="pushButtonPresetActions">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>Preset actions will be wired in the next step of the implementation</string>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+          </property>
+          <property name="text">
+           <string>Rename/Delete</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="4">
+         <widget class="QLabel" name="labelPresetDirty">
+          <property name="visible">
+           <bool>false</bool>
+          </property>
+          <property name="text">
+           <string>Unsaved</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item row="1" column="0">
        <layout class="QHBoxLayout" name="layoutAuthoringMode">
         <item>
          <widget class="QLabel" name="labelAuthoringMode">
@@ -42,8 +132,11 @@
             <height>0</height>
            </size>
           </property>
+          <property name="toolTip">
+           <string>Step authoring method is transient UI state. Auto/manual choice is not saved in presets.</string>
+          </property>
           <property name="text">
-           <string>Authoring</string>
+           <string>Step Authoring</string>
           </property>
          </widget>
         </item>
@@ -79,7 +172,7 @@
         </item>
        </layout>
       </item>
-      <item row="1" column="0">
+      <item row="2" column="0">
        <widget class="QStackedWidget" name="stackedWidgetAuthoring">
         <property name="currentIndex">
          <number>0</number>
@@ -635,7 +728,7 @@
         </widget>
        </widget>
       </item>
-      <item row="2" column="0">
+      <item row="3" column="0">
        <layout class="QHBoxLayout" name="layoutDuration">
         <item>
          <widget class="QLabel" name="labelDuration">
@@ -683,7 +776,7 @@
         </item>
        </layout>
       </item>
-      <item row="3" column="0">
+      <item row="4" column="0">
        <layout class="QHBoxLayout" name="layoutAnimationMode">
         <item>
          <widget class="QLabel" name="labelAnimationMode">
@@ -709,6 +802,9 @@
           <property name="styleSheet">
            <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
           </property>
+          <property name="toolTip">
+           <string>Output mode is stored with the active preset.</string>
+          </property>
           <item>
            <property name="text">
             <string>Single Animation (Parallel)</string>
@@ -729,7 +825,7 @@
         <item>
          <widget class="QCheckBox" name="checkBoxLoopBack">
           <property name="toolTip">
-           <string>Append a reverse pass back to the original assembled state</string>
+           <string>Append a reverse pass back to the original assembled state. Loop-back is stored with the active preset.</string>
           </property>
           <property name="text">
            <string>Loop Back</string>
@@ -741,7 +837,7 @@
         </item>
        </layout>
       </item>
-      <item row="4" column="0">
+      <item row="5" column="0">
        <layout class="QHBoxLayout" name="layoutCaptureButtons">
         <item>
          <widget class="QPushButton" name="pushButtonCaptureView">
@@ -795,7 +891,7 @@
         </item>
        </layout>
       </item>
-      <item row="5" column="0">
+      <item row="6" column="0">
        <layout class="QVBoxLayout" name="layoutCapturedList">
         <item>
          <widget class="QLabel" name="labelCapturedSteps">
@@ -806,14 +902,29 @@
         </item>
         <item>
          <widget class="QListWidget" name="listWidgetCapturedViews">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
           <property name="minimumSize">
            <size>
             <width>0</width>
-            <height>140</height>
+            <height>96</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>120</height>
            </size>
           </property>
           <property name="toolTip">
            <string>Ordered list of captured explosion steps used to build animations</string>
+          </property>
+          <property name="verticalScrollBarPolicy">
+           <enum>Qt::ScrollBarAsNeeded</enum>
           </property>
           <property name="styleSheet">
            <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
@@ -822,26 +933,100 @@
         </item>
        </layout>
       </item>
-      <item row="6" column="0">
-       <layout class="QVBoxLayout" name="layoutPreviewHost">
-        <property name="spacing">
-         <number>0</number>
-        </property>
-        <property name="leftMargin">
-         <number>0</number>
-        </property>
-        <property name="topMargin">
-         <number>0</number>
-        </property>
-        <property name="rightMargin">
-         <number>0</number>
-        </property>
-        <property name="bottomMargin">
-         <number>0</number>
-        </property>
+      <item row="7" column="0">
+       <layout class="QVBoxLayout" name="layoutPreviewSection">
+        <item>
+         <layout class="QHBoxLayout" name="layoutPreviewRow">
+          <item>
+           <widget class="QLabel" name="labelPreviewSection">
+            <property name="minimumSize">
+             <size>
+              <width>70</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>Preview</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="pushButtonPreviewPlayPause">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+            </property>
+            <property name="text">
+             <string>Play</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="pushButtonPreviewStop">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+            </property>
+            <property name="text">
+             <string>Stop</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QCheckBox" name="checkBoxPreviewLoop">
+            <property name="enabled">
+             <bool>false</bool>
+            </property>
+            <property name="text">
+             <string>Loop</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="horizontalSpacerPreview">
+            <property name="orientation">
+             <enum>Qt::Orientation::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>40</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item>
+           <widget class="QLabel" name="labelPreviewTime">
+            <property name="text">
+             <string>0:00.00 / 0:00.00</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+        <item>
+         <widget class="QSlider" name="sliderPreviewTimeline">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="maximum">
+           <number>1000</number>
+          </property>
+          <property name="orientation">
+           <enum>Qt::Orientation::Horizontal</enum>
+          </property>
+         </widget>
+        </item>
        </layout>
       </item>
-      <item row="7" column="0">
+      <item row="8" column="0">
        <layout class="QHBoxLayout" name="layoutButtons">
         <item>
          <widget class="QPushButton" name="pushButtonCapture">
@@ -861,7 +1046,7 @@
            </size>
           </property>
           <property name="toolTip">
-           <string>Create one or more glTF animations from the captured explosion steps</string>
+           <string>Create one or more glTF animations from the captured explosion steps. Animation clip names will default to the active preset name.</string>
           </property>
           <property name="styleSheet">
            <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
@@ -904,6 +1089,10 @@
   </layout>
  </widget>
  <tabstops>
+  <tabstop>comboBoxPreset</tabstop>
+  <tabstop>pushButtonPresetNew</tabstop>
+  <tabstop>pushButtonPresetDuplicate</tabstop>
+  <tabstop>pushButtonPresetActions</tabstop>
   <tabstop>radioButtonModeAuto</tabstop>
   <tabstop>radioButtonModeManual</tabstop>
   <tabstop>lineEditAssembly</tabstop>
@@ -925,6 +1114,10 @@
   <tabstop>pushButtonCaptureView</tabstop>
   <tabstop>listWidgetCapturedViews</tabstop>
   <tabstop>pushButtonRemoveCapture</tabstop>
+  <tabstop>pushButtonPreviewPlayPause</tabstop>
+  <tabstop>pushButtonPreviewStop</tabstop>
+  <tabstop>checkBoxPreviewLoop</tabstop>
+  <tabstop>sliderPreviewTimeline</tabstop>
   <tabstop>pushButtonCapture</tabstop>
   <tabstop>pushButtonReset</tabstop>
  </tabstops>

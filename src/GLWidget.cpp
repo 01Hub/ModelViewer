@@ -3344,15 +3344,31 @@ void GLWidget::updateClippingPlane()
 
 void GLWidget::showClippingPlaneEditor(bool show)
 {
-	show ? _clippingPlanesEditor->show() : _clippingPlanesEditor->hide();
+	if (show)
+	{
+		if (_explodedViewPanel && _explodedViewPanel->isVisible())
+			showExplodedViewPanel(false);
+		if (_viewToolbar)
+			_viewToolbar->setExplodedViewChecked(false);
+		_clippingPlanesEditor->show();
+	}
+	else
+	{
+		_clippingPlanesEditor->hide();
+	}
 }
 
 void GLWidget::showExplodedViewPanel(bool show)
 {
 	if (show) {
+		if (_clippingPlanesEditor && _clippingPlanesEditor->isVisible())
+			showClippingPlaneEditor(false);
+		if (_viewToolbar)
+			_viewToolbar->setSectionViewChecked(false);
 		_explodedViewPanel->captureCurrentSelection();
 		_explodedViewPanel->show();
 	} else {
+		_explodedViewPanel->deactivateInteractiveState();
 		clearExplodedViewManualPlacement();
 		_explodedViewPanel->hide();
 		_explodedViewManager->reset();
@@ -3473,10 +3489,7 @@ void GLWidget::updateExplosion()
         }
     }
 
-    if (_autoFitViewOnUpdate)
-        fitAll();
-    else
-        update();
+    update();
 }
 
 // ---------------------------------------------------------------------------

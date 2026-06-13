@@ -17,10 +17,6 @@
 
 class GLWidget;
 class SceneGraph;
-class QPushButton;
-class QCheckBox;
-class QSlider;
-class QLabel;
 class QTimer;
 
 class ExplodedViewPanel : public QWidget, private Ui::ExplodedViewPanel
@@ -32,14 +28,15 @@ public:
 
     void setSceneGraph(SceneGraph* sg);
     void applyContrastTheme(const QColor& textColor);
+    void deactivateInteractiveState();
 
     // Called by GLWidget::showExplodedViewPanel(true) to seed the assembly
     // field from whatever is already selected in the viewport / tree.
     void captureCurrentSelection();
 
     // Stored selection state — consumed by ExplodedViewManager.
-    const QSet<QUuid>& assemblyUuids() const { return _assemblyUuids; }
-    QUuid               anchorUuid()   const { return _anchorUuid; }
+    const QSet<QUuid>& assemblyUuids() const;
+    QUuid               anchorUuid()   const;
     ExplodedViewManager::Mode mode()   const;
     QVector3D           userVector()   const;
     float               factor()       const;  // sliderValue / 100.0f
@@ -84,6 +81,22 @@ private:
         QVector<CapturedTransformTrack> tracks;
     };
 
+    struct ExplodedViewPreset
+    {
+        QUuid id;
+        QString name;
+        QSet<QUuid> assemblyUuids;
+        QUuid anchorUuid;
+        ExplodedViewManager::Mode mode = ExplodedViewManager::Mode::Auto;
+        QVector3D userVector = QVector3D(1.0f, 0.0f, 0.0f);
+        float factor = 1.0f;
+        QVector<CapturedExplosionStep> capturedSteps;
+        int capturedStepCounter = 1;
+        int outputMode = 0;
+        double durationSeconds = 3.0;
+        bool loopBack = true;
+    };
+
     struct PreviewMeshState
     {
         QMatrix4x4 sceneRenderTransform;
@@ -110,6 +123,7 @@ private:
     // Convert a list of mesh-store indices to display text + populate UUID sets.
     void applyAssemblySelection(const QList<int>& ids);
     void applyAnchorSelection(const QList<int>& ids);
+    void updateAssemblySelectionDisplay(const QList<int>& ids);
 
     // Derive a human-readable label for the assembly selection.
     QString describeAssemblySelection(const QList<int>& ids) const;
@@ -135,6 +149,15 @@ private:
     void onPreviewSliderPressed();
     void onPreviewSliderReleased();
     void onPreviewSliderValueChanged(int value);
+    void initializeDefaultPreset();
+    void refreshPresetCombo();
+    void loadPresetIntoUi(int index);
+    void syncActivePresetFromUi();
+    ExplodedViewPreset* activePreset();
+    const ExplodedViewPreset* activePreset() const;
+    ExplodedViewPreset& ensureActivePreset();
+    QVector<CapturedExplosionStep>& activeCapturedSteps();
+    const QVector<CapturedExplosionStep>& activeCapturedSteps() const;
 
     GLWidget*    _glWidget   = nullptr;
     SceneGraph*  _sceneGraph = nullptr;
@@ -142,18 +165,12 @@ private:
     PickingTarget            _pickingTarget = PickingTarget::None;
     QMetaObject::Connection  _pickingConn;
 
-    QSet<QUuid> _assemblyUuids;
-    QUuid       _anchorUuid;
     QIcon       _assemblySelectIdleIcon;
     QIcon       _assemblySelectCommitIcon;
-    QVector<CapturedExplosionStep> _capturedSteps;
-    int _capturedStepCounter = 1;
+    QVector<ExplodedViewPreset> _presets;
+    int _activePresetIndex = -1;
     int _createdAnimationCounter = 1;
-    QPushButton* _pushButtonPreviewPlayPause = nullptr;
-    QPushButton* _pushButtonPreviewStop = nullptr;
-    QCheckBox* _checkBoxPreviewLoop = nullptr;
-    QSlider* _sliderPreviewTimeline = nullptr;
-    QLabel* _labelPreviewTime = nullptr;
+    bool _syncingPresetUi = false;
     bool _syncingPreviewControls = false;
     bool _previewScrubbing = false;
     bool _draftPreviewActive = false;
@@ -165,6 +182,7 @@ private:
     QSet<QString> _draftPreviewFiles;
     QHash<QUuid, PreviewMeshState> _draftPreviewMeshStates;
     SuspendedAnimationState _draftPreviewSuspendedAnimation;
+    QSet<QUuid> _emptyAssemblyUuids;
 
 private slots:
     void on_pushButtonCaptureView_clicked();

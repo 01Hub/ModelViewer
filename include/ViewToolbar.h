@@ -39,6 +39,8 @@ public:
     void deactivateAllNavigationModes();
 
     void setSwapVisibleChecked(bool checked);
+    void setSectionViewChecked(bool checked);
+    void setExplodedViewChecked(bool checked);
 
 signals:
     void cameraModeSelected(const QString& type);

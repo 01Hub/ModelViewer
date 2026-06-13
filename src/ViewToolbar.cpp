@@ -768,6 +768,20 @@ void ViewToolbar::setSwapVisibleChecked(bool checked)
 	_swapBtn->blockSignals(oldState);
 }
 
+void ViewToolbar::setSectionViewChecked(bool checked)
+{
+	bool oldState = _sectionBtn->blockSignals(true);
+	_sectionBtn->setChecked(checked);
+	_sectionBtn->blockSignals(oldState);
+}
+
+void ViewToolbar::setExplodedViewChecked(bool checked)
+{
+	bool oldState = _explodedBtn->blockSignals(true);
+	_explodedBtn->setChecked(checked);
+	_explodedBtn->blockSignals(oldState);
+}
+
 
 void ViewToolbar::paintEvent(QPaintEvent* event)
 {
