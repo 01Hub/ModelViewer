@@ -2,6 +2,7 @@
 #include "AssImpModelLoader.h"
 #include "CutCommand.h"
 #include "DeleteMeshCommand.h"
+#include "MetadataDeleteCommand.h"
 #include "DuplicateCommand.h"
 #include "PasteCommand.h"
 #include "RenameMeshCommand.h"
@@ -383,6 +384,15 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 		connect(_variantsPanel, &MaterialVariantsPanel::variantActivated,
 		        this,           &ModelViewer::applyVariant);
+		connect(_variantsPanel, &MaterialVariantsPanel::variantDeleteRequested,
+		        this, [this](const QString& sourceFile, int variantIndex)
+		{
+			if (!_sceneGraph || !_glWidget || !_undoStack || sourceFile.isEmpty())
+				return;
+			_undoStack->push(new MetadataDeleteCommand(
+				this, _glWidget, MetadataDeleteCommand::Kind::Variant,
+				sourceFile, variantIndex, tr("Delete Variant")));
+		});
 
 		connect(_sceneGraph, &SceneGraph::variantDataChanged,
 		        this,         &ModelViewer::refreshNavigationSubTabs);
@@ -404,6 +414,15 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		        _glWidget,         &GLWidget::seekAnimation);
 		connect(_animationsPanel, &AnimationsPanel::playbackSpeedChanged,
 		        _glWidget,         &GLWidget::setAnimationPlaybackSpeed);
+		connect(_animationsPanel, &AnimationsPanel::clipDeleteRequested,
+		        this, [this](const QString& sourceFile, int clipIndex)
+		{
+			if (!_sceneGraph || !_glWidget || !_undoStack || sourceFile.isEmpty())
+				return;
+			_undoStack->push(new MetadataDeleteCommand(
+				this, _glWidget, MetadataDeleteCommand::Kind::Animation,
+				sourceFile, clipIndex, tr("Delete Animation")));
+		});
 
 		connect(_sceneGraph, &SceneGraph::animationDataChanged,
 		        this,         &ModelViewer::refreshNavigationSubTabs);
@@ -421,6 +440,15 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		        _glWidget,      &GLWidget::activateGltfCamera);
 		connect(_camerasPanel, &CamerasPanel::systemCameraRequested,
 		        _glWidget,      &GLWidget::resetToSystemCamera);
+		connect(_camerasPanel, &CamerasPanel::gltfCameraDeleteRequested,
+		        this, [this](const QString& sourceFile, int cameraIndex)
+		{
+			if (!_sceneGraph || !_glWidget || !_undoStack || sourceFile.isEmpty())
+				return;
+			_undoStack->push(new MetadataDeleteCommand(
+				this, _glWidget, MetadataDeleteCommand::Kind::Camera,
+				sourceFile, cameraIndex, tr("Delete Camera")));
+		});
 
 		connect(_sceneGraph, &SceneGraph::gltfCameraDataChanged,
 		        this,         &ModelViewer::refreshNavigationSubTabs);

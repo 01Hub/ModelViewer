@@ -35,6 +35,7 @@ public:
 
 signals:
 	void clipActivated(const QString& sourceFile, int clipIndex);
+	void clipDeleteRequested(const QString& sourceFile, int clipIndex);
 	void playbackToggled(bool playing);
 	void loopToggled(bool enabled);
 	void seekRequested(double timeSeconds);
@@ -43,6 +44,7 @@ signals:
 private slots:
 	void onItemClicked(QTreeWidgetItem* item, int column);
 	void onPlayPauseClicked();
+	void onTreeContextMenuRequested(const QPoint& pos);
 	void onLoopCheckChanged(bool checked);
 	void onPlaybackSpeedChanged(int index);
 	void onSliderPressed();
@@ -56,6 +58,7 @@ private:
 	QTreeWidgetItem* makeClipItem(const QString& label, int clipIndex, double durationSeconds, bool active) const;
 	void markActiveClip(const QString& sourceFile, int clipIndex);
 	void updateControlsForSelection();
+	void restoreSelection();
 	QIcon activeIcon() const;
 	QIcon inactiveIcon() const;
 	void updateDetachedPlayButtonStyle();
@@ -74,6 +77,8 @@ private:
 	bool _scrubbing = false;
 	bool _syncingControls = false;
 	double _currentDurationSeconds = 0.0;
+	QString _selectedSourceFile;
+	int _selectedClipIndex = -1;
 
 	QPalette _savedPalette;
 	QPalette _savedViewportPalette;

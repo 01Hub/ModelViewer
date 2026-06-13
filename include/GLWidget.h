@@ -173,6 +173,13 @@ public:
 
 	void showAxis(bool show);
 	void showTransformGizmoForSelection(bool show);
+	bool beginExplodedViewManualPlacement();
+	void finishExplodedViewManualPlacement();
+	void clearExplodedViewManualPlacement();
+	bool isExplodedViewManualPlacementActive() const { return _explodedViewManualPlacementActive; }
+	bool hasExplodedViewManualPlacement() const { return !_explodedViewManualOriginalStates.isEmpty(); }
+	bool hasExplodedViewManualTransformChanges() const;
+	QSet<QUuid> explodedViewManualPlacementUuids() const;
 
 	void showShadows(bool show);
 	void showSelfShadows(bool show);
@@ -1280,6 +1287,8 @@ private:
 	QVector3D _transformGizmoRotationStartVector = QVector3D(1.0f, 0.0f, 0.0f);
 	QVector3D _transformGizmoCurrentRotationDelta = QVector3D(0.0f, 0.0f, 0.0f);
 	bool _transformGizmoLoggedTranslationUpdate = false;
+	bool _explodedViewManualPlacementActive = false;
+	QMap<QUuid, TransformState> _explodedViewManualOriginalStates;
 	int _viewCubeHoveredRegionId = -1;
 	bool _customViewAnimationActive = false;
 	bool _showViewCubeOverride = true;

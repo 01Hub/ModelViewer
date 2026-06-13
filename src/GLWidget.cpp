@@ -45,6 +45,7 @@ constexpr auto MAX_MODEL_SIZE_BYTES = 52428800; // bytes
 namespace
 {
 constexpr float kDefaultFloorOffsetPercent = 0.0f;
+constexpr float kExplodedManualTransformTolerance = 1.0e-8f;
 
 struct ViewCubeStyle
 {
@@ -70,6 +71,24 @@ struct ViewCubeStyle
 	float labelFaceOffset = 0.501f;
 	float labelFaceScale = 0.68f;
 };
+
+bool transformStatesNearlyEqual(const TransformState& a, const TransformState& b)
+{
+	if ((a.translation - b.translation).lengthSquared() > kExplodedManualTransformTolerance)
+		return false;
+	if ((a.scale - b.scale).lengthSquared() > kExplodedManualTransformTolerance)
+		return false;
+
+	if (a.hasExactRotation || b.hasExactRotation)
+	{
+		const QQuaternion identityRotation(1.0f, 0.0f, 0.0f, 0.0f);
+		const QQuaternion aq = a.hasExactRotation ? a.rotationQuat.normalized() : identityRotation;
+		const QQuaternion bq = b.hasExactRotation ? b.rotationQuat.normalized() : identityRotation;
+		return std::abs(QQuaternion::dotProduct(aq, bq)) >= (1.0f - 1.0e-4f);
+	}
+
+	return (a.rotation - b.rotation).lengthSquared() <= kExplodedManualTransformTolerance;
+}
 
 const ViewCubeStyle kViewCubeStyle;
 
@@ -3334,11 +3353,18 @@ void GLWidget::showExplodedViewPanel(bool show)
 		_explodedViewPanel->captureCurrentSelection();
 		_explodedViewPanel->show();
 	} else {
+		clearExplodedViewManualPlacement();
 		_explodedViewPanel->hide();
 		_explodedViewManager->reset();
 		// Clear explosion offsets from all meshes.
 		for (size_t i = 0; i < _meshStore.size(); ++i)
-			if (_meshStore[i]) _meshStore[i]->setExplosionOffset(QVector3D());
+		{
+			if (_meshStore[i])
+			{
+				_meshStore[i]->setExplosionOffset(QVector3D());
+				_meshStore[i]->setSceneRenderTransformFast(_meshStore[i]->getSceneRenderTransform());
+			}
+		}
 		update();
 	}
 }
@@ -3355,7 +3381,13 @@ void GLWidget::updateExplosion()
     if (assemblyUuids.isEmpty()) {
         _explodedViewManager->reset();
         for (size_t i = 0; i < _meshStore.size(); ++i)
-            if (_meshStore[i]) _meshStore[i]->setExplosionOffset(QVector3D());
+        {
+            if (_meshStore[i])
+            {
+                _meshStore[i]->setExplosionOffset(QVector3D());
+                _meshStore[i]->setSceneRenderTransformFast(_meshStore[i]->getSceneRenderTransform());
+            }
+        }
         update();
         return;
     }
@@ -3363,7 +3395,13 @@ void GLWidget::updateExplosion()
     // Clear any previous offsets BEFORE building centroids so that getBoundingSphere()
     // (used in the no-scene-graph fallback) returns the original non-exploded centers.
     for (size_t i = 0; i < _meshStore.size(); ++i)
-        if (_meshStore[i]) _meshStore[i]->setExplosionOffset(QVector3D());
+    {
+        if (_meshStore[i])
+        {
+            _meshStore[i]->setExplosionOffset(QVector3D());
+            _meshStore[i]->setSceneRenderTransformFast(_meshStore[i]->getSceneRenderTransform());
+        }
+    }
 
     // Build world-space centroids and AABBs for each assembly mesh.
     // Offsets were cleared above, so getBoundingBox() returns the unmodified
@@ -3429,7 +3467,10 @@ void GLWidget::updateExplosion()
     {
         TriangleMesh* mesh = getMeshByUuid(uuid);
         if (mesh)
+        {
             mesh->setExplosionOffset(_explodedViewManager->offsetForMesh(uuid));
+            mesh->setSceneRenderTransformFast(mesh->getSceneRenderTransform());
+        }
     }
 
     if (_autoFitViewOnUpdate)
@@ -3755,11 +3796,112 @@ void GLWidget::showTransformGizmoForSelection(bool show)
 	_transformGizmoRequested = show;
 	if (show)
 		MainWindow::showStatusMessage(
-			tr("Transform gizmo active: drag the corner box handle to scale uniformly"),
+			_explodedViewManualPlacementActive
+				? tr("Manual exploded placement active: translate or rotate the selected meshes to refine the staged pose")
+				: tr("Transform gizmo active: drag the corner box handle to scale uniformly"),
 			5000);
 	else
 		MainWindow::showStatusMessage(QString(), 0);
 	syncTransformGizmoToSelection();
+	update();
+}
+
+bool GLWidget::beginExplodedViewManualPlacement()
+{
+	if (!_viewer || !_selectionManager)
+		return false;
+
+	const QList<int> selectedIds = _selectionManager->getSelectedIds();
+	if (selectedIds.isEmpty())
+		return false;
+
+	for (int id : selectedIds)
+	{
+		const QUuid uuid = getUuidByIndex(id);
+		TriangleMesh* mesh = getMeshByIndex(id);
+		if (uuid.isNull() || !mesh || _explodedViewManualOriginalStates.contains(uuid))
+			continue;
+
+		_explodedViewManualOriginalStates.insert(uuid, TransformState(
+			mesh->getTranslation(),
+			mesh->getRotation(),
+			mesh->getScaling(),
+			mesh->getRotationQuaternion()));
+	}
+
+	_explodedViewManualPlacementActive = true;
+	showTransformGizmoForSelection(true);
+	return true;
+}
+
+bool GLWidget::hasExplodedViewManualTransformChanges() const
+{
+	for (auto it = _explodedViewManualOriginalStates.cbegin(); it != _explodedViewManualOriginalStates.cend(); ++it)
+	{
+		const TriangleMesh* mesh = getMeshByUuid(it.key());
+		if (!mesh)
+			continue;
+
+		const TransformState currentState(
+			mesh->getTranslation(),
+			mesh->getRotation(),
+			mesh->getScaling(),
+			mesh->getRotationQuaternion());
+		if (!transformStatesNearlyEqual(it.value(), currentState))
+			return true;
+	}
+
+	return false;
+}
+
+QSet<QUuid> GLWidget::explodedViewManualPlacementUuids() const
+{
+	QSet<QUuid> uuids;
+	for (auto it = _explodedViewManualOriginalStates.cbegin(); it != _explodedViewManualOriginalStates.cend(); ++it)
+	{
+		const TriangleMesh* mesh = getMeshByUuid(it.key());
+		if (!mesh)
+			continue;
+
+		const TransformState currentState(
+			mesh->getTranslation(),
+			mesh->getRotation(),
+			mesh->getScaling(),
+			mesh->getRotationQuaternion());
+		if (!transformStatesNearlyEqual(it.value(), currentState))
+			uuids.insert(it.key());
+	}
+
+	return uuids;
+}
+
+void GLWidget::finishExplodedViewManualPlacement()
+{
+	showTransformGizmoForSelection(false);
+	_explodedViewManualPlacementActive = false;
+}
+
+void GLWidget::clearExplodedViewManualPlacement()
+{
+	_explodedViewManualPlacementActive = false;
+	showTransformGizmoForSelection(false);
+
+	for (auto it = _explodedViewManualOriginalStates.cbegin(); it != _explodedViewManualOriginalStates.cend(); ++it)
+	{
+		TriangleMesh* mesh = getMeshByUuid(it.key());
+		if (!mesh)
+			continue;
+
+		const TransformState& state = it.value();
+		mesh->setTranslation(state.translation);
+		if (state.hasExactRotation)
+			mesh->setRotationQuaternion(state.rotationQuat, state.rotation);
+		else
+			mesh->setRotation(state.rotation);
+		mesh->setScaling(state.scale);
+	}
+
+	_explodedViewManualOriginalStates.clear();
 	update();
 }
 
@@ -7901,7 +8043,11 @@ void GLWidget::finishTransformGizmoTranslationDrag(bool commit)
 
 	const bool moved = _transformGizmoCurrentTranslationDelta.lengthSquared() > 1.0e-8f;
 
-	if (commit && moved && !oldStatesByUuid.isEmpty())
+	if (_explodedViewManualPlacementActive)
+	{
+		update();
+	}
+	else if (commit && moved && !oldStatesByUuid.isEmpty())
 	{
 		_viewer->getUndoStack()->push(new TransformCommand(
 			_viewer, this, oldStatesByUuid, newStatesByUuid, tr("Translate Selection"), false));
@@ -7939,6 +8085,8 @@ void GLWidget::finishTransformGizmoTranslationDrag(bool commit)
 bool GLWidget::beginTransformGizmoScaleDrag(TransformGizmo::Handle handle, const QPoint& pixel, bool uniformScale)
 {
 	if (!_transformGizmoRequested || !_transformGizmo || !_viewer)
+		return false;
+	if (_explodedViewManualPlacementActive)
 		return false;
 
 	QVector3D axis;
@@ -8142,7 +8290,11 @@ void GLWidget::finishTransformGizmoScaleDrag(bool commit)
 	const QVector3D scaleDelta = _transformGizmoCurrentScaleDelta - QVector3D(1.0f, 1.0f, 1.0f);
 	const bool scaled = scaleDelta.lengthSquared() > 1.0e-8f;
 
-	if (commit && scaled && !oldStatesByUuid.isEmpty())
+	if (_explodedViewManualPlacementActive)
+	{
+		update();
+	}
+	else if (commit && scaled && !oldStatesByUuid.isEmpty())
 	{
 		_viewer->getUndoStack()->push(new TransformCommand(
 			_viewer, this, oldStatesByUuid, newStatesByUuid, tr("Scale Selection"), false));
@@ -8380,7 +8532,11 @@ void GLWidget::finishTransformGizmoRotationDrag(bool commit)
 
 	const bool moved = _transformGizmoCurrentRotationDelta.lengthSquared() > 1.0e-8f;
 
-	if (commit && moved && !oldStatesByUuid.isEmpty())
+	if (_explodedViewManualPlacementActive)
+	{
+		update();
+	}
+	else if (commit && moved && !oldStatesByUuid.isEmpty())
 	{
 		_viewer->getUndoStack()->push(new TransformCommand(
 			_viewer, this, oldStatesByUuid, newStatesByUuid, tr("Rotate Selection"), false));

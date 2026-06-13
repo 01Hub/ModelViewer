@@ -3,6 +3,7 @@
 
 #include <QFileInfo>
 #include <QHBoxLayout>
+#include <QMenu>
 #include <QPainter>
 #include <QPaintEvent>
 #include <QPixmap>
@@ -54,10 +55,13 @@ MaterialVariantsPanel::MaterialVariantsPanel(QWidget* parent)
     _tree->setAlternatingRowColors(true);
     _tree->setSelectionMode(QAbstractItemView::NoSelection);
     _tree->setFocusPolicy(Qt::NoFocus);
+    _tree->setContextMenuPolicy(Qt::CustomContextMenu);
     layout->addWidget(_tree);
 
     connect(_tree, &QTreeWidget::itemClicked,
             this,  &MaterialVariantsPanel::onItemClicked);
+    connect(_tree, &QWidget::customContextMenuRequested,
+            this, &MaterialVariantsPanel::onTreeContextMenuRequested);
 }
 
 void MaterialVariantsPanel::setSceneGraph(SceneGraph* sg)
@@ -224,6 +228,33 @@ void MaterialVariantsPanel::onItemClicked(QTreeWidgetItem* item, int /*column*/)
     markActiveVariant(sourceFile, variantIndex);
 
     emit variantActivated(sourceFile, variantIndex);
+}
+
+void MaterialVariantsPanel::onTreeContextMenuRequested(const QPoint& pos)
+{
+    if (!_tree)
+        return;
+
+    QTreeWidgetItem* item = _tree->itemAt(pos);
+    if (!item)
+        return;
+
+    const bool isFileItem = item->data(0, IsFileItemRole).toBool();
+    const QString sourceFile = isFileItem
+        ? item->data(0, SourceFileRole).toString()
+        : (item->parent() ? item->parent()->data(0, SourceFileRole).toString() : QString());
+    const int variantIndex = isFileItem ? -1 : item->data(0, VariantIndexRole).toInt();
+
+    if (sourceFile.isEmpty())
+        return;
+    if (!isFileItem && variantIndex < 0)
+        return;
+
+    QMenu menu(this);
+    QAction* deleteAction = menu.addAction(isFileItem ? tr("Delete All") : tr("Delete"));
+    QAction* chosen = menu.exec(_tree->viewport()->mapToGlobal(pos));
+    if (chosen == deleteAction)
+        emit variantDeleteRequested(sourceFile, variantIndex);
 }
 
 // ---------------------------------------------------------------------------

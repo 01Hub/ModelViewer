@@ -5,6 +5,7 @@
 
 #include <QFileInfo>
 #include <QHBoxLayout>
+#include <QMenu>
 #include <QPainter>
 #include <QPaintEvent>
 #include <QPixmap>
@@ -50,10 +51,13 @@ CamerasPanel::CamerasPanel(QWidget* parent)
     _tree->setAlternatingRowColors(true);
     _tree->setSelectionMode(QAbstractItemView::NoSelection);
     _tree->setFocusPolicy(Qt::NoFocus);
+    _tree->setContextMenuPolicy(Qt::CustomContextMenu);
     layout->addWidget(_tree);
 
     connect(_tree, &QTreeWidget::itemClicked,
             this,  &CamerasPanel::onItemClicked);
+    connect(_tree, &QWidget::customContextMenuRequested,
+            this, &CamerasPanel::onTreeContextMenuRequested);
 }
 
 void CamerasPanel::setSceneGraph(SceneGraph* sg)
@@ -241,6 +245,34 @@ void CamerasPanel::onItemClicked(QTreeWidgetItem* item, int /*column*/)
 
     markActive(sourceFile, cameraIndex, /*isSystemCam=*/false);
     emit gltfCameraActivated(sourceFile, cameraIndex);
+}
+
+void CamerasPanel::onTreeContextMenuRequested(const QPoint& pos)
+{
+    if (!_tree)
+        return;
+
+    QTreeWidgetItem* item = _tree->itemAt(pos);
+    if (!item)
+        return;
+
+    if (item->data(0, IsSystemCamRole).toBool())
+        return;
+
+    const bool isFileItem = item->data(0, IsFileItemRole).toBool();
+    const QString sourceFile = isFileItem
+        ? item->data(0, SourceFileRole).toString()
+        : (item->parent() ? item->parent()->data(0, SourceFileRole).toString() : QString());
+    const int cameraIndex = isFileItem ? -1 : item->data(0, CameraIndexRole).toInt();
+
+    if (sourceFile.isEmpty())
+        return;
+
+    QMenu menu(this);
+    QAction* deleteAction = menu.addAction(isFileItem ? tr("Delete All") : tr("Delete"));
+    QAction* chosen = menu.exec(_tree->viewport()->mapToGlobal(pos));
+    if (chosen == deleteAction)
+        emit gltfCameraDeleteRequested(sourceFile, cameraIndex);
 }
 
 // ---------------------------------------------------------------------------

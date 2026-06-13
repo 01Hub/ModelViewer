@@ -61,9 +61,11 @@ signals:
     // Emitted when the user clicks a variant item.
     // variantIndex = -1 → reset to file default.
     void variantActivated(const QString& sourceFile, int variantIndex);
+    void variantDeleteRequested(const QString& sourceFile, int variantIndex);
 
 private slots:
     void onItemClicked(QTreeWidgetItem* item, int column);
+    void onTreeContextMenuRequested(const QPoint& pos);
 
 private:
     void paintEvent(QPaintEvent* event) override;
