@@ -173,13 +173,17 @@ public:
 
 	void showAxis(bool show);
 	void showTransformGizmoForSelection(bool show);
-	bool beginExplodedViewManualPlacement();
+	bool beginExplodedViewManualPlacement(const QVector<QUuid>& selectionUuids = {});
 	void finishExplodedViewManualPlacement();
 	void clearExplodedViewManualPlacement();
 	bool isExplodedViewManualPlacementActive() const { return _explodedViewManualPlacementActive; }
 	bool hasExplodedViewManualPlacement() const { return !_explodedViewManualOriginalStates.isEmpty(); }
 	bool hasExplodedViewManualTransformChanges() const;
 	QSet<QUuid> explodedViewManualPlacementUuids() const;
+	QVector3D explodedViewManualPlacementTranslationDelta() const;
+	QVector3D explodedViewManualPlacementRotationDelta() const;
+	void setExplodedViewManualPlacementTranslationDelta(const QVector3D& delta);
+	void setExplodedViewManualPlacementRotationDelta(const QVector3D& delta);
 
 	void showShadows(bool show);
 	void showSelfShadows(bool show);
@@ -563,6 +567,7 @@ signals:
 	void displayModeChanged(int);
 	void renderingModeChanged(int);
 	void animationStateChanged();
+	void explodedViewManualPlacementChanged();
 	void backgroundColorChanged(const QColor& topColor, const QColor& bottomColor);
 	// Forwarded from SelectionManager so external panels (e.g. TextureDebugPanel)
 	// can react to mesh selection changes without needing access to SelectionManager.
@@ -780,6 +785,8 @@ private:
 	void drawViewCubeLabels(const QMatrix4x4& viewMatrix, const QMatrix4x4& projectionMatrix, float cubeScale);
 	BoundingSphere computeTransformGizmoSelectionSphere() const;
 	QVector3D computeTransformGizmoPivot() const;
+	std::vector<int> activeTransformGizmoSelectionIds() const;
+	void applyExplodedViewManualPlacementSessionTransform();
 	void syncTransformGizmoToSelection();
 	bool beginTransformGizmoDrag(TransformGizmo::Handle handle, const QPoint& pixel);
 	bool beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle, const QPoint& pixel);
@@ -1290,6 +1297,16 @@ private:
 	bool _transformGizmoLoggedTranslationUpdate = false;
 	bool _explodedViewManualPlacementActive = false;
 	QMap<QUuid, TransformState> _explodedViewManualOriginalStates;
+	QSet<QUuid> _explodedViewManualPlacementSessionUuids;
+	QMap<QUuid, TransformState> _explodedViewManualSessionStartStates;
+	QMap<QUuid, QMatrix4x4> _explodedViewManualSessionStartMatrices;
+	QVector3D _explodedViewManualSessionStartPivot = QVector3D(0.0f, 0.0f, 0.0f);
+	QVector3D _explodedViewManualSessionTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
+	QQuaternion _explodedViewManualSessionRotationQuat = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+	QVector3D _explodedViewManualSessionRotationEuler = QVector3D(0.0f, 0.0f, 0.0f);
+	QVector3D _explodedViewManualDragStartTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
+	QQuaternion _explodedViewManualDragStartRotationQuat = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+	QVector3D _explodedViewManualDragStartRotationEuler = QVector3D(0.0f, 0.0f, 0.0f);
 	int _viewCubeHoveredRegionId = -1;
 	bool _customViewAnimationActive = false;
 	bool _showViewCubeOverride = true;

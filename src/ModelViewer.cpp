@@ -3478,7 +3478,10 @@ void ModelViewer::handleTreeWidgetSelectionChanged()
 
 	if (selectedVec.empty())
 	{
-		_glWidget->showTransformGizmoForSelection(false);
+		if (_glWidget->isExplodedViewManualPlacementActive())
+			_glWidget->showTransformGizmoForSelection(true);
+		else
+			_glWidget->showTransformGizmoForSelection(false);
 	}
 	else if (tabWidgetVizAttribs->currentWidget() == transformationsPage)
 	{

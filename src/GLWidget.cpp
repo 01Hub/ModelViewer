@@ -182,6 +182,12 @@ QMatrix4x4 buildMeshRotationMatrix(const QVector3D& rotation)
 	return matrix;
 }
 
+QQuaternion quaternionFromMeshEuler(const QVector3D& rotation)
+{
+	const QMatrix4x4 matrix = buildMeshRotationMatrix(rotation);
+	return QQuaternion::fromRotationMatrix(matrix.toGenericMatrix<3, 3>()).normalized();
+}
+
 float normalizeDegrees180(float degrees)
 {
 	float normalized = std::fmod(degrees + 180.0f, 360.0f);
@@ -3819,31 +3825,84 @@ void GLWidget::showTransformGizmoForSelection(bool show)
 	update();
 }
 
-bool GLWidget::beginExplodedViewManualPlacement()
+bool GLWidget::beginExplodedViewManualPlacement(const QVector<QUuid>& selectionUuids)
 {
 	if (!_viewer || !_selectionManager)
 		return false;
 
-	const QList<int> selectedIds = _selectionManager->getSelectedIds();
-	if (selectedIds.isEmpty())
-		return false;
-
-	for (int id : selectedIds)
+	_explodedViewManualPlacementSessionUuids.clear();
+	_explodedViewManualSessionStartStates.clear();
+	_explodedViewManualSessionStartMatrices.clear();
+	_explodedViewManualSessionStartPivot = QVector3D(0.0f, 0.0f, 0.0f);
+	_explodedViewManualSessionTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
+	_explodedViewManualSessionRotationQuat = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+	_explodedViewManualSessionRotationEuler = QVector3D(0.0f, 0.0f, 0.0f);
+	_explodedViewManualDragStartTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
+	_explodedViewManualDragStartRotationQuat = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+	_explodedViewManualDragStartRotationEuler = QVector3D(0.0f, 0.0f, 0.0f);
+	if (!selectionUuids.isEmpty())
 	{
-		const QUuid uuid = getUuidByIndex(id);
-		TriangleMesh* mesh = getMeshByIndex(id);
-		if (uuid.isNull() || !mesh || _explodedViewManualOriginalStates.contains(uuid))
-			continue;
+		for (const QUuid& uuid : selectionUuids)
+		{
+			TriangleMesh* mesh = getMeshByUuid(uuid);
+			if (uuid.isNull() || !mesh)
+				continue;
 
-		_explodedViewManualOriginalStates.insert(uuid, TransformState(
-			mesh->getTranslation(),
-			mesh->getRotation(),
-			mesh->getScaling(),
-			mesh->getRotationQuaternion()));
+			_explodedViewManualPlacementSessionUuids.insert(uuid);
+			_explodedViewManualSessionStartStates.insert(uuid, TransformState(
+				mesh->getTranslation(),
+				mesh->getRotation(),
+				mesh->getScaling(),
+				mesh->getRotationQuaternion()));
+			_explodedViewManualSessionStartMatrices.insert(uuid, mesh->getTransformation());
+			if (_explodedViewManualOriginalStates.contains(uuid))
+				continue;
+
+			_explodedViewManualOriginalStates.insert(uuid, TransformState(
+				mesh->getTranslation(),
+				mesh->getRotation(),
+				mesh->getScaling(),
+				mesh->getRotationQuaternion()));
+		}
+	}
+	else
+	{
+		const QList<int> selectedIds = _selectionManager->getSelectedIds();
+		if (selectedIds.isEmpty())
+			return false;
+
+		for (int id : selectedIds)
+		{
+			const QUuid uuid = getUuidByIndex(id);
+			TriangleMesh* mesh = getMeshByIndex(id);
+			if (uuid.isNull() || !mesh)
+				continue;
+
+			_explodedViewManualPlacementSessionUuids.insert(uuid);
+			_explodedViewManualSessionStartStates.insert(uuid, TransformState(
+				mesh->getTranslation(),
+				mesh->getRotation(),
+				mesh->getScaling(),
+				mesh->getRotationQuaternion()));
+			_explodedViewManualSessionStartMatrices.insert(uuid, mesh->getTransformation());
+			if (_explodedViewManualOriginalStates.contains(uuid))
+				continue;
+
+			_explodedViewManualOriginalStates.insert(uuid, TransformState(
+				mesh->getTranslation(),
+				mesh->getRotation(),
+				mesh->getScaling(),
+				mesh->getRotationQuaternion()));
+		}
 	}
 
+	if (_explodedViewManualPlacementSessionUuids.isEmpty())
+		return false;
+
 	_explodedViewManualPlacementActive = true;
+	_explodedViewManualSessionStartPivot = computeTransformGizmoPivot();
 	showTransformGizmoForSelection(true);
+	emit explodedViewManualPlacementChanged();
 	return true;
 }
 
@@ -3888,15 +3947,67 @@ QSet<QUuid> GLWidget::explodedViewManualPlacementUuids() const
 	return uuids;
 }
 
+QVector3D GLWidget::explodedViewManualPlacementTranslationDelta() const
+{
+	return _explodedViewManualSessionTranslationDelta;
+}
+
+QVector3D GLWidget::explodedViewManualPlacementRotationDelta() const
+{
+	return _explodedViewManualSessionRotationEuler;
+}
+
+void GLWidget::setExplodedViewManualPlacementTranslationDelta(const QVector3D& delta)
+{
+	if (!_explodedViewManualPlacementActive || _explodedViewManualSessionStartStates.isEmpty())
+		return;
+
+	_explodedViewManualSessionTranslationDelta = delta;
+	applyExplodedViewManualPlacementSessionTransform();
+	emit explodedViewManualPlacementChanged();
+}
+
+void GLWidget::setExplodedViewManualPlacementRotationDelta(const QVector3D& delta)
+{
+	if (!_explodedViewManualPlacementActive || _explodedViewManualSessionStartStates.isEmpty())
+		return;
+
+	_explodedViewManualSessionRotationEuler = delta;
+	_explodedViewManualSessionRotationQuat = quaternionFromMeshEuler(delta);
+	applyExplodedViewManualPlacementSessionTransform();
+	emit explodedViewManualPlacementChanged();
+}
+
 void GLWidget::finishExplodedViewManualPlacement()
 {
 	showTransformGizmoForSelection(false);
 	_explodedViewManualPlacementActive = false;
+	_explodedViewManualPlacementSessionUuids.clear();
+	_explodedViewManualSessionStartStates.clear();
+	_explodedViewManualSessionStartMatrices.clear();
+	_explodedViewManualSessionStartPivot = QVector3D(0.0f, 0.0f, 0.0f);
+	_explodedViewManualSessionTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
+	_explodedViewManualSessionRotationQuat = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+	_explodedViewManualSessionRotationEuler = QVector3D(0.0f, 0.0f, 0.0f);
+	_explodedViewManualDragStartTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
+	_explodedViewManualDragStartRotationQuat = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+	_explodedViewManualDragStartRotationEuler = QVector3D(0.0f, 0.0f, 0.0f);
+	emit explodedViewManualPlacementChanged();
 }
 
 void GLWidget::clearExplodedViewManualPlacement()
 {
 	_explodedViewManualPlacementActive = false;
+	_explodedViewManualPlacementSessionUuids.clear();
+	_explodedViewManualSessionStartStates.clear();
+	_explodedViewManualSessionStartMatrices.clear();
+	_explodedViewManualSessionStartPivot = QVector3D(0.0f, 0.0f, 0.0f);
+	_explodedViewManualSessionTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
+	_explodedViewManualSessionRotationQuat = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+	_explodedViewManualSessionRotationEuler = QVector3D(0.0f, 0.0f, 0.0f);
+	_explodedViewManualDragStartTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
+	_explodedViewManualDragStartRotationQuat = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+	_explodedViewManualDragStartRotationEuler = QVector3D(0.0f, 0.0f, 0.0f);
 	showTransformGizmoForSelection(false);
 
 	for (auto it = _explodedViewManualOriginalStates.cbegin(); it != _explodedViewManualOriginalStates.cend(); ++it)
@@ -3916,6 +4027,7 @@ void GLWidget::clearExplodedViewManualPlacement()
 
 	_explodedViewManualOriginalStates.clear();
 	update();
+	emit explodedViewManualPlacementChanged();
 }
 
 void GLWidget::showShadows(bool show)
@@ -7801,7 +7913,7 @@ BoundingSphere GLWidget::computeTransformGizmoSelectionSphere() const
 	if (!_viewer)
 		return BoundingSphere();
 
-	const std::vector<int> selectedIds = _viewer->getSelectedIDs();
+	const std::vector<int> selectedIds = activeTransformGizmoSelectionIds();
 	BoundingSphere combinedSphere;
 	QVector<QVector3D> centers;
 	QVector<float> radii;
@@ -7843,6 +7955,73 @@ QVector3D GLWidget::computeTransformGizmoPivot() const
 	return computeTransformGizmoSelectionSphere().getCenter();
 }
 
+void GLWidget::applyExplodedViewManualPlacementSessionTransform()
+{
+	if (_explodedViewManualSessionStartStates.isEmpty())
+		return;
+
+	QMatrix4x4 rotationAroundPivot;
+	rotationAroundPivot.setToIdentity();
+	rotationAroundPivot.translate(_explodedViewManualSessionStartPivot);
+	rotationAroundPivot.rotate(_explodedViewManualSessionRotationQuat);
+	rotationAroundPivot.translate(-_explodedViewManualSessionStartPivot);
+
+	QMatrix4x4 translationMatrix;
+	translationMatrix.setToIdentity();
+	translationMatrix.translate(_explodedViewManualSessionTranslationDelta);
+
+	for (auto it = _explodedViewManualSessionStartStates.cbegin();
+	     it != _explodedViewManualSessionStartStates.cend(); ++it)
+	{
+		TriangleMesh* mesh = getMeshByUuid(it.key());
+		if (!mesh)
+			continue;
+
+		const TransformState& startState = it.value();
+		const QMatrix4x4 startMatrix = _explodedViewManualSessionStartMatrices.value(it.key(), mesh->getTransformation());
+		const QMatrix4x4 combinedMatrix = translationMatrix * rotationAroundPivot * startMatrix;
+		const QVector3D exactTranslation(
+			combinedMatrix(0, 3),
+			combinedMatrix(1, 3),
+			combinedMatrix(2, 3));
+
+		const QQuaternion baseQuat = startState.hasExactRotation
+			? startState.rotationQuat.normalized()
+			: quaternionFromMeshEuler(startState.rotation);
+		const QQuaternion exactRotationQuat =
+			(_explodedViewManualSessionRotationQuat * baseQuat).normalized();
+
+		QMatrix4x4 displayRotationMatrix;
+		displayRotationMatrix.setToIdentity();
+		displayRotationMatrix.rotate(exactRotationQuat);
+		const QVector3D displayRotation = extractMeshRotationFromMatrix(displayRotationMatrix);
+
+		mesh->setTranslationFast(exactTranslation);
+		mesh->setRotationQuaternionFast(exactRotationQuat, displayRotation);
+		mesh->setScalingFast(startState.scale);
+	}
+
+	update();
+}
+
+std::vector<int> GLWidget::activeTransformGizmoSelectionIds() const
+{
+	if (_explodedViewManualPlacementActive)
+	{
+		std::vector<int> lockedIds;
+		lockedIds.reserve(_explodedViewManualPlacementSessionUuids.size());
+		for (const QUuid& uuid : _explodedViewManualPlacementSessionUuids)
+		{
+			const int id = getIndexByUuid(uuid);
+			if (id >= 0)
+				lockedIds.push_back(id);
+		}
+		return lockedIds;
+	}
+
+	return _viewer ? _viewer->getSelectedIDs() : std::vector<int>();
+}
+
 void GLWidget::syncTransformGizmoToSelection()
 {
 	if (!_transformGizmo)
@@ -7860,7 +8039,7 @@ void GLWidget::syncTransformGizmoToSelection()
 		return;
 	}
 
-	const std::vector<int> selectedIds = _viewer->getSelectedIDs();
+	const std::vector<int> selectedIds = activeTransformGizmoSelectionIds();
 	if (selectedIds.empty())
 	{
 		if (_transformGizmoTranslating)
@@ -7939,8 +8118,10 @@ bool GLWidget::beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle,
 	_transformGizmoCurrentScaleDelta = QVector3D(1.0f, 1.0f, 1.0f);
 	_transformGizmoCurrentRotationDelta = QVector3D(0.0f, 0.0f, 0.0f);
 	_transformGizmoLoggedTranslationUpdate = false;
+	if (_explodedViewManualPlacementActive)
+		_explodedViewManualDragStartTranslationDelta = _explodedViewManualSessionTranslationDelta;
 
-	for (int id : _viewer->getSelectedIDs())
+	for (int id : activeTransformGizmoSelectionIds())
 	{
 		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
 			continue;
@@ -8015,6 +8196,12 @@ void GLWidget::updateTransformGizmoTranslationDrag(const QPoint& pixel)
 	{
 		_viewer->objectTransformPanel->setTranslationValues(_transformGizmoCurrentTranslationDelta);
 	}
+	if (_explodedViewManualPlacementActive)
+	{
+		_explodedViewManualSessionTranslationDelta =
+			_explodedViewManualDragStartTranslationDelta + _transformGizmoCurrentTranslationDelta;
+		emit explodedViewManualPlacementChanged();
+	}
 
 	update();
 }
@@ -8058,6 +8245,9 @@ void GLWidget::finishTransformGizmoTranslationDrag(bool commit)
 
 	if (_explodedViewManualPlacementActive)
 	{
+		if (!commit)
+			_explodedViewManualSessionTranslationDelta = _explodedViewManualDragStartTranslationDelta;
+		emit explodedViewManualPlacementChanged();
 		update();
 	}
 	else if (commit && moved && !oldStatesByUuid.isEmpty())
@@ -8140,7 +8330,7 @@ bool GLWidget::beginTransformGizmoScaleDrag(TransformGizmo::Handle handle, const
 	_transformGizmoCurrentScaleDelta = QVector3D(1.0f, 1.0f, 1.0f);
 	_transformGizmoCurrentRotationDelta = QVector3D(0.0f, 0.0f, 0.0f);
 
-	for (int id : _viewer->getSelectedIDs())
+	for (int id : activeTransformGizmoSelectionIds())
 	{
 		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
 			continue;
@@ -8397,8 +8587,13 @@ bool GLWidget::beginTransformGizmoRotationDrag(TransformGizmo::Handle handle, co
 	_transformGizmoCurrentRotationDelta = QVector3D(0.0f, 0.0f, 0.0f);
 	_transformGizmoCurrentTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
 	_transformGizmoCurrentScaleDelta = QVector3D(1.0f, 1.0f, 1.0f);
+	if (_explodedViewManualPlacementActive)
+	{
+		_explodedViewManualDragStartRotationQuat = _explodedViewManualSessionRotationQuat;
+		_explodedViewManualDragStartRotationEuler = _explodedViewManualSessionRotationEuler;
+	}
 
-	for (int id : _viewer->getSelectedIDs())
+	for (int id : activeTransformGizmoSelectionIds())
 	{
 		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
 			continue;
@@ -8504,6 +8699,23 @@ void GLWidget::updateTransformGizmoRotationDrag(const QPoint& pixel)
 	{
 		_viewer->objectTransformPanel->setRotationValues(_transformGizmoCurrentRotationDelta);
 	}
+	if (_explodedViewManualPlacementActive)
+	{
+		QMatrix4x4 rotationOnlyMatrix;
+		rotationOnlyMatrix.setToIdentity();
+		rotationOnlyMatrix.rotate(angleDegrees, _transformGizmoRotationPlaneNormal);
+		const QQuaternion deltaQuat =
+			QQuaternion::fromRotationMatrix(rotationOnlyMatrix.toGenericMatrix<3, 3>()).normalized();
+		_explodedViewManualSessionRotationQuat =
+			(deltaQuat * _explodedViewManualDragStartRotationQuat).normalized();
+
+		QMatrix4x4 sessionRotationMatrix;
+		sessionRotationMatrix.setToIdentity();
+		sessionRotationMatrix.rotate(_explodedViewManualSessionRotationQuat);
+		_explodedViewManualSessionRotationEuler =
+			extractMeshRotationFromMatrix(sessionRotationMatrix);
+		emit explodedViewManualPlacementChanged();
+	}
 
 	update();
 }
@@ -8547,6 +8759,12 @@ void GLWidget::finishTransformGizmoRotationDrag(bool commit)
 
 	if (_explodedViewManualPlacementActive)
 	{
+		if (!commit)
+		{
+			_explodedViewManualSessionRotationQuat = _explodedViewManualDragStartRotationQuat;
+			_explodedViewManualSessionRotationEuler = _explodedViewManualDragStartRotationEuler;
+		}
+		emit explodedViewManualPlacementChanged();
 		update();
 	}
 	else if (commit && moved && !oldStatesByUuid.isEmpty())

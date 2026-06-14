@@ -20,7 +20,7 @@ class GLWidget;
 class SceneGraph;
 class QTimer;
 class ExplodedViewSelectionEditor;
-class QListWidgetItem;
+class QTreeWidgetItem;
 
 class ExplodedViewPanel : public QWidget, private Ui::ExplodedViewPanel
 {
@@ -71,7 +71,10 @@ private slots:
     void on_pushButtonFinishManualPlacement_clicked();
     void on_pushButtonClearManualPlacement_clicked();
     void on_pushButtonReplaceCapture_clicked();
-    void onCapturedViewItemChanged(QListWidgetItem* item);
+    void on_pushButtonMoveCaptureUp_clicked();
+    void on_pushButtonMoveCaptureDown_clicked();
+    void onCapturedViewItemChanged(QTreeWidgetItem* item, int column);
+    void onCapturedViewsContextMenuRequested(const QPoint& pos);
 
 private:
     enum class PickingTarget { None, Assembly, Anchor };
@@ -91,9 +94,11 @@ private:
 
     struct CapturedExplosionStep
     {
-        QUuid                         id;
-        QString                       name;
+        QUuid id;
+        QString name;
+        bool isGroup = false;
         QVector<CapturedTransformTrack> tracks;
+        QVector<CapturedExplosionStep> children;
     };
 
     struct ExplodedViewPreset
@@ -107,9 +112,11 @@ private:
         float factor = 1.0f;
         QVector<CapturedExplosionStep> capturedSteps;
         int capturedStepCounter = 1;
+        int capturedGroupCounter = 1;
         int outputMode = 0;
         double durationSeconds = 3.0;
         bool loopBack = true;
+        bool useCombinedPose = true;
     };
 
     struct PreviewMeshState
@@ -140,6 +147,10 @@ private:
     void mergeAssemblySelection(const QList<int>& ids);
     void applyAnchorSelection(const QList<int>& ids);
     void updateAssemblySelectionDisplay(const QList<int>& ids);
+    void applyManualPlacementSelection(const QList<int>& ids);
+    void applyManualPlacementEntries(const QVector<QUuid>& selectionUuids);
+    void updateManualPlacementSelectionDisplay();
+    void clearManualPlacementSelection();
     QVector<QUuid> orderedAssemblyUuids() const;
     QString displayLabelForMeshUuid(const QUuid& uuid) const;
     void showExplodedViewSelectionEditor();
@@ -156,18 +167,44 @@ private:
     void cancelPickingMode();
     void updateAuthoringModeUi();
     void updateManualPlacementUi();
+    void updateManualPlacementEditors();
     void updatePreviewControls();
     void stopDraftPreview(bool restoreScene = true);
     bool ensureDraftPreviewSession();
     void applyDraftPreviewPose(double timeSeconds);
     double currentDraftPreviewDuration() const;
-    void syncCapturedStepOrderFromList();
     void updateAssemblyPickButtonVisual(bool awaitingCommit);
     void clearAssemblySelection();
     void updateCapturedViewsList();
+    void updateCaptureMoveButtons();
+    int currentCapturedStepRow() const;
+    void setCurrentCapturedStepRow(int row);
     void applyPopupMenuStyle(QMenu& menu) const;
+    QString nextCapturedGroupName() const;
+    QSet<QUuid> currentCaptureMeshUuids() const;
+    bool buildCurrentCapturedExplosionStep(CapturedExplosionStep& step) const;
     bool captureCurrentExplosionStep();
     bool replaceCapturedExplosionStep(int row);
+    bool moveCapturedStep(const QUuid& stepId, int direction);
+    bool moveCapturedStepInList(QVector<CapturedExplosionStep>& steps, const QUuid& stepId, int direction);
+    bool groupSelectedCaptures();
+    bool ungroupCapturedStep(const QUuid& groupId);
+    bool removeCapturedStepById(const QUuid& stepId);
+    void normalizeCapturedGroups(QVector<CapturedExplosionStep>& steps);
+    void refreshCapturedGroupTracks(QVector<CapturedExplosionStep>& steps);
+    CapturedExplosionStep* findCapturedStepById(QVector<CapturedExplosionStep>& steps, const QUuid& stepId);
+    const CapturedExplosionStep* findCapturedStepById(const QVector<CapturedExplosionStep>& steps, const QUuid& stepId) const;
+    bool removeCapturedStepById(QVector<CapturedExplosionStep>& steps, const QUuid& stepId);
+    bool ungroupCapturedStep(QVector<CapturedExplosionStep>& steps, const QUuid& groupId);
+    void collectCapturedLeafTracks(const CapturedExplosionStep& step, QVector<CapturedTransformTrack>& out) const;
+    QVector<CapturedTransformTrack> resolvedTracksForStep(const CapturedExplosionStep& step) const;
+    QVector<CapturedExplosionStep> resolvedTopLevelCapturedEntries() const;
+    QUuid currentCapturedStepId() const;
+    QUuid currentTopLevelCapturedStepId() const;
+    CapturedExplosionStep* currentCapturedStep();
+    const CapturedExplosionStep* currentCapturedStep() const;
+    CapturedExplosionStep* currentTopLevelCapturedStep();
+    const CapturedExplosionStep* currentTopLevelCapturedStep() const;
     bool createAnimationsFromCapturedSteps();
     void onPreviewPlayPauseClicked();
     void onPreviewStopClicked();
@@ -205,6 +242,7 @@ private:
     bool _draftPreviewActive = false;
     bool _draftPreviewPlaying = false;
     bool _draftPreviewLoopPlayback = true;
+    bool _syncingManualPlacementEditors = false;
     double _draftPreviewCurrentTime = 0.0;
     QElapsedTimer _draftPreviewElapsed;
     QTimer* _draftPreviewTimer = nullptr;
@@ -213,6 +251,7 @@ private:
     SuspendedAnimationState _draftPreviewSuspendedAnimation;
     QSet<QUuid> _emptyAssemblyUuids;
     QVector<QUuid> _assemblyEditWorkingUuids;
+    QVector<QUuid> _manualPlacementSelectionUuids;
     bool _reopenAssemblyEditDialogAfterPick = false;
     bool _assemblyEditPickActive = false;
     ExplodedViewSelectionEditor* _explodedViewSelectionEditor = nullptr;

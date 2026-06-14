@@ -6,14 +6,20 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>430</width>
-    <height>520</height>
+    <width>520</width>
+    <height>778</height>
    </rect>
   </property>
   <property name="minimumSize">
    <size>
-     <width>360</width>
-     <height>460</height>
+    <width>360</width>
+    <height>460</height>
+   </size>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>520</width>
+    <height>16777215</height>
    </size>
   </property>
   <property name="windowTitle">
@@ -22,7 +28,7 @@
   <property name="styleSheet">
    <string notr="true">color: rgb(0, 0, 0);</string>
   </property>
-  <layout class="QGridLayout" name="gridLayout_main">
+  <layout class="QGridLayout" name="gridLayout_2">
    <item row="0" column="0">
     <widget class="QGroupBox" name="groupBoxMain">
      <property name="styleSheet">
@@ -32,91 +38,58 @@
       <string>Exploded View</string>
      </property>
      <layout class="QGridLayout" name="gridLayout">
-      <item row="0" column="0">
-       <layout class="QGridLayout" name="layoutPresetSection">
-        <item row="0" column="0">
-         <widget class="QLabel" name="labelPreset">
+      <item row="9" column="0">
+       <layout class="QHBoxLayout" name="layoutButtons">
+        <item>
+         <widget class="QPushButton" name="pushButtonCapture">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+            <horstretch>1</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="minimumSize">
+           <size>
+            <width>140</width>
+            <height>28</height>
+           </size>
+          </property>
+          <property name="toolTip">
+           <string>Create one or more glTF animations from the captured explosion steps. Animation clip names will default to the active preset name.</string>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+          </property>
+          <property name="text">
+           <string>Create Animation</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="pushButtonReset">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
           <property name="minimumSize">
            <size>
             <width>70</width>
-            <height>0</height>
+            <height>28</height>
            </size>
           </property>
-          <property name="text">
-           <string>Preset</string>
-          </property>
-         </widget>
-        </item>
-        <item row="0" column="1" colspan="3">
-         <widget class="QComboBox" name="comboBoxPreset">
-          <property name="styleSheet">
-           <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
-          </property>
-          <item>
-           <property name="text">
-            <string>Explosion 1</string>
-           </property>
-          </item>
-         </widget>
-        </item>
-        <item row="0" column="4">
-         <widget class="QPushButton" name="pushButtonPresetNew">
-          <property name="enabled">
-           <bool>false</bool>
-          </property>
           <property name="toolTip">
-           <string>Preset actions will be wired in the next step of the implementation</string>
+           <string>Clear all selections and reset controls to defaults</string>
           </property>
           <property name="styleSheet">
            <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
           </property>
           <property name="text">
-           <string>New</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="1">
-         <widget class="QPushButton" name="pushButtonPresetDuplicate">
-          <property name="enabled">
-           <bool>false</bool>
-          </property>
-          <property name="toolTip">
-           <string>Preset actions will be wired in the next step of the implementation</string>
-          </property>
-          <property name="styleSheet">
-           <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
-          </property>
-          <property name="text">
-           <string>Duplicate</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="2">
-         <widget class="QPushButton" name="pushButtonPresetActions">
-          <property name="enabled">
-           <bool>false</bool>
-          </property>
-          <property name="toolTip">
-           <string>Preset actions will be wired in the next step of the implementation</string>
-          </property>
-          <property name="styleSheet">
-           <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
-          </property>
-          <property name="text">
-           <string>Rename/Delete</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="4">
-         <widget class="QLabel" name="labelPresetDirty">
-          <property name="visible">
-           <bool>false</bool>
-          </property>
-          <property name="text">
-           <string>Unsaved</string>
-          </property>
-          <property name="alignment">
-           <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+           <string>Reset</string>
           </property>
          </widget>
         </item>
@@ -142,6 +115,12 @@
         </item>
         <item>
          <widget class="QRadioButton" name="radioButtonModeAuto">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
           <property name="text">
            <string>Auto Explode</string>
           </property>
@@ -152,6 +131,12 @@
         </item>
         <item>
          <widget class="QRadioButton" name="radioButtonModeManual">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
           <property name="text">
            <string>Manual Placement</string>
           </property>
@@ -172,245 +157,19 @@
         </item>
        </layout>
       </item>
-      <item row="2" column="0">
+      <item row="3" column="0">
        <widget class="QStackedWidget" name="stackedWidgetAuthoring">
+        <property name="maximumSize">
+         <size>
+          <width>16777215</width>
+          <height>225</height>
+         </size>
+        </property>
         <property name="currentIndex">
          <number>0</number>
         </property>
         <widget class="QWidget" name="pageAutoExplode">
          <layout class="QGridLayout" name="gridLayoutAutoAuthoring">
-          <item row="0" column="0">
-           <layout class="QHBoxLayout" name="layoutAssembly">
-            <item>
-             <widget class="QLabel" name="labelAssembly">
-              <property name="minimumSize">
-               <size>
-                <width>70</width>
-                <height>0</height>
-               </size>
-              </property>
-              <property name="text">
-               <string>Assembly</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QLineEdit" name="lineEditAssembly">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                <horstretch>1</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="toolTip">
-               <string>Shows the selected assembly or mesh count. Right-click to edit or clear.</string>
-              </property>
-              <property name="styleSheet">
-               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
-              </property>
-              <property name="readOnly">
-               <bool>true</bool>
-              </property>
-              <property name="placeholderText">
-               <string>Select assembly or meshes...</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QPushButton" name="pushButtonSelectAssembly">
-              <property name="minimumSize">
-               <size>
-                <width>28</width>
-                <height>28</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>28</width>
-                <height>28</height>
-               </size>
-              </property>
-              <property name="toolTip">
-               <string>Add meshes to the current assembly from the scene or tree, then click again to confirm</string>
-              </property>
-              <property name="styleSheet">
-               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
-              </property>
-              <property name="text">
-               <string/>
-              </property>
-              <property name="icon">
-               <iconset resource="../ModelViewer.qrc">
-                <normaloff>:/icons/res/select.png</normaloff>:/icons/res/select.png</iconset>
-              </property>
-              <property name="checkable">
-               <bool>true</bool>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item row="1" column="0">
-           <layout class="QHBoxLayout" name="layoutAnchor">
-            <item>
-             <widget class="QLabel" name="labelAnchor">
-              <property name="minimumSize">
-               <size>
-                <width>70</width>
-                <height>0</height>
-               </size>
-              </property>
-              <property name="toolTip">
-               <string>Optional: this mesh stays centred; all others explode away from it</string>
-              </property>
-              <property name="text">
-               <string>Anchor</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QLineEdit" name="lineEditAnchor">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                <horstretch>1</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="toolTip">
-               <string>Shows the anchor mesh name. Right-click to clear.</string>
-              </property>
-              <property name="styleSheet">
-               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
-              </property>
-              <property name="readOnly">
-               <bool>true</bool>
-              </property>
-              <property name="placeholderText">
-               <string>Select anchor mesh (optional)...</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QPushButton" name="pushButtonSelectAnchor">
-              <property name="minimumSize">
-               <size>
-                <width>28</width>
-                <height>28</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>28</width>
-                <height>28</height>
-               </size>
-              </property>
-              <property name="toolTip">
-               <string>Clear anchor and pick a new one from scene or tree</string>
-              </property>
-              <property name="styleSheet">
-               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
-              </property>
-              <property name="text">
-               <string/>
-              </property>
-              <property name="icon">
-               <iconset resource="../ModelViewer.qrc">
-                <normaloff>:/icons/res/select.png</normaloff>:/icons/res/select.png</iconset>
-              </property>
-              <property name="checkable">
-               <bool>true</bool>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item row="2" column="0">
-           <layout class="QHBoxLayout" name="layoutMode">
-            <item>
-             <widget class="QLabel" name="labelMode">
-              <property name="minimumSize">
-               <size>
-                <width>70</width>
-                <height>0</height>
-               </size>
-              </property>
-              <property name="text">
-               <string>Mode</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QComboBox" name="comboBoxMode">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                <horstretch>1</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="styleSheet">
-               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
-              </property>
-              <item>
-               <property name="text">
-                <string>Auto (Radial)</string>
-               </property>
-              </item>
-              <item>
-               <property name="text">
-                <string>Axis X</string>
-               </property>
-              </item>
-              <item>
-               <property name="text">
-                <string>Axis Y</string>
-               </property>
-              </item>
-              <item>
-               <property name="text">
-                <string>Axis Z</string>
-               </property>
-              </item>
-              <item>
-               <property name="text">
-                <string>Custom Vector</string>
-               </property>
-              </item>
-             </widget>
-            </item>
-            <item>
-             <widget class="QPushButton" name="pushButtonSelectVector">
-              <property name="minimumSize">
-               <size>
-                <width>28</width>
-                <height>28</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>28</width>
-                <height>28</height>
-               </size>
-              </property>
-              <property name="toolTip">
-               <string>Clear anchor and pick a new one from scene or tree</string>
-              </property>
-              <property name="styleSheet">
-               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
-              </property>
-              <property name="text">
-               <string/>
-              </property>
-              <property name="icon">
-               <iconset resource="../ModelViewer.qrc">
-                <normaloff>:/icons/res/select.png</normaloff>:/icons/res/select.png</iconset>
-              </property>
-              <property name="checkable">
-               <bool>true</bool>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
           <item row="3" column="0">
            <widget class="QFrame" name="frameVector">
             <property name="styleSheet">
@@ -543,7 +302,168 @@
             </layout>
            </widget>
           </item>
-          <item row="4" column="0">
+          <item row="2" column="0">
+           <layout class="QHBoxLayout" name="layoutMode">
+            <item>
+             <widget class="QLabel" name="labelMode">
+              <property name="minimumSize">
+               <size>
+                <width>70</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>Mode</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="comboBoxMode">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                <horstretch>1</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="styleSheet">
+               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+              </property>
+              <item>
+               <property name="text">
+                <string>Auto (Radial)</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Axis X</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Axis Y</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Axis Z</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Custom Vector</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="pushButtonSelectVector">
+              <property name="minimumSize">
+               <size>
+                <width>28</width>
+                <height>28</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>28</width>
+                <height>28</height>
+               </size>
+              </property>
+              <property name="toolTip">
+               <string>Clear anchor and pick a new one from scene or tree</string>
+              </property>
+              <property name="styleSheet">
+               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
+              <property name="icon">
+               <iconset resource="../ModelViewer.qrc">
+                <normaloff>:/icons/res/select.png</normaloff>:/icons/res/select.png</iconset>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="1" column="0">
+           <layout class="QHBoxLayout" name="layoutAnchor">
+            <item>
+             <widget class="QLabel" name="labelAnchor">
+              <property name="minimumSize">
+               <size>
+                <width>70</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="toolTip">
+               <string>Optional: this mesh stays centred; all others explode away from it</string>
+              </property>
+              <property name="text">
+               <string>Anchor</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="lineEditAnchor">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                <horstretch>1</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="toolTip">
+               <string>Shows the anchor mesh name. Right-click to clear.</string>
+              </property>
+              <property name="styleSheet">
+               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+              </property>
+              <property name="readOnly">
+               <bool>true</bool>
+              </property>
+              <property name="placeholderText">
+               <string>Select anchor mesh (optional)...</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="pushButtonSelectAnchor">
+              <property name="minimumSize">
+               <size>
+                <width>28</width>
+                <height>28</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>28</width>
+                <height>28</height>
+               </size>
+              </property>
+              <property name="toolTip">
+               <string>Clear anchor and pick a new one from scene or tree</string>
+              </property>
+              <property name="styleSheet">
+               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
+              <property name="icon">
+               <iconset resource="../ModelViewer.qrc">
+                <normaloff>:/icons/res/select.png</normaloff>:/icons/res/select.png</iconset>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="5" column="0">
            <layout class="QHBoxLayout" name="layoutSlider">
             <item>
              <widget class="QLabel" name="labelDistance">
@@ -604,6 +524,90 @@
             </item>
            </layout>
           </item>
+          <item row="0" column="0">
+           <layout class="QHBoxLayout" name="layoutAssembly">
+            <item>
+             <widget class="QLabel" name="labelAssembly">
+              <property name="minimumSize">
+               <size>
+                <width>70</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>Assembly</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="lineEditAssembly">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                <horstretch>1</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="toolTip">
+               <string>Shows the selected assembly or mesh count. Right-click to edit or clear.</string>
+              </property>
+              <property name="styleSheet">
+               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+              </property>
+              <property name="readOnly">
+               <bool>true</bool>
+              </property>
+              <property name="placeholderText">
+               <string>Select assembly or meshes...</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="pushButtonSelectAssembly">
+              <property name="minimumSize">
+               <size>
+                <width>28</width>
+                <height>28</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>28</width>
+                <height>28</height>
+               </size>
+              </property>
+              <property name="toolTip">
+               <string>Add meshes to the current assembly from the scene or tree, then click again to confirm</string>
+              </property>
+              <property name="styleSheet">
+               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
+              <property name="icon">
+               <iconset resource="../ModelViewer.qrc">
+                <normaloff>:/icons/res/select.png</normaloff>:/icons/res/select.png</iconset>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="6" column="0">
+           <spacer name="verticalSpacer">
+            <property name="orientation">
+             <enum>Qt::Orientation::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
          </layout>
         </widget>
         <widget class="QWidget" name="pageManualPlacement">
@@ -622,11 +626,11 @@
             <layout class="QGridLayout" name="gridLayoutManualPlacement">
              <item row="0" column="0" colspan="2">
               <widget class="QLabel" name="labelManualPlacementStatus">
-               <property name="wordWrap">
-                <bool>true</bool>
-               </property>
                <property name="text">
                 <string>Manual placement will reuse the transform gizmo to stage exploded poses without changing the real model transform.</string>
+               </property>
+               <property name="wordWrap">
+                <bool>true</bool>
                </property>
               </widget>
              </item>
@@ -708,6 +712,190 @@
                </item>
               </layout>
              </item>
+             <item row="3" column="0" colspan="2">
+              <layout class="QGridLayout" name="gridLayoutManualPlacementEditors">
+               <property name="horizontalSpacing">
+                <number>6</number>
+               </property>
+               <property name="verticalSpacing">
+                <number>4</number>
+               </property>
+               <item row="0" column="0">
+                <widget class="QLabel" name="labelManualDX">
+                 <property name="text">
+                  <string>DX</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="1">
+                <widget class="QDoubleSpinBox" name="doubleSpinBoxManualDX">
+                 <property name="enabled">
+                  <bool>false</bool>
+                 </property>
+                 <property name="styleSheet">
+                  <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+                 </property>
+                 <property name="suffix">
+                  <string> mm</string>
+                 </property>
+                 <property name="decimals">
+                  <number>3</number>
+                 </property>
+                 <property name="minimum">
+                  <double>-999999.000000000000000</double>
+                 </property>
+                 <property name="maximum">
+                  <double>999999.000000000000000</double>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="2">
+                <widget class="QLabel" name="labelManualDY">
+                 <property name="text">
+                  <string>DY</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="3">
+                <widget class="QDoubleSpinBox" name="doubleSpinBoxManualDY">
+                 <property name="enabled">
+                  <bool>false</bool>
+                 </property>
+                 <property name="styleSheet">
+                  <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+                 </property>
+                 <property name="suffix">
+                  <string> mm</string>
+                 </property>
+                 <property name="decimals">
+                  <number>3</number>
+                 </property>
+                 <property name="minimum">
+                  <double>-999999.000000000000000</double>
+                 </property>
+                 <property name="maximum">
+                  <double>999999.000000000000000</double>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="4">
+                <widget class="QLabel" name="labelManualDZ">
+                 <property name="text">
+                  <string>DZ</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="5">
+                <widget class="QDoubleSpinBox" name="doubleSpinBoxManualDZ">
+                 <property name="enabled">
+                  <bool>false</bool>
+                 </property>
+                 <property name="styleSheet">
+                  <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+                 </property>
+                 <property name="suffix">
+                  <string> mm</string>
+                 </property>
+                 <property name="decimals">
+                  <number>3</number>
+                 </property>
+                 <property name="minimum">
+                  <double>-999999.000000000000000</double>
+                 </property>
+                 <property name="maximum">
+                  <double>999999.000000000000000</double>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="0">
+                <widget class="QLabel" name="labelManualRX">
+                 <property name="text">
+                  <string>RX</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="1">
+                <widget class="QDoubleSpinBox" name="doubleSpinBoxManualRX">
+                 <property name="enabled">
+                  <bool>false</bool>
+                 </property>
+                 <property name="styleSheet">
+                  <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+                 </property>
+                 <property name="suffix">
+                  <string> deg</string>
+                 </property>
+                 <property name="decimals">
+                  <number>3</number>
+                 </property>
+                 <property name="minimum">
+                  <double>-180.000000000000000</double>
+                 </property>
+                 <property name="maximum">
+                  <double>180.000000000000000</double>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="2">
+                <widget class="QLabel" name="labelManualRY">
+                 <property name="text">
+                  <string>RY</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="3">
+                <widget class="QDoubleSpinBox" name="doubleSpinBoxManualRY">
+                 <property name="enabled">
+                  <bool>false</bool>
+                 </property>
+                 <property name="styleSheet">
+                  <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+                 </property>
+                 <property name="suffix">
+                  <string> deg</string>
+                 </property>
+                 <property name="decimals">
+                  <number>3</number>
+                 </property>
+                 <property name="minimum">
+                  <double>-180.000000000000000</double>
+                 </property>
+                 <property name="maximum">
+                  <double>180.000000000000000</double>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="4">
+                <widget class="QLabel" name="labelManualRZ">
+                 <property name="text">
+                  <string>RZ</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="5">
+                <widget class="QDoubleSpinBox" name="doubleSpinBoxManualRZ">
+                 <property name="enabled">
+                  <bool>false</bool>
+                 </property>
+                 <property name="styleSheet">
+                  <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+                 </property>
+                 <property name="suffix">
+                  <string> deg</string>
+                 </property>
+                 <property name="decimals">
+                  <number>3</number>
+                 </property>
+                 <property name="minimum">
+                  <double>-180.000000000000000</double>
+                 </property>
+                 <property name="maximum">
+                  <double>180.000000000000000</double>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
             </layout>
            </widget>
           </item>
@@ -728,55 +916,141 @@
         </widget>
        </widget>
       </item>
-      <item row="3" column="0">
-       <layout class="QHBoxLayout" name="layoutDuration">
+      <item row="7" column="0">
+       <layout class="QVBoxLayout" name="layoutCapturedList">
         <item>
-         <widget class="QLabel" name="labelDuration">
-          <property name="minimumSize">
-           <size>
-            <width>70</width>
-            <height>0</height>
-           </size>
-          </property>
+         <widget class="QLabel" name="labelCapturedSteps">
           <property name="text">
-           <string>Duration</string>
+           <string>Captured Steps</string>
           </property>
          </widget>
         </item>
         <item>
-         <widget class="QDoubleSpinBox" name="doubleSpinBoxAnimationDuration">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-            <horstretch>1</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="styleSheet">
-           <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
-          </property>
-          <property name="decimals">
-           <number>1</number>
-          </property>
-          <property name="minimum">
-           <double>0.500000000000000</double>
-          </property>
-          <property name="maximum">
-           <double>30.000000000000000</double>
-          </property>
-          <property name="singleStep">
-           <double>0.500000000000000</double>
-          </property>
-          <property name="value">
-           <double>3.000000000000000</double>
-          </property>
-          <property name="suffix">
-           <string> s</string>
-          </property>
-         </widget>
+         <layout class="QHBoxLayout" name="layoutCapturedTreeRow">
+          <item>
+           <layout class="QVBoxLayout" name="layoutCapturedStepReorder">
+            <property name="spacing">
+             <number>6</number>
+            </property>
+            <item>
+             <widget class="QPushButton" name="pushButtonMoveCaptureUp">
+              <property name="enabled">
+               <bool>false</bool>
+              </property>
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>30</width>
+                <height>16777215</height>
+               </size>
+              </property>
+              <property name="toolTip">
+               <string>Move the selected capture up within its current level</string>
+              </property>
+              <property name="styleSheet">
+               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
+              <property name="icon">
+               <iconset resource="../ModelViewer.qrc">
+                <normaloff>:/icons/res/item_up.png</normaloff>:/icons/res/item_up.png</iconset>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="pushButtonMoveCaptureDown">
+              <property name="enabled">
+               <bool>false</bool>
+              </property>
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>30</width>
+                <height>16777215</height>
+               </size>
+              </property>
+              <property name="toolTip">
+               <string>Move the selected capture down within its current level</string>
+              </property>
+              <property name="styleSheet">
+               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
+              <property name="icon">
+               <iconset resource="../ModelViewer.qrc">
+                <normaloff>:/icons/res/item_down.png</normaloff>:/icons/res/item_down.png</iconset>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="CapturedStepsTreeWidget" name="listWidgetCapturedViews">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="minimumSize">
+             <size>
+              <width>0</width>
+              <height>96</height>
+             </size>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>16777215</width>
+              <height>120</height>
+             </size>
+            </property>
+            <property name="toolTip">
+             <string>Ordered captures used to build animations. Multi-select top-level captures and right-click to group; right-click a group to ungroup.</string>
+            </property>
+            <property name="styleSheet">
+             <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+            </property>
+            <property name="verticalScrollBarPolicy">
+             <enum>Qt::ScrollBarPolicy::ScrollBarAsNeeded</enum>
+            </property>
+            <property name="rootIsDecorated">
+             <bool>false</bool>
+            </property>
+            <property name="uniformRowHeights">
+             <bool>true</bool>
+            </property>
+            <property name="itemsExpandable">
+             <bool>true</bool>
+            </property>
+            <property name="headerHidden">
+             <bool>true</bool>
+            </property>
+            <column>
+             <property name="text">
+              <string notr="true">1</string>
+             </property>
+            </column>
+           </widget>
+          </item>
+         </layout>
         </item>
        </layout>
       </item>
-      <item row="4" column="0">
+      <item row="5" column="0">
        <layout class="QHBoxLayout" name="layoutAnimationMode">
         <item>
          <widget class="QLabel" name="labelAnimationMode">
@@ -799,11 +1073,11 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
-          <property name="styleSheet">
-           <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
-          </property>
           <property name="toolTip">
            <string>Output mode is stored with the active preset.</string>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
           </property>
           <item>
            <property name="text">
@@ -837,7 +1111,145 @@
         </item>
        </layout>
       </item>
-      <item row="5" column="0">
+      <item row="0" column="0">
+       <layout class="QGridLayout" name="layoutPresetSection">
+        <item row="0" column="0">
+         <widget class="QLabel" name="labelPreset">
+          <property name="minimumSize">
+           <size>
+            <width>70</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>Preset</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="1" colspan="3">
+         <widget class="QComboBox" name="comboBoxPreset">
+          <property name="styleSheet">
+           <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+          </property>
+          <item>
+           <property name="text">
+            <string>Explosion 1</string>
+           </property>
+          </item>
+         </widget>
+        </item>
+        <item row="0" column="4">
+         <widget class="QPushButton" name="pushButtonPresetNew">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>Preset actions will be wired in the next step of the implementation</string>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+          </property>
+          <property name="text">
+           <string>New</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="1">
+         <widget class="QPushButton" name="pushButtonPresetDuplicate">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>Preset actions will be wired in the next step of the implementation</string>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+          </property>
+          <property name="text">
+           <string>Duplicate</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="2">
+         <widget class="QPushButton" name="pushButtonPresetActions">
+          <property name="enabled">
+           <bool>false</bool>
+          </property>
+          <property name="toolTip">
+           <string>Preset actions will be wired in the next step of the implementation</string>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+          </property>
+          <property name="text">
+           <string>Rename/Delete</string>
+          </property>
+         </widget>
+        </item>
+        <item row="1" column="4">
+         <widget class="QLabel" name="labelPresetDirty">
+          <property name="visible">
+           <bool>false</bool>
+          </property>
+          <property name="text">
+           <string>Unsaved</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item row="4" column="0">
+       <layout class="QHBoxLayout" name="layoutDuration">
+        <item>
+         <widget class="QLabel" name="labelDuration">
+          <property name="minimumSize">
+           <size>
+            <width>70</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="text">
+           <string>Duration</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QDoubleSpinBox" name="doubleSpinBoxAnimationDuration">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+            <horstretch>1</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+          </property>
+          <property name="suffix">
+           <string> s</string>
+          </property>
+          <property name="decimals">
+           <number>1</number>
+          </property>
+          <property name="minimum">
+           <double>0.500000000000000</double>
+          </property>
+          <property name="maximum">
+           <double>30.000000000000000</double>
+          </property>
+          <property name="singleStep">
+           <double>0.500000000000000</double>
+          </property>
+          <property name="value">
+           <double>3.000000000000000</double>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item row="6" column="0">
        <layout class="QHBoxLayout" name="layoutCaptureButtons">
         <item>
          <widget class="QPushButton" name="pushButtonCaptureView">
@@ -913,49 +1325,7 @@
         </item>
        </layout>
       </item>
-      <item row="6" column="0">
-       <layout class="QVBoxLayout" name="layoutCapturedList">
-        <item>
-         <widget class="QLabel" name="labelCapturedSteps">
-          <property name="text">
-           <string>Captured Steps</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QListWidget" name="listWidgetCapturedViews">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="minimumSize">
-           <size>
-            <width>0</width>
-            <height>96</height>
-           </size>
-          </property>
-          <property name="maximumSize">
-           <size>
-            <width>16777215</width>
-            <height>120</height>
-           </size>
-          </property>
-          <property name="toolTip">
-           <string>Ordered list of captured explosion steps used to build animations</string>
-          </property>
-          <property name="verticalScrollBarPolicy">
-           <enum>Qt::ScrollBarAsNeeded</enum>
-          </property>
-          <property name="styleSheet">
-           <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </item>
-      <item row="7" column="0">
+      <item row="8" column="0">
        <layout class="QVBoxLayout" name="layoutPreviewSection">
         <item>
          <layout class="QHBoxLayout" name="layoutPreviewRow">
@@ -1048,68 +1418,28 @@
         </item>
        </layout>
       </item>
-      <item row="8" column="0">
-       <layout class="QHBoxLayout" name="layoutButtons">
-        <item>
-         <widget class="QPushButton" name="pushButtonCapture">
-          <property name="enabled">
-           <bool>false</bool>
-          </property>
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-            <horstretch>1</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="minimumSize">
-           <size>
-            <width>140</width>
-            <height>28</height>
-           </size>
-          </property>
-          <property name="toolTip">
-           <string>Create one or more glTF animations from the captured explosion steps. Animation clip names will default to the active preset name.</string>
-          </property>
-          <property name="styleSheet">
-           <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
-          </property>
-          <property name="text">
-           <string>Create Animation</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="pushButtonReset">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="minimumSize">
-           <size>
-            <width>70</width>
-            <height>28</height>
-           </size>
-          </property>
-          <property name="toolTip">
-           <string>Clear all selections and reset controls to defaults</string>
-          </property>
-          <property name="styleSheet">
-           <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
-          </property>
-          <property name="text">
-           <string>Reset</string>
-          </property>
-         </widget>
-        </item>
-       </layout>
+      <item row="2" column="0">
+       <widget class="QCheckBox" name="checkBoxCombinedPose">
+        <property name="text">
+         <string>Use Combined Pose</string>
+        </property>
+        <property name="checked">
+         <bool>true</bool>
+        </property>
+       </widget>
       </item>
      </layout>
     </widget>
    </item>
   </layout>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>CapturedStepsTreeWidget</class>
+   <extends>QTreeWidget</extends>
+   <header>CapturedStepsTreeWidget.h</header>
+  </customwidget>
+ </customwidgets>
  <tabstops>
   <tabstop>comboBoxPreset</tabstop>
   <tabstop>pushButtonPresetNew</tabstop>
@@ -1130,11 +1460,19 @@
   <tabstop>pushButtonStartManualPlacement</tabstop>
   <tabstop>pushButtonFinishManualPlacement</tabstop>
   <tabstop>pushButtonClearManualPlacement</tabstop>
+  <tabstop>doubleSpinBoxManualDX</tabstop>
+  <tabstop>doubleSpinBoxManualDY</tabstop>
+  <tabstop>doubleSpinBoxManualDZ</tabstop>
+  <tabstop>doubleSpinBoxManualRX</tabstop>
+  <tabstop>doubleSpinBoxManualRY</tabstop>
+  <tabstop>doubleSpinBoxManualRZ</tabstop>
   <tabstop>doubleSpinBoxAnimationDuration</tabstop>
   <tabstop>comboBoxAnimationMode</tabstop>
   <tabstop>checkBoxLoopBack</tabstop>
   <tabstop>pushButtonCaptureView</tabstop>
   <tabstop>pushButtonReplaceCapture</tabstop>
+  <tabstop>pushButtonMoveCaptureUp</tabstop>
+  <tabstop>pushButtonMoveCaptureDown</tabstop>
   <tabstop>listWidgetCapturedViews</tabstop>
   <tabstop>pushButtonRemoveCapture</tabstop>
   <tabstop>pushButtonPreviewPlayPause</tabstop>

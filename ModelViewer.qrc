@@ -79,6 +79,8 @@
         <file>res/flat_shaded.png</file>
         <file>res/exploded_view.png</file>
         <file>res/checkmark.png</file>
+        <file>res/item_down.png</file>
+        <file>res/item_up.png</file>
     </qresource>
     <qresource prefix="/styles">
         <file>themes/DarkOrange.qss</file>
