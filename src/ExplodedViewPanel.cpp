@@ -8,12 +8,14 @@
 #include "TriangleMesh.h"
 
 #include <QAbstractItemModel>
+#include <QInputDialog>
 #include <QListWidgetItem>
 #include <QMenu>
 #include <QMessageBox>
 #include <QSignalBlocker>
 #include <QStyle>
 #include <QTimer>
+#include <QRegularExpression>
 #include <QDebug>
 #include <QtGlobal>
 #include <algorithm>
@@ -286,6 +288,43 @@ void ExplodedViewPanel::syncActivePresetFromUi()
     preset.loopBack = checkBoxLoopBack && checkBoxLoopBack->isChecked();
 }
 
+QString ExplodedViewPanel::nextPresetName() const
+{
+    static const QRegularExpression kExplosionNamePattern(QStringLiteral("^Exploded View\\s+(\\d+)$"));
+
+    QSet<int> usedNumbers;
+    for (const ExplodedViewPreset& preset : _presets)
+    {
+        const QRegularExpressionMatch match = kExplosionNamePattern.match(preset.name);
+        if (match.hasMatch())
+            usedNumbers.insert(match.captured(1).toInt());
+    }
+
+    int candidate = 1;
+    while (usedNumbers.contains(candidate))
+        ++candidate;
+
+    return tr("Exploded View %1").arg(candidate);
+}
+
+QString ExplodedViewPanel::nextDuplicatedPresetName(const QString& sourceName) const
+{
+    const QString baseName = sourceName.trimmed().isEmpty() ? tr("Exploded View") : sourceName.trimmed();
+    const QString copyLabel = tr("%1 Copy").arg(baseName);
+
+    QSet<QString> usedNames;
+    for (const ExplodedViewPreset& preset : _presets)
+        usedNames.insert(preset.name);
+
+    if (!usedNames.contains(copyLabel))
+        return copyLabel;
+
+    int candidate = 2;
+    while (usedNames.contains(tr("%1 Copy %2").arg(baseName).arg(candidate)))
+        ++candidate;
+
+    return tr("%1 Copy %2").arg(baseName).arg(candidate);
+}
 
 void ExplodedViewPanel::loadPresetIntoUi(int index)
 {
@@ -293,6 +332,13 @@ void ExplodedViewPanel::loadPresetIntoUi(int index)
         return;
 
     stopDraftPreview();
+    cancelPickingMode();
+    if (_glWidget && (_glWidget->isExplodedViewManualPlacementActive()
+        || _glWidget->hasExplodedViewManualPlacement()))
+    {
+        _glWidget->clearExplodedViewManualPlacement();
+    }
+
     _activePresetIndex = index;
     const ExplodedViewPreset& preset = _presets[index];
 
@@ -381,6 +427,7 @@ void ExplodedViewPanel::loadPresetIntoUi(int index)
     if (listWidgetCapturedViews && !preset.capturedSteps.isEmpty())
         listWidgetCapturedViews->setCurrentRow(0);
     updateCaptureButton();
+    updateManualPlacementUi();
     updatePreviewControls();
     emit explosionParametersChanged();
 }
@@ -392,7 +439,7 @@ void ExplodedViewPanel::initializeDefaultPreset()
 
     ExplodedViewPreset preset;
     preset.id = QUuid::createUuid();
-    preset.name = tr("Explosion 1");
+    preset.name = tr("Exploded View 1");
     preset.loopBack = checkBoxLoopBack ? checkBoxLoopBack->isChecked() : true;
     preset.durationSeconds = doubleSpinBoxAnimationDuration ? doubleSpinBoxAnimationDuration->value() : 3.0;
     preset.outputMode = comboBoxAnimationMode ? comboBoxAnimationMode->currentIndex() : 0;
@@ -417,6 +464,12 @@ ExplodedViewPanel::ExplodedViewPanel(GLWidget* parent)
     if (_assemblySelectCommitIcon.isNull())
         _assemblySelectCommitIcon = style()->standardIcon(QStyle::SP_DialogApplyButton);
     updateAssemblyPickButtonVisual(false);
+    if (pushButtonPresetNew)
+        pushButtonPresetNew->setEnabled(true);
+    if (pushButtonPresetDuplicate)
+        pushButtonPresetDuplicate->setEnabled(true);
+    if (pushButtonPresetActions)
+        pushButtonPresetActions->setEnabled(true);
 
     auto emitParamChanged = [this]() { emit explosionParametersChanged(); };
     connect(doubleSpinBoxVectorX, qOverload<double>(&QDoubleSpinBox::valueChanged), this, emitParamChanged);
@@ -1209,7 +1262,9 @@ bool ExplodedViewPanel::createAnimationsFromCapturedSteps()
     };
 
     const auto makeClipName = [&](const QString& suffix = QString()) {
-        const QString base = tr("Exploded View %1").arg(_createdAnimationCounter++);
+        const QString base = preset.name.trimmed().isEmpty()
+            ? tr("Exploded View %1").arg(_createdAnimationCounter++)
+            : preset.name.trimmed();
         return suffix.isEmpty() ? base : QStringLiteral("%1 - %2").arg(base, suffix);
     };
 
@@ -1294,7 +1349,7 @@ bool ExplodedViewPanel::createAnimationsFromCapturedSteps()
                     data = animationDataByFile.value(fileIt.key(), data);
 
                 GltfAnimationClip clip;
-                clip.name = step.name;
+                clip.name = makeClipName(step.name);
                 clip.durationSeconds = loopBack ? durationSeconds * 2.0 : durationSeconds;
                 clip.hasNodeTransforms = true;
 
@@ -1614,6 +1669,136 @@ void ExplodedViewPanel::on_pushButtonReset_clicked()
     emit selectionClearRequested();
 }
 
+void ExplodedViewPanel::on_pushButtonPresetNew_clicked()
+{
+    stopDraftPreview();
+    cancelPickingMode();
+    if (_glWidget)
+        _glWidget->clearExplodedViewManualPlacement();
+
+    ExplodedViewPreset preset;
+    preset.id = QUuid::createUuid();
+    preset.name = nextPresetName();
+    preset.mode = ExplodedViewManager::Mode::Auto;
+    preset.userVector = QVector3D(1.0f, 0.0f, 0.0f);
+    preset.factor = 1.0f;
+    preset.outputMode = 0;
+    preset.durationSeconds = 3.0;
+    preset.loopBack = true;
+
+    _presets.append(preset);
+    _activePresetIndex = _presets.size() - 1;
+    refreshPresetCombo();
+    loadPresetIntoUi(_activePresetIndex);
+    updateManualPlacementUi();
+    emit selectionClearRequested();
+}
+
+void ExplodedViewPanel::on_pushButtonPresetDuplicate_clicked()
+{
+    const ExplodedViewPreset* sourcePreset = activePreset();
+    if (!sourcePreset)
+        return;
+
+    stopDraftPreview();
+    cancelPickingMode();
+    if (_glWidget)
+        _glWidget->clearExplodedViewManualPlacement();
+
+    ExplodedViewPreset duplicate = *sourcePreset;
+    duplicate.id = QUuid::createUuid();
+    duplicate.name = nextDuplicatedPresetName(sourcePreset->name);
+
+    _presets.append(duplicate);
+    _activePresetIndex = _presets.size() - 1;
+    refreshPresetCombo();
+    loadPresetIntoUi(_activePresetIndex);
+    updateManualPlacementUi();
+    emit selectionClearRequested();
+}
+
+void ExplodedViewPanel::on_pushButtonPresetActions_clicked()
+{
+    if (!activePreset())
+        return;
+
+    QMenu menu(this);
+    applyPopupMenuStyle(menu);
+    QAction* renameAction = menu.addAction(tr("Rename Preset"));
+    menu.addSeparator();
+    QAction* deleteAction = menu.addAction(tr("Delete Preset"));
+    QAction* chosenAction = menu.exec(pushButtonPresetActions
+        ? pushButtonPresetActions->mapToGlobal(QPoint(0, pushButtonPresetActions->height()))
+        : QCursor::pos());
+    if (!chosenAction)
+        return;
+
+    if (chosenAction == renameAction)
+    {
+        ExplodedViewPreset* preset = activePreset();
+        if (!preset)
+            return;
+
+        bool ok = false;
+        const QString renamed = QInputDialog::getText(
+            window(),
+            tr("Rename Exploded View Preset"),
+            tr("Preset name"),
+            QLineEdit::Normal,
+            preset->name,
+            &ok).trimmed();
+        if (!ok || renamed.isEmpty() || renamed == preset->name)
+            return;
+
+        preset->name = renamed;
+        refreshPresetCombo();
+        if (comboBoxPreset && _activePresetIndex >= 0 && _activePresetIndex < comboBoxPreset->count())
+            comboBoxPreset->setCurrentIndex(_activePresetIndex);
+        return;
+    }
+
+    if (chosenAction != deleteAction)
+        return;
+
+    const ExplodedViewPreset* preset = activePreset();
+    if (!preset)
+        return;
+
+    const auto response = QMessageBox::warning(
+        window(),
+        tr("Delete Exploded View Preset"),
+        tr("Delete preset \"%1\" and its captured steps?").arg(preset->name),
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::No);
+    if (response != QMessageBox::Yes)
+        return;
+
+    stopDraftPreview();
+    cancelPickingMode();
+    if (_glWidget)
+        _glWidget->clearExplodedViewManualPlacement();
+
+    const int removeIndex = _activePresetIndex;
+    if (removeIndex < 0 || removeIndex >= _presets.size())
+        return;
+
+    _presets.removeAt(removeIndex);
+
+    if (_presets.isEmpty())
+    {
+        _activePresetIndex = -1;
+        initializeDefaultPreset();
+    }
+    else
+    {
+        _activePresetIndex = std::min<int>(removeIndex, _presets.size() - 1);
+        refreshPresetCombo();
+        loadPresetIntoUi(_activePresetIndex);
+    }
+
+    updateManualPlacementUi();
+    emit selectionClearRequested();
+}
 
 void ExplodedViewPanel::updateCaptureButton()
 {
@@ -2344,4 +2529,3 @@ void ExplodedViewPanel::updateCapturedViewsList()
         item->setData(Qt::UserRole, step.id);
     }
 }
-

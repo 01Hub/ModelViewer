@@ -55,6 +55,9 @@ private slots:
     void on_pushButtonSelectAnchor_toggled(bool checked);
     void on_pushButtonCapture_clicked();
     void on_pushButtonReset_clicked();
+    void on_pushButtonPresetNew_clicked();
+    void on_pushButtonPresetDuplicate_clicked();
+    void on_pushButtonPresetActions_clicked();
     void on_pushButtonStartManualPlacement_clicked();
     void on_pushButtonFinishManualPlacement_clicked();
     void on_pushButtonClearManualPlacement_clicked();
@@ -155,6 +158,8 @@ private:
     void refreshPresetCombo();
     void loadPresetIntoUi(int index);
     void syncActivePresetFromUi();
+    QString nextPresetName() const;
+    QString nextDuplicatedPresetName(const QString& sourceName) const;
     ExplodedViewPreset* activePreset();
     const ExplodedViewPreset* activePreset() const;
     ExplodedViewPreset& ensureActivePreset();
@@ -192,4 +197,3 @@ private slots:
     void on_pushButtonRemoveCapture_clicked();
     void onDraftPreviewTick();
 };
-
