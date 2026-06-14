@@ -19,6 +19,8 @@
 class GLWidget;
 class SceneGraph;
 class QTimer;
+class ExplodedViewSelectionEditor;
+class QListWidgetItem;
 
 class ExplodedViewPanel : public QWidget, private Ui::ExplodedViewPanel
 {
@@ -68,6 +70,8 @@ private slots:
     void on_pushButtonStartManualPlacement_clicked();
     void on_pushButtonFinishManualPlacement_clicked();
     void on_pushButtonClearManualPlacement_clicked();
+    void on_pushButtonReplaceCapture_clicked();
+    void onCapturedViewItemChanged(QListWidgetItem* item);
 
 private:
     enum class PickingTarget { None, Assembly, Anchor };
@@ -133,8 +137,17 @@ private:
 
     // Convert a list of mesh-store indices to display text + populate UUID sets.
     void applyAssemblySelection(const QList<int>& ids);
+    void mergeAssemblySelection(const QList<int>& ids);
     void applyAnchorSelection(const QList<int>& ids);
     void updateAssemblySelectionDisplay(const QList<int>& ids);
+    QVector<QUuid> orderedAssemblyUuids() const;
+    QString displayLabelForMeshUuid(const QUuid& uuid) const;
+    void showExplodedViewSelectionEditor();
+    void reopenExplodedViewSelectionEditor();
+    void onExplodedViewSelectionEditorFinished(int result);
+    void applyAssemblyEntries(const QVector<QUuid>& assemblyUuids);
+    void previewAssemblyEntry(const QUuid& uuid);
+    void clearAssemblyPreviewSelection();
 
     // Derive a human-readable label for the assembly selection.
     QString describeAssemblySelection(const QList<int>& ids) const;
@@ -154,6 +167,7 @@ private:
     void updateCapturedViewsList();
     void applyPopupMenuStyle(QMenu& menu) const;
     bool captureCurrentExplosionStep();
+    bool replaceCapturedExplosionStep(int row);
     bool createAnimationsFromCapturedSteps();
     void onPreviewPlayPauseClicked();
     void onPreviewStopClicked();
@@ -198,6 +212,11 @@ private:
     QHash<QUuid, PreviewMeshState> _draftPreviewMeshStates;
     SuspendedAnimationState _draftPreviewSuspendedAnimation;
     QSet<QUuid> _emptyAssemblyUuids;
+    QVector<QUuid> _assemblyEditWorkingUuids;
+    bool _reopenAssemblyEditDialogAfterPick = false;
+    bool _assemblyEditPickActive = false;
+    ExplodedViewSelectionEditor* _explodedViewSelectionEditor = nullptr;
+    bool _syncingCapturedViewsList = false;
 
 private slots:
     void on_pushButtonCaptureView_clicked();

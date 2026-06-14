@@ -1,7 +1,9 @@
 #include "ExplodedViewPanel.h"
 
+#include "ExplodedViewSelectionEditor.h"
 #include "GLWidget.h"
 #include "GltfAnimationData.h"
+#include "ModelViewer.h"
 #include "SceneGraph.h"
 #include "SceneNode.h"
 #include "SelectionManager.h"
@@ -730,6 +732,10 @@ ExplodedViewPanel::ExplodedViewPanel(GLWidget* parent)
             return;
         QMenu menu(this);
         applyPopupMenuStyle(menu);
+        connect(menu.addAction(tr("Edit Selection...")), &QAction::triggered, this, [this]() {
+            showExplodedViewSelectionEditor();
+        });
+        menu.addSeparator();
         connect(menu.addAction(tr("Clear Selection")), &QAction::triggered, this, [this]() {
             cancelPickingMode();
             clearAssemblySelection();
@@ -769,12 +775,15 @@ ExplodedViewPanel::ExplodedViewPanel(GLWidget* parent)
         listWidgetCapturedViews->setDropIndicatorShown(true);
         listWidgetCapturedViews->setDragDropMode(QAbstractItemView::InternalMove);
         listWidgetCapturedViews->setDefaultDropAction(Qt::MoveAction);
+        listWidgetCapturedViews->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
         connect(listWidgetCapturedViews, &QListWidget::currentRowChanged,
                 this, [this](int) {
             stopDraftPreview();
             updateCaptureButton();
             updatePreviewControls();
         });
+        connect(listWidgetCapturedViews, &QListWidget::itemChanged,
+                this, &ExplodedViewPanel::onCapturedViewItemChanged);
         connect(listWidgetCapturedViews->model(), &QAbstractItemModel::rowsMoved,
                 this, [this]() {
             stopDraftPreview();
@@ -922,6 +931,7 @@ void ExplodedViewPanel::applyContrastTheme(const QColor& textColor)
     if (comboBoxAnimationMode) comboBoxAnimationMode->setStyleSheet(translucentInputStyle);
 
     if (pushButtonCaptureView) pushButtonCaptureView->setStyleSheet(translucentInputStyle);
+    if (pushButtonReplaceCapture) pushButtonReplaceCapture->setStyleSheet(translucentInputStyle);
     if (pushButtonRemoveCapture) pushButtonRemoveCapture->setStyleSheet(translucentInputStyle);
     if (listWidgetCapturedViews) listWidgetCapturedViews->setStyleSheet(translucentInputStyle);
 
@@ -1024,7 +1034,7 @@ void ExplodedViewPanel::on_pushButtonSelectAssembly_toggled(bool checked)
         cancelPickingMode();
 
         _pickingTarget = PickingTarget::Assembly;
-        lineEditAssembly->setPlaceholderText(tr("Adjust selection, then click again to confirm..."));
+        lineEditAssembly->setPlaceholderText(tr("Add meshes, then click again to confirm..."));
         updateAssemblyPickButtonVisual(true);
 
         _pickingConn = connect(_glWidget, &GLWidget::selectionChanged,
@@ -1037,9 +1047,15 @@ void ExplodedViewPanel::on_pushButtonSelectAssembly_toggled(bool checked)
 
         if (committingSelection)
         {
-            applyAssemblySelection(_glWidget->getSelectionManager()->getSelectedIds());
+            mergeAssemblySelection(_glWidget->getSelectionManager()->getSelectedIds());
             emit selectionClearRequested();
             updateCaptureButton();
+            if (_reopenAssemblyEditDialogAfterPick)
+            {
+                _reopenAssemblyEditDialogAfterPick = false;
+                _assemblyEditPickActive = false;
+                reopenExplodedViewSelectionEditor();
+            }
         }
     }
 }
@@ -1097,6 +1113,8 @@ void ExplodedViewPanel::cancelPickingMode()
         disconnect(_pickingConn);
         _pickingTarget = PickingTarget::None;
     }
+    if (!_reopenAssemblyEditDialogAfterPick)
+        _assemblyEditPickActive = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -1124,6 +1142,33 @@ void ExplodedViewPanel::applyAssemblySelection(const QList<int>& ids)
     }
 
     emit explosionParametersChanged();
+}
+
+void ExplodedViewPanel::mergeAssemblySelection(const QList<int>& ids)
+{
+    if (ids.isEmpty() || !_glWidget)
+        return;
+
+    if (_assemblyEditPickActive)
+    {
+        for (int id : ids)
+        {
+            const QUuid uuid = _glWidget->getUuidByIndex(id);
+            if (!uuid.isNull() && !_assemblyEditWorkingUuids.contains(uuid))
+                _assemblyEditWorkingUuids.append(uuid);
+        }
+        return;
+    }
+
+    QSet<QUuid> mergedUuids = ensureActivePreset().assemblyUuids;
+    for (int id : ids)
+    {
+        const QUuid uuid = _glWidget->getUuidByIndex(id);
+        if (!uuid.isNull())
+            mergedUuids.insert(uuid);
+    }
+
+    applyAssemblyEntries(QVector<QUuid>(mergedUuids.begin(), mergedUuids.end()));
 }
 
 void ExplodedViewPanel::updateAssemblySelectionDisplay(const QList<int>& ids)
@@ -1163,6 +1208,194 @@ void ExplodedViewPanel::applyAnchorSelection(const QList<int>& ids)
     }
     lineEditAnchor->setText(name);
     emit explosionParametersChanged();
+}
+
+QVector<QUuid> ExplodedViewPanel::orderedAssemblyUuids() const
+{
+    QVector<QUuid> ordered;
+    if (const ExplodedViewPreset* preset = activePreset())
+    {
+        ordered.reserve(preset->assemblyUuids.size());
+        for (const QUuid& uuid : preset->assemblyUuids)
+            ordered.append(uuid);
+    }
+
+    std::sort(ordered.begin(), ordered.end(), [this](const QUuid& a, const QUuid& b) {
+        return displayLabelForMeshUuid(a).localeAwareCompare(displayLabelForMeshUuid(b)) < 0;
+    });
+    return ordered;
+}
+
+QString ExplodedViewPanel::displayLabelForMeshUuid(const QUuid& uuid) const
+{
+    if (uuid.isNull())
+        return tr("Unknown");
+
+    if (_sceneGraph)
+    {
+        if (const SceneNode* node = _sceneGraph->findNodeForMesh(uuid))
+        {
+            if (!node->name.trimmed().isEmpty())
+                return node->name;
+        }
+    }
+
+    if (_glWidget)
+    {
+        if (TriangleMesh* mesh = _glWidget->getMeshByUuid(uuid))
+        {
+            const QString meshName = mesh->getName();
+            if (!meshName.trimmed().isEmpty())
+                return meshName;
+        }
+    }
+
+    return uuid.toString(QUuid::WithoutBraces);
+}
+
+void ExplodedViewPanel::showExplodedViewSelectionEditor()
+{
+    _assemblyEditWorkingUuids = orderedAssemblyUuids();
+    reopenExplodedViewSelectionEditor();
+}
+
+void ExplodedViewPanel::reopenExplodedViewSelectionEditor()
+{
+    if (_explodedViewSelectionEditor)
+    {
+        _explodedViewSelectionEditor->raise();
+        _explodedViewSelectionEditor->activateWindow();
+        return;
+    }
+
+    _explodedViewSelectionEditor = new ExplodedViewSelectionEditor(window());
+    _explodedViewSelectionEditor->setAttribute(Qt::WA_DeleteOnClose);
+    _explodedViewSelectionEditor->setModal(false);
+    _explodedViewSelectionEditor->setWindowModality(Qt::NonModal);
+
+    QVector<ExplodedViewSelectionEditor::Entry> entries;
+    entries.reserve(_assemblyEditWorkingUuids.size());
+    for (const QUuid& uuid : std::as_const(_assemblyEditWorkingUuids))
+        entries.append({uuid, displayLabelForMeshUuid(uuid)});
+    _explodedViewSelectionEditor->setEntries(entries);
+
+    connect(_explodedViewSelectionEditor, &ExplodedViewSelectionEditor::previewEntryRequested,
+            this, &ExplodedViewPanel::previewAssemblyEntry);
+    connect(_explodedViewSelectionEditor, &QDialog::finished,
+            this, &ExplodedViewPanel::onExplodedViewSelectionEditorFinished);
+    connect(_explodedViewSelectionEditor, &QObject::destroyed,
+            this, [this]() { _explodedViewSelectionEditor = nullptr; });
+
+    _explodedViewSelectionEditor->show();
+    _explodedViewSelectionEditor->raise();
+    _explodedViewSelectionEditor->activateWindow();
+}
+
+void ExplodedViewPanel::onExplodedViewSelectionEditorFinished(int result)
+{
+    ExplodedViewSelectionEditor* editor = _explodedViewSelectionEditor;
+    if (!editor)
+    {
+        clearAssemblyPreviewSelection();
+        emit selectionClearRequested();
+        return;
+    }
+
+    const QVector<ExplodedViewSelectionEditor::Entry> updatedEntries = editor->entries();
+    clearAssemblyPreviewSelection();
+
+    if (result == QDialog::Accepted)
+    {
+        QVector<QUuid> updatedUuids;
+        updatedUuids.reserve(updatedEntries.size());
+        for (const ExplodedViewSelectionEditor::Entry& entry : updatedEntries)
+            updatedUuids.append(entry.uuid);
+        applyAssemblyEntries(updatedUuids);
+        emit selectionClearRequested();
+        editor->deleteLater();
+        return;
+    }
+
+    if (result == ExplodedViewSelectionEditor::AddMoreResult)
+    {
+        _assemblyEditWorkingUuids.clear();
+        for (const ExplodedViewSelectionEditor::Entry& entry : updatedEntries)
+            _assemblyEditWorkingUuids.append(entry.uuid);
+
+        _reopenAssemblyEditDialogAfterPick = true;
+        _assemblyEditPickActive = true;
+        if (pushButtonSelectAssembly && !pushButtonSelectAssembly->isChecked())
+            pushButtonSelectAssembly->setChecked(true);
+        editor->deleteLater();
+        return;
+    }
+
+    emit selectionClearRequested();
+    editor->deleteLater();
+}
+
+void ExplodedViewPanel::applyAssemblyEntries(const QVector<QUuid>& assemblyUuids)
+{
+    if (!_glWidget)
+        return;
+
+    ExplodedViewPreset& preset = ensureActivePreset();
+    preset.assemblyUuids.clear();
+    for (const QUuid& uuid : assemblyUuids)
+    {
+        if (!uuid.isNull())
+            preset.assemblyUuids.insert(uuid);
+    }
+
+    if (!preset.anchorUuid.isNull() && !preset.assemblyUuids.contains(preset.anchorUuid))
+    {
+        preset.anchorUuid = QUuid();
+        if (lineEditAnchor)
+            lineEditAnchor->clear();
+    }
+
+    QList<int> ids;
+    ids.reserve(assemblyUuids.size());
+    for (const QUuid& uuid : assemblyUuids)
+    {
+        const int index = _glWidget->getIndexByUuid(uuid);
+        if (index >= 0)
+            ids.append(index);
+    }
+
+    updateAssemblySelectionDisplay(ids);
+    updateCaptureButton();
+    emit explosionParametersChanged();
+}
+
+void ExplodedViewPanel::previewAssemblyEntry(const QUuid& uuid)
+{
+    if (uuid.isNull())
+        return;
+
+    if (ModelViewer* viewer = _glWidget ? qobject_cast<ModelViewer*>(_glWidget->parentWidget()) : nullptr)
+    {
+        viewer->setSelectionWithoutUndo(QSet<QUuid>{uuid});
+        return;
+    }
+
+    clearAssemblyPreviewSelection();
+    if (_glWidget)
+    {
+        const int index = _glWidget->getIndexByUuid(uuid);
+        if (index >= 0)
+        {
+            _glWidget->select(index);
+            _glWidget->getSelectionManager()->syncSelectedIds(QList<int>{index});
+            _glWidget->broadcastSelectionChanged(QList<int>{index});
+            _glWidget->update();
+        }
+    }
+}
+
+void ExplodedViewPanel::clearAssemblyPreviewSelection()
+{
+    emit selectionClearRequested();
 }
 
 QString ExplodedViewPanel::describeAssemblySelection(const QList<int>& ids) const
@@ -1214,6 +1447,20 @@ void ExplodedViewPanel::on_pushButtonCaptureView_clicked()
     }
 }
 
+void ExplodedViewPanel::on_pushButtonReplaceCapture_clicked()
+{
+    stopDraftPreview();
+    if (!listWidgetCapturedViews)
+        return;
+
+    const int row = listWidgetCapturedViews->currentRow();
+    if (replaceCapturedExplosionStep(row))
+    {
+        updateCaptureButton();
+        updatePreviewControls();
+    }
+}
+
 void ExplodedViewPanel::on_pushButtonRemoveCapture_clicked()
 {
     stopDraftPreview();
@@ -1249,11 +1496,8 @@ bool ExplodedViewPanel::captureCurrentExplosionStep()
     if (!_glWidget || !_sceneGraph || captureUuids.isEmpty())
         return false;
 
-    ExplodedViewPreset& preset = ensureActivePreset();
     const SceneGraphWorldTransforms worlds = _sceneGraph->evaluateWorldTransforms();
     CapturedExplosionStep step;
-    step.id = QUuid::createUuid();
-    step.name = tr("Step %1").arg(preset.capturedStepCounter++);
     QHash<QUuid, CapturedTransformTrack> aggregatedTracksByNode;
     QHash<QUuid, QVector<LocalNodeTransform>> endTransformsByNode;
     QHash<QUuid, int> selectedMeshCountByNode;
@@ -1362,10 +1606,146 @@ bool ExplodedViewPanel::captureCurrentExplosionStep()
     if (step.tracks.isEmpty())
         return false;
 
+    ExplodedViewPreset& preset = ensureActivePreset();
+    step.id = QUuid::createUuid();
+    step.name = tr("Step %1").arg(preset.capturedStepCounter++);
     preset.capturedSteps.append(step);
     updateCapturedViewsList();
     if (listWidgetCapturedViews)
         listWidgetCapturedViews->setCurrentRow(preset.capturedSteps.size() - 1);
+    return true;
+}
+
+bool ExplodedViewPanel::replaceCapturedExplosionStep(int row)
+{
+    QVector<CapturedExplosionStep>& capturedSteps = activeCapturedSteps();
+    if (row < 0 || row >= capturedSteps.size())
+        return false;
+
+    const bool manualMode = radioButtonModeManual && radioButtonModeManual->isChecked();
+    const QSet<QUuid> captureUuids = manualMode && _glWidget
+        ? _glWidget->explodedViewManualPlacementUuids()
+        : assemblyUuids();
+
+    if (!_glWidget || !_sceneGraph || captureUuids.isEmpty())
+        return false;
+
+    const SceneGraphWorldTransforms worlds = _sceneGraph->evaluateWorldTransforms();
+    CapturedExplosionStep replacement;
+    replacement.id = capturedSteps[row].id;
+    replacement.name = capturedSteps[row].name;
+    QHash<QUuid, CapturedTransformTrack> aggregatedTracksByNode;
+    QHash<QUuid, QVector<LocalNodeTransform>> endTransformsByNode;
+    QHash<QUuid, int> selectedMeshCountByNode;
+    QHash<QUuid, int> totalMeshCountByNode;
+
+    for (const QUuid& meshUuid : captureUuids)
+    {
+        TriangleMesh* mesh = _glWidget->getMeshByUuid(meshUuid);
+        SceneNode* ownerNode = _sceneGraph->findNodeForMesh(meshUuid);
+        if (!mesh || !ownerNode)
+            continue;
+
+        const QVector3D worldOffset = mesh->explosionOffset();
+        const TransformState meshState(
+            mesh->getTranslation(),
+            mesh->getRotation(),
+            mesh->getScaling(),
+            mesh->getRotationQuaternion());
+        const bool hasManualTranslation = meshState.translation.lengthSquared() > 1.0e-8f;
+        const QQuaternion identityRotation(1.0f, 0.0f, 0.0f, 0.0f);
+        const bool hasManualRotation = meshState.hasExactRotation
+            ? !rotationsNearlyEqual(meshState.rotationQuat, identityRotation)
+            : meshState.rotation.lengthSquared() > 1.0e-8f;
+        if (worldOffset.lengthSquared() < 1e-8f && !hasManualTranslation && !hasManualRotation)
+            continue;
+
+        QMatrix4x4 parentWorld;
+        parentWorld.setToIdentity();
+        if (ownerNode->parent && worlds.nodeWorldByUuid.contains(ownerNode->parent->nodeUuid))
+            parentWorld = worlds.nodeWorldByUuid.value(ownerNode->parent->nodeUuid);
+
+        bool invertible = false;
+        const QMatrix4x4 parentWorldInv = parentWorld.inverted(&invertible);
+        if (!invertible)
+            continue;
+
+        const LocalNodeTransform startTransform = decomposeLocalNodeTransform(aiToQMatrix(ownerNode->localTransform));
+        const QMatrix4x4 currentWorld = mesh->combinedRenderTransform();
+        const LocalNodeTransform endTransform = decomposeLocalNodeTransform(parentWorldInv * currentWorld);
+
+        CapturedTransformTrack track;
+        track.meshUuid = meshUuid;
+        track.ownerNodeUuid = ownerNode->nodeUuid;
+        track.sourceFile = mesh->getSourceFile().trimmed();
+        if (track.sourceFile.isEmpty())
+            track.sourceFile = sourceFileForNode(ownerNode);
+        track.targetNodeName = ownerNode->name;
+        track.startPosition = startTransform.translation;
+        track.endPosition = startTransform.translation;
+        track.startRotation = startTransform.rotation;
+        track.endRotation = startTransform.rotation;
+
+        if (!aggregatedTracksByNode.contains(ownerNode->nodeUuid))
+        {
+            aggregatedTracksByNode.insert(ownerNode->nodeUuid, track);
+            totalMeshCountByNode.insert(ownerNode->nodeUuid, ownerNode->meshUuids.size());
+        }
+        endTransformsByNode[ownerNode->nodeUuid].append(endTransform);
+        selectedMeshCountByNode[ownerNode->nodeUuid] = selectedMeshCountByNode.value(ownerNode->nodeUuid) + 1;
+    }
+
+    for (auto it = aggregatedTracksByNode.begin(); it != aggregatedTracksByNode.end(); ++it)
+    {
+        const QVector<LocalNodeTransform> endTransforms = endTransformsByNode.value(it.key());
+        const int count = endTransforms.size();
+        if (count <= 0)
+            continue;
+
+        const int selectedCount = selectedMeshCountByNode.value(it.key(), 0);
+        const int totalCount = totalMeshCountByNode.value(it.key(), selectedCount);
+        if (selectedCount != totalCount)
+        {
+            qWarning() << "[ExplodedView] Skipping animation capture for node"
+                       << it->targetNodeName
+                       << "because only" << selectedCount << "of" << totalCount
+                       << "direct meshes are part of the exploded selection.";
+            continue;
+        }
+
+        const LocalNodeTransform& referenceTransform = endTransforms.front();
+        bool transformsCompatible = true;
+        for (const LocalNodeTransform& endTransform : endTransforms)
+        {
+            if ((endTransform.translation - referenceTransform.translation).lengthSquared() > kExplosionOffsetTolerance
+                || !rotationsNearlyEqual(endTransform.rotation, referenceTransform.rotation))
+            {
+                transformsCompatible = false;
+                break;
+            }
+        }
+
+        if (!transformsCompatible)
+        {
+            qWarning() << "[ExplodedView] Skipping animation capture for node"
+                       << it->targetNodeName
+                       << "because its meshes resolve to different node transforms and cannot"
+                       << "be represented by one node animation track.";
+            continue;
+        }
+
+        it->endPosition = referenceTransform.translation;
+        it->endRotation = referenceTransform.rotation;
+        replacement.tracks.append(it.value());
+    }
+
+    if (replacement.tracks.isEmpty())
+        return false;
+
+    capturedSteps[row] = replacement;
+    updateCapturedViewsList();
+    if (listWidgetCapturedViews)
+        listWidgetCapturedViews->setCurrentRow(row);
     return true;
 }
 
@@ -2058,6 +2438,10 @@ void ExplodedViewPanel::updateCaptureButton()
 
     if (pushButtonCaptureView)
         pushButtonCaptureView->setEnabled(canCaptureExplosion);
+    if (pushButtonReplaceCapture)
+        pushButtonReplaceCapture->setEnabled(canCaptureExplosion
+            && listWidgetCapturedViews
+            && listWidgetCapturedViews->currentRow() >= 0);
     if (pushButtonCapture)
         pushButtonCapture->setEnabled(!activeCapturedSteps().isEmpty());
     if (pushButtonRemoveCapture)
@@ -2764,15 +3148,42 @@ void ExplodedViewPanel::updateCapturedViewsList()
     if (!listWidgetCapturedViews)
         return;
 
+    _syncingCapturedViewsList = true;
     listWidgetCapturedViews->clear();
     for (const CapturedExplosionStep& step : activeCapturedSteps())
     {
-        auto* item = new QListWidgetItem(
-            QStringLiteral("%1 - %2 mesh%3")
-                .arg(step.name)
-                .arg(step.tracks.size())
-                .arg(step.tracks.size() == 1 ? QString() : QStringLiteral("es")),
-            listWidgetCapturedViews);
+        auto* item = new QListWidgetItem(step.name, listWidgetCapturedViews);
         item->setData(Qt::UserRole, step.id);
+        item->setToolTip(QStringLiteral("%1 mesh%2")
+            .arg(step.tracks.size())
+            .arg(step.tracks.size() == 1 ? QString() : QStringLiteral("es")));
+        item->setFlags(item->flags() | Qt::ItemIsEditable);
+    }
+    _syncingCapturedViewsList = false;
+}
+
+void ExplodedViewPanel::onCapturedViewItemChanged(QListWidgetItem* item)
+{
+    if (_syncingCapturedViewsList || !item)
+        return;
+
+    const QUuid stepId = item->data(Qt::UserRole).toUuid();
+    const QString trimmedName = item->text().trimmed();
+    const QString resolvedName = trimmedName.isEmpty() ? tr("Step") : trimmedName;
+
+    QVector<CapturedExplosionStep>& capturedSteps = activeCapturedSteps();
+    for (CapturedExplosionStep& step : capturedSteps)
+    {
+        if (step.id != stepId)
+            continue;
+
+        step.name = resolvedName;
+        if (item->text() != resolvedName)
+        {
+            _syncingCapturedViewsList = true;
+            item->setText(resolvedName);
+            _syncingCapturedViewsList = false;
+        }
+        break;
     }
 }
