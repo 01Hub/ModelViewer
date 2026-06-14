@@ -563,6 +563,17 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _mainLayout->addWidget(_sectionBtn);
     connect(_sectionBtn, &QToolButton::toggled, this, [this](bool checked) { emit sectionViewToggled(checked); });
 
+    // Exploded View
+    _explodedBtn = new QToolButton(this);
+    _explodedBtn->setStyleSheet(buttonStyleSheet);
+    _explodedBtn->setIcon(QIcon(":/icons/res/exploded_view.png"));
+    _explodedBtn->setIconSize(QSize(48, 48));
+    _explodedBtn->setToolTip(tr("Exploded View"));
+    _explodedBtn->setCheckable(true);
+    _explodedBtn->setAutoRaise(true);
+    _mainLayout->addWidget(_explodedBtn);
+    connect(_explodedBtn, &QToolButton::toggled, this, [this](bool checked) { emit explodedViewToggled(checked); });
+
     // Swap Visible View
     _swapBtn = new QToolButton(this);
     _swapBtn->setStyleSheet(buttonStyleSheet);
@@ -757,6 +768,20 @@ void ViewToolbar::setSwapVisibleChecked(bool checked)
 	_swapBtn->blockSignals(oldState);
 }
 
+void ViewToolbar::setSectionViewChecked(bool checked)
+{
+	bool oldState = _sectionBtn->blockSignals(true);
+	_sectionBtn->setChecked(checked);
+	_sectionBtn->blockSignals(oldState);
+}
+
+void ViewToolbar::setExplodedViewChecked(bool checked)
+{
+	bool oldState = _explodedBtn->blockSignals(true);
+	_explodedBtn->setChecked(checked);
+	_explodedBtn->blockSignals(oldState);
+}
+
 
 void ViewToolbar::paintEvent(QPaintEvent* event)
 {
@@ -880,6 +905,9 @@ void ViewToolbar::retranslateUI()
 
 	// Section View
 	_sectionBtn->setToolTip(tr("Clipping Planes"));
+
+	// Exploded View
+	_explodedBtn->setToolTip(tr("Exploded View"));
 
 	// Swap Visible View
 	_swapBtn->setToolTip(tr("Swap Visible"));

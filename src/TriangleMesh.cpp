@@ -1654,7 +1654,12 @@ QMatrix4x4 TriangleMesh::getSceneRenderTransform() const
 
 QMatrix4x4 TriangleMesh::combinedRenderTransform() const
 {
-	return _transformation * _sceneRenderTransform;
+	const QMatrix4x4 base = _transformation * _sceneRenderTransform;
+	if (_explosionOffset.isNull())
+		return base;
+	QMatrix4x4 t;
+	t.translate(_explosionOffset);
+	return t * base;
 }
 
 void TriangleMesh::setSceneRenderTransform(const QMatrix4x4& trsf)
@@ -2019,6 +2024,12 @@ unsigned long long TriangleMesh::memorySize() const
 
 bool TriangleMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint)
 {
+	// If the mesh is exploded, bring the ray into the non-exploded (base) space so
+	// the triangle data in _triangles (which are at base world positions) can be
+	// tested directly.  The hit point is then translated back to world space.
+	const QVector3D adjustedRayPos = _explosionOffset.isNull()
+		? rayPos : rayPos - _explosionOffset;
+
 	float closestDistance = std::numeric_limits<float>::max();
 	bool found = false;
 	QVector3D bestIntersection;
@@ -2031,9 +2042,9 @@ bool TriangleMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& r
 	for (int i = 0; i < _triangles.size(); ++i)
 	{
 		QVector3D hitPoint;
-		if (_triangles[i]->intersectsWithRay(rayPos, rayDir, hitPoint))
+		if (_triangles[i]->intersectsWithRay(adjustedRayPos, rayDir, hitPoint))
 		{
-			float dist = (hitPoint - rayPos).length();
+			float dist = (hitPoint - adjustedRayPos).length();
 			if (dist < localMinDist)
 			{
 				localMinDist = dist;
@@ -2046,7 +2057,7 @@ bool TriangleMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& r
 	if (localFound && localMinDist < closestDistance)
 	{
 		closestDistance = localMinDist;
-		bestIntersection = localIntersection;
+		bestIntersection = localIntersection + _explosionOffset;
 		found = true;
 	}
 

@@ -5,6 +5,7 @@
 
 #include <QFileInfo>
 #include <QHBoxLayout>
+#include <QMenu>
 #include <QPainter>
 #include <QPaintEvent>
 #include <QPixmap>
@@ -24,9 +25,15 @@ QIcon makeCircleIcon(bool filled, const QColor& color)
 
     QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing);
-    painter.setPen(QPen(color, 1.5));
-    painter.setBrush(filled ? QBrush(color) : Qt::NoBrush);
-    painter.drawEllipse(2, 2, size - 4, size - 4);
+    painter.setPen(QPen(color, 1.25));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawEllipse(QRectF(2.0, 2.0, size - 4.0, size - 4.0));
+    if (filled)
+    {
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(color);
+        painter.drawEllipse(QRectF(5.1, 5.1, size - 10.2, size - 10.2));
+    }
     return QIcon(pixmap);
 }
 } // namespace
@@ -50,10 +57,13 @@ CamerasPanel::CamerasPanel(QWidget* parent)
     _tree->setAlternatingRowColors(true);
     _tree->setSelectionMode(QAbstractItemView::NoSelection);
     _tree->setFocusPolicy(Qt::NoFocus);
+    _tree->setContextMenuPolicy(Qt::CustomContextMenu);
     layout->addWidget(_tree);
 
     connect(_tree, &QTreeWidget::itemClicked,
             this,  &CamerasPanel::onItemClicked);
+    connect(_tree, &QWidget::customContextMenuRequested,
+            this, &CamerasPanel::onTreeContextMenuRequested);
 }
 
 void CamerasPanel::setSceneGraph(SceneGraph* sg)
@@ -241,6 +251,34 @@ void CamerasPanel::onItemClicked(QTreeWidgetItem* item, int /*column*/)
 
     markActive(sourceFile, cameraIndex, /*isSystemCam=*/false);
     emit gltfCameraActivated(sourceFile, cameraIndex);
+}
+
+void CamerasPanel::onTreeContextMenuRequested(const QPoint& pos)
+{
+    if (!_tree)
+        return;
+
+    QTreeWidgetItem* item = _tree->itemAt(pos);
+    if (!item)
+        return;
+
+    if (item->data(0, IsSystemCamRole).toBool())
+        return;
+
+    const bool isFileItem = item->data(0, IsFileItemRole).toBool();
+    const QString sourceFile = isFileItem
+        ? item->data(0, SourceFileRole).toString()
+        : (item->parent() ? item->parent()->data(0, SourceFileRole).toString() : QString());
+    const int cameraIndex = isFileItem ? -1 : item->data(0, CameraIndexRole).toInt();
+
+    if (sourceFile.isEmpty())
+        return;
+
+    QMenu menu(this);
+    QAction* deleteAction = menu.addAction(isFileItem ? tr("Delete All") : tr("Delete"));
+    QAction* chosen = menu.exec(_tree->viewport()->mapToGlobal(pos));
+    if (chosen == deleteAction)
+        emit gltfCameraDeleteRequested(sourceFile, cameraIndex);
 }
 
 // ---------------------------------------------------------------------------

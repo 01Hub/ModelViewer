@@ -13,6 +13,7 @@
 #include "RenameMeshCommand.h"
 #include "AnimationsPanel.h"
 #include "CamerasPanel.h"
+#include "ExplodedViewPanel.h"
 #include "MaterialPropertiesPanel.h"
 #include "SceneClipboard.h"
 #include "CutCommand.h"

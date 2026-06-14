@@ -2,7 +2,9 @@
 #include "AssImpModelLoader.h"
 #include "CutCommand.h"
 #include "DeleteMeshCommand.h"
+#include "MetadataDeleteCommand.h"
 #include "DuplicateCommand.h"
+#include "ExplodedViewPanel.h"
 #include "PasteCommand.h"
 #include "RenameMeshCommand.h"
 #include "GLWidget.h"
@@ -383,6 +385,15 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 		connect(_variantsPanel, &MaterialVariantsPanel::variantActivated,
 		        this,           &ModelViewer::applyVariant);
+		connect(_variantsPanel, &MaterialVariantsPanel::variantDeleteRequested,
+		        this, [this](const QString& sourceFile, int variantIndex)
+		{
+			if (!_sceneGraph || !_glWidget || !_undoStack || sourceFile.isEmpty())
+				return;
+			_undoStack->push(new MetadataDeleteCommand(
+				this, _glWidget, MetadataDeleteCommand::Kind::Variant,
+				sourceFile, variantIndex, tr("Delete Variant")));
+		});
 
 		connect(_sceneGraph, &SceneGraph::variantDataChanged,
 		        this,         &ModelViewer::refreshNavigationSubTabs);
@@ -404,6 +415,15 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		        _glWidget,         &GLWidget::seekAnimation);
 		connect(_animationsPanel, &AnimationsPanel::playbackSpeedChanged,
 		        _glWidget,         &GLWidget::setAnimationPlaybackSpeed);
+		connect(_animationsPanel, &AnimationsPanel::clipDeleteRequested,
+		        this, [this](const QString& sourceFile, int clipIndex)
+		{
+			if (!_sceneGraph || !_glWidget || !_undoStack || sourceFile.isEmpty())
+				return;
+			_undoStack->push(new MetadataDeleteCommand(
+				this, _glWidget, MetadataDeleteCommand::Kind::Animation,
+				sourceFile, clipIndex, tr("Delete Animation")));
+		});
 
 		connect(_sceneGraph, &SceneGraph::animationDataChanged,
 		        this,         &ModelViewer::refreshNavigationSubTabs);
@@ -421,9 +441,26 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		        _glWidget,      &GLWidget::activateGltfCamera);
 		connect(_camerasPanel, &CamerasPanel::systemCameraRequested,
 		        _glWidget,      &GLWidget::resetToSystemCamera);
+		connect(_camerasPanel, &CamerasPanel::gltfCameraDeleteRequested,
+		        this, [this](const QString& sourceFile, int cameraIndex)
+		{
+			if (!_sceneGraph || !_glWidget || !_undoStack || sourceFile.isEmpty())
+				return;
+			_undoStack->push(new MetadataDeleteCommand(
+				this, _glWidget, MetadataDeleteCommand::Kind::Camera,
+				sourceFile, cameraIndex, tr("Delete Camera")));
+		});
 
 		connect(_sceneGraph, &SceneGraph::gltfCameraDataChanged,
 		        this,         &ModelViewer::refreshNavigationSubTabs);
+	}
+
+	// Exploded View Panel — created inside GLWidget; wire SceneGraph + selection clearing here.
+	{
+		ExplodedViewPanel* evPanel = _glWidget->getExplodedViewPanel();
+		evPanel->setSceneGraph(_sceneGraph);
+		connect(evPanel, &ExplodedViewPanel::selectionClearRequested,
+		        this,    &ModelViewer::deselectAll);
 	}
 
 	// Texture Debug Panel — created once per viewer, shown on demand via
@@ -3429,6 +3466,12 @@ void ModelViewer::handleTreeWidgetSelectionChanged()
 	_glWidget->update();
 	updateSelectionStatusMessage();
 
+	// Keep SelectionManager in sync so panels that call getSelectedIds() see
+	// the same list regardless of whether the selection came from the tree or
+	// the viewport.
+	_glWidget->getSelectionManager()->syncSelectedIds(
+	    QList<int>(selectedVec.begin(), selectedVec.end()));
+
 	// Notify panels connected to GLWidget::selectionChanged (e.g. TextureDebugPanel).
 	// An empty list correctly clears the panel when nothing is selected in the tree.
 	_glWidget->broadcastSelectionChanged(QList<int>(selectedVec.begin(), selectedVec.end()));
@@ -3954,6 +3997,9 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		QVector<GltfAnimationData> animationDataByFile;
 		QHash<QString, int> activeAnimationByFile;
 		QVector<GltfCameraData> cameraDataByFile;
+		QJsonArray    explodedViews;
+		QString       activeExplodedViewId;
+		int           activeExplodedViewStepIndex = -1;
 		QString       activeGltfCameraFile;
 		int           activeGltfCameraIndex = -1;
 		QJsonObject   viewerState;
@@ -4139,6 +4185,9 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 
 		result.activeGltfCameraFile = session[QStringLiteral("activeGltfCameraFile")].toString();
 		result.activeGltfCameraIndex = session[QStringLiteral("activeGltfCameraIndex")].toInt(-1);
+		result.explodedViews = session[QStringLiteral("explodedViews")].toArray();
+		result.activeExplodedViewId = session[QStringLiteral("activeExplodedViewId")].toString();
+		result.activeExplodedViewStepIndex = session[QStringLiteral("activeExplodedViewStepIndex")].toInt(-1);
 		result.viewerState = session[QStringLiteral("viewerState")].toObject();
 
 		auto jsonArrayToQuat = [](const QJsonArray& arr, const QQuaternion& fallback = QQuaternion()) {
@@ -4582,6 +4631,14 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			_glWidget->setActiveAnimation(animationData.sourceFile, activeClip);
 	}
 
+	if (ExplodedViewPanel* explodedViewPanel = _glWidget ? _glWidget->getExplodedViewPanel() : nullptr)
+	{
+		explodedViewPanel->restorePresetsFromJson(
+			result.explodedViews,
+			QUuid(result.activeExplodedViewId),
+			result.activeExplodedViewStepIndex);
+	}
+
 	// Refit from the authoritative restored scene-graph state. During MVF load
 	// the initial Phase 3.5 display list is built before rebuildFromMvf() and
 	// syncRuntimeNodeTransforms(), so preserved-node-transform assets can have
@@ -4736,6 +4793,22 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 	                                               _visibleMeshUuids,
 	                                               selectedSet,
 	                                               cameraDataByFile);
+
+	if (_glWidget)
+	{
+		if (ExplodedViewPanel* explodedViewPanel = _glWidget->getExplodedViewPanel())
+		{
+			package.document.mvfSession.insert(
+				QStringLiteral("explodedViews"),
+				explodedViewPanel->presetsToJson());
+			package.document.mvfSession.insert(
+				QStringLiteral("activeExplodedViewId"),
+				explodedViewPanel->activePresetId().toString(QUuid::WithoutBraces));
+			package.document.mvfSession.insert(
+				QStringLiteral("activeExplodedViewStepIndex"),
+				explodedViewPanel->activeCapturedStepIndex());
+		}
+	}
 
 	if (_glWidget && _glWidget->isGltfCameraActive())
 	{

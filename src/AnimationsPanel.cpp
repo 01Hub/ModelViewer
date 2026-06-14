@@ -8,6 +8,7 @@
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QMenu>
 #include <QPainter>
 #include <QPixmap>
 #include <QPushButton>
@@ -26,9 +27,15 @@ QIcon makeCircleIcon(bool filled, const QColor& color)
 
 	QPainter painter(&pixmap);
 	painter.setRenderHint(QPainter::Antialiasing);
-	painter.setPen(QPen(color, 1.5));
-	painter.setBrush(filled ? QBrush(color) : Qt::NoBrush);
-	painter.drawEllipse(2, 2, size - 4, size - 4);
+	painter.setPen(QPen(color, 1.25));
+	painter.setBrush(Qt::NoBrush);
+	painter.drawEllipse(QRectF(2.0, 2.0, size - 4.0, size - 4.0));
+	if (filled)
+	{
+		painter.setPen(Qt::NoPen);
+		painter.setBrush(color);
+		painter.drawEllipse(QRectF(5.1, 5.1, size - 10.2, size - 10.2));
+	}
 	return QIcon(pixmap);
 }
 
@@ -67,24 +74,22 @@ AnimationsPanel::AnimationsPanel(QWidget* parent)
 	_tree->setRootIsDecorated(true);
 	_tree->setIndentation(16);
 	_tree->setAlternatingRowColors(true);
-	_tree->setSelectionMode(QAbstractItemView::NoSelection);
-	_tree->setFocusPolicy(Qt::NoFocus);
+	_tree->setSelectionMode(QAbstractItemView::SingleSelection);
+	_tree->setContextMenuPolicy(Qt::CustomContextMenu);
 	rootLayout->addWidget(_tree, 1);
 
 	auto* controlsLayout = new QVBoxLayout();
 	controlsLayout->setContentsMargins(8, 0, 8, 8);
 	controlsLayout->setSpacing(6);
 
-	auto* buttonRow = new QHBoxLayout();
-	buttonRow->setContentsMargins(0, 0, 0, 0);
-	buttonRow->setSpacing(8);
-
-	_playPauseButton = new QPushButton(tr("Play"), this);
 	_loopCheck = new QCheckBox(tr("Loop"), this);
 	_speedLabel = new QLabel(tr("Speed"), this);
 	_speedCombo = new QComboBox(this);
 	_timeLabel = new QLabel(tr("0:00.00 / 0:00.00"), this);
+	_playPauseButton = new QPushButton(tr("Play"), this);
+	_resetButton = new QPushButton(tr("Reset"), this);
 	_timeLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+	_timeLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 
 	const QList<double> speedOptions{ 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0 };
 	for (double speed : speedOptions)
@@ -92,25 +97,36 @@ AnimationsPanel::AnimationsPanel(QWidget* parent)
 	_speedCombo->setCurrentIndex(_speedCombo->findData(1.0));
 	_speedCombo->setToolTip(tr("Playback speed"));
 
-	buttonRow->addWidget(_playPauseButton);
-	buttonRow->addWidget(_loopCheck);
-	buttonRow->addSpacing(12);
-	buttonRow->addWidget(_speedLabel);
-	buttonRow->addWidget(_speedCombo);
-	buttonRow->addSpacing(12);
-	buttonRow->addStretch(1);
-	buttonRow->addWidget(_timeLabel);
-	controlsLayout->addLayout(buttonRow);
+	auto* infoRow = new QHBoxLayout();
+	infoRow->setContentsMargins(0, 0, 0, 0);
+	infoRow->setSpacing(8);
+	infoRow->addWidget(_loopCheck);
+	infoRow->addSpacerItem(new QSpacerItem(8, 0, QSizePolicy::Fixed, QSizePolicy::Minimum));
+	infoRow->addWidget(_speedLabel);
+	infoRow->addWidget(_speedCombo);
+	infoRow->addStretch(1);
+	infoRow->addWidget(_timeLabel, 1);
+	controlsLayout->addLayout(infoRow);
 
 	_timelineSlider = new QSlider(Qt::Horizontal, this);
 	_timelineSlider->setRange(0, 1000);
 	_timelineSlider->setEnabled(false);
 	controlsLayout->addWidget(_timelineSlider);
 
+	auto* transportRow = new QHBoxLayout();
+	transportRow->setContentsMargins(0, 0, 0, 0);
+	transportRow->setSpacing(8);
+	transportRow->addWidget(_playPauseButton);
+	transportRow->addStretch(1);
+	transportRow->addWidget(_resetButton);
+	controlsLayout->addLayout(transportRow);
+
 	rootLayout->addLayout(controlsLayout);
 
 	connect(_tree, &QTreeWidget::itemClicked, this, &AnimationsPanel::onItemClicked);
+	connect(_tree, &QWidget::customContextMenuRequested, this, &AnimationsPanel::onTreeContextMenuRequested);
 	connect(_playPauseButton, &QPushButton::clicked, this, &AnimationsPanel::onPlayPauseClicked);
+	connect(_resetButton, &QPushButton::clicked, this, &AnimationsPanel::onResetClicked);
 	connect(_loopCheck, &QCheckBox::toggled, this, &AnimationsPanel::onLoopCheckChanged);
 	connect(_speedCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &AnimationsPanel::onPlaybackSpeedChanged);
 	connect(_timelineSlider, &QSlider::sliderPressed, this, &AnimationsPanel::onSliderPressed);
@@ -162,6 +178,7 @@ void AnimationsPanel::refresh()
 		fileItem->setExpanded(true);
 	}
 
+	restoreSelection();
 	updateControlsForSelection();
 }
 
@@ -174,6 +191,7 @@ void AnimationsPanel::setDetachedOverlayMode(bool enabled)
 	{
 		_savedStyleSheet = styleSheet();
 		_savedPlayPauseStyle = _playPauseButton ? _playPauseButton->styleSheet() : QString();
+		_savedResetStyle = _resetButton ? _resetButton->styleSheet() : QString();
 		_savedPalette = _tree->palette();
 		_savedViewportPalette = _tree->viewport()->palette();
 		_savedAutoFill = autoFillBackground();
@@ -209,6 +227,8 @@ void AnimationsPanel::setDetachedOverlayMode(bool enabled)
 		setStyleSheet(_savedStyleSheet);
 		if (_playPauseButton)
 			_playPauseButton->setStyleSheet(_savedPlayPauseStyle);
+		if (_resetButton)
+			_resetButton->setStyleSheet(_savedResetStyle);
 		_tree->setPalette(_savedPalette);
 		_tree->viewport()->setPalette(_savedViewportPalette);
 		_tree->setAutoFillBackground(_savedAutoFill);
@@ -286,7 +306,10 @@ void AnimationsPanel::onItemClicked(QTreeWidgetItem* item, int /*column*/)
 	if (sourceFile.isEmpty() || clipIndex < 0)
 		return;
 
+	_selectedSourceFile = sourceFile;
+	_selectedClipIndex = clipIndex;
 	markActiveClip(sourceFile, clipIndex);
+	updateControlsForSelection();
 	emit clipActivated(sourceFile, clipIndex);
 }
 
@@ -294,6 +317,52 @@ void AnimationsPanel::onPlayPauseClicked()
 {
 	const bool playing = _glWidget ? _glWidget->isAnimationPlaying() : false;
 	emit playbackToggled(!playing);
+}
+
+void AnimationsPanel::onResetClicked()
+{
+	if (_currentDurationSeconds <= 0.0)
+		return;
+
+	emit playbackToggled(false);
+	emit seekRequested(0.0);
+}
+
+void AnimationsPanel::onTreeContextMenuRequested(const QPoint& pos)
+{
+	if (!_tree)
+		return;
+
+	QTreeWidgetItem* item = _tree->itemAt(pos);
+	if (!item)
+		return;
+
+	const bool isFileItem = item->data(0, IsFileItemRole).toBool();
+	QString sourceFile;
+	int clipIndex = -1;
+	if (isFileItem)
+	{
+		sourceFile = item->data(0, SourceFileRole).toString();
+	}
+	else
+	{
+		QTreeWidgetItem* parentItem = item->parent();
+		if (!parentItem)
+			return;
+		sourceFile = parentItem->data(0, SourceFileRole).toString();
+		clipIndex = item->data(0, ClipIndexRole).toInt();
+	}
+
+	if (sourceFile.isEmpty())
+		return;
+
+	QMenu menu(this);
+	QAction* deleteAction = menu.addAction(isFileItem ? tr("Delete All") : tr("Delete"));
+	const bool playing = _glWidget ? _glWidget->isAnimationPlaying() : false;
+	deleteAction->setEnabled(!playing);
+	QAction* chosen = menu.exec(_tree->viewport()->mapToGlobal(pos));
+	if (chosen == deleteAction)
+		emit clipDeleteRequested(sourceFile, clipIndex);
 }
 
 void AnimationsPanel::onLoopCheckChanged(bool checked)
@@ -331,8 +400,7 @@ void AnimationsPanel::onSliderValueChanged(int value)
 	const double timeSeconds = (static_cast<double>(value) / static_cast<double>(_timelineSlider->maximum())) * _currentDurationSeconds;
 	_timeLabel->setText(QStringLiteral("%1 / %2").arg(formatTime(timeSeconds), formatTime(_currentDurationSeconds)));
 
-	if (_scrubbing)
-		emit seekRequested(timeSeconds);
+	emit seekRequested(timeSeconds);
 }
 
 QTreeWidgetItem* AnimationsPanel::makeFileItem(const QString& sourceFile, const QString& displayName) const
@@ -356,7 +424,6 @@ QTreeWidgetItem* AnimationsPanel::makeClipItem(const QString& label, int clipInd
 	item->setData(0, ClipIndexRole, clipIndex);
 	item->setData(0, DurationRole, durationSeconds);
 	item->setData(0, IsFileItemRole, false);
-	item->setFlags(item->flags() & ~Qt::ItemIsSelectable);
 	item->setIcon(0, active ? activeIcon() : inactiveIcon());
 	return item;
 }
@@ -410,6 +477,7 @@ void AnimationsPanel::updateControlsForSelection()
 
 	_playPauseButton->setEnabled(_currentDurationSeconds > 0.0);
 	_playPauseButton->setText(playing ? tr("Pause") : tr("Play"));
+	_resetButton->setEnabled(_currentDurationSeconds > 0.0 && (playing || currentTime > 0.0));
 	_loopCheck->setEnabled(_currentDurationSeconds > 0.0);
 	_loopCheck->setChecked(looping);
 	_speedCombo->setEnabled(_currentDurationSeconds > 0.0);
@@ -435,6 +503,32 @@ void AnimationsPanel::updateControlsForSelection()
 	_syncingControls = false;
 }
 
+void AnimationsPanel::restoreSelection()
+{
+	if (_selectedSourceFile.isEmpty() || _selectedClipIndex < 0 || !_tree)
+		return;
+
+	for (int topIndex = 0; topIndex < _tree->topLevelItemCount(); ++topIndex)
+	{
+		QTreeWidgetItem* fileItem = _tree->topLevelItem(topIndex);
+		if (!fileItem || fileItem->data(0, SourceFileRole).toString() != _selectedSourceFile)
+			continue;
+
+		for (int childIndex = 0; childIndex < fileItem->childCount(); ++childIndex)
+		{
+			QTreeWidgetItem* child = fileItem->child(childIndex);
+			if (child && child->data(0, ClipIndexRole).toInt() == _selectedClipIndex)
+			{
+				_tree->setCurrentItem(child);
+				return;
+			}
+		}
+	}
+
+	_selectedSourceFile.clear();
+	_selectedClipIndex = -1;
+}
+
 QIcon AnimationsPanel::activeIcon() const
 {
 	const QColor color = _tree ? _tree->palette().color(QPalette::Text)
@@ -452,12 +546,15 @@ QIcon AnimationsPanel::inactiveIcon() const
 
 void AnimationsPanel::updateDetachedPlayButtonStyle()
 {
-	if (!_playPauseButton)
+	if (!_playPauseButton && !_resetButton)
 		return;
 
 	if (!_overlayMode)
 	{
-		_playPauseButton->setStyleSheet(_savedPlayPauseStyle);
+		if (_playPauseButton)
+			_playPauseButton->setStyleSheet(_savedPlayPauseStyle);
+		if (_resetButton)
+			_resetButton->setStyleSheet(_savedResetStyle);
 		return;
 	}
 
@@ -468,7 +565,7 @@ void AnimationsPanel::updateDetachedPlayButtonStyle()
 	const QColor buttonBorder = lightText ? QColor(255, 255, 255, 110) : QColor(0, 0, 0, 90);
 	const QColor buttonDisabledText = lightText ? QColor(255, 255, 255, 120) : QColor(0, 0, 0, 120);
 
-	_playPauseButton->setStyleSheet(QStringLiteral(
+	const QString buttonStyle = QStringLiteral(
 		"QPushButton {"
 		"  background-color: rgba(%1, %2, %3, %4);"
 		"  color: rgb(%5, %6, %7);"
@@ -483,5 +580,10 @@ void AnimationsPanel::updateDetachedPlayButtonStyle()
 		.arg(buttonFill.red()).arg(buttonFill.green()).arg(buttonFill.blue()).arg(buttonFill.alpha())
 		.arg(buttonText.red()).arg(buttonText.green()).arg(buttonText.blue())
 		.arg(buttonBorder.red()).arg(buttonBorder.green()).arg(buttonBorder.blue()).arg(buttonBorder.alpha())
-		.arg(buttonDisabledText.red()).arg(buttonDisabledText.green()).arg(buttonDisabledText.blue()).arg(buttonDisabledText.alpha()));
+		.arg(buttonDisabledText.red()).arg(buttonDisabledText.green()).arg(buttonDisabledText.blue()).arg(buttonDisabledText.alpha());
+
+	if (_playPauseButton)
+		_playPauseButton->setStyleSheet(buttonStyle);
+	if (_resetButton)
+		_resetButton->setStyleSheet(buttonStyle);
 }

@@ -59,12 +59,14 @@ public:
 signals:
     // Emitted when the user clicks a glTF camera item.
     void gltfCameraActivated(const QString& sourceFile, int cameraIndex);
+    void gltfCameraDeleteRequested(const QString& sourceFile, int cameraIndex);
 
     // Emitted when the user clicks the System Camera item.
     void systemCameraRequested();
 
 private slots:
     void onItemClicked(QTreeWidgetItem* item, int column);
+    void onTreeContextMenuRequested(const QPoint& pos);
 
 private:
     void paintEvent(QPaintEvent* event) override;

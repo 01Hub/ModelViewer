@@ -15,6 +15,7 @@ public:
 
 	void setCoefficientLimits(double xMin, double xMax, double yMin, double yMax, double zMin, double zMax);
 	void applyContrastTheme(const QColor& textColor);
+	void applyBackgroundTheme(const QColor& topColor, const QColor& bottomColor);
 
 protected slots:
 	void keyPressEvent(QKeyEvent* e);

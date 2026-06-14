@@ -2,7 +2,9 @@
 
 #include <functional>
 #include <vector>
+#include <QHash>
 #include <QMap>
+#include <QSet>
 #include <QStringList>
 #include <QUuid>
 
@@ -55,6 +57,8 @@ private:
         std::vector<aiMesh*>& outMeshes,
         std::vector<aiMaterial*>& outMaterials,
         QMap<QString, unsigned int>& materialKeyToIndex,
+        QHash<QUuid, QString>& exportedNodeNameByUuid,
+        QSet<QString>& usedExportNodeNames,
         const aiMatrix4x4& parentWorldTransform,
         bool flattenTransforms,
         const aiMatrix4x4& importCorrection = aiMatrix4x4(),
