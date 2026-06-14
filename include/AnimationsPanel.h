@@ -44,6 +44,7 @@ signals:
 private slots:
 	void onItemClicked(QTreeWidgetItem* item, int column);
 	void onPlayPauseClicked();
+	void onResetClicked();
 	void onTreeContextMenuRequested(const QPoint& pos);
 	void onLoopCheckChanged(bool checked);
 	void onPlaybackSpeedChanged(int index);
@@ -65,6 +66,7 @@ private:
 
 	QTreeWidget* _tree = nullptr;
 	QPushButton* _playPauseButton = nullptr;
+	QPushButton* _resetButton = nullptr;
 	QCheckBox* _loopCheck = nullptr;
 	QLabel* _speedLabel = nullptr;
 	QComboBox* _speedCombo = nullptr;
@@ -86,5 +88,6 @@ private:
 	bool _savedViewportAutoFill = false;
 	QString _savedStyleSheet;
 	QString _savedPlayPauseStyle;
+	QString _savedResetStyle;
 	QColor _detachedOverlayFillColor = QColor(255, 255, 255, 65);
 };

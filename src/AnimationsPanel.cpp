@@ -82,16 +82,14 @@ AnimationsPanel::AnimationsPanel(QWidget* parent)
 	controlsLayout->setContentsMargins(8, 0, 8, 8);
 	controlsLayout->setSpacing(6);
 
-	auto* buttonRow = new QHBoxLayout();
-	buttonRow->setContentsMargins(0, 0, 0, 0);
-	buttonRow->setSpacing(8);
-
-	_playPauseButton = new QPushButton(tr("Play"), this);
 	_loopCheck = new QCheckBox(tr("Loop"), this);
 	_speedLabel = new QLabel(tr("Speed"), this);
 	_speedCombo = new QComboBox(this);
 	_timeLabel = new QLabel(tr("0:00.00 / 0:00.00"), this);
+	_playPauseButton = new QPushButton(tr("Play"), this);
+	_resetButton = new QPushButton(tr("Reset"), this);
 	_timeLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+	_timeLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 
 	const QList<double> speedOptions{ 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0 };
 	for (double speed : speedOptions)
@@ -99,27 +97,36 @@ AnimationsPanel::AnimationsPanel(QWidget* parent)
 	_speedCombo->setCurrentIndex(_speedCombo->findData(1.0));
 	_speedCombo->setToolTip(tr("Playback speed"));
 
-	buttonRow->addWidget(_playPauseButton);
-	buttonRow->addSpacerItem(new QSpacerItem(8, 0, QSizePolicy::Fixed, QSizePolicy::Minimum));
-	buttonRow->addWidget(_loopCheck);
-	buttonRow->addSpacerItem(new QSpacerItem(12, 0, QSizePolicy::Fixed, QSizePolicy::Minimum));
-	buttonRow->addWidget(_speedLabel);
-	buttonRow->addWidget(_speedCombo);
-	buttonRow->addSpacerItem(new QSpacerItem(12, 0, QSizePolicy::Fixed, QSizePolicy::Minimum));
-	buttonRow->addStretch(1);
-	buttonRow->addWidget(_timeLabel);
-	controlsLayout->addLayout(buttonRow);
+	auto* infoRow = new QHBoxLayout();
+	infoRow->setContentsMargins(0, 0, 0, 0);
+	infoRow->setSpacing(8);
+	infoRow->addWidget(_loopCheck);
+	infoRow->addSpacerItem(new QSpacerItem(8, 0, QSizePolicy::Fixed, QSizePolicy::Minimum));
+	infoRow->addWidget(_speedLabel);
+	infoRow->addWidget(_speedCombo);
+	infoRow->addStretch(1);
+	infoRow->addWidget(_timeLabel, 1);
+	controlsLayout->addLayout(infoRow);
 
 	_timelineSlider = new QSlider(Qt::Horizontal, this);
 	_timelineSlider->setRange(0, 1000);
 	_timelineSlider->setEnabled(false);
 	controlsLayout->addWidget(_timelineSlider);
 
+	auto* transportRow = new QHBoxLayout();
+	transportRow->setContentsMargins(0, 0, 0, 0);
+	transportRow->setSpacing(8);
+	transportRow->addWidget(_playPauseButton);
+	transportRow->addStretch(1);
+	transportRow->addWidget(_resetButton);
+	controlsLayout->addLayout(transportRow);
+
 	rootLayout->addLayout(controlsLayout);
 
 	connect(_tree, &QTreeWidget::itemClicked, this, &AnimationsPanel::onItemClicked);
 	connect(_tree, &QWidget::customContextMenuRequested, this, &AnimationsPanel::onTreeContextMenuRequested);
 	connect(_playPauseButton, &QPushButton::clicked, this, &AnimationsPanel::onPlayPauseClicked);
+	connect(_resetButton, &QPushButton::clicked, this, &AnimationsPanel::onResetClicked);
 	connect(_loopCheck, &QCheckBox::toggled, this, &AnimationsPanel::onLoopCheckChanged);
 	connect(_speedCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &AnimationsPanel::onPlaybackSpeedChanged);
 	connect(_timelineSlider, &QSlider::sliderPressed, this, &AnimationsPanel::onSliderPressed);
@@ -184,6 +191,7 @@ void AnimationsPanel::setDetachedOverlayMode(bool enabled)
 	{
 		_savedStyleSheet = styleSheet();
 		_savedPlayPauseStyle = _playPauseButton ? _playPauseButton->styleSheet() : QString();
+		_savedResetStyle = _resetButton ? _resetButton->styleSheet() : QString();
 		_savedPalette = _tree->palette();
 		_savedViewportPalette = _tree->viewport()->palette();
 		_savedAutoFill = autoFillBackground();
@@ -219,6 +227,8 @@ void AnimationsPanel::setDetachedOverlayMode(bool enabled)
 		setStyleSheet(_savedStyleSheet);
 		if (_playPauseButton)
 			_playPauseButton->setStyleSheet(_savedPlayPauseStyle);
+		if (_resetButton)
+			_resetButton->setStyleSheet(_savedResetStyle);
 		_tree->setPalette(_savedPalette);
 		_tree->viewport()->setPalette(_savedViewportPalette);
 		_tree->setAutoFillBackground(_savedAutoFill);
@@ -307,6 +317,15 @@ void AnimationsPanel::onPlayPauseClicked()
 {
 	const bool playing = _glWidget ? _glWidget->isAnimationPlaying() : false;
 	emit playbackToggled(!playing);
+}
+
+void AnimationsPanel::onResetClicked()
+{
+	if (_currentDurationSeconds <= 0.0)
+		return;
+
+	emit playbackToggled(false);
+	emit seekRequested(0.0);
 }
 
 void AnimationsPanel::onTreeContextMenuRequested(const QPoint& pos)
@@ -458,6 +477,7 @@ void AnimationsPanel::updateControlsForSelection()
 
 	_playPauseButton->setEnabled(_currentDurationSeconds > 0.0);
 	_playPauseButton->setText(playing ? tr("Pause") : tr("Play"));
+	_resetButton->setEnabled(_currentDurationSeconds > 0.0 && (playing || currentTime > 0.0));
 	_loopCheck->setEnabled(_currentDurationSeconds > 0.0);
 	_loopCheck->setChecked(looping);
 	_speedCombo->setEnabled(_currentDurationSeconds > 0.0);
@@ -526,13 +546,15 @@ QIcon AnimationsPanel::inactiveIcon() const
 
 void AnimationsPanel::updateDetachedPlayButtonStyle()
 {
-	if (!_playPauseButton)
+	if (!_playPauseButton && !_resetButton)
 		return;
 
 	if (!_overlayMode)
 	{
 		if (_playPauseButton)
 			_playPauseButton->setStyleSheet(_savedPlayPauseStyle);
+		if (_resetButton)
+			_resetButton->setStyleSheet(_savedResetStyle);
 		return;
 	}
 
@@ -562,4 +584,6 @@ void AnimationsPanel::updateDetachedPlayButtonStyle()
 
 	if (_playPauseButton)
 		_playPauseButton->setStyleSheet(buttonStyle);
+	if (_resetButton)
+		_resetButton->setStyleSheet(buttonStyle);
 }
