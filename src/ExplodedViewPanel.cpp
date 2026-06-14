@@ -9,6 +9,8 @@
 
 #include <QAbstractItemModel>
 #include <QInputDialog>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QListWidgetItem>
 #include <QMenu>
 #include <QMessageBox>
@@ -168,6 +170,66 @@ int comboIndexFromMode(ExplodedViewManager::Mode mode)
         return 0;
     }
 }
+
+QString modeToString(ExplodedViewManager::Mode mode)
+{
+    switch (mode)
+    {
+    case ExplodedViewManager::Mode::AxisX: return QStringLiteral("AxisX");
+    case ExplodedViewManager::Mode::AxisY: return QStringLiteral("AxisY");
+    case ExplodedViewManager::Mode::AxisZ: return QStringLiteral("AxisZ");
+    case ExplodedViewManager::Mode::Vector: return QStringLiteral("Vector");
+    case ExplodedViewManager::Mode::Auto:
+    default:
+        return QStringLiteral("Auto");
+    }
+}
+
+ExplodedViewManager::Mode modeFromString(const QString& mode)
+{
+    if (mode == QLatin1String("AxisX"))
+        return ExplodedViewManager::Mode::AxisX;
+    if (mode == QLatin1String("AxisY"))
+        return ExplodedViewManager::Mode::AxisY;
+    if (mode == QLatin1String("AxisZ"))
+        return ExplodedViewManager::Mode::AxisZ;
+    if (mode == QLatin1String("Vector"))
+        return ExplodedViewManager::Mode::Vector;
+    return ExplodedViewManager::Mode::Auto;
+}
+
+QJsonArray vector3ToJson(const QVector3D& vector)
+{
+    return QJsonArray{vector.x(), vector.y(), vector.z()};
+}
+
+QVector3D vector3FromJson(const QJsonArray& array, const QVector3D& fallback = QVector3D())
+{
+    if (array.size() < 3)
+        return fallback;
+    return QVector3D(
+        static_cast<float>(array[0].toDouble(fallback.x())),
+        static_cast<float>(array[1].toDouble(fallback.y())),
+        static_cast<float>(array[2].toDouble(fallback.z())));
+}
+
+QJsonArray quaternionToJson(const QQuaternion& quaternion)
+{
+    return QJsonArray{quaternion.scalar(), quaternion.x(), quaternion.y(), quaternion.z()};
+}
+
+QQuaternion quaternionFromJson(const QJsonArray& array,
+                               const QQuaternion& fallback = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f))
+{
+    if (array.size() < 4)
+        return fallback;
+
+    return QQuaternion(
+        static_cast<float>(array[0].toDouble(fallback.scalar())),
+        static_cast<float>(array[1].toDouble(fallback.x())),
+        static_cast<float>(array[2].toDouble(fallback.y())),
+        static_cast<float>(array[3].toDouble(fallback.z()))).normalized();
+}
 }
 
 // ---------------------------------------------------------------------------
@@ -255,6 +317,191 @@ const QVector<ExplodedViewPanel::CapturedExplosionStep>& ExplodedViewPanel::acti
     if (const ExplodedViewPreset* preset = activePreset())
         return preset->capturedSteps;
     return kEmptySteps;
+}
+
+QJsonArray ExplodedViewPanel::presetsToJson() const
+{
+    QJsonArray presetsJson;
+    for (const ExplodedViewPreset& preset : _presets)
+    {
+        QJsonObject presetObj;
+        presetObj.insert(QStringLiteral("id"), preset.id.toString(QUuid::WithoutBraces));
+        presetObj.insert(QStringLiteral("name"), preset.name);
+
+        QJsonArray assemblyArray;
+        for (const QUuid& uuid : preset.assemblyUuids)
+            assemblyArray.append(uuid.toString(QUuid::WithoutBraces));
+        presetObj.insert(QStringLiteral("assemblyUuids"), assemblyArray);
+        presetObj.insert(QStringLiteral("anchorUuid"), preset.anchorUuid.toString(QUuid::WithoutBraces));
+        presetObj.insert(QStringLiteral("mode"), modeToString(preset.mode));
+        presetObj.insert(QStringLiteral("userVector"), vector3ToJson(preset.userVector));
+        presetObj.insert(QStringLiteral("factor"), preset.factor);
+        presetObj.insert(QStringLiteral("capturedStepCounter"), preset.capturedStepCounter);
+        presetObj.insert(QStringLiteral("outputMode"), preset.outputMode);
+        presetObj.insert(QStringLiteral("durationSeconds"), preset.durationSeconds);
+        presetObj.insert(QStringLiteral("loopBack"), preset.loopBack);
+
+        QJsonArray stepsArray;
+        for (const CapturedExplosionStep& step : preset.capturedSteps)
+        {
+            QJsonObject stepObj;
+            stepObj.insert(QStringLiteral("id"), step.id.toString(QUuid::WithoutBraces));
+            stepObj.insert(QStringLiteral("name"), step.name);
+
+            QJsonArray tracksArray;
+            for (const CapturedTransformTrack& track : step.tracks)
+            {
+                QJsonObject trackObj;
+                trackObj.insert(QStringLiteral("meshUuid"), track.meshUuid.toString(QUuid::WithoutBraces));
+                trackObj.insert(QStringLiteral("ownerNodeUuid"), track.ownerNodeUuid.toString(QUuid::WithoutBraces));
+                trackObj.insert(QStringLiteral("sourceFile"), track.sourceFile);
+                trackObj.insert(QStringLiteral("targetNodeName"), track.targetNodeName);
+                trackObj.insert(QStringLiteral("targetNodeIndex"), track.targetNodeIndex);
+                trackObj.insert(QStringLiteral("startPosition"), vector3ToJson(track.startPosition));
+                trackObj.insert(QStringLiteral("endPosition"), vector3ToJson(track.endPosition));
+                trackObj.insert(QStringLiteral("startRotation"), quaternionToJson(track.startRotation));
+                trackObj.insert(QStringLiteral("endRotation"), quaternionToJson(track.endRotation));
+                tracksArray.append(trackObj);
+            }
+
+            stepObj.insert(QStringLiteral("tracks"), tracksArray);
+            stepsArray.append(stepObj);
+        }
+
+        presetObj.insert(QStringLiteral("capturedSteps"), stepsArray);
+        presetsJson.append(presetObj);
+    }
+
+    return presetsJson;
+}
+
+QUuid ExplodedViewPanel::activePresetId() const
+{
+    const ExplodedViewPreset* preset = activePreset();
+    return preset ? preset->id : QUuid();
+}
+
+int ExplodedViewPanel::activeCapturedStepIndex() const
+{
+    return listWidgetCapturedViews ? listWidgetCapturedViews->currentRow() : -1;
+}
+
+void ExplodedViewPanel::restorePresetsFromJson(const QJsonArray& presetsJson,
+                                               const QUuid& activePresetId,
+                                               int activeStepIndex)
+{
+    stopDraftPreview();
+    cancelPickingMode();
+    if (_glWidget)
+        _glWidget->clearExplodedViewManualPlacement();
+
+    _presets.clear();
+    _activePresetIndex = -1;
+
+    for (const QJsonValue& presetValue : presetsJson)
+    {
+        const QJsonObject presetObj = presetValue.toObject();
+        ExplodedViewPreset preset;
+        preset.id = QUuid(presetObj.value(QStringLiteral("id")).toString());
+        if (preset.id.isNull())
+            preset.id = QUuid::createUuid();
+        preset.name = presetObj.value(QStringLiteral("name")).toString().trimmed();
+        if (preset.name.isEmpty())
+            preset.name = nextPresetName();
+
+        for (const QJsonValue& uuidValue : presetObj.value(QStringLiteral("assemblyUuids")).toArray())
+        {
+            const QUuid uuid(uuidValue.toString());
+            if (!uuid.isNull())
+                preset.assemblyUuids.insert(uuid);
+        }
+
+        preset.anchorUuid = QUuid(presetObj.value(QStringLiteral("anchorUuid")).toString());
+        preset.mode = modeFromString(presetObj.value(QStringLiteral("mode")).toString());
+        preset.userVector = vector3FromJson(
+            presetObj.value(QStringLiteral("userVector")).toArray(),
+            QVector3D(1.0f, 0.0f, 0.0f));
+        preset.factor = static_cast<float>(presetObj.value(QStringLiteral("factor")).toDouble(1.0));
+        preset.capturedStepCounter = qMax(1, presetObj.value(QStringLiteral("capturedStepCounter")).toInt(1));
+        preset.outputMode = presetObj.value(QStringLiteral("outputMode")).toInt(0);
+        preset.durationSeconds = presetObj.value(QStringLiteral("durationSeconds")).toDouble(3.0);
+        preset.loopBack = presetObj.value(QStringLiteral("loopBack")).toBool(true);
+
+        for (const QJsonValue& stepValue : presetObj.value(QStringLiteral("capturedSteps")).toArray())
+        {
+            const QJsonObject stepObj = stepValue.toObject();
+            CapturedExplosionStep step;
+            step.id = QUuid(stepObj.value(QStringLiteral("id")).toString());
+            if (step.id.isNull())
+                step.id = QUuid::createUuid();
+            step.name = stepObj.value(QStringLiteral("name")).toString().trimmed();
+            if (step.name.isEmpty())
+                step.name = tr("Step %1").arg(preset.capturedSteps.size() + 1);
+
+            for (const QJsonValue& trackValue : stepObj.value(QStringLiteral("tracks")).toArray())
+            {
+                const QJsonObject trackObj = trackValue.toObject();
+                CapturedTransformTrack track;
+                track.meshUuid = QUuid(trackObj.value(QStringLiteral("meshUuid")).toString());
+                track.ownerNodeUuid = QUuid(trackObj.value(QStringLiteral("ownerNodeUuid")).toString());
+                track.sourceFile = trackObj.value(QStringLiteral("sourceFile")).toString();
+                track.targetNodeName = trackObj.value(QStringLiteral("targetNodeName")).toString();
+                track.targetNodeIndex = trackObj.value(QStringLiteral("targetNodeIndex")).toInt(-1);
+                track.startPosition = vector3FromJson(trackObj.value(QStringLiteral("startPosition")).toArray());
+                track.endPosition = vector3FromJson(trackObj.value(QStringLiteral("endPosition")).toArray());
+                track.startRotation = quaternionFromJson(trackObj.value(QStringLiteral("startRotation")).toArray());
+                track.endRotation = quaternionFromJson(trackObj.value(QStringLiteral("endRotation")).toArray());
+
+                if (track.ownerNodeUuid.isNull() || track.sourceFile.isEmpty())
+                    continue;
+
+                step.tracks.append(track);
+            }
+
+            if (!step.tracks.isEmpty())
+                preset.capturedSteps.append(step);
+        }
+
+        const int capturedStepCount = static_cast<int>(preset.capturedSteps.size());
+        if (preset.capturedStepCounter <= capturedStepCount)
+            preset.capturedStepCounter = capturedStepCount + 1;
+
+        _presets.append(preset);
+    }
+
+    if (_presets.isEmpty())
+    {
+        initializeDefaultPreset();
+        return;
+    }
+
+    int resolvedIndex = 0;
+    if (!activePresetId.isNull())
+    {
+        for (int index = 0; index < _presets.size(); ++index)
+        {
+            if (_presets[index].id == activePresetId)
+            {
+                resolvedIndex = index;
+                break;
+            }
+        }
+    }
+
+    refreshPresetCombo();
+    loadPresetIntoUi(resolvedIndex);
+
+    if (listWidgetCapturedViews && !activeCapturedSteps().isEmpty())
+    {
+        const int maxStepIndex = static_cast<int>(activeCapturedSteps().size()) - 1;
+        listWidgetCapturedViews->setCurrentRow(
+            activeStepIndex >= 0 ? qBound(0, activeStepIndex, maxStepIndex) : 0);
+    }
+    else if (listWidgetCapturedViews)
+        listWidgetCapturedViews->setCurrentRow(-1);
+
+    updateManualPlacementUi();
+    updateCaptureButton();
 }
 
 void ExplodedViewPanel::refreshPresetCombo()

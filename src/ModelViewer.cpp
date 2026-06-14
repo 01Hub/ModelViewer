@@ -4,6 +4,7 @@
 #include "DeleteMeshCommand.h"
 #include "MetadataDeleteCommand.h"
 #include "DuplicateCommand.h"
+#include "ExplodedViewPanel.h"
 #include "PasteCommand.h"
 #include "RenameMeshCommand.h"
 #include "GLWidget.h"
@@ -3996,6 +3997,9 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		QVector<GltfAnimationData> animationDataByFile;
 		QHash<QString, int> activeAnimationByFile;
 		QVector<GltfCameraData> cameraDataByFile;
+		QJsonArray    explodedViews;
+		QString       activeExplodedViewId;
+		int           activeExplodedViewStepIndex = -1;
 		QString       activeGltfCameraFile;
 		int           activeGltfCameraIndex = -1;
 		QJsonObject   viewerState;
@@ -4181,6 +4185,9 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 
 		result.activeGltfCameraFile = session[QStringLiteral("activeGltfCameraFile")].toString();
 		result.activeGltfCameraIndex = session[QStringLiteral("activeGltfCameraIndex")].toInt(-1);
+		result.explodedViews = session[QStringLiteral("explodedViews")].toArray();
+		result.activeExplodedViewId = session[QStringLiteral("activeExplodedViewId")].toString();
+		result.activeExplodedViewStepIndex = session[QStringLiteral("activeExplodedViewStepIndex")].toInt(-1);
 		result.viewerState = session[QStringLiteral("viewerState")].toObject();
 
 		auto jsonArrayToQuat = [](const QJsonArray& arr, const QQuaternion& fallback = QQuaternion()) {
@@ -4624,6 +4631,14 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			_glWidget->setActiveAnimation(animationData.sourceFile, activeClip);
 	}
 
+	if (ExplodedViewPanel* explodedViewPanel = _glWidget ? _glWidget->getExplodedViewPanel() : nullptr)
+	{
+		explodedViewPanel->restorePresetsFromJson(
+			result.explodedViews,
+			QUuid(result.activeExplodedViewId),
+			result.activeExplodedViewStepIndex);
+	}
+
 	// Refit from the authoritative restored scene-graph state. During MVF load
 	// the initial Phase 3.5 display list is built before rebuildFromMvf() and
 	// syncRuntimeNodeTransforms(), so preserved-node-transform assets can have
@@ -4778,6 +4793,22 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 	                                               _visibleMeshUuids,
 	                                               selectedSet,
 	                                               cameraDataByFile);
+
+	if (_glWidget)
+	{
+		if (ExplodedViewPanel* explodedViewPanel = _glWidget->getExplodedViewPanel())
+		{
+			package.document.mvfSession.insert(
+				QStringLiteral("explodedViews"),
+				explodedViewPanel->presetsToJson());
+			package.document.mvfSession.insert(
+				QStringLiteral("activeExplodedViewId"),
+				explodedViewPanel->activePresetId().toString(QUuid::WithoutBraces));
+			package.document.mvfSession.insert(
+				QStringLiteral("activeExplodedViewStepIndex"),
+				explodedViewPanel->activeCapturedStepIndex());
+		}
+	}
 
 	if (_glWidget && _glWidget->isGltfCameraActive())
 	{

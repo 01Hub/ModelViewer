@@ -3,6 +3,7 @@
 #include <QIcon>
 #include <QElapsedTimer>
 #include <QHash>
+#include <QJsonArray>
 #include <QMatrix4x4>
 #include <QSet>
 #include <QString>
@@ -30,6 +31,12 @@ public:
     void applyContrastTheme(const QColor& textColor);
     void applyBackgroundTheme(const QColor& topColor, const QColor& bottomColor);
     void deactivateInteractiveState();
+    QJsonArray presetsToJson() const;
+    QUuid activePresetId() const;
+    int activeCapturedStepIndex() const;
+    void restorePresetsFromJson(const QJsonArray& presetsJson,
+                                const QUuid& activePresetId = QUuid(),
+                                int activeStepIndex = -1);
 
     // Called by GLWidget::showExplodedViewPanel(true) to seed the assembly
     // field from whatever is already selected in the viewport / tree.
