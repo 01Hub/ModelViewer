@@ -563,6 +563,7 @@ signals:
 	void displayModeChanged(int);
 	void renderingModeChanged(int);
 	void animationStateChanged();
+	void backgroundColorChanged(const QColor& topColor, const QColor& bottomColor);
 	// Forwarded from SelectionManager so external panels (e.g. TextureDebugPanel)
 	// can react to mesh selection changes without needing access to SelectionManager.
 	void selectionChanged(const QList<int>& selectedIds);
@@ -1365,6 +1366,7 @@ private:
 	// no role, so hide/show/delete of other models cannot disturb them.
 	bool userModelTransformForFile(const QString& sourceFile,
 	                               QMatrix4x4& outTransform) const;
+	void updateOverlayEditorTheme();
 
 	void applyGltfCameraEntryTransform(const GltfCameraEntry& cam);
 

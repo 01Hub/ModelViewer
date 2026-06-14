@@ -27,9 +27,15 @@ QIcon makeCircleIcon(bool filled, const QColor& color)
 
 	QPainter painter(&pixmap);
 	painter.setRenderHint(QPainter::Antialiasing);
-	painter.setPen(QPen(color, 1.5));
-	painter.setBrush(filled ? QBrush(color) : Qt::NoBrush);
-	painter.drawEllipse(2, 2, size - 4, size - 4);
+	painter.setPen(QPen(color, 1.25));
+	painter.setBrush(Qt::NoBrush);
+	painter.drawEllipse(QRectF(2.0, 2.0, size - 4.0, size - 4.0));
+	if (filled)
+	{
+		painter.setPen(Qt::NoPen);
+		painter.setBrush(color);
+		painter.drawEllipse(QRectF(5.1, 5.1, size - 10.2, size - 10.2));
+	}
 	return QIcon(pixmap);
 }
 

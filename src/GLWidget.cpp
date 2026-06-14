@@ -1078,18 +1078,18 @@ _floorPlane(nullptr),
 
 	_clippingPlanesEditor = new ClippingPlanesEditor(this);
 	_lowerLayout->addWidget(_clippingPlanesEditor);
-	_clippingPlanesEditor->applyContrastTheme((_bgBotColor.lightnessF() < 0.5)
-		? QColor(255, 255, 255)
-		: QColor(0, 0, 0));
+	connect(this, &GLWidget::backgroundColorChanged,
+	        _clippingPlanesEditor, &ClippingPlanesEditor::applyBackgroundTheme);
 	_clippingPlanesEditor->hide();
 
 	_explodedViewPanel = new ExplodedViewPanel(this);
 	_lowerLayout->addWidget(_explodedViewPanel);
-	_explodedViewPanel->applyContrastTheme((_bgBotColor.lightnessF() < 0.5)
-		? QColor(Qt::white) : QColor(Qt::black));
+	connect(this, &GLWidget::backgroundColorChanged,
+	        _explodedViewPanel, &ExplodedViewPanel::applyBackgroundTheme);
 	_explodedViewPanel->hide();
 	connect(_explodedViewPanel, &ExplodedViewPanel::explosionParametersChanged,
 	        this, &GLWidget::updateExplosion);
+	updateOverlayEditorTheme();
 
 	//_displayedObjectsIds.push_back(0);
 
@@ -14365,16 +14365,20 @@ QColor GLWidget::getBgBotColor() const
 	return _bgBotColor;
 }
 
-void GLWidget::setBgBotColor(const QColor& bgBotColor)
+void GLWidget::updateOverlayEditorTheme()
 {
-	_bgBotColor = bgBotColor;
+	emit backgroundColorChanged(_bgTopColor, _bgBotColor);
 
-	QColor contrastColor = (_bgBotColor.lightnessF() < 0.5)
-						   ? QColor(255, 255, 255)
-						   : QColor(0, 0, 0);
-	_clippingPlanesEditor->applyContrastTheme(contrastColor);
+	const QColor averageBackgroundColor(
+		(_bgTopColor.red() + _bgBotColor.red()) / 2,
+		(_bgTopColor.green() + _bgBotColor.green()) / 2,
+		(_bgTopColor.blue() + _bgBotColor.blue()) / 2,
+		(_bgTopColor.alpha() + _bgBotColor.alpha()) / 2);
+	const QColor contrastColor = (averageBackgroundColor.lightnessF() < 0.5)
+		? QColor(255, 255, 255)
+		: QColor(0, 0, 0);
 
-	if (QTabWidget* tabs = _viewer->findChild<QTabWidget*>("tabWidget")) {
+	if (QTabWidget* tabs = _viewer ? _viewer->findChild<QTabWidget*>("tabWidget") : nullptr) {
 		const QString tabStyleSheet = QString("color: rgb(%1, %2, %3);")
 									  .arg(contrastColor.red())
 									  .arg(contrastColor.green())
@@ -14382,9 +14386,13 @@ void GLWidget::setBgBotColor(const QColor& bgBotColor)
 									  "background-color: rgba(255, 255, 255, 0);";
 		tabs->setStyleSheet(tabStyleSheet);
 	}
+}
 
+void GLWidget::setBgBotColor(const QColor& bgBotColor)
+{
+	_bgBotColor = bgBotColor;
+	updateOverlayEditorTheme();
 	refreshNavigationOverlayStyle();
-
 	update();
 }
 
@@ -14396,6 +14404,7 @@ QColor GLWidget::getBgTopColor() const
 void GLWidget::setBgTopColor(const QColor& bgTopColor)
 {
 	_bgTopColor = bgTopColor;
+	updateOverlayEditorTheme();
 	refreshNavigationOverlayStyle();
 	update();
 }

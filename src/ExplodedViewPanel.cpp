@@ -286,6 +286,7 @@ void ExplodedViewPanel::syncActivePresetFromUi()
     preset.loopBack = checkBoxLoopBack && checkBoxLoopBack->isChecked();
 }
 
+
 void ExplodedViewPanel::loadPresetIntoUi(int index)
 {
     if (index < 0 || index >= _presets.size())
@@ -428,6 +429,7 @@ ExplodedViewPanel::ExplodedViewPanel(GLWidget* parent)
         if (lineEditAssembly->text().isEmpty())
             return;
         QMenu menu(this);
+        applyPopupMenuStyle(menu);
         connect(menu.addAction(tr("Clear Selection")), &QAction::triggered, this, [this]() {
             cancelPickingMode();
             clearAssemblySelection();
@@ -450,6 +452,7 @@ ExplodedViewPanel::ExplodedViewPanel(GLWidget* parent)
         if (lineEditAnchor->text().isEmpty())
             return;
         QMenu menu(this);
+        applyPopupMenuStyle(menu);
         connect(menu.addAction(tr("Clear Anchor")), &QAction::triggered, this, [this]() {
             lineEditAnchor->clear();
             ensureActivePreset().anchorUuid = QUuid();
@@ -557,7 +560,132 @@ void ExplodedViewPanel::setSceneGraph(SceneGraph* sg)
 
 void ExplodedViewPanel::applyContrastTheme(const QColor& textColor)
 {
-    setStyleSheet(QString("color: %1;").arg(textColor.name()));
+    const QString panelStyle = QString("color: rgb(%1, %2, %3);")
+        .arg(textColor.red())
+        .arg(textColor.green())
+        .arg(textColor.blue());
+    setStyleSheet(panelStyle);
+
+    const QString blackTextStyle = QStringLiteral("color: rgb(0, 0, 0);");
+    const QString translucentInputStyle = QStringLiteral("background-color: rgba(255, 255, 255, 10%); color: rgb(0, 0, 0);");
+    const QString translucentFrameStyle = QStringLiteral("background-color: rgba(255, 255, 255, 5%); color: rgb(0, 0, 0);");
+    const QString radioIndicatorStyle = QString(
+        "QRadioButton { color: rgb(%1, %2, %3); }"
+        "QRadioButton::indicator {"
+        " width: 13px;"
+        " height: 13px;"
+        " border-radius: 6.5px;"
+        " border: 1px solid rgba(%1, %2, %3, 220);"
+        " background-color: transparent;"
+        "}"
+        "QRadioButton::indicator:checked {"
+        " border: 1px solid rgba(%1, %2, %3, 220);"
+        " background-color: qradialgradient("
+        "   cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5,"
+        "   stop:0 rgb(%1, %2, %3),"
+        "   stop:0.6 rgb(%1, %2, %3),"
+        "   stop:0.65 transparent,"
+        "   stop:1 transparent);"
+        "}"
+        "QRadioButton::indicator:unchecked:hover,"
+        "QRadioButton::indicator:checked:hover {"
+        " border: 1px solid rgb(%1, %2, %3);"
+        "}")
+        .arg(textColor.red())
+        .arg(textColor.green())
+        .arg(textColor.blue());
+
+    if (comboBoxPreset) comboBoxPreset->setStyleSheet(translucentInputStyle);
+    if (pushButtonPresetNew) pushButtonPresetNew->setStyleSheet(translucentInputStyle);
+    if (pushButtonPresetDuplicate) pushButtonPresetDuplicate->setStyleSheet(translucentInputStyle);
+    if (pushButtonPresetActions) pushButtonPresetActions->setStyleSheet(translucentInputStyle);
+
+    if (lineEditAssembly) lineEditAssembly->setStyleSheet(translucentInputStyle);
+    if (lineEditAnchor) lineEditAnchor->setStyleSheet(translucentInputStyle);
+    if (comboBoxMode) comboBoxMode->setStyleSheet(translucentInputStyle);
+    if (pushButtonSelectAssembly) pushButtonSelectAssembly->setStyleSheet(translucentInputStyle);
+    if (pushButtonSelectAnchor) pushButtonSelectAnchor->setStyleSheet(translucentInputStyle);
+    if (pushButtonSelectVector) pushButtonSelectVector->setStyleSheet(translucentInputStyle);
+
+    if (frameVector) frameVector->setStyleSheet(translucentFrameStyle);
+    if (doubleSpinBoxVectorX) doubleSpinBoxVectorX->setStyleSheet(translucentInputStyle);
+    if (doubleSpinBoxVectorY) doubleSpinBoxVectorY->setStyleSheet(translucentInputStyle);
+    if (doubleSpinBoxVectorZ) doubleSpinBoxVectorZ->setStyleSheet(translucentInputStyle);
+
+    if (frameManualPlacement) frameManualPlacement->setStyleSheet(translucentFrameStyle);
+    if (lineEditManualSelection) lineEditManualSelection->setStyleSheet(translucentInputStyle);
+    if (pushButtonStartManualPlacement) pushButtonStartManualPlacement->setStyleSheet(translucentInputStyle);
+    if (pushButtonFinishManualPlacement) pushButtonFinishManualPlacement->setStyleSheet(translucentInputStyle);
+    if (pushButtonClearManualPlacement) pushButtonClearManualPlacement->setStyleSheet(translucentInputStyle);
+
+    if (doubleSpinBoxAnimationDuration) doubleSpinBoxAnimationDuration->setStyleSheet(translucentInputStyle);
+    if (comboBoxAnimationMode) comboBoxAnimationMode->setStyleSheet(translucentInputStyle);
+
+    if (pushButtonCaptureView) pushButtonCaptureView->setStyleSheet(translucentInputStyle);
+    if (pushButtonRemoveCapture) pushButtonRemoveCapture->setStyleSheet(translucentInputStyle);
+    if (listWidgetCapturedViews) listWidgetCapturedViews->setStyleSheet(translucentInputStyle);
+
+    if (pushButtonPreviewPlayPause) pushButtonPreviewPlayPause->setStyleSheet(translucentInputStyle);
+    if (pushButtonPreviewStop) pushButtonPreviewStop->setStyleSheet(translucentInputStyle);
+
+    if (pushButtonCapture) pushButtonCapture->setStyleSheet(translucentInputStyle);
+    if (pushButtonReset) pushButtonReset->setStyleSheet(translucentInputStyle);
+
+    if (radioButtonModeAuto) radioButtonModeAuto->setStyleSheet(radioIndicatorStyle);
+    if (radioButtonModeManual) radioButtonModeManual->setStyleSheet(radioIndicatorStyle);
+    if (checkBoxLoopBack) checkBoxLoopBack->setStyleSheet(blackTextStyle);
+    if (checkBoxPreviewLoop) checkBoxPreviewLoop->setStyleSheet(blackTextStyle);
+}
+
+void ExplodedViewPanel::applyBackgroundTheme(const QColor& topColor, const QColor& bottomColor)
+{
+    const QColor averageBackgroundColor(
+        (topColor.red() + bottomColor.red()) / 2,
+        (topColor.green() + bottomColor.green()) / 2,
+        (topColor.blue() + bottomColor.blue()) / 2,
+        (topColor.alpha() + bottomColor.alpha()) / 2);
+    const QColor contrastColor = (averageBackgroundColor.lightnessF() < 0.5)
+        ? QColor(255, 255, 255)
+        : QColor(0, 0, 0);
+
+    const bool darkBackground = averageBackgroundColor.lightnessF() < 0.5;
+    const QColor menuBg = darkBackground ? QColor(34, 34, 34, 255) : QColor(248, 248, 248, 255);
+    const QColor menuText = darkBackground ? QColor(255, 255, 255) : QColor(0, 0, 0);
+    const QColor menuBorder = darkBackground ? QColor(90, 90, 90, 255) : QColor(170, 170, 170, 255);
+    const QColor menuHover = darkBackground ? QColor(70, 70, 70, 255) : QColor(222, 222, 222, 255);
+    _popupMenuStyleSheet = QString(
+        "QMenu {"
+        " background-color: rgba(%1, %2, %3, %4);"
+        " color: rgb(%5, %6, %7);"
+        " border: 1px solid rgba(%8, %9, %10, %11);"
+        " padding: 4px;"
+        "}"
+        "QMenu::item {"
+        " background-color: transparent;"
+        " color: rgb(%5, %6, %7);"
+        " padding: 6px 24px 6px 12px;"
+        "}"
+        "QMenu::item:selected {"
+        " background-color: rgba(%12, %13, %14, %15);"
+        " color: rgb(%5, %6, %7);"
+        "}"
+        "QMenu::separator {"
+        " height: 1px;"
+        " background: rgba(%8, %9, %10, %11);"
+        " margin: 4px 8px;"
+        "}")
+        .arg(menuBg.red()).arg(menuBg.green()).arg(menuBg.blue()).arg(menuBg.alpha())
+        .arg(menuText.red()).arg(menuText.green()).arg(menuText.blue())
+        .arg(menuBorder.red()).arg(menuBorder.green()).arg(menuBorder.blue()).arg(menuBorder.alpha())
+        .arg(menuHover.red()).arg(menuHover.green()).arg(menuHover.blue()).arg(menuHover.alpha());
+
+    applyContrastTheme(contrastColor);
+}
+
+void ExplodedViewPanel::applyPopupMenuStyle(QMenu& menu) const
+{
+    if (!_popupMenuStyleSheet.isEmpty())
+        menu.setStyleSheet(_popupMenuStyleSheet);
 }
 
 void ExplodedViewPanel::deactivateInteractiveState()
@@ -1486,6 +1614,7 @@ void ExplodedViewPanel::on_pushButtonReset_clicked()
     emit selectionClearRequested();
 }
 
+
 void ExplodedViewPanel::updateCaptureButton()
 {
     const bool hasAssembly = !assemblyUuids().isEmpty();
@@ -2215,3 +2344,4 @@ void ExplodedViewPanel::updateCapturedViewsList()
         item->setData(Qt::UserRole, step.id);
     }
 }
+

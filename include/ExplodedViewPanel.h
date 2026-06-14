@@ -28,6 +28,7 @@ public:
 
     void setSceneGraph(SceneGraph* sg);
     void applyContrastTheme(const QColor& textColor);
+    void applyBackgroundTheme(const QColor& topColor, const QColor& bottomColor);
     void deactivateInteractiveState();
 
     // Called by GLWidget::showExplodedViewPanel(true) to seed the assembly
@@ -141,6 +142,7 @@ private:
     void updateAssemblyPickButtonVisual(bool awaitingCommit);
     void clearAssemblySelection();
     void updateCapturedViewsList();
+    void applyPopupMenuStyle(QMenu& menu) const;
     bool captureCurrentExplosionStep();
     bool createAnimationsFromCapturedSteps();
     void onPreviewPlayPauseClicked();
@@ -167,6 +169,7 @@ private:
 
     QIcon       _assemblySelectIdleIcon;
     QIcon       _assemblySelectCommitIcon;
+    QString _popupMenuStyleSheet;
     QVector<ExplodedViewPreset> _presets;
     int _activePresetIndex = -1;
     int _createdAnimationCounter = 1;
@@ -189,3 +192,4 @@ private slots:
     void on_pushButtonRemoveCapture_clicked();
     void onDraftPreviewTick();
 };
+

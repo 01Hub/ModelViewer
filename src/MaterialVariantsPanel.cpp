@@ -21,16 +21,15 @@ static QIcon makeCircleIcon(bool filled, const QColor& color)
 
     QPainter p(&pm);
     p.setRenderHint(QPainter::Antialiasing);
-    p.setPen(QPen(color, 1.5));
+    p.setPen(QPen(color, 1.25));
+    p.setBrush(Qt::NoBrush);
+    p.drawEllipse(QRectF(2.0, 2.0, S - 4.0, S - 4.0));
     if (filled)
     {
+        p.setPen(Qt::NoPen);
         p.setBrush(color);
+        p.drawEllipse(QRectF(5.1, 5.1, S - 10.2, S - 10.2));
     }
-    else
-    {
-        p.setBrush(Qt::NoBrush);
-    }
-    p.drawEllipse(2, 2, S - 4, S - 4);
     p.end();
 
     return QIcon(pm);
