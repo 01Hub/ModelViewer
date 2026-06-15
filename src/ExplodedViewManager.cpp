@@ -195,17 +195,34 @@ void ExplodedViewManager::recompute(
 
     _factor = factor;
 
-    // --- Assembly centroid (used as explosion origin for Auto/no-anchor) ---
+    // --- Assembly bounding box centre (explosion origin for no-anchor modes) ---
+    // Use the geometric centre of the combined AABB rather than the arithmetic
+    // mean of part centroids. The mean is biased by part count (e.g. many small
+    // fasteners clustered near one truck shifts the origin toward that end),
+    // which causes parts near the true centre to get the wrong sector assignment.
     QVector3D origin;
     {
-        int count = 0;
+        QVector3D bboxMin( std::numeric_limits<float>::max(),
+                            std::numeric_limits<float>::max(),
+                            std::numeric_limits<float>::max());
+        QVector3D bboxMax(-std::numeric_limits<float>::max(),
+                          -std::numeric_limits<float>::max(),
+                          -std::numeric_limits<float>::max());
+        bool anyBox = false;
         for (const QUuid& uuid : assemblyUuids)
         {
-            if (!worldCentroids.contains(uuid)) continue;
-            origin += worldCentroids.value(uuid);
-            ++count;
+            if (!worldBoxes.contains(uuid)) continue;
+            const auto& box = worldBoxes.value(uuid);
+            bboxMin = QVector3D(std::min(bboxMin.x(), box.first.x()),
+                                std::min(bboxMin.y(), box.first.y()),
+                                std::min(bboxMin.z(), box.first.z()));
+            bboxMax = QVector3D(std::max(bboxMax.x(), box.second.x()),
+                                std::max(bboxMax.y(), box.second.y()),
+                                std::max(bboxMax.z(), box.second.z()));
+            anyBox = true;
         }
-        if (count > 0) origin /= static_cast<float>(count);
+        if (anyBox)
+            origin = (bboxMin + bboxMax) * 0.5f;
     }
     if (!anchorUuid.isNull() && worldCentroids.contains(anchorUuid))
         origin = worldCentroids.value(anchorUuid);
@@ -352,6 +369,7 @@ void ExplodedViewManager::recompute(
         float  centerProj;
         float  projMin;
         float  projMax;
+        float  diagonal3D = 0.0f; // 3D bbox diagonal; tiebreaker for coaxial parts
         float  size() const { return projMax - projMin; }
     };
 
@@ -422,13 +440,15 @@ void ExplodedViewManager::recompute(
         const float cp = QVector3D::dotProduct(worldCentroids.value(uuid), dir);
         float pMin = cp;
         float pMax = cp;
+        float diag3D = 0.0f;
         if (worldBoxes.contains(uuid))
         {
             auto [mn, mx] = aabbAxisExtent(worldBoxes.value(uuid), dir);
             pMin = mn;
             pMax = mx;
+            diag3D = (worldBoxes.value(uuid).second - worldBoxes.value(uuid).first).length();
         }
-        sectors[sector].push_back({uuid, cp, pMin, pMax});
+        sectors[sector].push_back({uuid, cp, pMin, pMax, diag3D});
     }
 
     const auto pairIsStrong = [autoHints](const QUuid& a, const QUuid& b) {
@@ -454,6 +474,7 @@ void ExplodedViewManager::recompute(
                 continue;
             if (!worldBoxes.contains(uuid) || !worldCentroids.contains(uuid))
                 continue;
+
             const bool stronglyRelatedToBackbone = pairIsStrong(backbone.uuid, uuid);
             const bool stronglyRelatedToAnchor = !anchorUuid.isNull() && pairIsStrong(anchorUuid, uuid);
             if (!stronglyRelatedToBackbone && !(backbone.uuid == anchorUuid && stronglyRelatedToAnchor))
@@ -513,15 +534,24 @@ void ExplodedViewManager::recompute(
         sortChain(positiveChain);
         sortChain(negativeChain);
 
-        const float backboneGapBase = std::max(assemblyRadius * 0.05f, 1.0f);
-
+        // Gap sized to average chain-part extent, not raw assembly radius alone.
+        // This prevents enormous gaps when small fasteners hang off a large backbone.
         auto applyChain = [&](const std::vector<ChainPart>& chain, const QVector3D& dir) {
             if (chain.empty())
                 return;
 
+            float totalChainSize = 0.0f;
+            for (const ChainPart& p : chain)
+                totalChainSize += p.size();
+            const float avgChainPartSize = totalChainSize / static_cast<float>(chain.size());
+            const float chainGap = std::max({avgChainPartSize * 0.35f,
+                                             assemblyRadius * 0.05f,
+                                             1.0f});
+
             auto [backboneMin, backboneMax] = aabbAxisExtent(backbone.box, dir);
+            Q_UNUSED(backboneMin);
             const float dirOriginProj = QVector3D::dotProduct(backbone.center, dir);
-            float cursor = (backboneMax - dirOriginProj) + backboneGapBase;
+            float cursor = (backboneMax - dirOriginProj) + chainGap;
 
             for (const ChainPart& part : chain)
             {
@@ -531,7 +561,7 @@ void ExplodedViewManager::recompute(
                 const float disp = targetMin - relMin;
                 if (disp > 1.0e-6f)
                     _baseOffsets.insert(part.uuid, dir * disp);
-                cursor = targetMin + (partMax - partMin) + backboneGapBase;
+                cursor = targetMin + (partMax - partMin) + chainGap;
                 handledByBackbone.insert(part.uuid);
             }
         };
@@ -553,6 +583,11 @@ void ExplodedViewManager::recompute(
         }), parts.end());
         if (parts.empty())
             continue;
+
+        float totalSize = 0.0f;
+        for (const auto& p : parts)
+            totalSize += p.size();
+        const float avgSize = totalSize / static_cast<float>(parts.size());
 
         std::sort(parts.begin(), parts.end(),
                   [&](const MeshData& a, const MeshData& b)
@@ -587,15 +622,18 @@ void ExplodedViewManager::recompute(
                           return true;
                       if (b.projMax + kExtentTieTolerance < a.projMax)
                           return false;
+                      // Coaxial shells (e.g. tire over hub) have identical 1D projections.
+                      // Use 3D bounding diagonal as tiebreaker: smaller diagonal = inner
+                      // shell = placed first (closer to origin); larger = outer shell =
+                      // placed farther. This is deterministic and physically correct.
+                      if (a.diagonal3D + kExtentTieTolerance < b.diagonal3D)
+                          return true;
+                      if (b.diagonal3D + kExtentTieTolerance < a.diagonal3D)
+                          return false;
                       return a.uuid.toString(QUuid::WithoutBraces)
                           < b.uuid.toString(QUuid::WithoutBraces);
                   });
 
-        float totalSize = 0.0f;
-        for (const auto& p : parts)
-            totalSize += p.size();
-
-        const float avgSize = totalSize / static_cast<float>(parts.size());
         const float baseGap = std::max(avgSize * 0.35f, assemblyRadius * 0.05f);
 
         float cursor = baseGap;

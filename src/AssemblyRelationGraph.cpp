@@ -353,13 +353,45 @@ AutoPlacementHints buildAutoPlacementHints(const QSet<QUuid>& assemblyUuids,
     AutoPlacementHints hints;
     const QVector<PartInfo> parts = collectPartInfos(assemblyUuids, glWidget, sceneGraph);
 
+    // Populate sub-assembly groups from scene-graph parent nodes.
+    for (const PartInfo& part : parts)
+    {
+        if (part.parentNode)
+            hints.partGroupUuid.insert(part.meshUuid, part.parentNode->nodeUuid);
+    }
+
+    // Returns pointer to the outer (containing) PartInfo, or nullptr if neither contains the other.
+    const auto outerOfNested = [](const PartInfo& a, const PartInfo& b) -> const PartInfo* {
+        const auto isOuter = [](const PartInfo& outer, const PartInfo& inner) {
+            const float tol = std::max(0.25f, outer.diagonal * 0.03f);
+            if (!pointInExpandedBox(inner.center, outer.box, tol))
+                return false;
+            return containmentFraction(outer.box, inner.box) >= 0.75f
+                && outer.box.volume() / std::max(1.0e-5f, inner.box.volume()) >= 1.15f;
+        };
+        if (isOuter(a, b)) return &a;
+        if (isOuter(b, a)) return &b;
+        return nullptr;
+    };
+
     for (int i = 0; i < parts.size(); ++i)
     {
         for (int j = i + 1; j < parts.size(); ++j)
         {
             const PairRelationFlags flags = classifyPair(parts[i], parts[j]);
+            const QString key = makeMeshPairKey(parts[i].meshUuid, parts[j].meshUuid);
+
             if (flags.isSameParent || flags.isCoaxial || flags.isRepeated)
-                hints.strongPairKeys.insert(makeMeshPairKey(parts[i].meshUuid, parts[j].meshUuid));
+                hints.strongPairKeys.insert(key);
+
+            if (flags.isNear)
+                hints.nearPairKeys.insert(key);
+
+            if (flags.isNested)
+            {
+                if (const PartInfo* outer = outerOfNested(parts[i], parts[j]))
+                    hints.nestedOuterUuid.insert(key, outer->meshUuid);
+            }
         }
     }
 
