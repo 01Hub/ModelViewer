@@ -58,7 +58,7 @@
            </size>
           </property>
           <property name="toolTip">
-           <string>Create one or more glTF animations from the captured explosion steps. Animation clip names will default to the active preset name.</string>
+           <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Create one or more glTF animations from the captured explosion steps.&lt;/p&gt;&lt;p&gt;Animation clip names will default to the active preset name.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
           </property>
           <property name="styleSheet">
            <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
@@ -933,6 +933,19 @@
              <number>6</number>
             </property>
             <item>
+             <spacer name="verticalSpacer_2">
+              <property name="orientation">
+               <enum>Qt::Orientation::Vertical</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>40</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item>
              <widget class="QPushButton" name="pushButtonMoveCaptureUp">
               <property name="enabled">
                <bool>false</bool>
@@ -943,10 +956,16 @@
                 <verstretch>0</verstretch>
                </sizepolicy>
               </property>
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>35</height>
+               </size>
+              </property>
               <property name="maximumSize">
                <size>
                 <width>30</width>
-                <height>16777215</height>
+                <height>35</height>
                </size>
               </property>
               <property name="toolTip">
@@ -975,10 +994,16 @@
                 <verstretch>0</verstretch>
                </sizepolicy>
               </property>
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>35</height>
+               </size>
+              </property>
               <property name="maximumSize">
                <size>
                 <width>30</width>
-                <height>16777215</height>
+                <height>35</height>
                </size>
               </property>
               <property name="toolTip">
@@ -995,6 +1020,19 @@
                 <normaloff>:/icons/res/item_down.png</normaloff>:/icons/res/item_down.png</iconset>
               </property>
              </widget>
+            </item>
+            <item>
+             <spacer name="verticalSpacer_3">
+              <property name="orientation">
+               <enum>Qt::Orientation::Vertical</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>20</width>
+                <height>40</height>
+               </size>
+              </property>
+             </spacer>
             </item>
            </layout>
           </item>
@@ -1019,7 +1057,7 @@
              </size>
             </property>
             <property name="toolTip">
-             <string>Ordered captures used to build animations. Multi-select top-level captures and right-click to group; right-click a group to ungroup.</string>
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Ordered captures used to build animations. &lt;/p&gt;&lt;p&gt;Multi-select top-level captures and right-click to group; right-click a group to ungroup.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
             </property>
             <property name="styleSheet">
              <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
