@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <numeric>
+#include <limits>
 #include <vector>
 
 void ExplodedViewManager::reset()
@@ -52,6 +53,75 @@ static QVector3D sectorDirection(int sector)
     case 4: return QVector3D(0, 0, 1);
     default: return QVector3D(0, 0, -1);
     }
+}
+
+static float axisComponent(const QVector3D& vector, int axis)
+{
+    switch (axis)
+    {
+    case 0: return vector.x();
+    case 1: return vector.y();
+    default: return vector.z();
+    }
+}
+
+static std::array<int, 3> sortedAxisIndicesByExtent(const QVector3D& size)
+{
+    std::array<int, 3> indices{0, 1, 2};
+    std::sort(indices.begin(), indices.end(), [&](int a, int b) {
+        return axisComponent(size, a) < axisComponent(size, b);
+    });
+    return indices;
+}
+
+struct ShapeAxisInfo
+{
+    int axis = -1;
+    bool elongated = false;
+    bool discLike = false;
+};
+
+static ShapeAxisInfo inferShapeAxis(const QPair<QVector3D, QVector3D>& box)
+{
+    const QVector3D size = box.second - box.first;
+    const auto order = sortedAxisIndicesByExtent(size);
+    const float minExtent = std::max(1.0e-5f, axisComponent(size, order[0]));
+    const float midExtent = std::max(1.0e-5f, axisComponent(size, order[1]));
+    const float maxExtent = std::max(1.0e-5f, axisComponent(size, order[2]));
+
+    ShapeAxisInfo info;
+    const float largeToMid = maxExtent / midExtent;
+    const float midToSmall = midExtent / minExtent;
+
+    if (largeToMid >= 1.35f && midToSmall <= 1.2f)
+    {
+        info.axis = order[2];
+        info.elongated = true;
+        return info;
+    }
+
+    if (midToSmall >= 1.35f && largeToMid <= 1.2f)
+    {
+        info.axis = order[0];
+        info.discLike = true;
+        return info;
+    }
+
+    if (maxExtent / minExtent >= 1.75f)
+    {
+        if ((maxExtent - midExtent) >= (midExtent - minExtent))
+        {
+            info.axis = order[2];
+            info.elongated = true;
+        }
+        else
+        {
+            info.axis = order[0];
+            info.discLike = true;
+        }
+    }
+
+    return info;
 }
 
 static int dominantAxisSector(const QUuid& uuid,
@@ -115,7 +185,8 @@ void ExplodedViewManager::recompute(
     const QVector3D&                            userVector,
     float                                       factor,
     const QHash<QUuid, QVector3D>&              worldCentroids,
-    const QHash<QUuid, QPair<QVector3D,QVector3D>>& worldBoxes)
+    const QHash<QUuid, QPair<QVector3D,QVector3D>>& worldBoxes,
+    const AssemblyRelationGraph::AutoPlacementHints* autoHints)
 {
     reset();
 
@@ -284,7 +355,62 @@ void ExplodedViewManager::recompute(
         float  size() const { return projMax - projMin; }
     };
 
+    struct BackboneData
+    {
+        QUuid uuid;
+        int axis = -1;
+        QVector3D center;
+        QPair<QVector3D, QVector3D> box;
+    };
+
+    struct ChainPart
+    {
+        QUuid uuid;
+        float absSignedDistance = 0.0f;
+        float diagonal = 0.0f;
+        float projMin = 0.0f;
+        float projMax = 0.0f;
+        float size() const { return projMax - projMin; }
+    };
+
     std::vector<MeshData> sectors[6];
+    QHash<QUuid, ShapeAxisInfo> shapeInfoByUuid;
+    std::vector<BackboneData> backbones;
+
+    for (const QUuid& uuid : assemblyUuids)
+    {
+        if (!worldBoxes.contains(uuid) || !worldCentroids.contains(uuid))
+            continue;
+
+        const ShapeAxisInfo shapeInfo = inferShapeAxis(worldBoxes.value(uuid));
+        shapeInfoByUuid.insert(uuid, shapeInfo);
+        if (shapeInfo.elongated && shapeInfo.axis >= 0)
+            backbones.push_back({uuid, shapeInfo.axis, worldCentroids.value(uuid), worldBoxes.value(uuid)});
+    }
+
+    if (!backbones.empty())
+    {
+        const bool anchorHasCentroid = !anchorUuid.isNull() && worldCentroids.contains(anchorUuid);
+        const QVector3D anchorCenter = anchorHasCentroid ? worldCentroids.value(anchorUuid) : origin;
+
+        std::sort(backbones.begin(), backbones.end(), [&](const BackboneData& a, const BackboneData& b) {
+            const bool aIsAnchor = !anchorUuid.isNull() && a.uuid == anchorUuid;
+            const bool bIsAnchor = !anchorUuid.isNull() && b.uuid == anchorUuid;
+            if (aIsAnchor != bIsAnchor)
+                return aIsAnchor;
+
+            const float distA = (a.center - anchorCenter).lengthSquared();
+            const float distB = (b.center - anchorCenter).lengthSquared();
+            constexpr float kDistTolerance = 1.0e-4f;
+            if (distA + kDistTolerance < distB)
+                return true;
+            if (distB + kDistTolerance < distA)
+                return false;
+
+            return a.uuid.toString(QUuid::WithoutBraces) < b.uuid.toString(QUuid::WithoutBraces);
+        });
+    }
+
     for (const QUuid& uuid : assemblyUuids)
     {
         if (uuid == anchorUuid || !worldCentroids.contains(uuid))
@@ -305,6 +431,115 @@ void ExplodedViewManager::recompute(
         sectors[sector].push_back({uuid, cp, pMin, pMax});
     }
 
+    const auto pairIsStrong = [autoHints](const QUuid& a, const QUuid& b) {
+        return autoHints
+            && autoHints->strongPairKeys.contains(AssemblyRelationGraph::makeMeshPairKey(a, b));
+    };
+
+    QSet<QUuid> handledByBackbone;
+
+    for (const BackboneData& backbone : backbones)
+    {
+        const QVector3D positiveDir =
+            backbone.axis == 0 ? QVector3D(1, 0, 0)
+          : backbone.axis == 1 ? QVector3D(0, 1, 0)
+                               : QVector3D(0, 0, 1);
+
+        std::vector<ChainPart> positiveChain;
+        std::vector<ChainPart> negativeChain;
+
+        for (const QUuid& uuid : assemblyUuids)
+        {
+            if (uuid == anchorUuid || uuid == backbone.uuid || handledByBackbone.contains(uuid))
+                continue;
+            if (!worldBoxes.contains(uuid) || !worldCentroids.contains(uuid))
+                continue;
+            const bool stronglyRelatedToBackbone = pairIsStrong(backbone.uuid, uuid);
+            const bool stronglyRelatedToAnchor = !anchorUuid.isNull() && pairIsStrong(anchorUuid, uuid);
+            if (!stronglyRelatedToBackbone && !(backbone.uuid == anchorUuid && stronglyRelatedToAnchor))
+                continue;
+
+            const ShapeAxisInfo shapeInfo = shapeInfoByUuid.value(uuid);
+            if (shapeInfo.axis != backbone.axis)
+                continue;
+
+            const QVector3D partCenter = worldCentroids.value(uuid);
+            const QVector3D delta = partCenter - backbone.center;
+            const int axisA = (backbone.axis + 1) % 3;
+            const int axisB = (backbone.axis + 2) % 3;
+            const float orthDist = std::sqrt(
+                std::pow(axisComponent(delta, axisA), 2.0f) +
+                std::pow(axisComponent(delta, axisB), 2.0f));
+
+            const QVector3D backboneSize = backbone.box.second - backbone.box.first;
+            const QVector3D partSize = worldBoxes.value(uuid).second - worldBoxes.value(uuid).first;
+            const float orthThreshold = std::max(
+                1.0f,
+                0.35f * (axisComponent(backboneSize, axisA) + axisComponent(backboneSize, axisB)
+                       + axisComponent(partSize, axisA) + axisComponent(partSize, axisB)));
+            if (orthDist > orthThreshold)
+                continue;
+
+            const float signedDistance = QVector3D::dotProduct(delta, positiveDir);
+            if (std::abs(signedDistance) <= 1.0e-4f)
+                continue;
+
+            auto [posMin, posMax] = aabbAxisExtent(worldBoxes.value(uuid), positiveDir);
+            const QVector3D diagVec = worldBoxes.value(uuid).second - worldBoxes.value(uuid).first;
+            const float diagonal = diagVec.length();
+            ChainPart chainPart{uuid, std::abs(signedDistance), diagonal, posMin, posMax};
+            if (signedDistance > 0.0f)
+                positiveChain.push_back(chainPart);
+            else
+                negativeChain.push_back(chainPart);
+        }
+
+        auto sortChain = [](std::vector<ChainPart>& chain) {
+            std::sort(chain.begin(), chain.end(), [](const ChainPart& a, const ChainPart& b) {
+                constexpr float kDistTolerance = 1.0e-4f;
+                constexpr float kDiagTolerance = 1.0e-4f;
+                if (a.absSignedDistance + kDistTolerance < b.absSignedDistance)
+                    return true;
+                if (b.absSignedDistance + kDistTolerance < a.absSignedDistance)
+                    return false;
+                if (a.diagonal + kDiagTolerance < b.diagonal)
+                    return true;
+                if (b.diagonal + kDiagTolerance < a.diagonal)
+                    return false;
+                return a.uuid.toString(QUuid::WithoutBraces) < b.uuid.toString(QUuid::WithoutBraces);
+            });
+        };
+
+        sortChain(positiveChain);
+        sortChain(negativeChain);
+
+        const float backboneGapBase = std::max(assemblyRadius * 0.05f, 1.0f);
+
+        auto applyChain = [&](const std::vector<ChainPart>& chain, const QVector3D& dir) {
+            if (chain.empty())
+                return;
+
+            auto [backboneMin, backboneMax] = aabbAxisExtent(backbone.box, dir);
+            const float dirOriginProj = QVector3D::dotProduct(backbone.center, dir);
+            float cursor = (backboneMax - dirOriginProj) + backboneGapBase;
+
+            for (const ChainPart& part : chain)
+            {
+                const auto [partMin, partMax] = aabbAxisExtent(worldBoxes.value(part.uuid), dir);
+                const float relMin = partMin - dirOriginProj;
+                const float targetMin = std::max(cursor, relMin);
+                const float disp = targetMin - relMin;
+                if (disp > 1.0e-6f)
+                    _baseOffsets.insert(part.uuid, dir * disp);
+                cursor = targetMin + (partMax - partMin) + backboneGapBase;
+                handledByBackbone.insert(part.uuid);
+            }
+        };
+
+        applyChain(positiveChain, positiveDir);
+        applyChain(negativeChain, -positiveDir);
+    }
+
     for (int sector = 0; sector < 6; ++sector)
     {
         auto& parts = sectors[sector];
@@ -313,10 +548,48 @@ void ExplodedViewManager::recompute(
 
         const QVector3D dir = sectorDirection(sector);
         const float originProj = QVector3D::dotProduct(origin, dir);
+        parts.erase(std::remove_if(parts.begin(), parts.end(), [&](const MeshData& part) {
+            return handledByBackbone.contains(part.uuid);
+        }), parts.end());
+        if (parts.empty())
+            continue;
 
         std::sort(parts.begin(), parts.end(),
-                  [](const MeshData& a, const MeshData& b)
-                  { return a.centerProj < b.centerProj; });
+                  [&](const MeshData& a, const MeshData& b)
+                  {
+                      constexpr float kCenterTieTolerance = 1.0e-4f;
+                      constexpr float kExtentTieTolerance = 1.0e-4f;
+
+                      if (a.centerProj + kCenterTieTolerance < b.centerProj)
+                          return true;
+                      if (b.centerProj + kCenterTieTolerance < a.centerProj)
+                          return false;
+
+                      const bool strongPair = pairIsStrong(a.uuid, b.uuid);
+
+                      if (strongPair)
+                      {
+                          if (a.projMin + kExtentTieTolerance < b.projMin)
+                              return true;
+                          if (b.projMin + kExtentTieTolerance < a.projMin)
+                              return false;
+                          if (a.size() > b.size() + kExtentTieTolerance)
+                              return true;
+                          if (b.size() > a.size() + kExtentTieTolerance)
+                              return false;
+                      }
+
+                      if (a.projMin + kExtentTieTolerance < b.projMin)
+                          return true;
+                      if (b.projMin + kExtentTieTolerance < a.projMin)
+                          return false;
+                      if (a.projMax + kExtentTieTolerance < b.projMax)
+                          return true;
+                      if (b.projMax + kExtentTieTolerance < a.projMax)
+                          return false;
+                      return a.uuid.toString(QUuid::WithoutBraces)
+                          < b.uuid.toString(QUuid::WithoutBraces);
+                  });
 
         float totalSize = 0.0f;
         for (const auto& p : parts)

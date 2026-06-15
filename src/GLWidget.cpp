@@ -1,6 +1,7 @@
 ﻿
 #include "ClippingPlanesEditor.h"
 #include "ExplodedViewPanel.h"
+#include "AssemblyRelationGraph.h"
 #include "ExplodedViewManager.h"
 #include "SceneGraph.h"
 #include "Cone.h"
@@ -3378,6 +3379,7 @@ void GLWidget::showExplodedViewPanel(bool show)
 		clearExplodedViewManualPlacement();
 		_explodedViewPanel->hide();
 		_explodedViewManager->reset();
+		_cachedHintsValid = false;
 		// Clear explosion offsets from all meshes.
 		for (size_t i = 0; i < _meshStore.size(); ++i)
 		{
@@ -3474,6 +3476,29 @@ void GLWidget::updateExplosion()
         }
     }
 
+    const bool useAssemblyAwareAutoHints =
+        _explodedViewPanel->autoStrategy() == ExplodedViewPanel::AutoStrategy::AssemblyAware;
+
+    // Rebuild O(n²) placement hints only when the assembly or anchor changes,
+    // not on every slider tick.
+    if (useAssemblyAwareAutoHints)
+    {
+        const QUuid anchorUuid = _explodedViewPanel->anchorUuid();
+        if (!_cachedHintsValid
+            || _cachedHintsAssemblyUuids != assemblyUuids
+            || _cachedHintsAnchorUuid    != anchorUuid)
+        {
+            _cachedAutoHints            = AssemblyRelationGraph::buildAutoPlacementHints(assemblyUuids, this, sg);
+            _cachedHintsAssemblyUuids   = assemblyUuids;
+            _cachedHintsAnchorUuid      = anchorUuid;
+            _cachedHintsValid           = true;
+        }
+    }
+    else
+    {
+        _cachedHintsValid = false;
+    }
+
     _explodedViewManager->recompute(
         assemblyUuids,
         _explodedViewPanel->anchorUuid(),
@@ -3481,7 +3506,8 @@ void GLWidget::updateExplosion()
         _explodedViewPanel->userVector(),
         _explodedViewPanel->factor(),
         worldCentroids,
-        worldBoxes);
+        worldBoxes,
+        useAssemblyAwareAutoHints ? &_cachedAutoHints : nullptr);
 
     // Push computed offsets onto the meshes so combinedRenderTransform() returns
     // the exploded position for every render path (main, selection, shadow, etc.).

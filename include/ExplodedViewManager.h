@@ -6,6 +6,8 @@
 #include <QUuid>
 #include <QVector3D>
 
+#include "AssemblyRelationGraph.h"
+
 // ---------------------------------------------------------------------------
 // ExplodedViewManager
 // Computes per-mesh world-space translation offsets for exploded view rendering.
@@ -25,7 +27,8 @@ public:
                    const QVector3D&      userVector,
                    float                 factor,
                    const QHash<QUuid, QVector3D>&              worldCentroids,
-                   const QHash<QUuid, QPair<QVector3D,QVector3D>>& worldBoxes);
+                   const QHash<QUuid, QPair<QVector3D,QVector3D>>& worldBoxes,
+                   const AssemblyRelationGraph::AutoPlacementHints* autoHints = nullptr);
 
     void reset();
 

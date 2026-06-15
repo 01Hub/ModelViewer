@@ -284,7 +284,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	setAttribute(Qt::WA_DeleteOnClose);
 
 	_documentSaved = false;
-	_documentModified = false;
+	setDocumentModified(false);
 	_runningFirstTime = true;
 
 	_textureDirOpenedFirstTime = true;
@@ -1782,6 +1782,8 @@ void ModelViewer::setupUndoStackMonitoring()
 		this, &ModelViewer::onUndoStackChanged);
 
 	// Initialize cache
+	_lastUndoIndex = _undoStack ? _undoStack->index() : 0;
+	_savedUndoIndex = _lastUndoIndex;
 	_lastStackCount = 0;
 	_cachedReferencedUuids.clear();
 }
@@ -1791,7 +1793,24 @@ void ModelViewer::onUndoStackChanged()
 	if (!_undoStack || !_glWidget)
 		return;
 
+	const int currentIndex = _undoStack->index();
 	int currentCount = _undoStack->count();
+
+	int changedCommandIndex = -1;
+	if (currentIndex > _lastUndoIndex)
+		changedCommandIndex = currentIndex - 1;
+	else if (currentIndex < _lastUndoIndex)
+		changedCommandIndex = _lastUndoIndex - 1;
+
+	if (changedCommandIndex >= 0 && changedCommandIndex < currentCount)
+	{
+		if (undoCommandAffectsDocument(_undoStack->command(changedCommandIndex)))
+		{
+			_documentSaved = false;
+		}
+	}
+
+	setDocumentModified(_nonUndoDocumentDirty || hasUnsavedUndoDocumentChanges());
 
 	// Only cleanup when stack size changes (commands added/purged)
 	// Not on every undo/redo (which just changes index)
@@ -1828,6 +1847,36 @@ void ModelViewer::onUndoStackChanged()
 
 		_lastStackCount = currentCount;
 	}
+
+	_lastUndoIndex = currentIndex;
+}
+
+bool ModelViewer::undoCommandAffectsDocument(const QUndoCommand* command) const
+{
+	const auto* modelCommand = dynamic_cast<const ModelViewerCommand*>(command);
+	return modelCommand && modelCommand->affectsDocument();
+}
+
+bool ModelViewer::hasUnsavedUndoDocumentChanges() const
+{
+	if (!_undoStack)
+		return false;
+
+	const int currentIndex = _undoStack->index();
+	const int commandCount = _undoStack->count();
+	if (currentIndex == _savedUndoIndex)
+		return false;
+	if (_savedUndoIndex < 0 || _savedUndoIndex > commandCount)
+		return true;
+
+	const int rangeBegin = std::min(currentIndex, _savedUndoIndex);
+	const int rangeEnd = std::max(currentIndex, _savedUndoIndex);
+	for (int index = rangeBegin; index < rangeEnd; ++index)
+	{
+		if (undoCommandAffectsDocument(_undoStack->command(index)))
+			return true;
+	}
+	return false;
 }
 
 void ModelViewer::cleanupOrphanedMeshes()
@@ -2322,8 +2371,9 @@ void ModelViewer::setCurrentFile(const QString& fileName)
 {
 	_currentFile = fileName;
 	_documentSaved = true;
-	_documentModified = false;
-	setWindowTitle(tr("%1").arg(QFileInfo(_currentFile).fileName()));
+	_nonUndoDocumentDirty = false;
+	_savedUndoIndex = _undoStack ? _undoStack->index() : 0;
+	setDocumentModified(false);
 }
 
 QString ModelViewer::currentFile() const
@@ -2343,6 +2393,7 @@ void ModelViewer::exportModel()
 
 void ModelViewer::setDocumentModified(bool modified)
 {
+	const bool changed = (_documentModified != modified);
 	_documentModified = modified;
 	if (modified)
 	{
@@ -2352,6 +2403,15 @@ void ModelViewer::setDocumentModified(bool modified)
 	{
 		setWindowTitle(tr("%1").arg(QFileInfo(_currentFile).fileName()));
 	}
+	if (changed)
+		emit documentModifiedChanged(_documentModified);
+}
+
+void ModelViewer::markNonUndoDocumentModified()
+{
+	_nonUndoDocumentDirty = true;
+	_documentSaved = false;
+	setDocumentModified(true);
 }
 
 bool ModelViewer::save()
@@ -2372,9 +2432,10 @@ bool ModelViewer::save()
 	if (saveToFile(_currentFile))
 	{
 		_documentSaved = true;
-		_documentModified = false;
+		_nonUndoDocumentDirty = false;
+		_savedUndoIndex = _undoStack ? _undoStack->index() : 0;
+		setDocumentModified(false);
 		MainWindow::showStatusMessage(tr("File saved"), 2000);
-		setWindowTitle(tr("%1").arg(QFileInfo(_currentFile).fileName()));
 		return true;
 	}
 	else
@@ -3592,8 +3653,7 @@ void ModelViewer::importFiles(QStringList& fileNames)
 		{
 			loadFile(fileName);
 		}
-		_documentModified = true;
-		_documentSaved = false;
+		markNonUndoDocumentModified();
 
 		QApplication::restoreOverrideCursor();
 		MainWindow::mainWindow()->activateWindow();
@@ -3933,8 +3993,7 @@ bool ModelViewer::loadFile(const QString& fileName)
 		if (!isNativeSession)
 		{
 			updateDisplayList();
-			_documentModified = true;
-			_documentSaved = false;
+			markNonUndoDocumentModified();
 		}
 
 		treeWidgetModel->scrollToTop();
@@ -4475,11 +4534,14 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			if (_undoStack)
 				_undoStack->clear();
 			_cachedReferencedUuids.clear();
+			_lastUndoIndex = 0;
+			_savedUndoIndex = 0;
+			_lastStackCount = 0;
 
 			_currentFile = fileName;
 			_documentSaved = true;
-			_documentModified = false;
-			setWindowTitle(QFileInfo(fileName).fileName());
+			_nonUndoDocumentDirty = false;
+			setDocumentModified(false);
 
 			MainWindow::setProgressValue(100);
 		}, Qt::BlockingQueuedConnection);

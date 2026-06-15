@@ -131,10 +131,14 @@ MainWindow::MainWindow(QWidget* parent)
 	connect(ui->mdiArea, &QMdiArea::subWindowActivated, this, [this]() {
 		updateMenus();
 
+		ModelViewer* child = activeMdiChild();
+		if (!child)
+			return;
+
 		// Connect to the new child's undo stack
-		if (activeMdiChild() && activeMdiChild()->getUndoStack())
+		if (child->getUndoStack())
 		{
-			connect(activeMdiChild()->getUndoStack(), &QUndoStack::indexChanged,
+			connect(child->getUndoStack(), &QUndoStack::indexChanged,
 				this, &MainWindow::updateMenus, Qt::UniqueConnection);
 		}
 		});
@@ -199,6 +203,11 @@ ModelViewer* MainWindow::createMdiChild()
 	viewer->setAttribute(Qt::WA_DeleteOnClose);
 	_viewers.append(viewer);
 	ui->mdiArea->addSubWindow(viewer);
+	connect(viewer, &ModelViewer::documentModifiedChanged,
+	        this, [this, viewer](bool) {
+	            if (viewer == activeMdiChild())
+	                updateMenus();
+	        });
 
 	// Apply persisted perspective FOV immediately so the first view uses the
 	// setting before any settingsChanged signal fires.

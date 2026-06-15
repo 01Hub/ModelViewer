@@ -83,6 +83,7 @@ public:
 
 	bool documentModified() const { return _documentModified; }
 	void setDocumentModified(bool modified = true);
+	void markNonUndoDocumentModified();
 
 	bool save();
 	bool saveAs();
@@ -129,7 +130,11 @@ public:
 	void setVisibilityWithUndo(const QSet<QUuid>& newVisibleUuids,
 		const QString& commandText);
 	void setVisibilityWithoutUndo(const QSet<QUuid>& visibleUuids);
-	
+
+signals:
+	void documentModifiedChanged(bool modified);
+
+public:
 	bool hasSelection() const;
 	std::vector<int> getSelectedIDs() const;
 
@@ -241,6 +246,8 @@ private:
 	// Cleanup methods
 	void setupUndoStackMonitoring();
 	void onUndoStackChanged();
+	bool undoCommandAffectsDocument(const QUndoCommand* command) const;
+	bool hasUnsavedUndoDocumentChanges() const;
 	void cleanupOrphanedMeshes();
 	void validateVariantData();   // removes variant data for files with no remaining meshes
 	void validateAnimationData(); // removes animation data for files with no remaining meshes
@@ -340,6 +347,9 @@ private:
 	QUndoStack* _undoStack;
 	bool _lastCanUndo = false;
 	bool _lastCanRedo = false;
+	int _lastUndoIndex = 0;
+	int _savedUndoIndex = 0;
+	bool _nonUndoDocumentDirty = false;
 	// Cleanup optimization
 	int _lastStackCount = 0;
 	QSet<QUuid> _cachedReferencedUuids;  // Meshes referenced in undo stack

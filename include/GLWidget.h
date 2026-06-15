@@ -8,6 +8,7 @@
 #include "TransformCommand.h"
 #include "ShaderProgram.h"
 #include "AssImpModelLoader.h"
+#include "AssemblyRelationGraph.h"
 #include <math.h>
 #include <QColor>
 #include <QElapsedTimer>
@@ -1209,6 +1210,14 @@ private:
 	ClippingPlanesEditor* _clippingPlanesEditor;
 	ExplodedViewPanel*    _explodedViewPanel;
 	ExplodedViewManager*  _explodedViewManager;
+
+	// Cache for assembly-aware auto-placement hints.
+	// Invalidated whenever assemblyUuids or anchorUuid change so the O(n²)
+	// graph build does not run on every slider tick.
+	QSet<QUuid>                              _cachedHintsAssemblyUuids;
+	QUuid                                    _cachedHintsAnchorUuid;
+	AssemblyRelationGraph::AutoPlacementHints _cachedAutoHints;
+	bool                                     _cachedHintsValid = false;
 	Plane* _clippingPlaneXY;
 	Plane* _clippingPlaneYZ;
 	Plane* _clippingPlaneZX;

@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>520</width>
-    <height>778</height>
+    <height>854</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -162,14 +162,246 @@
         <property name="maximumSize">
          <size>
           <width>16777215</width>
-          <height>225</height>
+          <height>250</height>
          </size>
         </property>
         <property name="currentIndex">
          <number>0</number>
         </property>
         <widget class="QWidget" name="pageAutoExplode">
-         <layout class="QGridLayout" name="gridLayoutAutoAuthoring">
+         <layout class="QGridLayout" name="gridLayout_3">
+          <item row="0" column="0">
+           <layout class="QHBoxLayout" name="layoutAssembly">
+            <item>
+             <widget class="QLabel" name="labelAssembly">
+              <property name="minimumSize">
+               <size>
+                <width>70</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>Assembly</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="lineEditAssembly">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                <horstretch>1</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="toolTip">
+               <string>Shows the selected assembly or mesh count. Right-click to edit or clear.</string>
+              </property>
+              <property name="styleSheet">
+               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+              </property>
+              <property name="readOnly">
+               <bool>true</bool>
+              </property>
+              <property name="placeholderText">
+               <string>Select assembly or meshes...</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="pushButtonSelectAssembly">
+              <property name="minimumSize">
+               <size>
+                <width>28</width>
+                <height>28</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>28</width>
+                <height>28</height>
+               </size>
+              </property>
+              <property name="toolTip">
+               <string>Add meshes to the current assembly from the scene or tree, then click again to confirm</string>
+              </property>
+              <property name="styleSheet">
+               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
+              <property name="icon">
+               <iconset resource="../ModelViewer.qrc">
+                <normaloff>:/icons/res/select.png</normaloff>:/icons/res/select.png</iconset>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="1" column="0">
+           <layout class="QHBoxLayout" name="layoutAnchor">
+            <item>
+             <widget class="QLabel" name="labelAnchor">
+              <property name="minimumSize">
+               <size>
+                <width>70</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="toolTip">
+               <string>Optional: this mesh stays centred; all others explode away from it</string>
+              </property>
+              <property name="text">
+               <string>Anchor</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLineEdit" name="lineEditAnchor">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                <horstretch>1</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="toolTip">
+               <string>Shows the anchor mesh name. Right-click to clear.</string>
+              </property>
+              <property name="styleSheet">
+               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+              </property>
+              <property name="readOnly">
+               <bool>true</bool>
+              </property>
+              <property name="placeholderText">
+               <string>Select anchor mesh (optional)...</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="pushButtonSelectAnchor">
+              <property name="minimumSize">
+               <size>
+                <width>28</width>
+                <height>28</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>28</width>
+                <height>28</height>
+               </size>
+              </property>
+              <property name="toolTip">
+               <string>Clear anchor and pick a new one from scene or tree</string>
+              </property>
+              <property name="styleSheet">
+               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
+              <property name="icon">
+               <iconset resource="../ModelViewer.qrc">
+                <normaloff>:/icons/res/select.png</normaloff>:/icons/res/select.png</iconset>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="2" column="0">
+           <layout class="QHBoxLayout" name="layoutMode">
+            <item>
+             <widget class="QLabel" name="labelMode">
+              <property name="minimumSize">
+               <size>
+                <width>70</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="text">
+               <string>Mode</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="comboBoxMode">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                <horstretch>1</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="styleSheet">
+               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+              </property>
+              <item>
+               <property name="text">
+                <string>Auto (Radial)</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Axis X</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Axis Y</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Axis Z</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Custom Vector</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item>
+             <widget class="QPushButton" name="pushButtonSelectVector">
+              <property name="minimumSize">
+               <size>
+                <width>28</width>
+                <height>28</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>28</width>
+                <height>28</height>
+               </size>
+              </property>
+              <property name="toolTip">
+               <string>Pick a direction vector from the scene to use as the explosion axis</string>
+              </property>
+              <property name="styleSheet">
+               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
+              <property name="icon">
+               <iconset resource="../ModelViewer.qrc">
+                <normaloff>:/icons/res/select.png</normaloff>:/icons/res/select.png</iconset>
+              </property>
+              <property name="checkable">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
           <item row="3" column="0">
            <widget class="QFrame" name="frameVector">
             <property name="styleSheet">
@@ -302,10 +534,10 @@
             </layout>
            </widget>
           </item>
-          <item row="2" column="0">
-           <layout class="QHBoxLayout" name="layoutMode">
+          <item row="4" column="0">
+           <layout class="QHBoxLayout" name="layoutAutoStrategy">
             <item>
-             <widget class="QLabel" name="labelMode">
+             <widget class="QLabel" name="labelModeAutoStrategy">
               <property name="minimumSize">
                <size>
                 <width>70</width>
@@ -313,12 +545,12 @@
                </size>
               </property>
               <property name="text">
-               <string>Mode</string>
+               <string>Strategy</string>
               </property>
              </widget>
             </item>
             <item>
-             <widget class="QComboBox" name="comboBoxMode">
+             <widget class="QComboBox" name="comboBoxAutoStrategy">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
                 <horstretch>1</horstretch>
@@ -330,135 +562,14 @@
               </property>
               <item>
                <property name="text">
-                <string>Auto (Radial)</string>
+                <string>Assembly Aware</string>
                </property>
               </item>
               <item>
                <property name="text">
-                <string>Axis X</string>
+                <string>Classic</string>
                </property>
               </item>
-              <item>
-               <property name="text">
-                <string>Axis Y</string>
-               </property>
-              </item>
-              <item>
-               <property name="text">
-                <string>Axis Z</string>
-               </property>
-              </item>
-              <item>
-               <property name="text">
-                <string>Custom Vector</string>
-               </property>
-              </item>
-             </widget>
-            </item>
-            <item>
-             <widget class="QPushButton" name="pushButtonSelectVector">
-              <property name="minimumSize">
-               <size>
-                <width>28</width>
-                <height>28</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>28</width>
-                <height>28</height>
-               </size>
-              </property>
-              <property name="toolTip">
-               <string>Clear anchor and pick a new one from scene or tree</string>
-              </property>
-              <property name="styleSheet">
-               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
-              </property>
-              <property name="text">
-               <string/>
-              </property>
-              <property name="icon">
-               <iconset resource="../ModelViewer.qrc">
-                <normaloff>:/icons/res/select.png</normaloff>:/icons/res/select.png</iconset>
-              </property>
-              <property name="checkable">
-               <bool>true</bool>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item row="1" column="0">
-           <layout class="QHBoxLayout" name="layoutAnchor">
-            <item>
-             <widget class="QLabel" name="labelAnchor">
-              <property name="minimumSize">
-               <size>
-                <width>70</width>
-                <height>0</height>
-               </size>
-              </property>
-              <property name="toolTip">
-               <string>Optional: this mesh stays centred; all others explode away from it</string>
-              </property>
-              <property name="text">
-               <string>Anchor</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QLineEdit" name="lineEditAnchor">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                <horstretch>1</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="toolTip">
-               <string>Shows the anchor mesh name. Right-click to clear.</string>
-              </property>
-              <property name="styleSheet">
-               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
-              </property>
-              <property name="readOnly">
-               <bool>true</bool>
-              </property>
-              <property name="placeholderText">
-               <string>Select anchor mesh (optional)...</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QPushButton" name="pushButtonSelectAnchor">
-              <property name="minimumSize">
-               <size>
-                <width>28</width>
-                <height>28</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>28</width>
-                <height>28</height>
-               </size>
-              </property>
-              <property name="toolTip">
-               <string>Clear anchor and pick a new one from scene or tree</string>
-              </property>
-              <property name="styleSheet">
-               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
-              </property>
-              <property name="text">
-               <string/>
-              </property>
-              <property name="icon">
-               <iconset resource="../ModelViewer.qrc">
-                <normaloff>:/icons/res/select.png</normaloff>:/icons/res/select.png</iconset>
-              </property>
-              <property name="checkable">
-               <bool>true</bool>
-              </property>
              </widget>
             </item>
            </layout>
@@ -519,77 +630,6 @@
               </property>
               <property name="alignment">
                <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item row="0" column="0">
-           <layout class="QHBoxLayout" name="layoutAssembly">
-            <item>
-             <widget class="QLabel" name="labelAssembly">
-              <property name="minimumSize">
-               <size>
-                <width>70</width>
-                <height>0</height>
-               </size>
-              </property>
-              <property name="text">
-               <string>Assembly</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QLineEdit" name="lineEditAssembly">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-                <horstretch>1</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="toolTip">
-               <string>Shows the selected assembly or mesh count. Right-click to edit or clear.</string>
-              </property>
-              <property name="styleSheet">
-               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
-              </property>
-              <property name="readOnly">
-               <bool>true</bool>
-              </property>
-              <property name="placeholderText">
-               <string>Select assembly or meshes...</string>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QPushButton" name="pushButtonSelectAssembly">
-              <property name="minimumSize">
-               <size>
-                <width>28</width>
-                <height>28</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>28</width>
-                <height>28</height>
-               </size>
-              </property>
-              <property name="toolTip">
-               <string>Add meshes to the current assembly from the scene or tree, then click again to confirm</string>
-              </property>
-              <property name="styleSheet">
-               <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
-              </property>
-              <property name="text">
-               <string/>
-              </property>
-              <property name="icon">
-               <iconset resource="../ModelViewer.qrc">
-                <normaloff>:/icons/res/select.png</normaloff>:/icons/res/select.png</iconset>
-              </property>
-              <property name="checkable">
-               <bool>true</bool>
               </property>
              </widget>
             </item>

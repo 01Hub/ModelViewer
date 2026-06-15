@@ -234,6 +234,30 @@ QQuaternion quaternionFromJson(const QJsonArray& array,
         static_cast<float>(array[2].toDouble(fallback.y())),
         static_cast<float>(array[3].toDouble(fallback.z()))).normalized();
 }
+
+ExplodedViewPanel::AutoStrategy autoStrategyFromComboIndex(int index)
+{
+    switch (index)
+    {
+    case 1:
+        return ExplodedViewPanel::AutoStrategy::Classic;
+    case 0:
+    default:
+        return ExplodedViewPanel::AutoStrategy::AssemblyAware;
+    }
+}
+
+int comboIndexFromAutoStrategy(ExplodedViewPanel::AutoStrategy strategy)
+{
+    switch (strategy)
+    {
+    case ExplodedViewPanel::AutoStrategy::Classic:
+        return 1;
+    case ExplodedViewPanel::AutoStrategy::AssemblyAware:
+    default:
+        return 0;
+    }
+}
 }
 
 // ---------------------------------------------------------------------------
@@ -246,6 +270,15 @@ ExplodedViewManager::Mode ExplodedViewPanel::mode() const
     if (const ExplodedViewPreset* preset = activePreset())
         return preset->mode;
     return ExplodedViewManager::Mode::Auto;
+}
+
+ExplodedViewPanel::AutoStrategy ExplodedViewPanel::autoStrategy() const
+{
+    if (comboBoxAutoStrategy)
+        return autoStrategyFromComboIndex(comboBoxAutoStrategy->currentIndex());
+    if (const ExplodedViewPreset* preset = activePreset())
+        return preset->autoStrategy;
+    return AutoStrategy::AssemblyAware;
 }
 
 QVector3D ExplodedViewPanel::userVector() const
@@ -346,6 +379,7 @@ QJsonArray ExplodedViewPanel::presetsToJson() const
         presetObj.insert(QStringLiteral("durationSeconds"), preset.durationSeconds);
         presetObj.insert(QStringLiteral("loopBack"), preset.loopBack);
         presetObj.insert(QStringLiteral("useCombinedPose"), preset.useCombinedPose);
+        presetObj.insert(QStringLiteral("autoStrategy"), comboIndexFromAutoStrategy(preset.autoStrategy));
 
         const std::function<QJsonObject(const CapturedExplosionStep&)> serializeStep =
             [&](const CapturedExplosionStep& step) -> QJsonObject
@@ -444,6 +478,9 @@ void ExplodedViewPanel::restorePresetsFromJson(const QJsonArray& presetsJson,
         preset.durationSeconds = presetObj.value(QStringLiteral("durationSeconds")).toDouble(3.0);
         preset.loopBack = presetObj.value(QStringLiteral("loopBack")).toBool(true);
         preset.useCombinedPose = presetObj.value(QStringLiteral("useCombinedPose")).toBool(true);
+        preset.autoStrategy = autoStrategyFromComboIndex(
+            presetObj.value(QStringLiteral("autoStrategy")).toInt(
+                comboIndexFromAutoStrategy(AutoStrategy::AssemblyAware)));
 
         const std::function<CapturedExplosionStep(const QJsonObject&, int)> deserializeStep =
             [&](const QJsonObject& stepObj, int fallbackIndex) -> CapturedExplosionStep
@@ -581,7 +618,16 @@ void ExplodedViewPanel::syncActivePresetFromUi()
         return;
 
     ExplodedViewPreset& preset = ensureActivePreset();
+    const ExplodedViewManager::Mode oldMode = preset.mode;
+    const QVector3D oldUserVector = preset.userVector;
+    const float oldFactor = preset.factor;
+    const int oldOutputMode = preset.outputMode;
+    const double oldDurationSeconds = preset.durationSeconds;
+    const bool oldLoopBack = preset.loopBack;
+    const bool oldUseCombinedPose = preset.useCombinedPose;
+    const AutoStrategy oldAutoStrategy = preset.autoStrategy;
     preset.mode = modeFromComboIndex(comboBoxMode ? comboBoxMode->currentIndex() : 0);
+    preset.autoStrategy = autoStrategyFromComboIndex(comboBoxAutoStrategy ? comboBoxAutoStrategy->currentIndex() : 0);
     preset.userVector = QVector3D(
         static_cast<float>(doubleSpinBoxVectorX ? doubleSpinBoxVectorX->value() : 1.0),
         static_cast<float>(doubleSpinBoxVectorY ? doubleSpinBoxVectorY->value() : 0.0),
@@ -591,6 +637,19 @@ void ExplodedViewPanel::syncActivePresetFromUi()
     preset.durationSeconds = doubleSpinBoxAnimationDuration ? doubleSpinBoxAnimationDuration->value() : 3.0;
     preset.loopBack = checkBoxLoopBack && checkBoxLoopBack->isChecked();
     preset.useCombinedPose = !checkBoxCombinedPose || checkBoxCombinedPose->isChecked();
+
+    const bool changed = preset.mode != oldMode
+        || preset.userVector != oldUserVector
+        || !qFuzzyCompare(preset.factor, oldFactor)
+        || preset.outputMode != oldOutputMode
+        || !qFuzzyCompare(1.0 + preset.durationSeconds, 1.0 + oldDurationSeconds)
+        || preset.loopBack != oldLoopBack
+        || preset.useCombinedPose != oldUseCombinedPose
+        || preset.autoStrategy != oldAutoStrategy;
+    if (changed)
+        markDocumentModified();
+
+    updatePresetDirtyIndicator();
 }
 
 QString ExplodedViewPanel::nextPresetName() const
@@ -659,7 +718,6 @@ void ExplodedViewPanel::loadPresetIntoUi(int index)
         QSignalBlocker b7(comboBoxAnimationMode);
         QSignalBlocker b8(doubleSpinBoxAnimationDuration);
         QSignalBlocker b9(checkBoxLoopBack);
-
         if (comboBoxPreset)
             comboBoxPreset->setCurrentIndex(index);
         if (comboBoxMode)
@@ -680,6 +738,8 @@ void ExplodedViewPanel::loadPresetIntoUi(int index)
             checkBoxLoopBack->setChecked(preset.loopBack);
         if (checkBoxCombinedPose)
             checkBoxCombinedPose->setChecked(preset.useCombinedPose);
+        if (comboBoxAutoStrategy)
+            comboBoxAutoStrategy->setCurrentIndex(comboIndexFromAutoStrategy(preset.autoStrategy));
     }
     _syncingPresetUi = false;
 
@@ -731,9 +791,12 @@ void ExplodedViewPanel::loadPresetIntoUi(int index)
     updateCapturedViewsList();
     if (listWidgetCapturedViews && !preset.capturedSteps.isEmpty())
         setCurrentCapturedStepRow(0);
+    _hasUncapturedAutoPose = false;
+    _hasUncapturedManualPose = false;
     updateCaptureButton();
     updateManualPlacementUi();
     updatePreviewControls();
+    updatePresetDirtyIndicator();
     emit explosionParametersChanged();
 }
 
@@ -752,6 +815,22 @@ void ExplodedViewPanel::initializeDefaultPreset()
     _activePresetIndex = 0;
     refreshPresetCombo();
     loadPresetIntoUi(0);
+}
+
+ModelViewer* ExplodedViewPanel::owningModelViewer() const
+{
+    for (QWidget* widget = _glWidget; widget; widget = widget->parentWidget())
+    {
+        if (ModelViewer* viewer = qobject_cast<ModelViewer*>(widget))
+            return viewer;
+    }
+    return nullptr;
+}
+
+void ExplodedViewPanel::markDocumentModified()
+{
+    if (ModelViewer* viewer = owningModelViewer())
+        viewer->markNonUndoDocumentModified();
 }
 
 ExplodedViewPanel::ExplodedViewPanel(GLWidget* parent)
@@ -781,6 +860,22 @@ ExplodedViewPanel::ExplodedViewPanel(GLWidget* parent)
     connect(doubleSpinBoxVectorY, qOverload<double>(&QDoubleSpinBox::valueChanged), this, emitParamChanged);
     connect(doubleSpinBoxVectorZ, qOverload<double>(&QDoubleSpinBox::valueChanged), this, emitParamChanged);
     connect(_draftPreviewTimer, &QTimer::timeout, this, &ExplodedViewPanel::onDraftPreviewTick);
+    if (_glWidget)
+    {
+        connect(_glWidget, &GLWidget::selectionChanged, this, [this](const QList<int>&) {
+            updateCaptureButton();
+        });
+        connect(_glWidget, &GLWidget::explodedViewManualPlacementChanged, this, [this]() {
+            _hasUncapturedManualPose = _glWidget && _glWidget->hasExplodedViewManualTransformChanges();
+            updatePresetDirtyIndicator();
+        });
+    }
+    if (ModelViewer* viewer = owningModelViewer())
+    {
+        connect(viewer, &ModelViewer::documentModifiedChanged, this, [this](bool) {
+            updatePresetDirtyIndicator();
+        });
+    }
 
     lineEditAssembly->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(lineEditAssembly, &QWidget::customContextMenuRequested, this, [this](const QPoint& pos) {
@@ -803,6 +898,7 @@ ExplodedViewPanel::ExplodedViewPanel(GLWidget* parent)
             }
             updateAssemblyPickButtonVisual(false);
             updateCaptureButton();
+            markDocumentModified();
             emit explosionParametersChanged();
             emit selectionClearRequested();
         });
@@ -844,6 +940,7 @@ ExplodedViewPanel::ExplodedViewPanel(GLWidget* parent)
         connect(menu.addAction(tr("Clear Anchor")), &QAction::triggered, this, [this]() {
             lineEditAnchor->clear();
             ensureActivePreset().anchorUuid = QUuid();
+            markDocumentModified();
             pushButtonSelectAnchor->setChecked(false);
             emit explosionParametersChanged();
         });
@@ -912,18 +1009,23 @@ ExplodedViewPanel::ExplodedViewPanel(GLWidget* parent)
         });
     }
     connect(comboBoxMode, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) {
+        _hasUncapturedAutoPose = true;
         syncActivePresetFromUi();
     });
     connect(sliderExplosion, &QSlider::valueChanged, this, [this](int) {
+        _hasUncapturedAutoPose = true;
         syncActivePresetFromUi();
     });
     connect(doubleSpinBoxVectorX, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double) {
+        _hasUncapturedAutoPose = true;
         syncActivePresetFromUi();
     });
     connect(doubleSpinBoxVectorY, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double) {
+        _hasUncapturedAutoPose = true;
         syncActivePresetFromUi();
     });
     connect(doubleSpinBoxVectorZ, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [this](double) {
+        _hasUncapturedAutoPose = true;
         syncActivePresetFromUi();
     });
     connect(comboBoxAnimationMode, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) {
@@ -936,6 +1038,14 @@ ExplodedViewPanel::ExplodedViewPanel(GLWidget* parent)
         syncActivePresetFromUi();
         updateCaptureButton();
     });
+    if (comboBoxAutoStrategy)
+    {
+        connect(comboBoxAutoStrategy, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) {
+            _hasUncapturedAutoPose = true;
+            syncActivePresetFromUi();
+            emit explosionParametersChanged();
+        });
+    }
     auto applyManualTranslationEditors = [this](double) {
         if (_syncingManualPlacementEditors || !_glWidget)
             return;
@@ -967,6 +1077,7 @@ ExplodedViewPanel::ExplodedViewPanel(GLWidget* parent)
     updateAuthoringModeUi();
     updatePreviewControls();
     updateCaptureButton();
+    updatePresetDirtyIndicator();
 }
 
 void ExplodedViewPanel::setSceneGraph(SceneGraph* sg)
@@ -1240,6 +1351,8 @@ void ExplodedViewPanel::applyAssemblySelection(const QList<int>& ids)
     if (ids.isEmpty())
     {
         clearAssemblySelection();
+        _hasUncapturedAutoPose = false;
+        markDocumentModified();
         emit explosionParametersChanged();
         return;
     }
@@ -1256,6 +1369,8 @@ void ExplodedViewPanel::applyAssemblySelection(const QList<int>& ids)
         preset.anchorUuid = QUuid();
     }
 
+    _hasUncapturedAutoPose = true;
+    markDocumentModified();
     emit explosionParametersChanged();
 }
 
@@ -1379,6 +1494,7 @@ void ExplodedViewPanel::applyAnchorSelection(const QList<int>& ids)
         name = tr("Mesh");
     }
     lineEditAnchor->setText(name);
+    markDocumentModified();
     emit explosionParametersChanged();
 }
 
@@ -1537,6 +1653,8 @@ void ExplodedViewPanel::applyAssemblyEntries(const QVector<QUuid>& assemblyUuids
 
     updateAssemblySelectionDisplay(ids);
     updateCaptureButton();
+    _hasUncapturedAutoPose = !preset.assemblyUuids.isEmpty();
+    markDocumentModified();
     emit explosionParametersChanged();
 }
 
@@ -1545,7 +1663,7 @@ void ExplodedViewPanel::previewAssemblyEntry(const QUuid& uuid)
     if (uuid.isNull())
         return;
 
-    if (ModelViewer* viewer = _glWidget ? qobject_cast<ModelViewer*>(_glWidget->parentWidget()) : nullptr)
+    if (ModelViewer* viewer = owningModelViewer())
     {
         viewer->setSelectionWithoutUndo(QSet<QUuid>{uuid});
         return;
@@ -1680,9 +1798,16 @@ bool ExplodedViewPanel::captureCurrentExplosionStep()
     step.id = QUuid::createUuid();
     step.name = tr("Step %1").arg(preset.capturedStepCounter++);
     preset.capturedSteps.append(step);
+    const bool useCombinedPose = !checkBoxCombinedPose || checkBoxCombinedPose->isChecked();
+    const bool manualMode = radioButtonModeManual && radioButtonModeManual->isChecked();
+    if (useCombinedPose || !manualMode)
+        _hasUncapturedAutoPose = false;
+    if (useCombinedPose || manualMode)
+        _hasUncapturedManualPose = false;
     updateCapturedViewsList();
     if (listWidgetCapturedViews)
         setCurrentCapturedStepRow(preset.capturedSteps.size() - 1);
+    markDocumentModified();
     return true;
 }
 
@@ -1702,6 +1827,12 @@ bool ExplodedViewPanel::replaceCapturedExplosionStep(int row)
     replacement.id = existing->id;
     replacement.name = existing->name;
     *existing = replacement;
+    const bool useCombinedPose = !checkBoxCombinedPose || checkBoxCombinedPose->isChecked();
+    const bool manualMode = radioButtonModeManual && radioButtonModeManual->isChecked();
+    if (useCombinedPose || !manualMode)
+        _hasUncapturedAutoPose = false;
+    if (useCombinedPose || manualMode)
+        _hasUncapturedManualPose = false;
     updateCapturedViewsList();
     if (!stepId.isNull() && listWidgetCapturedViews)
     {
@@ -1716,6 +1847,7 @@ bool ExplodedViewPanel::replaceCapturedExplosionStep(int row)
             }
         }
     }
+    markDocumentModified();
     return true;
 }
 
@@ -2015,6 +2147,7 @@ bool ExplodedViewPanel::removeCapturedStepById(const QUuid& stepId)
         return false;
 
     normalizeCapturedGroups(steps);
+    markDocumentModified();
     return true;
 }
 
@@ -2048,6 +2181,7 @@ bool ExplodedViewPanel::ungroupCapturedStep(const QUuid& groupId)
         return false;
 
     normalizeCapturedGroups(steps);
+    markDocumentModified();
     return true;
 }
 
@@ -2150,6 +2284,7 @@ bool ExplodedViewPanel::groupSelectedCaptures()
     group.tracks = resolvedTracksForStep(group);
     steps.insert(insertIndex, group);
     preset.capturedGroupCounter = qMax(preset.capturedGroupCounter, 1) + 1;
+    markDocumentModified();
     return true;
 }
 
@@ -2617,6 +2752,7 @@ void ExplodedViewPanel::on_pushButtonReset_clicked()
         && doubleSpinBoxVectorX
         && doubleSpinBoxVectorY
         && doubleSpinBoxVectorZ
+        && comboBoxAutoStrategy
         && checkBoxLoopBack
         && comboBoxAnimationMode
         && doubleSpinBoxAnimationDuration
@@ -2625,6 +2761,7 @@ void ExplodedViewPanel::on_pushButtonReset_clicked()
             || !qFuzzyCompare(doubleSpinBoxVectorX->value(), 1.0)
             || !qFuzzyCompare(doubleSpinBoxVectorY->value(), 0.0)
             || !qFuzzyCompare(doubleSpinBoxVectorZ->value(), 0.0)
+            || comboBoxAutoStrategy->currentIndex() != comboIndexFromAutoStrategy(AutoStrategy::AssemblyAware)
             || comboBoxAnimationMode->currentIndex() != 0
             || !qFuzzyCompare(doubleSpinBoxAnimationDuration->value(), 3.0)
             || !checkBoxLoopBack->isChecked());
@@ -2651,6 +2788,8 @@ void ExplodedViewPanel::on_pushButtonReset_clicked()
     if (_glWidget)
         _glWidget->clearExplodedViewManualPlacement();
     clearManualPlacementSelection();
+    _hasUncapturedAutoPose = false;
+    _hasUncapturedManualPose = false;
 
     QSignalBlocker b1(comboBoxMode);
     QSignalBlocker b2(sliderExplosion);
@@ -2658,6 +2797,7 @@ void ExplodedViewPanel::on_pushButtonReset_clicked()
     QSignalBlocker b4(doubleSpinBoxVectorY);
     QSignalBlocker b5(doubleSpinBoxVectorZ);
     QSignalBlocker b6(checkBoxCombinedPose);
+    QSignalBlocker b7(comboBoxAutoStrategy);
 
     clearAssemblySelection();
 
@@ -2691,17 +2831,21 @@ void ExplodedViewPanel::on_pushButtonReset_clicked()
     active.durationSeconds = 3.0;
     active.loopBack = true;
     active.useCombinedPose = true;
+    active.autoStrategy = AutoStrategy::AssemblyAware;
     comboBoxAnimationMode->setCurrentIndex(active.outputMode);
     doubleSpinBoxAnimationDuration->setValue(active.durationSeconds);
     checkBoxLoopBack->setChecked(active.loopBack);
     if (checkBoxCombinedPose)
         checkBoxCombinedPose->setChecked(active.useCombinedPose);
+    if (comboBoxAutoStrategy)
+        comboBoxAutoStrategy->setCurrentIndex(comboIndexFromAutoStrategy(active.autoStrategy));
     if (listWidgetCapturedViews)
         listWidgetCapturedViews->clear();
 
     updateCaptureButton();
     updateManualPlacementUi();
     updatePreviewControls();
+    markDocumentModified();
     emit explosionParametersChanged();
     emit selectionClearRequested();
 }
@@ -2723,12 +2867,14 @@ void ExplodedViewPanel::on_pushButtonPresetNew_clicked()
     preset.outputMode = 0;
     preset.durationSeconds = 3.0;
     preset.loopBack = true;
+    preset.autoStrategy = AutoStrategy::AssemblyAware;
 
     _presets.append(preset);
     _activePresetIndex = _presets.size() - 1;
     refreshPresetCombo();
     loadPresetIntoUi(_activePresetIndex);
     updateManualPlacementUi();
+    markDocumentModified();
     emit selectionClearRequested();
 }
 
@@ -2753,6 +2899,7 @@ void ExplodedViewPanel::on_pushButtonPresetDuplicate_clicked()
     refreshPresetCombo();
     loadPresetIntoUi(_activePresetIndex);
     updateManualPlacementUi();
+    markDocumentModified();
     emit selectionClearRequested();
 }
 
@@ -2793,6 +2940,7 @@ void ExplodedViewPanel::on_pushButtonPresetActions_clicked()
         refreshPresetCombo();
         if (comboBoxPreset && _activePresetIndex >= 0 && _activePresetIndex < comboBoxPreset->count())
             comboBoxPreset->setCurrentIndex(_activePresetIndex);
+        markDocumentModified();
         return;
     }
 
@@ -2836,6 +2984,7 @@ void ExplodedViewPanel::on_pushButtonPresetActions_clicked()
     }
 
     updateManualPlacementUi();
+    markDocumentModified();
     emit selectionClearRequested();
 }
 
@@ -2863,6 +3012,36 @@ void ExplodedViewPanel::updateCaptureButton()
         pushButtonRemoveCapture->setEnabled(listWidgetCapturedViews
             && currentCapturedStep());
     updateCaptureMoveButtons();
+    updatePresetDirtyIndicator();
+}
+
+void ExplodedViewPanel::updatePresetDirtyIndicator()
+{
+    if (!labelPresetDirty)
+        return;
+
+    const bool hasUncapturedPose = _hasUncapturedAutoPose || _hasUncapturedManualPose;
+    const bool documentDirty = owningModelViewer() && owningModelViewer()->documentModified();
+
+    if (hasUncapturedPose)
+    {
+        labelPresetDirty->setText(tr("Uncaptured"));
+        labelPresetDirty->setToolTip(tr("There are staged auto or manual placements that have not been captured into a step yet."));
+        labelPresetDirty->setVisible(true);
+        return;
+    }
+
+    if (documentDirty)
+    {
+        labelPresetDirty->setText(tr("Unsaved"));
+        labelPresetDirty->setToolTip(tr("The exploded-view presets or captures have changed and need to be saved with the document."));
+        labelPresetDirty->setVisible(true);
+        return;
+    }
+
+    labelPresetDirty->clear();
+    labelPresetDirty->setToolTip(QString());
+    labelPresetDirty->setVisible(false);
 }
 
 void ExplodedViewPanel::updateAuthoringModeUi()
@@ -2891,6 +3070,10 @@ void ExplodedViewPanel::updateAuthoringModeUi()
 
     if (frameVector)
         frameVector->setVisible(autoMode && comboBoxMode && comboBoxMode->currentIndex() == 4);
+    if (labelModeAutoStrategy)
+        labelModeAutoStrategy->setVisible(autoMode);
+    if (comboBoxAutoStrategy)
+        comboBoxAutoStrategy->setVisible(autoMode);
 
     updateManualPlacementUi();
     updateCaptureButton();
@@ -3540,6 +3723,7 @@ void ExplodedViewPanel::clearAssemblySelection()
     ExplodedViewPreset& preset = ensureActivePreset();
     preset.assemblyUuids.clear();
     preset.anchorUuid = QUuid();
+    _hasUncapturedAutoPose = false;
 }
 
 void ExplodedViewPanel::on_pushButtonStartManualPlacement_clicked()
@@ -3591,6 +3775,7 @@ void ExplodedViewPanel::on_pushButtonClearManualPlacement_clicked()
     {
         _glWidget->clearExplodedViewManualPlacement();
         clearManualPlacementSelection();
+        _hasUncapturedManualPose = false;
         updateManualPlacementUi();
         updateCaptureButton();
         updatePreviewControls();
@@ -3702,6 +3887,7 @@ bool ExplodedViewPanel::moveCapturedStep(const QUuid& stepId, int direction)
         return false;
 
     normalizeCapturedGroups(steps);
+    markDocumentModified();
     return true;
 }
 
@@ -3775,6 +3961,7 @@ void ExplodedViewPanel::onCapturedViewItemChanged(QTreeWidgetItem* item, int col
         item->setText(0, resolvedName);
         _syncingCapturedViewsList = false;
     }
+    markDocumentModified();
 }
 
 void ExplodedViewPanel::onCapturedViewsContextMenuRequested(const QPoint& pos)

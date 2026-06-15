@@ -17,6 +17,7 @@
 #include "ExplodedViewManager.h"
 
 class GLWidget;
+class ModelViewer;
 class SceneGraph;
 class QTimer;
 class ExplodedViewSelectionEditor;
@@ -27,6 +28,12 @@ class ExplodedViewPanel : public QWidget, private Ui::ExplodedViewPanel
     Q_OBJECT
 
 public:
+    enum class AutoStrategy
+    {
+        AssemblyAware = 0,
+        Classic = 1
+    };
+
     explicit ExplodedViewPanel(GLWidget* parent = nullptr);
 
     void setSceneGraph(SceneGraph* sg);
@@ -48,6 +55,7 @@ public:
     const QSet<QUuid>& assemblyUuids() const;
     QUuid               anchorUuid()   const;
     ExplodedViewManager::Mode mode()   const;
+    AutoStrategy        autoStrategy() const;
     QVector3D           userVector()   const;
     float               factor()       const;  // sliderValue / 100.0f
 
@@ -117,6 +125,7 @@ private:
         double durationSeconds = 3.0;
         bool loopBack = true;
         bool useCombinedPose = true;
+        AutoStrategy autoStrategy = AutoStrategy::AssemblyAware;
     };
 
     struct PreviewMeshState
@@ -164,6 +173,7 @@ private:
     QString describeAssemblySelection(const QList<int>& ids) const;
 
     void updateCaptureButton();
+    void updatePresetDirtyIndicator();
     void cancelPickingMode();
     void updateAuthoringModeUi();
     void updateManualPlacementUi();
@@ -221,6 +231,8 @@ private:
     ExplodedViewPreset* activePreset();
     const ExplodedViewPreset* activePreset() const;
     ExplodedViewPreset& ensureActivePreset();
+    ModelViewer* owningModelViewer() const;
+    void markDocumentModified();
     QVector<CapturedExplosionStep>& activeCapturedSteps();
     const QVector<CapturedExplosionStep>& activeCapturedSteps() const;
 
@@ -243,6 +255,8 @@ private:
     bool _draftPreviewPlaying = false;
     bool _draftPreviewLoopPlayback = true;
     bool _syncingManualPlacementEditors = false;
+    bool _hasUncapturedAutoPose = false;
+    bool _hasUncapturedManualPose = false;
     double _draftPreviewCurrentTime = 0.0;
     QElapsedTimer _draftPreviewElapsed;
     QTimer* _draftPreviewTimer = nullptr;

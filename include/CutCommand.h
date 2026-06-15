@@ -32,6 +32,7 @@ public:
 
     void undo() override;
     void redo() override;
+    bool affectsDocument() const override { return false; }
 
     int id() const override { return 9; }
 
