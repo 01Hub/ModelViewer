@@ -3375,19 +3375,26 @@ void GLWidget::showExplodedViewPanel(bool show)
 		_explodedViewPanel->captureCurrentSelection();
 		_explodedViewPanel->show();
 	} else {
+		// Zero explosion offsets BEFORE restoring manual placement TRS.
+		// clearExplodedViewManualPlacement() calls setTranslation/setRotation/
+		// setScaling, each of which rebuilds _trsfPoints via updateRuntimeBounds().
+		// If _explosionOffset is still set at that point the offset gets baked
+		// into _trsfPoints, leaving ray-pick detection shifted after panel close.
+		for (size_t i = 0; i < _meshStore.size(); ++i)
+		{
+			if (_meshStore[i])
+				_meshStore[i]->setExplosionOffset(QVector3D());
+		}
 		_explodedViewPanel->deactivateInteractiveState();
 		clearExplodedViewManualPlacement();
 		_explodedViewPanel->hide();
 		_explodedViewManager->reset();
 		_cachedHintsValid = false;
-		// Clear explosion offsets from all meshes.
+		// Recompute bounding boxes via the fast path (offset is already zero above).
 		for (size_t i = 0; i < _meshStore.size(); ++i)
 		{
 			if (_meshStore[i])
-			{
-				_meshStore[i]->setExplosionOffset(QVector3D());
 				_meshStore[i]->setSceneRenderTransformFast(_meshStore[i]->getSceneRenderTransform());
-			}
 		}
 		update();
 	}
