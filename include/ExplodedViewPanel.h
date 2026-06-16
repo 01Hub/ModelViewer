@@ -16,6 +16,7 @@
 
 #include "ui_ExplodedViewPanel.h"
 #include "ExplodedViewManager.h"
+#include "GltfAnimationData.h"
 #include "TransformCommand.h"
 
 class GLWidget;
@@ -91,6 +92,7 @@ private:
 
     struct CapturedTransformTrack
     {
+        GltfAnimationBindingTargetKind targetKind = GltfAnimationBindingTargetKind::Node;
         QUuid     meshUuid;
         QUuid     ownerNodeUuid;
         QString   sourceFile;

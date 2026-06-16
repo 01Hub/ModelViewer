@@ -385,8 +385,10 @@ QJsonObject animationClipToJson(const GltfAnimationClip& clip)
     for (const GltfAnimationChannel& channel : clip.channels)
     {
         QJsonObject channelObj;
+        channelObj.insert(QStringLiteral("targetKind"), static_cast<int>(channel.targetKind));
         channelObj.insert(QStringLiteral("targetNodeName"), channel.targetNodeName);
         channelObj.insert(QStringLiteral("targetNodeIndex"), channel.targetNodeIndex);
+        channelObj.insert(QStringLiteral("targetMeshUuid"), channel.targetMeshUuid.toString(QUuid::WithoutBraces));
         channelObj.insert(QStringLiteral("targetPath"), static_cast<int>(channel.targetPath));
         channelObj.insert(QStringLiteral("targetPointer"), channel.targetPointer);
         channelObj.insert(QStringLiteral("pointerTargetKind"), static_cast<int>(channel.pointerTargetKind));

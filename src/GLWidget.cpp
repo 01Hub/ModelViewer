@@ -11475,6 +11475,7 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 		return;
 
 	QHash<QUuid, RuntimeNodeTransform> sampled = runtime.defaultNodeTransformsByUuid;
+	QHash<QUuid, RuntimeNodeTransform> sampledMeshTransforms;
 	QHash<QUuid, QVector<float>> sampledMorphWeightsByUuid = runtime.defaultNodeMorphWeightsByUuid;
 	QHash<QUuid, GLMaterial> animatedMaterials = runtime.defaultMeshMaterials;
 	QHash<int, bool> sampledNodeVisibility;
@@ -11535,6 +11536,36 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 							sampledNodeVisibility.value(channel.targetNodeIndex, true)));
 				}
 			}
+			continue;
+		}
+
+		if (channel.targetKind == GltfAnimationBindingTargetKind::Mesh)
+		{
+			if (channel.targetMeshUuid.isNull())
+				continue;
+
+			RuntimeNodeTransform meshTransform = sampledMeshTransforms.value(channel.targetMeshUuid);
+			if (meshTransform.rotation.isNull())
+				meshTransform.rotation = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+			switch (channel.targetPath)
+			{
+			case GltfAnimationTargetPath::Translation:
+				meshTransform.translation = sampleVec3Keys(channel.vec3Keys, timeSeconds, meshTransform.translation);
+				break;
+			case GltfAnimationTargetPath::Rotation:
+				meshTransform.rotation = sampleQuatKeys(channel.quatKeys, timeSeconds, meshTransform.rotation);
+				break;
+			case GltfAnimationTargetPath::Scale:
+				meshTransform.scale = sampleVec3Keys(channel.vec3Keys, timeSeconds,
+					meshTransform.scale.isNull() ? QVector3D(1.0f, 1.0f, 1.0f) : meshTransform.scale);
+				break;
+			case GltfAnimationTargetPath::Weights:
+			case GltfAnimationTargetPath::Pointer:
+				continue;
+			}
+			if (meshTransform.scale.isNull())
+				meshTransform.scale = QVector3D(1.0f, 1.0f, 1.0f);
+			sampledMeshTransforms.insert(channel.targetMeshUuid, meshTransform);
 			continue;
 		}
 
@@ -11619,6 +11650,22 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 			evalNode(child, QMatrix4x4());
 
 		updateAnimatedMeshState(sourceFile, worldTransformsByNodeUuid);
+
+		for (auto meshIt = sampledMeshTransforms.cbegin(); meshIt != sampledMeshTransforms.cend(); ++meshIt)
+		{
+			TriangleMesh* mesh = getMeshByUuid(meshIt.key());
+			const SceneNode* ownerNode = mesh ? _viewer->sceneGraph()->findNodeForMesh(meshIt.key()) : nullptr;
+			if (!mesh || !ownerNode || mesh->getSourceFile() != sourceFile)
+				continue;
+
+			const QMatrix4x4 ownerWorld = worldTransformsByNodeUuid.value(ownerNode->nodeUuid,
+				aiToQMatrix(ownerNode->localTransform));
+			QMatrix4x4 meshLocal;
+			meshLocal.translate(meshIt->translation);
+			meshLocal.rotate(meshIt->rotation);
+			meshLocal.scale(meshIt->scale);
+			mesh->setSceneRenderTransformFast(ownerWorld * meshLocal);
+		}
 
 		// Determine how many lights belong to sourceFile and where they sit in
 		// _originalParsedLights.  _lightFileIndexMap is populated by

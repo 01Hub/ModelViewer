@@ -41,6 +41,14 @@ struct LocalNodeTransform
     QVector3D scale = QVector3D(1.0f, 1.0f, 1.0f);
 };
 
+struct MeshCaptureMotion
+{
+    QUuid meshUuid;
+    SceneNode* ownerNode = nullptr;
+    QString sourceFile;
+    QMatrix4x4 currentWorld;
+};
+
 QMatrix4x4 aiToQMatrix(const aiMatrix4x4& matrix)
 {
     QMatrix4x4 out;
@@ -90,6 +98,137 @@ bool rotationsNearlyEqual(const QQuaternion& a, const QQuaternion& b)
     return std::abs(QQuaternion::dotProduct(a.normalized(), b.normalized())) >= (1.0f - kRotationDotTolerance);
 }
 
+bool localTransformsCompatible(const LocalNodeTransform& a, const LocalNodeTransform& b)
+{
+    return (a.translation - b.translation).lengthSquared() <= kExplosionOffsetTolerance
+        && rotationsNearlyEqual(a.rotation, b.rotation);
+}
+
+QMatrix4x4 nodeWorldTransform(const SceneGraphWorldTransforms& worlds, const SceneNode* node)
+{
+    if (!node)
+    {
+        QMatrix4x4 identity;
+        identity.setToIdentity();
+        return identity;
+    }
+
+    return worlds.nodeWorldByUuid.value(node->nodeUuid, QMatrix4x4());
+}
+
+void collectSubtreeMeshUuids(SceneNode* node, QVector<QUuid>& out)
+{
+    if (!node)
+        return;
+
+    for (const QUuid& meshUuid : node->meshUuids)
+        out.append(meshUuid);
+
+    for (SceneNode* child : node->children)
+        collectSubtreeMeshUuids(child, out);
+}
+
+QString sourceFileForNode(SceneNode* node)
+{
+    for (SceneNode* cur = node; cur; cur = cur->parent)
+    {
+        if (!cur->sourceFile.isEmpty())
+            return cur->sourceFile;
+    }
+    return QString();
+}
+
+bool buildMeshCaptureMotion(GLWidget* glWidget,
+                            SceneNode* ownerNode,
+                            TriangleMesh* mesh,
+                            bool includeAutoPose,
+                            bool includeManualPose,
+                            MeshCaptureMotion& out)
+{
+    if (!glWidget || !ownerNode || !mesh)
+        return false;
+
+    const QVector3D worldOffset = mesh->explosionOffset();
+    QMatrix4x4 visibleWorld = mesh->getTransformation() * mesh->getSceneRenderTransform();
+    if (includeManualPose)
+        visibleWorld = mesh->getExplodedViewTransformation() * visibleWorld;
+    if (includeAutoPose && !worldOffset.isNull())
+    {
+        QMatrix4x4 offsetMatrix;
+        offsetMatrix.setToIdentity();
+        offsetMatrix.translate(worldOffset);
+        visibleWorld = offsetMatrix * visibleWorld;
+    }
+
+    QMatrix4x4 currentWorld = visibleWorld;
+    const QMatrix4x4 userTransform = mesh->getTransformation();
+    if (!userTransform.isIdentity())
+    {
+        bool invertible = false;
+        const QMatrix4x4 userTransformInv = userTransform.inverted(&invertible);
+        if (invertible)
+            currentWorld = userTransformInv * visibleWorld;
+    }
+
+    out.meshUuid = mesh->uuid();
+    out.ownerNode = ownerNode;
+    out.sourceFile = mesh->getSourceFile().trimmed();
+    if (out.sourceFile.isEmpty())
+        out.sourceFile = sourceFileForNode(ownerNode);
+    out.currentWorld = currentWorld;
+    return true;
+}
+
+bool inferCandidateLocalEndTransform(const SceneGraphWorldTransforms& worlds,
+                                     const MeshCaptureMotion& motion,
+                                     SceneNode* candidateNode,
+                                     LocalNodeTransform& out)
+{
+    if (!motion.ownerNode || !candidateNode)
+        return false;
+
+    bool invertible = false;
+    const QMatrix4x4 candidateWorldBase = nodeWorldTransform(worlds, candidateNode);
+    const QMatrix4x4 candidateWorldBaseInv = candidateWorldBase.inverted(&invertible);
+    if (!invertible)
+        return false;
+
+    const QMatrix4x4 ownerWorldBase = nodeWorldTransform(worlds, motion.ownerNode);
+    const QMatrix4x4 candidateToOwnerBase = candidateWorldBaseInv * ownerWorldBase;
+    const QMatrix4x4 ownerToCandidateBase = candidateToOwnerBase.inverted(&invertible);
+    if (!invertible)
+        return false;
+
+    QMatrix4x4 candidateParentWorld;
+    candidateParentWorld.setToIdentity();
+    if (candidateNode->parent)
+        candidateParentWorld = nodeWorldTransform(worlds, candidateNode->parent);
+
+    const QMatrix4x4 candidateParentWorldInv = candidateParentWorld.inverted(&invertible);
+    if (!invertible)
+        return false;
+
+    out = decomposeLocalNodeTransform(candidateParentWorldInv * motion.currentWorld * ownerToCandidateBase);
+    return true;
+}
+
+bool inferMeshChildLocalEndTransform(const SceneGraphWorldTransforms& worlds,
+                                     const MeshCaptureMotion& motion,
+                                     LocalNodeTransform& out)
+{
+    if (!motion.ownerNode)
+        return false;
+
+    const QMatrix4x4 ownerWorldBase = nodeWorldTransform(worlds, motion.ownerNode);
+    bool invertible = false;
+    const QMatrix4x4 ownerWorldBaseInv = ownerWorldBase.inverted(&invertible);
+    if (!invertible)
+        return false;
+
+    out = decomposeLocalNodeTransform(ownerWorldBaseInv * motion.currentWorld);
+    return true;
+}
+
 QString formatPreviewTime(double seconds)
 {
     const int totalMs = qMax(0, static_cast<int>(seconds * 1000.0));
@@ -125,16 +264,6 @@ void collectNodeBindings(SceneNode* node,
         childPath.append(childIndex);
         collectNodeBindings(child, out, nodeIndexByUuid, childPath);
     }
-}
-
-QString sourceFileForNode(SceneNode* node)
-{
-    for (SceneNode* cur = node; cur; cur = cur->parent)
-    {
-        if (!cur->sourceFile.isEmpty())
-            return cur->sourceFile;
-    }
-    return QString();
 }
 
 SceneNode* findSceneNodeByAiChildPath(SceneNode* aiRootNode, const QVector<int>& aiChildPath)
@@ -413,6 +542,7 @@ QJsonArray ExplodedViewPanel::presetsToJson()
             for (const CapturedTransformTrack& track : step.tracks)
             {
                 QJsonObject trackObj;
+                trackObj.insert(QStringLiteral("targetKind"), static_cast<int>(track.targetKind));
                 trackObj.insert(QStringLiteral("meshUuid"), track.meshUuid.toString(QUuid::WithoutBraces));
                 trackObj.insert(QStringLiteral("ownerNodeUuid"), track.ownerNodeUuid.toString(QUuid::WithoutBraces));
                 trackObj.insert(QStringLiteral("sourceFile"), track.sourceFile);
@@ -541,6 +671,8 @@ void ExplodedViewPanel::restorePresetsFromJson(const QJsonArray& presetsJson,
             {
                 const QJsonObject trackObj = trackValue.toObject();
                 CapturedTransformTrack track;
+                track.targetKind = static_cast<GltfAnimationBindingTargetKind>(
+                    trackObj.value(QStringLiteral("targetKind")).toInt(static_cast<int>(GltfAnimationBindingTargetKind::Node)));
                 track.meshUuid = QUuid(trackObj.value(QStringLiteral("meshUuid")).toString());
                 track.ownerNodeUuid = QUuid(trackObj.value(QStringLiteral("ownerNodeUuid")).toString());
                 track.sourceFile = trackObj.value(QStringLiteral("sourceFile")).toString();
@@ -1989,10 +2121,8 @@ bool ExplodedViewPanel::buildCurrentCapturedExplosionStep(CapturedExplosionStep&
     step.isGroup = false;
     step.tracks.clear();
     const SceneGraphWorldTransforms worlds = _sceneGraph->evaluateWorldTransforms();
-    QHash<QUuid, CapturedTransformTrack> aggregatedTracksByNode;
-    QHash<QUuid, QVector<LocalNodeTransform>> endTransformsByNode;
-    QHash<QUuid, int> selectedMeshCountByNode;
-    QHash<QUuid, int> totalMeshCountByNode;
+    QHash<QUuid, MeshCaptureMotion> contributingMotionsByMeshUuid;
+    QHash<QUuid, QVector<MeshCaptureMotion>> selectedMotionsByOwnerNode;
 
     for (const QUuid& meshUuid : captureUuids)
     {
@@ -2017,102 +2147,141 @@ bool ExplodedViewPanel::buildCurrentCapturedExplosionStep(CapturedExplosionStep&
         if (!contributesAuto && !contributesManual)
             continue;
 
-        QMatrix4x4 parentWorld;
-        parentWorld.setToIdentity();
-        if (ownerNode->parent && worlds.nodeWorldByUuid.contains(ownerNode->parent->nodeUuid))
-            parentWorld = worlds.nodeWorldByUuid.value(ownerNode->parent->nodeUuid);
-
-        bool invertible = false;
-        const QMatrix4x4 parentWorldInv = parentWorld.inverted(&invertible);
-        if (!invertible)
+        MeshCaptureMotion motion;
+        if (!buildMeshCaptureMotion(_glWidget, ownerNode, mesh, includeAutoPose, includeManualPose, motion))
             continue;
-
-        const LocalNodeTransform startTransform = decomposeLocalNodeTransform(aiToQMatrix(ownerNode->localTransform));
-        const QMatrix4x4 userTransform = mesh->getTransformation();
-        QMatrix4x4 visibleWorld = userTransform * mesh->getSceneRenderTransform();
-        if (includeManualPose)
-            visibleWorld = mesh->getExplodedViewTransformation() * visibleWorld;
-        if (includeAutoPose && !worldOffset.isNull())
-        {
-            QMatrix4x4 offsetMatrix;
-            offsetMatrix.setToIdentity();
-            offsetMatrix.translate(worldOffset);
-            visibleWorld = offsetMatrix * visibleWorld;
-        }
-
-        QMatrix4x4 currentWorld = visibleWorld;
-        if (!userTransform.isIdentity())
-        {
-            bool userInvertible = false;
-            const QMatrix4x4 userTransformInv = userTransform.inverted(&userInvertible);
-            if (userInvertible)
-                currentWorld = userTransformInv * visibleWorld;
-        }
-        const LocalNodeTransform endTransform = decomposeLocalNodeTransform(parentWorldInv * currentWorld);
-
-        CapturedTransformTrack track;
-        track.meshUuid = meshUuid;
-        track.ownerNodeUuid = ownerNode->nodeUuid;
-        track.sourceFile = mesh->getSourceFile().trimmed();
-        if (track.sourceFile.isEmpty())
-            track.sourceFile = sourceFileForNode(ownerNode);
-        track.targetNodeName = ownerNode->name;
-        track.startPosition = startTransform.translation;
-        track.endPosition = startTransform.translation;
-        track.startRotation = startTransform.rotation;
-        track.endRotation = startTransform.rotation;
-
-        if (!aggregatedTracksByNode.contains(ownerNode->nodeUuid))
-        {
-            aggregatedTracksByNode.insert(ownerNode->nodeUuid, track);
-            totalMeshCountByNode.insert(ownerNode->nodeUuid, ownerNode->meshUuids.size());
-        }
-        endTransformsByNode[ownerNode->nodeUuid].append(endTransform);
-        selectedMeshCountByNode[ownerNode->nodeUuid] = selectedMeshCountByNode.value(ownerNode->nodeUuid) + 1;
+        contributingMotionsByMeshUuid.insert(meshUuid, motion);
+        selectedMotionsByOwnerNode[ownerNode->nodeUuid].append(motion);
     }
 
-    for (auto it = aggregatedTracksByNode.begin(); it != aggregatedTracksByNode.end(); ++it)
+    for (auto it = selectedMotionsByOwnerNode.cbegin(); it != selectedMotionsByOwnerNode.cend(); ++it)
     {
-        const QVector<LocalNodeTransform> endTransforms = endTransformsByNode.value(it.key());
-        const int count = endTransforms.size();
-        if (count <= 0)
+        const QVector<MeshCaptureMotion>& selectedMotions = it.value();
+        if (selectedMotions.isEmpty())
             continue;
 
-        const int selectedCount = selectedMeshCountByNode.value(it.key(), 0);
-        const int totalCount = totalMeshCountByNode.value(it.key(), selectedCount);
-        if (selectedCount != totalCount)
-        {
-            qWarning() << "[ExplodedView] Skipping animation capture for node"
-                       << it->targetNodeName
-                       << "because only" << selectedCount << "of" << totalCount
-                       << "direct meshes are part of the exploded selection.";
+        SceneNode* ownerNode = selectedMotions.front().ownerNode;
+        if (!ownerNode)
             continue;
+
+        QVector<SceneNode*> candidateNodes;
+        for (SceneNode* candidate = ownerNode; candidate && !candidate->isSynthetic; candidate = candidate->parent)
+            candidateNodes.append(candidate);
+
+        bool resolved = false;
+        QString failureReason;
+
+        for (SceneNode* candidateNode : std::as_const(candidateNodes))
+        {
+            QVector<QUuid> subtreeMeshUuids;
+            collectSubtreeMeshUuids(candidateNode, subtreeMeshUuids);
+            QVector<MeshCaptureMotion> subtreeMotions;
+            subtreeMotions.reserve(subtreeMeshUuids.size());
+            for (const QUuid& subtreeMeshUuid : std::as_const(subtreeMeshUuids))
+            {
+                auto cachedIt = contributingMotionsByMeshUuid.find(subtreeMeshUuid);
+                if (cachedIt != contributingMotionsByMeshUuid.end())
+                {
+                    subtreeMotions.append(cachedIt.value());
+                    continue;
+                }
+
+                TriangleMesh* subtreeMesh = _glWidget->getMeshByUuid(subtreeMeshUuid);
+                SceneNode* subtreeOwnerNode = _sceneGraph->findNodeForMesh(subtreeMeshUuid);
+                MeshCaptureMotion subtreeMotion;
+                if (buildMeshCaptureMotion(_glWidget,
+                                           subtreeOwnerNode,
+                                           subtreeMesh,
+                                           includeAutoPose,
+                                           includeManualPose,
+                                           subtreeMotion))
+                {
+                    subtreeMotions.append(subtreeMotion);
+                }
+            }
+            if (subtreeMotions.isEmpty())
+            {
+                failureReason = tr("no captured mesh motions are available in the candidate subtree");
+                continue;
+            }
+
+            LocalNodeTransform referenceTransform;
+            if (!inferCandidateLocalEndTransform(worlds, subtreeMotions.front(), candidateNode, referenceTransform))
+            {
+                failureReason = tr("the candidate transform basis could not be inverted");
+                continue;
+            }
+
+            bool transformsCompatible = true;
+            for (const MeshCaptureMotion& motion : std::as_const(subtreeMotions))
+            {
+                LocalNodeTransform candidateEndTransform;
+                const bool inferred =
+                    inferCandidateLocalEndTransform(worlds, motion, candidateNode, candidateEndTransform);
+                if (!inferred || !localTransformsCompatible(referenceTransform, candidateEndTransform))
+                {
+                    transformsCompatible = false;
+                    break;
+                }
+            }
+
+            if (!transformsCompatible)
+            {
+                failureReason = tr("captured meshes in the candidate subtree do not resolve to one rigid node transform");
+                continue;
+            }
+
+            CapturedTransformTrack track;
+            track.targetKind = GltfAnimationBindingTargetKind::Node;
+            track.meshUuid = selectedMotions.front().meshUuid;
+            track.ownerNodeUuid = candidateNode->nodeUuid;
+            track.sourceFile = selectedMotions.front().sourceFile;
+            track.targetNodeName = candidateNode->name;
+
+            const LocalNodeTransform startTransform =
+                decomposeLocalNodeTransform(aiToQMatrix(candidateNode->localTransform));
+            track.startPosition = startTransform.translation;
+            track.endPosition = referenceTransform.translation;
+            track.startRotation = startTransform.rotation;
+            track.endRotation = referenceTransform.rotation;
+            step.tracks.append(track);
+            resolved = true;
+            break;
         }
 
-        const LocalNodeTransform& referenceTransform = endTransforms.front();
-        bool transformsCompatible = true;
-        for (const LocalNodeTransform& endTransform : endTransforms)
+        if (!resolved)
         {
-            if ((endTransform.translation - referenceTransform.translation).lengthSquared() > kExplosionOffsetTolerance
-                || !rotationsNearlyEqual(endTransform.rotation, referenceTransform.rotation))
+            bool emittedMeshTracks = false;
+            for (const MeshCaptureMotion& motion : selectedMotions)
             {
-                transformsCompatible = false;
-                break;
+                LocalNodeTransform meshEndTransform;
+                if (!inferMeshChildLocalEndTransform(worlds, motion, meshEndTransform))
+                    continue;
+
+                TriangleMesh* mesh = _glWidget->getMeshByUuid(motion.meshUuid);
+                CapturedTransformTrack track;
+                track.targetKind = GltfAnimationBindingTargetKind::Mesh;
+                track.meshUuid = motion.meshUuid;
+                track.ownerNodeUuid = ownerNode->nodeUuid;
+                track.sourceFile = motion.sourceFile;
+                track.targetNodeName = mesh ? mesh->getName() : ownerNode->name;
+                track.targetNodeIndex = -1;
+                track.startPosition = QVector3D(0.0f, 0.0f, 0.0f);
+                track.endPosition = meshEndTransform.translation;
+                track.startRotation = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+                track.endRotation = meshEndTransform.rotation;
+                step.tracks.append(track);
+                emittedMeshTracks = true;
+            }
+
+            if (!emittedMeshTracks)
+            {
+                qWarning() << "[ExplodedView] Skipping animation capture for node"
+                           << ownerNode->name
+                           << "because no rigid animatable node target could represent the current exploded mesh state:"
+                           << failureReason;
             }
         }
-
-        if (!transformsCompatible)
-        {
-            qWarning() << "[ExplodedView] Skipping animation capture for node"
-                       << it->targetNodeName
-                       << "because its meshes resolve to different node transforms and cannot"
-                       << "be represented by one node animation track.";
-            continue;
-        }
-
-        it->endPosition = referenceTransform.translation;
-        it->endRotation = referenceTransform.rotation;
-        step.tracks.append(it.value());
     }
 
     return !step.tracks.isEmpty();
@@ -2499,9 +2668,11 @@ bool ExplodedViewPanel::createAnimationsFromCapturedSteps()
                            int nodeIndex,
                            const QVector<GltfAnimationVec3Key>& keys) {
         GltfAnimationChannel channel;
+        channel.targetKind = track.targetKind;
         channel.targetPath = GltfAnimationTargetPath::Translation;
         channel.targetNodeName = track.targetNodeName;
         channel.targetNodeIndex = nodeIndex;
+        channel.targetMeshUuid = track.meshUuid;
         channel.vec3Keys = keys;
         return channel;
     };
@@ -2510,11 +2681,17 @@ bool ExplodedViewPanel::createAnimationsFromCapturedSteps()
                                    int nodeIndex,
                                    const QVector<GltfAnimationQuatKey>& keys) {
         GltfAnimationChannel channel;
+        channel.targetKind = track.targetKind;
         channel.targetPath = GltfAnimationTargetPath::Rotation;
         channel.targetNodeName = track.targetNodeName;
         channel.targetNodeIndex = nodeIndex;
+        channel.targetMeshUuid = track.meshUuid;
         channel.quatKeys = keys;
         return channel;
+    };
+
+    const auto targetUuidForTrack = [](const CapturedTransformTrack& track) {
+        return track.targetKind == GltfAnimationBindingTargetKind::Mesh ? track.meshUuid : track.ownerNodeUuid;
     };
 
     auto makeForwardKeys = [&](const QVector3D& startPosition,
@@ -2552,7 +2729,7 @@ bool ExplodedViewPanel::createAnimationsFromCapturedSteps()
             for (const CapturedTransformTrack& track : step.tracks)
             {
                 if (!track.sourceFile.isEmpty())
-                    finalTracksByFile[track.sourceFile].insert(track.ownerNodeUuid, track);
+                    finalTracksByFile[track.sourceFile].insert(targetUuidForTrack(track), track);
             }
         }
 
@@ -2570,7 +2747,9 @@ bool ExplodedViewPanel::createAnimationsFromCapturedSteps()
             const QHash<QUuid, int> nodeIndexByUuid = nodeIndexByUuidByFile.value(fileIt.key());
             for (const CapturedTransformTrack& track : fileIt.value())
             {
-                const int nodeIndex = nodeIndexByUuid.value(track.ownerNodeUuid, track.targetNodeIndex);
+                const int nodeIndex = track.targetKind == GltfAnimationBindingTargetKind::Node
+                    ? nodeIndexByUuid.value(track.ownerNodeUuid, track.targetNodeIndex)
+                    : -1;
                 clip.channels.append(makeChannel(track,
                     nodeIndex,
                     makeForwardKeys(track.startPosition, track.endPosition)));
@@ -2613,7 +2792,7 @@ bool ExplodedViewPanel::createAnimationsFromCapturedSteps()
             for (const CapturedTransformTrack& track : step.tracks)
             {
                 if (!track.sourceFile.isEmpty())
-                    stepTracksByFile[track.sourceFile].insert(track.ownerNodeUuid, track);
+                    stepTracksByFile[track.sourceFile].insert(targetUuidForTrack(track), track);
             }
 
             for (auto fileIt = stepTracksByFile.cbegin(); fileIt != stepTracksByFile.cend(); ++fileIt)
@@ -2632,7 +2811,9 @@ bool ExplodedViewPanel::createAnimationsFromCapturedSteps()
                 const QHash<QUuid, int> nodeIndexByUuid = nodeIndexByUuidByFile.value(fileIt.key());
                 for (const CapturedTransformTrack& track : fileIt.value())
                 {
-                    const int nodeIndex = nodeIndexByUuid.value(track.ownerNodeUuid, track.targetNodeIndex);
+                    const int nodeIndex = track.targetKind == GltfAnimationBindingTargetKind::Node
+                        ? nodeIndexByUuid.value(track.ownerNodeUuid, track.targetNodeIndex)
+                        : -1;
                     clip.channels.append(makeChannel(track,
                         nodeIndex,
                         makeForwardKeys(track.startPosition, track.endPosition)));
@@ -2690,7 +2871,8 @@ bool ExplodedViewPanel::createAnimationsFromCapturedSteps()
                 if (track.sourceFile != sourceFile)
                     continue;
 
-                auto it = states.find(track.ownerNodeUuid);
+                const QUuid targetUuid = targetUuidForTrack(track);
+                auto it = states.find(targetUuid);
                 if (it == states.end())
                 {
                     NodeState state;
@@ -2699,7 +2881,7 @@ bool ExplodedViewPanel::createAnimationsFromCapturedSteps()
                     state.current = track.startPosition;
                     state.baseRotation = track.startRotation;
                     state.currentRotation = track.startRotation;
-                    states.insert(track.ownerNodeUuid, state);
+                    states.insert(targetUuid, state);
                 }
                 else
                 {
@@ -2742,7 +2924,7 @@ bool ExplodedViewPanel::createAnimationsFromCapturedSteps()
                 if (track.sourceFile != sourceFile)
                     continue;
 
-                auto it = states.find(track.ownerNodeUuid);
+                auto it = states.find(targetUuidForTrack(track));
                 if (it != states.end())
                 {
                     it->info = track;
@@ -2799,7 +2981,9 @@ bool ExplodedViewPanel::createAnimationsFromCapturedSteps()
         const QHash<QUuid, int> nodeIndexByUuid = nodeIndexByUuidByFile.value(sourceFile);
         for (auto it = states.cbegin(); it != states.cend(); ++it)
         {
-            const int nodeIndex = nodeIndexByUuid.value(it.key(), it->info.targetNodeIndex);
+            const int nodeIndex = it->info.targetKind == GltfAnimationBindingTargetKind::Node
+                ? nodeIndexByUuid.value(it->info.ownerNodeUuid, it->info.targetNodeIndex)
+                : -1;
             clip.channels.append(makeChannel(it->info, nodeIndex, it->keys));
             bool hasRotationAnimation = false;
             for (const GltfAnimationQuatKey& key : it->rotationKeys)
@@ -3444,6 +3628,7 @@ void ExplodedViewPanel::applyDraftPreviewPose(double timeSeconds)
     };
 
     QHash<QUuid, SampledNodeState> sampledByNode;
+    QHash<QUuid, SampledNodeState> sampledByMesh;
 
     if (mode == OutputMode::ParallelSingle)
     {
@@ -3451,7 +3636,12 @@ void ExplodedViewPanel::applyDraftPreviewPose(double timeSeconds)
         for (const CapturedExplosionStep& step : capturedSteps)
         {
             for (const CapturedTransformTrack& track : step.tracks)
-                finalTracksByNode.insert(track.ownerNodeUuid, track);
+            {
+                const QUuid targetUuid = track.targetKind == GltfAnimationBindingTargetKind::Mesh
+                    ? track.meshUuid
+                    : track.ownerNodeUuid;
+                finalTracksByNode.insert(targetUuid, track);
+            }
         }
 
         double localTime = clampedTime;
@@ -3467,13 +3657,8 @@ void ExplodedViewPanel::applyDraftPreviewPose(double timeSeconds)
         for (auto it = finalTracksByNode.cbegin(); it != finalTracksByNode.cend(); ++it)
         {
             const CapturedTransformTrack& track = it.value();
-            const SceneNode* node = _sceneGraph->findNodeByUuid(track.ownerNodeUuid);
-            if (!node)
-                continue;
-
-            const LocalNodeTransform base = decomposeLocalNodeTransform(aiToQMatrix(node->localTransform));
             SampledNodeState state;
-            state.scale = base.scale;
+            state.scale = QVector3D(1.0f, 1.0f, 1.0f);
             if (!reversing)
             {
                 state.translation = track.startPosition * (1.0f - t) + track.endPosition * t;
@@ -3484,13 +3669,24 @@ void ExplodedViewPanel::applyDraftPreviewPose(double timeSeconds)
                 state.translation = track.endPosition * (1.0f - t) + track.startPosition * t;
                 state.rotation = QQuaternion::slerp(track.endRotation, track.startRotation, t).normalized();
             }
-            sampledByNode.insert(track.ownerNodeUuid, state);
+            if (track.targetKind == GltfAnimationBindingTargetKind::Mesh)
+                sampledByMesh.insert(track.meshUuid, state);
+            else
+            {
+                const SceneNode* node = _sceneGraph->findNodeByUuid(track.ownerNodeUuid);
+                if (!node)
+                    continue;
+                const LocalNodeTransform base = decomposeLocalNodeTransform(aiToQMatrix(node->localTransform));
+                state.scale = base.scale;
+                sampledByNode.insert(track.ownerNodeUuid, state);
+            }
         }
     }
     else if (mode == OutputMode::SequentialSingle)
     {
         struct NodeState
         {
+            GltfAnimationBindingTargetKind targetKind = GltfAnimationBindingTargetKind::Node;
             QVector3D basePosition;
             QVector3D currentPosition;
             QQuaternion baseRotation;
@@ -3503,21 +3699,28 @@ void ExplodedViewPanel::applyDraftPreviewPose(double timeSeconds)
         {
             for (const CapturedTransformTrack& track : step.tracks)
             {
-                if (states.contains(track.ownerNodeUuid))
+                const QUuid targetUuid = track.targetKind == GltfAnimationBindingTargetKind::Mesh
+                    ? track.meshUuid
+                    : track.ownerNodeUuid;
+                if (states.contains(targetUuid))
                     continue;
 
-                const SceneNode* node = _sceneGraph->findNodeByUuid(track.ownerNodeUuid);
-                if (!node)
-                    continue;
-
-                const LocalNodeTransform base = decomposeLocalNodeTransform(aiToQMatrix(node->localTransform));
                 NodeState state;
+                state.targetKind = track.targetKind;
                 state.basePosition = track.startPosition;
                 state.currentPosition = track.startPosition;
                 state.baseRotation = track.startRotation;
                 state.currentRotation = track.startRotation;
-                state.scale = base.scale;
-                states.insert(track.ownerNodeUuid, state);
+                state.scale = QVector3D(1.0f, 1.0f, 1.0f);
+                if (track.targetKind == GltfAnimationBindingTargetKind::Node)
+                {
+                    const SceneNode* node = _sceneGraph->findNodeByUuid(track.ownerNodeUuid);
+                    if (!node)
+                        continue;
+                    const LocalNodeTransform base = decomposeLocalNodeTransform(aiToQMatrix(node->localTransform));
+                    state.scale = base.scale;
+                }
+                states.insert(targetUuid, state);
             }
         }
 
@@ -3543,7 +3746,10 @@ void ExplodedViewPanel::applyDraftPreviewPose(double timeSeconds)
         {
             for (const CapturedTransformTrack& track : step.tracks)
             {
-                auto it = states.find(track.ownerNodeUuid);
+                const QUuid targetUuid = track.targetKind == GltfAnimationBindingTargetKind::Mesh
+                    ? track.meshUuid
+                    : track.ownerNodeUuid;
+                auto it = states.find(targetUuid);
                 if (it == states.end())
                     continue;
                 it->currentPosition = track.endPosition;
@@ -3590,7 +3796,10 @@ void ExplodedViewPanel::applyDraftPreviewPose(double timeSeconds)
                 const QQuaternion toRotation = toRotations.value(it.key(), fromRotation);
                 state.translation = fromPosition * (1.0f - t) + toPosition * t;
                 state.rotation = QQuaternion::slerp(fromRotation, toRotation, t).normalized();
-                sampledByNode.insert(it.key(), state);
+                if (it->targetKind == GltfAnimationBindingTargetKind::Mesh)
+                    sampledByMesh.insert(it.key(), state);
+                else
+                    sampledByNode.insert(it.key(), state);
             }
         };
 
@@ -3616,13 +3825,8 @@ void ExplodedViewPanel::applyDraftPreviewPose(double timeSeconds)
             const float t = static_cast<float>(qBound(0.0, localTime / qMax(1.0e-6, forwardDuration), 1.0));
             for (const CapturedTransformTrack& track : previewEntry.tracks)
             {
-                const SceneNode* node = _sceneGraph->findNodeByUuid(track.ownerNodeUuid);
-                if (!node)
-                    continue;
-
-                const LocalNodeTransform base = decomposeLocalNodeTransform(aiToQMatrix(node->localTransform));
                 SampledNodeState state;
-                state.scale = base.scale;
+                state.scale = QVector3D(1.0f, 1.0f, 1.0f);
                 if (!reversing)
                 {
                     state.translation = track.startPosition * (1.0f - t) + track.endPosition * t;
@@ -3633,7 +3837,17 @@ void ExplodedViewPanel::applyDraftPreviewPose(double timeSeconds)
                     state.translation = track.endPosition * (1.0f - t) + track.startPosition * t;
                     state.rotation = QQuaternion::slerp(track.endRotation, track.startRotation, t).normalized();
                 }
-                sampledByNode.insert(track.ownerNodeUuid, state);
+                if (track.targetKind == GltfAnimationBindingTargetKind::Mesh)
+                    sampledByMesh.insert(track.meshUuid, state);
+                else
+                {
+                    const SceneNode* node = _sceneGraph->findNodeByUuid(track.ownerNodeUuid);
+                    if (!node)
+                        continue;
+                    const LocalNodeTransform base = decomposeLocalNodeTransform(aiToQMatrix(node->localTransform));
+                    state.scale = base.scale;
+                    sampledByNode.insert(track.ownerNodeUuid, state);
+                }
             }
         }
     }
@@ -3667,7 +3881,18 @@ void ExplodedViewPanel::applyDraftPreviewPose(double timeSeconds)
                 if (TriangleMesh* mesh = _glWidget->getMeshByUuid(meshUuid))
                 {
                     mesh->setExplosionOffset(QVector3D());
-                    mesh->setSceneRenderTransformFast(world);
+                    if (sampledByMesh.contains(meshUuid))
+                    {
+                        LocalNodeTransform meshLocal;
+                        meshLocal.translation = sampledByMesh.value(meshUuid).translation;
+                        meshLocal.rotation = sampledByMesh.value(meshUuid).rotation;
+                        meshLocal.scale = sampledByMesh.value(meshUuid).scale;
+                        mesh->setSceneRenderTransformFast(world * composeLocalNodeTransform(meshLocal));
+                    }
+                    else
+                    {
+                        mesh->setSceneRenderTransformFast(world);
+                    }
                 }
             }
 

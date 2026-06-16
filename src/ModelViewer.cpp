@@ -4343,8 +4343,11 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 				{
 					const QJsonObject channelObj = channelValue.toObject();
 					GltfAnimationChannel channel;
+					channel.targetKind = static_cast<GltfAnimationBindingTargetKind>(
+						channelObj[QStringLiteral("targetKind")].toInt(static_cast<int>(GltfAnimationBindingTargetKind::Node)));
 					channel.targetNodeName = channelObj[QStringLiteral("targetNodeName")].toString();
 					channel.targetNodeIndex = channelObj[QStringLiteral("targetNodeIndex")].toInt(-1);
+					channel.targetMeshUuid = QUuid(channelObj[QStringLiteral("targetMeshUuid")].toString());
 					channel.targetPath = static_cast<GltfAnimationTargetPath>(
 						channelObj[QStringLiteral("targetPath")].toInt(static_cast<int>(GltfAnimationTargetPath::Translation)));
 					channel.targetPointer = channelObj[QStringLiteral("targetPointer")].toString();

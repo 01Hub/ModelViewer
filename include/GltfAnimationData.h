@@ -5,6 +5,7 @@
 #include <QQuaternion>
 #include <QString>
 #include <QStringList>
+#include <QUuid>
 #include <QVector>
 #include <QVector2D>
 #include <QVector3D>
@@ -18,6 +19,12 @@ enum class GltfAnimationTargetPath
     Scale,
     Weights,
     Pointer
+};
+
+enum class GltfAnimationBindingTargetKind
+{
+    Node,
+    Mesh
 };
 
 enum class GltfAnimationPointerProperty
@@ -110,8 +117,10 @@ struct GltfAnimationWeightsKey
 
 struct GltfAnimationChannel
 {
+    GltfAnimationBindingTargetKind targetKind = GltfAnimationBindingTargetKind::Node;
     QString                 targetNodeName;
     int                     targetNodeIndex = -1;
+    QUuid                   targetMeshUuid;
     GltfAnimationTargetPath targetPath = GltfAnimationTargetPath::Translation;
     QString                 targetPointer;
     GltfAnimationPointerTargetKind pointerTargetKind = GltfAnimationPointerTargetKind::None;

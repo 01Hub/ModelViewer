@@ -585,6 +585,7 @@ aiScene* SceneGraphExporter::buildExportScene(
     std::vector<aiMaterial*> builtMaterials;
     builtMaterials.reserve(64);
     QHash<QUuid, QString> exportedNodeNameByUuid;
+    QHash<QUuid, QString> exportedMeshNodeNameByUuid;
     QSet<QString> usedExportNodeNames;
 
 
@@ -650,7 +651,7 @@ aiScene* SceneGraphExporter::buildExportScene(
             // ---------------------------------------------------------------------
 
             aiNode* dstChild = buildNodeRecursive(fileNode, resolveMesh, builtMeshes, builtMaterials,
-                materialKeyToIndex, exportedNodeNameByUuid, usedExportNodeNames,
+                materialKeyToIndex, exportedNodeNameByUuid, exportedMeshNodeNameByUuid, usedExportNodeNames,
                 aiMatrix4x4(), flattenTransforms, fileNode->importCorrection, outAnimMatRemap);
             exportRoot->mChildren[i] = dstChild;
             if (dstChild)
@@ -832,7 +833,8 @@ aiScene* SceneGraphExporter::buildExportScene(
                 for (const GltfAnimationChannel& ch : clip.channels)
                 {
                     SceneNode* resolvedTargetNode = nullptr;
-                    if (ch.targetNodeIndex >= 0 && ch.targetNodeIndex < animData.nodeBindings.size())
+                    if (ch.targetKind == GltfAnimationBindingTargetKind::Node
+                        && ch.targetNodeIndex >= 0 && ch.targetNodeIndex < animData.nodeBindings.size())
                     {
                         const GltfAnimationNodeBinding& binding = animData.nodeBindings[ch.targetNodeIndex];
                         SceneNode* fileNodeMutable = const_cast<SceneNode*>(fileNode);
@@ -865,9 +867,11 @@ aiScene* SceneGraphExporter::buildExportScene(
                         }
                     }
 
-                    const QString exportedTargetName = resolvedTargetNode
-                        ? exportedNodeNameByUuid.value(resolvedTargetNode->nodeUuid)
-                        : QString();
+                    const QString exportedTargetName =
+                        ch.targetKind == GltfAnimationBindingTargetKind::Mesh
+                            ? exportedMeshNodeNameByUuid.value(ch.targetMeshUuid)
+                            : (resolvedTargetNode ? exportedNodeNameByUuid.value(resolvedTargetNode->nodeUuid)
+                                                  : QString());
 
                     const bool isTRS = (ch.targetPath == GltfAnimationTargetPath::Translation ||
                                         ch.targetPath == GltfAnimationTargetPath::Rotation    ||
@@ -919,14 +923,14 @@ aiScene* SceneGraphExporter::buildExportScene(
 
                     const QString targetNodeName = !exportedTargetName.isEmpty() ? exportedTargetName : ch.targetNodeName;
                     const std::string nodeName = targetNodeName.toStdString();
-                    qDebug() << "[EXPORT-ANIMS-TRS] TRS channel target:" << targetNodeName
-                             << "path:" << static_cast<int>(ch.targetPath);
 
                     const ExportNodeTrs exportBaseTrs =
                         exportNodeBaseTrsByName.value(targetNodeName, ExportNodeTrs());
-                    const ExportNodeTrs sourceBaseTrs = resolvedTargetNode
-                        ? decomposeNodeTrs(resolvedTargetNode->localTransform)
-                        : ExportNodeTrs();
+                    const ExportNodeTrs sourceBaseTrs =
+                        ch.targetKind == GltfAnimationBindingTargetKind::Mesh
+                            ? ExportNodeTrs()
+                            : (resolvedTargetNode ? decomposeNodeTrs(resolvedTargetNode->localTransform)
+                                                  : ExportNodeTrs());
 
                     if (!nodeAnimByName.contains(targetNodeName))
                     {
@@ -1156,6 +1160,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
     std::vector<aiMaterial*>& outMaterials,
     QMap<QString, unsigned int>& materialKeyToIndex,
     QHash<QUuid, QString>& exportedNodeNameByUuid,
+    QHash<QUuid, QString>& exportedMeshNodeNameByUuid,
     QSet<QString>& usedExportNodeNames,
     const aiMatrix4x4& parentWorldTransform,
     bool flattenTransforms,
@@ -1437,10 +1442,12 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
 
         if (splitMeshesIntoChildNodes)
         {
-            aiNode* meshNode = makeIdentityNode(triMesh->getName());
+            const QString uniqueMeshNodeName = makeUniqueExportNodeName(triMesh->getName(), usedExportNodeNames);
+            aiNode* meshNode = makeIdentityNode(uniqueMeshNodeName);
             meshNode->mNumMeshes = 1;
             meshNode->mMeshes = new unsigned int[1];
             meshNode->mMeshes[0] = exportMeshIndex;
+            exportedMeshNodeNameByUuid.insert(meshUuid, uniqueMeshNodeName);
 
             // Fold per-mesh user TRS into the child node for hierarchy formats.
             // Use correctedMeshTrs (viewer-space TRS remapped to model/export space).
@@ -1473,6 +1480,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
                 dstNode->mTransformation = parentWorldInv * correctedMeshTrs * worldTransform;
             }
             nodeMeshIndices.push_back(exportMeshIndex);
+            exportedMeshNodeNameByUuid.insert(meshUuid, uniqueExportNodeName);
         }
     }
 
@@ -1504,7 +1512,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
         {
             SceneNode* srcChild = srcNode->children.at(i);
             aiNode* dstChild = buildNodeRecursive(srcChild, resolveMesh, outMeshes, outMaterials,
-                materialKeyToIndex, exportedNodeNameByUuid, usedExportNodeNames,
+                materialKeyToIndex, exportedNodeNameByUuid, exportedMeshNodeNameByUuid, usedExportNodeNames,
                 worldTransform, flattenTransforms, importCorrection, animMatRemap);
             dstNode->mChildren[childIndex++] = dstChild;
             if (dstChild)

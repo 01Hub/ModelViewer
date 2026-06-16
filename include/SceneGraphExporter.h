@@ -58,6 +58,7 @@ private:
         std::vector<aiMaterial*>& outMaterials,
         QMap<QString, unsigned int>& materialKeyToIndex,
         QHash<QUuid, QString>& exportedNodeNameByUuid,
+        QHash<QUuid, QString>& exportedMeshNodeNameByUuid,
         QSet<QString>& usedExportNodeNames,
         const aiMatrix4x4& parentWorldTransform,
         bool flattenTransforms,
