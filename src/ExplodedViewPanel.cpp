@@ -1893,10 +1893,10 @@ bool ExplodedViewPanel::buildCurrentCapturedExplosionStep(CapturedExplosionStep&
 
         const QVector3D worldOffset = mesh->explosionOffset();
         const TransformState meshState(
-            mesh->getTranslation(),
-            mesh->getRotation(),
-            mesh->getScaling(),
-            mesh->getRotationQuaternion());
+            mesh->getExplodedViewTranslation(),
+            mesh->getExplodedViewRotation(),
+            mesh->getExplodedViewScaling(),
+            mesh->getExplodedViewRotationQuaternion());
         const bool hasManualTranslation = meshState.translation.lengthSquared() > 1.0e-8f;
         const QQuaternion identityRotation(1.0f, 0.0f, 0.0f, 0.0f);
         const bool hasManualRotation = meshState.hasExactRotation
@@ -1936,7 +1936,9 @@ bool ExplodedViewPanel::buildCurrentCapturedExplosionStep(CapturedExplosionStep&
         }
         else
         {
-            currentWorld = mesh->getTransformation() * mesh->getSceneRenderTransform();
+            currentWorld = mesh->getExplodedViewTransformation()
+                * mesh->getTransformation()
+                * mesh->getSceneRenderTransform();
         }
         const LocalNodeTransform endTransform = decomposeLocalNodeTransform(parentWorldInv * currentWorld);
 
@@ -3205,6 +3207,11 @@ bool ExplodedViewPanel::ensureDraftPreviewSession()
             state.scale = mesh->getScaling();
             state.rotationQuat = mesh->getRotationQuaternion();
             state.hasExactRotation = true;
+            state.explodedViewTranslation = mesh->getExplodedViewTranslation();
+            state.explodedViewRotation = mesh->getExplodedViewRotation();
+            state.explodedViewScale = mesh->getExplodedViewScaling();
+            state.explodedViewRotationQuat = mesh->getExplodedViewRotationQuaternion();
+            state.hasExactExplodedViewRotation = true;
             _draftPreviewMeshStates.insert(meshUuid, state);
         }
     }
@@ -3230,6 +3237,9 @@ bool ExplodedViewPanel::ensureDraftPreviewSession()
             mesh->setTranslation(QVector3D());
             mesh->setRotationQuaternion(identityQuat, QVector3D());
             mesh->setScaling(QVector3D(1.0f, 1.0f, 1.0f));
+            mesh->setExplodedViewTranslation(QVector3D());
+            mesh->setExplodedViewRotationQuaternion(identityQuat, QVector3D());
+            mesh->setExplodedViewScaling(QVector3D(1.0f, 1.0f, 1.0f));
         }
     }
 
@@ -3269,6 +3279,13 @@ void ExplodedViewPanel::stopDraftPreview(bool restoreScene)
             else
                 mesh->setRotation(state.rotation);
             mesh->setScaling(state.scale);
+            mesh->setExplodedViewTranslation(state.explodedViewTranslation);
+            if (state.hasExactExplodedViewRotation)
+                mesh->setExplodedViewRotationQuaternion(
+                    state.explodedViewRotationQuat, state.explodedViewRotation);
+            else
+                mesh->setExplodedViewRotation(state.explodedViewRotation);
+            mesh->setExplodedViewScaling(state.explodedViewScale);
         }
 
         if (_draftPreviewSuspendedAnimation.valid)

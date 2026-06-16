@@ -41,6 +41,11 @@ _baseAttenuationDistance(std::numeric_limits<float>::infinity())
 	_scaleX = _scaleY = _scaleZ = 1.0f;
 	_rotationQuat = QQuaternion();
 	_transformation.setToIdentity();
+	_explodedViewTransX = _explodedViewTransY = _explodedViewTransZ = 0.0f;
+	_explodedViewRotateX = _explodedViewRotateY = _explodedViewRotateZ = 0.0f;
+	_explodedViewScaleX = _explodedViewScaleY = _explodedViewScaleZ = 1.0f;
+	_explodedViewRotationQuat = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+	_explodedViewTransformation.setToIdentity();
 	_sceneRenderTransform.setToIdentity();
 
 	_indexBuffer = QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
@@ -1530,6 +1535,16 @@ void TriangleMesh::resetTransformations()
 	updateRuntimeBounds();
 }
 
+void TriangleMesh::resetExplodedViewTransformations()
+{
+	_explodedViewTransX = _explodedViewTransY = _explodedViewTransZ = 0.0f;
+	_explodedViewRotateX = _explodedViewRotateY = _explodedViewRotateZ = 0.0f;
+	_explodedViewScaleX = _explodedViewScaleY = _explodedViewScaleZ = 1.0f;
+	_explodedViewRotationQuat = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+	rebuildExplodedViewTransformation();
+	updateRuntimeBounds();
+}
+
 std::vector<unsigned int> TriangleMesh::getIndices() const
 {
 	return _indices;
@@ -1600,6 +1615,64 @@ void TriangleMesh::setScaling(const QVector3D& scale)
 	applyScaledVolumeProperties();
 }
 
+QVector3D TriangleMesh::getExplodedViewTranslation() const
+{
+	return QVector3D(_explodedViewTransX, _explodedViewTransY, _explodedViewTransZ);
+}
+
+void TriangleMesh::setExplodedViewTranslation(const QVector3D& trans)
+{
+	_explodedViewTransX = trans.x();
+	_explodedViewTransY = trans.y();
+	_explodedViewTransZ = trans.z();
+	rebuildExplodedViewTransformation();
+	setupTransformation();
+}
+
+QVector3D TriangleMesh::getExplodedViewRotation() const
+{
+	return QVector3D(_explodedViewRotateX, _explodedViewRotateY, _explodedViewRotateZ);
+}
+
+void TriangleMesh::setExplodedViewRotation(const QVector3D& rota)
+{
+	_explodedViewRotateX = rota.x();
+	_explodedViewRotateY = rota.y();
+	_explodedViewRotateZ = rota.z();
+	_explodedViewRotationQuat = meshEulerToQuaternion(rota);
+	rebuildExplodedViewTransformation();
+	setupTransformation();
+}
+
+QQuaternion TriangleMesh::getExplodedViewRotationQuaternion() const
+{
+	return _explodedViewRotationQuat;
+}
+
+void TriangleMesh::setExplodedViewRotationQuaternion(const QQuaternion& quat, const QVector3D& displayEuler)
+{
+	_explodedViewRotationQuat = quat.normalized();
+	_explodedViewRotateX = displayEuler.x();
+	_explodedViewRotateY = displayEuler.y();
+	_explodedViewRotateZ = displayEuler.z();
+	rebuildExplodedViewTransformation();
+	setupTransformation();
+}
+
+QVector3D TriangleMesh::getExplodedViewScaling() const
+{
+	return QVector3D(_explodedViewScaleX, _explodedViewScaleY, _explodedViewScaleZ);
+}
+
+void TriangleMesh::setExplodedViewScaling(const QVector3D& scale)
+{
+	_explodedViewScaleX = scale.x();
+	_explodedViewScaleY = scale.y();
+	_explodedViewScaleZ = scale.z();
+	rebuildExplodedViewTransformation();
+	setupTransformation();
+}
+
 void TriangleMesh::rebuildAbsoluteTransformation()
 {
 	_transformation.setToIdentity();
@@ -1608,9 +1681,24 @@ void TriangleMesh::rebuildAbsoluteTransformation()
 	_transformation.scale(_scaleX, _scaleY, _scaleZ);
 }
 
+void TriangleMesh::rebuildExplodedViewTransformation()
+{
+	_explodedViewTransformation.setToIdentity();
+	_explodedViewTransformation.translate(
+		_explodedViewTransX, _explodedViewTransY, _explodedViewTransZ);
+	_explodedViewTransformation.rotate(_explodedViewRotationQuat);
+	_explodedViewTransformation.scale(
+		_explodedViewScaleX, _explodedViewScaleY, _explodedViewScaleZ);
+}
+
 QMatrix4x4 TriangleMesh::getTransformation() const
 {
 	return _transformation;
+}
+
+QMatrix4x4 TriangleMesh::getExplodedViewTransformation() const
+{
+	return _explodedViewTransformation;
 }
 
 QVector3D TriangleMesh::getStableTransformCenter() const
@@ -1654,7 +1742,7 @@ QMatrix4x4 TriangleMesh::getSceneRenderTransform() const
 
 QMatrix4x4 TriangleMesh::combinedRenderTransform() const
 {
-	const QMatrix4x4 base = _transformation * _sceneRenderTransform;
+	const QMatrix4x4 base = _explodedViewTransformation * _transformation * _sceneRenderTransform;
 	if (_explosionOffset.isNull())
 		return base;
 	QMatrix4x4 t;
@@ -1775,6 +1863,44 @@ void TriangleMesh::setScalingFast(const QVector3D& scale)
 	_scaleY = scale.y();
 	_scaleZ = scale.z();
 	rebuildAbsoluteTransformation();
+	fastUpdateWorldBounds();
+}
+
+void TriangleMesh::setExplodedViewTranslationFast(const QVector3D& trans)
+{
+	_explodedViewTransX = trans.x();
+	_explodedViewTransY = trans.y();
+	_explodedViewTransZ = trans.z();
+	rebuildExplodedViewTransformation();
+	fastUpdateWorldBounds();
+}
+
+void TriangleMesh::setExplodedViewRotationFast(const QVector3D& rota)
+{
+	_explodedViewRotateX = rota.x();
+	_explodedViewRotateY = rota.y();
+	_explodedViewRotateZ = rota.z();
+	_explodedViewRotationQuat = meshEulerToQuaternion(rota);
+	rebuildExplodedViewTransformation();
+	fastUpdateWorldBounds();
+}
+
+void TriangleMesh::setExplodedViewRotationQuaternionFast(const QQuaternion& quat, const QVector3D& displayEuler)
+{
+	_explodedViewRotationQuat = quat.normalized();
+	_explodedViewRotateX = displayEuler.x();
+	_explodedViewRotateY = displayEuler.y();
+	_explodedViewRotateZ = displayEuler.z();
+	rebuildExplodedViewTransformation();
+	fastUpdateWorldBounds();
+}
+
+void TriangleMesh::setExplodedViewScalingFast(const QVector3D& scale)
+{
+	_explodedViewScaleX = scale.x();
+	_explodedViewScaleY = scale.y();
+	_explodedViewScaleZ = scale.z();
+	rebuildExplodedViewTransformation();
 	fastUpdateWorldBounds();
 }
 

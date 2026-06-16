@@ -136,7 +136,12 @@ private:
         QVector3D rotation;
         QVector3D scale = QVector3D(1.0f, 1.0f, 1.0f);
         QQuaternion rotationQuat;
+        QVector3D explodedViewTranslation;
+        QVector3D explodedViewRotation;
+        QVector3D explodedViewScale = QVector3D(1.0f, 1.0f, 1.0f);
+        QQuaternion explodedViewRotationQuat;
         bool hasExactRotation = false;
+        bool hasExactExplodedViewRotation = false;
     };
 
     struct SuspendedAnimationState

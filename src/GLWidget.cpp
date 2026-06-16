@@ -91,6 +91,47 @@ bool transformStatesNearlyEqual(const TransformState& a, const TransformState& b
 	return (a.rotation - b.rotation).lengthSquared() <= kExplodedManualTransformTolerance;
 }
 
+TransformState explodedViewTransformState(const TriangleMesh* mesh)
+{
+	if (!mesh)
+		return {};
+
+	return TransformState(
+		mesh->getExplodedViewTranslation(),
+		mesh->getExplodedViewRotation(),
+		mesh->getExplodedViewScaling(),
+		mesh->getExplodedViewRotationQuaternion());
+}
+
+QMatrix4x4 explodedViewTransformMatrix(const TriangleMesh* mesh)
+{
+	return mesh ? mesh->getExplodedViewTransformation() : QMatrix4x4();
+}
+
+void applyExplodedViewTransformState(TriangleMesh* mesh, const TransformState& state, bool fast)
+{
+	if (!mesh)
+		return;
+
+	if (fast)
+	{
+		mesh->setExplodedViewTranslationFast(state.translation);
+		if (state.hasExactRotation)
+			mesh->setExplodedViewRotationQuaternionFast(state.rotationQuat, state.rotation);
+		else
+			mesh->setExplodedViewRotationFast(state.rotation);
+		mesh->setExplodedViewScalingFast(state.scale);
+		return;
+	}
+
+	mesh->setExplodedViewTranslation(state.translation);
+	if (state.hasExactRotation)
+		mesh->setExplodedViewRotationQuaternion(state.rotationQuat, state.rotation);
+	else
+		mesh->setExplodedViewRotation(state.rotation);
+	mesh->setExplodedViewScaling(state.scale);
+}
+
 const ViewCubeStyle kViewCubeStyle;
 
 
@@ -3397,12 +3438,7 @@ void GLWidget::showExplodedViewPanel(bool show)
 					continue;
 
 				const TransformState& state = it.value();
-				mesh->setTranslation(state.translation);
-				if (state.hasExactRotation)
-					mesh->setRotationQuaternion(state.rotationQuat, state.rotation);
-				else
-					mesh->setRotation(state.rotation);
-				mesh->setScaling(state.scale);
+				applyExplodedViewTransformState(mesh, state, false);
 			}
 
 			for (TriangleMesh* mesh : _meshStore)
@@ -3434,10 +3470,10 @@ void GLWidget::showExplodedViewPanel(bool show)
 					continue;
 
 				_explodedViewManualHiddenStates.insert(it.key(), TransformState(
-					mesh->getTranslation(),
-					mesh->getRotation(),
-					mesh->getScaling(),
-					mesh->getRotationQuaternion()));
+					mesh->getExplodedViewTranslation(),
+					mesh->getExplodedViewRotation(),
+					mesh->getExplodedViewScaling(),
+					mesh->getExplodedViewRotationQuaternion()));
 			}
 		}
 
@@ -3463,12 +3499,7 @@ void GLWidget::showExplodedViewPanel(bool show)
 				continue;
 
 			const TransformState& state = it.value();
-			mesh->setTranslation(state.translation);
-			if (state.hasExactRotation)
-				mesh->setRotationQuaternion(state.rotationQuat, state.rotation);
-			else
-				mesh->setRotation(state.rotation);
-			mesh->setScaling(state.scale);
+			applyExplodedViewTransformState(mesh, state, false);
 		}
 
 		_explodedViewManualPlacementSuppressed = !_explodedViewManualHiddenStates.isEmpty();
@@ -3964,19 +3995,19 @@ bool GLWidget::beginExplodedViewManualPlacement(const QVector<QUuid>& selectionU
 
 			_explodedViewManualPlacementSessionUuids.insert(uuid);
 			_explodedViewManualSessionStartStates.insert(uuid, TransformState(
-				mesh->getTranslation(),
-				mesh->getRotation(),
-				mesh->getScaling(),
-				mesh->getRotationQuaternion()));
-			_explodedViewManualSessionStartMatrices.insert(uuid, mesh->getTransformation());
+				mesh->getExplodedViewTranslation(),
+				mesh->getExplodedViewRotation(),
+				mesh->getExplodedViewScaling(),
+				mesh->getExplodedViewRotationQuaternion()));
+			_explodedViewManualSessionStartMatrices.insert(uuid, mesh->getExplodedViewTransformation());
 			if (_explodedViewManualOriginalStates.contains(uuid))
 				continue;
 
 			_explodedViewManualOriginalStates.insert(uuid, TransformState(
-				mesh->getTranslation(),
-				mesh->getRotation(),
-				mesh->getScaling(),
-				mesh->getRotationQuaternion()));
+				mesh->getExplodedViewTranslation(),
+				mesh->getExplodedViewRotation(),
+				mesh->getExplodedViewScaling(),
+				mesh->getExplodedViewRotationQuaternion()));
 		}
 	}
 	else
@@ -3994,19 +4025,19 @@ bool GLWidget::beginExplodedViewManualPlacement(const QVector<QUuid>& selectionU
 
 			_explodedViewManualPlacementSessionUuids.insert(uuid);
 			_explodedViewManualSessionStartStates.insert(uuid, TransformState(
-				mesh->getTranslation(),
-				mesh->getRotation(),
-				mesh->getScaling(),
-				mesh->getRotationQuaternion()));
-			_explodedViewManualSessionStartMatrices.insert(uuid, mesh->getTransformation());
+				mesh->getExplodedViewTranslation(),
+				mesh->getExplodedViewRotation(),
+				mesh->getExplodedViewScaling(),
+				mesh->getExplodedViewRotationQuaternion()));
+			_explodedViewManualSessionStartMatrices.insert(uuid, mesh->getExplodedViewTransformation());
 			if (_explodedViewManualOriginalStates.contains(uuid))
 				continue;
 
 			_explodedViewManualOriginalStates.insert(uuid, TransformState(
-				mesh->getTranslation(),
-				mesh->getRotation(),
-				mesh->getScaling(),
-				mesh->getRotationQuaternion()));
+				mesh->getExplodedViewTranslation(),
+				mesh->getExplodedViewRotation(),
+				mesh->getExplodedViewScaling(),
+				mesh->getExplodedViewRotationQuaternion()));
 		}
 	}
 
@@ -4029,10 +4060,10 @@ bool GLWidget::hasExplodedViewManualTransformChanges() const
 			continue;
 
 		const TransformState currentState(
-			mesh->getTranslation(),
-			mesh->getRotation(),
-			mesh->getScaling(),
-			mesh->getRotationQuaternion());
+			mesh->getExplodedViewTranslation(),
+			mesh->getExplodedViewRotation(),
+			mesh->getExplodedViewScaling(),
+			mesh->getExplodedViewRotationQuaternion());
 		if (!transformStatesNearlyEqual(it.value(), currentState))
 			return true;
 	}
@@ -4050,10 +4081,10 @@ QSet<QUuid> GLWidget::explodedViewManualPlacementUuids() const
 			continue;
 
 		const TransformState currentState(
-			mesh->getTranslation(),
-			mesh->getRotation(),
-			mesh->getScaling(),
-			mesh->getRotationQuaternion());
+			mesh->getExplodedViewTranslation(),
+			mesh->getExplodedViewRotation(),
+			mesh->getExplodedViewScaling(),
+			mesh->getExplodedViewRotationQuaternion());
 		if (!transformStatesNearlyEqual(it.value(), currentState))
 			uuids.insert(it.key());
 	}
@@ -4103,10 +4134,10 @@ void GLWidget::finishExplodedViewManualPlacement()
 			continue;
 
 		const TransformState currentState(
-			mesh->getTranslation(),
-			mesh->getRotation(),
-			mesh->getScaling(),
-			mesh->getRotationQuaternion());
+			mesh->getExplodedViewTranslation(),
+			mesh->getExplodedViewRotation(),
+			mesh->getExplodedViewScaling(),
+			mesh->getExplodedViewRotationQuaternion());
 		if (!transformStatesNearlyEqual(it.value(), currentState))
 			changedUuids.append(it.key());
 	}
@@ -4187,12 +4218,7 @@ void GLWidget::clearExplodedViewManualPlacement()
 			continue;
 
 		const TransformState& state = it.value();
-		mesh->setTranslation(state.translation);
-		if (state.hasExactRotation)
-			mesh->setRotationQuaternion(state.rotationQuat, state.rotation);
-		else
-			mesh->setRotation(state.rotation);
-		mesh->setScaling(state.scale);
+		applyExplodedViewTransformState(mesh, state, false);
 	}
 
 	for (TriangleMesh* mesh : _meshStore)
@@ -8157,7 +8183,8 @@ void GLWidget::applyExplodedViewManualPlacementSessionTransform()
 			continue;
 
 		const TransformState& startState = it.value();
-		const QMatrix4x4 startMatrix = _explodedViewManualSessionStartMatrices.value(it.key(), mesh->getTransformation());
+		const QMatrix4x4 startMatrix = _explodedViewManualSessionStartMatrices.value(
+			it.key(), mesh->getExplodedViewTransformation());
 		const QMatrix4x4 combinedMatrix = translationMatrix * rotationAroundPivot * startMatrix;
 		const QVector3D exactTranslation(
 			combinedMatrix(0, 3),
@@ -8175,9 +8202,9 @@ void GLWidget::applyExplodedViewManualPlacementSessionTransform()
 		displayRotationMatrix.rotate(exactRotationQuat);
 		const QVector3D displayRotation = extractMeshRotationFromMatrix(displayRotationMatrix);
 
-		mesh->setTranslationFast(exactTranslation);
-		mesh->setRotationQuaternionFast(exactRotationQuat, displayRotation);
-		mesh->setScalingFast(startState.scale);
+		mesh->setExplodedViewTranslationFast(exactTranslation);
+		mesh->setExplodedViewRotationQuaternionFast(exactRotationQuat, displayRotation);
+		mesh->setExplodedViewScalingFast(startState.scale);
 	}
 
 	update();
@@ -8307,13 +8334,17 @@ bool GLWidget::beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle,
 
 		if (TriangleMesh* mesh = _meshStore[id])
 		{
-			_transformGizmoStartStates[id] = TransformState(
-				mesh->getTranslation(),
-				mesh->getRotation(),
-				mesh->getScaling(),
-				mesh->getRotationQuaternion());
+			_transformGizmoStartStates[id] = _explodedViewManualPlacementActive
+				? explodedViewTransformState(mesh)
+				: TransformState(
+					mesh->getTranslation(),
+					mesh->getRotation(),
+					mesh->getScaling(),
+					mesh->getRotationQuaternion());
 			_transformGizmoStartCenters[id] = mesh->getBoundingSphere().getCenter();
-			_transformGizmoStartMatrices[id] = mesh->getTransformation();
+			_transformGizmoStartMatrices[id] = _explodedViewManualPlacementActive
+				? explodedViewTransformMatrix(mesh)
+				: mesh->getTransformation();
 		}
 	}
 
@@ -8365,9 +8396,21 @@ void GLWidget::updateTransformGizmoTranslationDrag(const QPoint& pixel)
 			const TransformState& startState = it.value();
 			// Use fast setters during drag — only updates AABB from 8 corners (O(1))
 			// instead of re-transforming all vertices (O(N)) for each mouse event.
-			mesh->setTranslationFast(startState.translation + _transformGizmoCurrentTranslationDelta);
-			mesh->setRotationFast(startState.rotation);
-			mesh->setScalingFast(startState.scale);
+			if (_explodedViewManualPlacementActive)
+			{
+				mesh->setExplodedViewTranslationFast(startState.translation + _transformGizmoCurrentTranslationDelta);
+				if (startState.hasExactRotation)
+					mesh->setExplodedViewRotationQuaternionFast(startState.rotationQuat, startState.rotation);
+				else
+					mesh->setExplodedViewRotationFast(startState.rotation);
+				mesh->setExplodedViewScalingFast(startState.scale);
+			}
+			else
+			{
+				mesh->setTranslationFast(startState.translation + _transformGizmoCurrentTranslationDelta);
+				mesh->setRotationFast(startState.rotation);
+				mesh->setScalingFast(startState.scale);
+			}
 		}
 	}
 
@@ -8413,11 +8456,13 @@ void GLWidget::finishTransformGizmoTranslationDrag(bool commit)
 			continue;
 
 		oldStatesByUuid.insert(uuid, it.value());
-		newStatesByUuid.insert(uuid, TransformState(
-			mesh->getTranslation(),
-			mesh->getRotation(),
-			mesh->getScaling(),
-			mesh->getRotationQuaternion()));
+		newStatesByUuid.insert(uuid, _explodedViewManualPlacementActive
+			? explodedViewTransformState(mesh)
+			: TransformState(
+				mesh->getTranslation(),
+				mesh->getRotation(),
+				mesh->getScaling(),
+				mesh->getRotationQuaternion()));
 	}
 
 	const bool moved = _transformGizmoCurrentTranslationDelta.lengthSquared() > 1.0e-8f;
@@ -8445,12 +8490,17 @@ void GLWidget::finishTransformGizmoTranslationDrag(bool commit)
 			if (TriangleMesh* mesh = _meshStore[id])
 			{
 				const TransformState& startState = it.value();
-				mesh->setTranslation(startState.translation);
-				if (startState.hasExactRotation)
-					mesh->setRotationQuaternion(startState.rotationQuat, startState.rotation);
+				if (_explodedViewManualPlacementActive)
+					applyExplodedViewTransformState(mesh, startState, false);
 				else
-					mesh->setRotation(startState.rotation);
-				mesh->setScaling(startState.scale);
+				{
+					mesh->setTranslation(startState.translation);
+					if (startState.hasExactRotation)
+						mesh->setRotationQuaternion(startState.rotationQuat, startState.rotation);
+					else
+						mesh->setRotation(startState.rotation);
+					mesh->setScaling(startState.scale);
+				}
 			}
 		}
 		update();
@@ -8516,13 +8566,17 @@ bool GLWidget::beginTransformGizmoScaleDrag(TransformGizmo::Handle handle, const
 
 		if (TriangleMesh* mesh = _meshStore[id])
 		{
-			_transformGizmoStartStates[id] = TransformState(
-				mesh->getTranslation(),
-				mesh->getRotation(),
-				mesh->getScaling(),
-				mesh->getRotationQuaternion());
+			_transformGizmoStartStates[id] = _explodedViewManualPlacementActive
+				? explodedViewTransformState(mesh)
+				: TransformState(
+					mesh->getTranslation(),
+					mesh->getRotation(),
+					mesh->getScaling(),
+					mesh->getRotationQuaternion());
 			_transformGizmoStartCenters[id] = mesh->getBoundingSphere().getCenter();
-			_transformGizmoStartMatrices[id] = mesh->getTransformation();
+			_transformGizmoStartMatrices[id] = _explodedViewManualPlacementActive
+				? explodedViewTransformMatrix(mesh)
+				: mesh->getTransformation();
 		}
 	}
 
@@ -8852,7 +8906,8 @@ void GLWidget::updateTransformGizmoRotationDrag(const QPoint& pixel)
 			QMatrix4x4 rotationOnlyMatrix;
 			rotationOnlyMatrix.setToIdentity();
 			rotationOnlyMatrix.rotate(angleDegrees, _transformGizmoRotationPlaneNormal);
-			const QMatrix4x4 startMatrix = _transformGizmoStartMatrices.value(id, mesh->getTransformation());
+			const QMatrix4x4 startMatrix = _transformGizmoStartMatrices.value(
+				id, _explodedViewManualPlacementActive ? mesh->getExplodedViewTransformation() : mesh->getTransformation());
 			const QMatrix4x4 combinedMatrix = deltaMatrix * startMatrix;
 			const QVector3D exactTranslation(
 				combinedMatrix(0, 3),
@@ -8868,9 +8923,18 @@ void GLWidget::updateTransformGizmoRotationDrag(const QPoint& pixel)
 			displayRotationMatrix.setToIdentity();
 			displayRotationMatrix.rotate(exactRotationQuat);
 			const QVector3D displayRotation = extractMeshRotationFromMatrix(displayRotationMatrix);
-			mesh->setTranslationFast(exactTranslation);
-			mesh->setRotationQuaternionFast(exactRotationQuat, displayRotation);
-			mesh->setScalingFast(startState.scale);
+			if (_explodedViewManualPlacementActive)
+			{
+				mesh->setExplodedViewTranslationFast(exactTranslation);
+				mesh->setExplodedViewRotationQuaternionFast(exactRotationQuat, displayRotation);
+				mesh->setExplodedViewScalingFast(startState.scale);
+			}
+			else
+			{
+				mesh->setTranslationFast(exactTranslation);
+				mesh->setRotationQuaternionFast(exactRotationQuat, displayRotation);
+				mesh->setScalingFast(startState.scale);
+			}
 		}
 	}
 
@@ -8927,11 +8991,13 @@ void GLWidget::finishTransformGizmoRotationDrag(bool commit)
 			continue;
 
 		oldStatesByUuid.insert(uuid, it.value());
-		newStatesByUuid.insert(uuid, TransformState(
-			mesh->getTranslation(),
-			mesh->getRotation(),
-			mesh->getScaling(),
-			mesh->getRotationQuaternion()));
+		newStatesByUuid.insert(uuid, _explodedViewManualPlacementActive
+			? explodedViewTransformState(mesh)
+			: TransformState(
+				mesh->getTranslation(),
+				mesh->getRotation(),
+				mesh->getScaling(),
+				mesh->getRotationQuaternion()));
 	}
 
 	const bool moved = _transformGizmoCurrentRotationDelta.lengthSquared() > 1.0e-8f;
@@ -8962,12 +9028,17 @@ void GLWidget::finishTransformGizmoRotationDrag(bool commit)
 			if (TriangleMesh* mesh = _meshStore[id])
 			{
 				const TransformState& startState = it.value();
-				mesh->setTranslation(startState.translation);
-				if (startState.hasExactRotation)
-					mesh->setRotationQuaternion(startState.rotationQuat, startState.rotation);
+				if (_explodedViewManualPlacementActive)
+					applyExplodedViewTransformState(mesh, startState, false);
 				else
-					mesh->setRotation(startState.rotation);
-				mesh->setScaling(startState.scale);
+				{
+					mesh->setTranslation(startState.translation);
+					if (startState.hasExactRotation)
+						mesh->setRotationQuaternion(startState.rotationQuat, startState.rotation);
+					else
+						mesh->setRotation(startState.rotation);
+					mesh->setScaling(startState.scale);
+				}
 			}
 		}
 		update();
