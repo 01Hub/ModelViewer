@@ -185,6 +185,10 @@ public:
 	QVector3D explodedViewManualPlacementRotationDelta() const;
 	void setExplodedViewManualPlacementTranslationDelta(const QVector3D& delta);
 	void setExplodedViewManualPlacementRotationDelta(const QVector3D& delta);
+	QMap<QUuid, TransformState> explodedViewManualStates() const;
+	void restoreExplodedViewManualStates(const QMap<QUuid, TransformState>& states);
+	bool userModelTransformForFile(const QString& sourceFile,
+	                               QMatrix4x4& outTransform) const;
 
 	void showShadows(bool show);
 	void showSelfShadows(bool show);
@@ -256,6 +260,7 @@ public:
 	void setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale);
 	void resetTransformation(const std::vector<int>& ids);
 	void applyTransforms(const QMap<int, TransformState>& transforms, bool fitView = true);
+	void applyExplodedViewTransforms(const QMap<int, TransformState>& transforms, bool fitView = false);
 
 	void setSkyBoxTextureFolder(QString folder);
 	bool loadCubemapFromSingleHDR(const QString& filePath);
@@ -1392,8 +1397,6 @@ private:
 	// user applied a model-level transform.  Lights and glTF cameras of that
 	// file follow this exact matrix; the visible-scene bounding sphere plays
 	// no role, so hide/show/delete of other models cannot disturb them.
-	bool userModelTransformForFile(const QString& sourceFile,
-	                               QMatrix4x4& outTransform) const;
 	void updateOverlayEditorTheme();
 
 	void applyGltfCameraEntryTransform(const GltfCameraEntry& cam);

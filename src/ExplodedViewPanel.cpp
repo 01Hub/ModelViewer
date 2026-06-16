@@ -356,8 +356,10 @@ const QVector<ExplodedViewPanel::CapturedExplosionStep>& ExplodedViewPanel::acti
     return kEmptySteps;
 }
 
-QJsonArray ExplodedViewPanel::presetsToJson() const
+QJsonArray ExplodedViewPanel::presetsToJson()
 {
+    syncActivePresetManualStateFromRuntime();
+
     QJsonArray presetsJson;
     for (const ExplodedViewPreset& preset : _presets)
     {
@@ -373,6 +375,24 @@ QJsonArray ExplodedViewPanel::presetsToJson() const
         presetObj.insert(QStringLiteral("mode"), modeToString(preset.mode));
         presetObj.insert(QStringLiteral("userVector"), vector3ToJson(preset.userVector));
         presetObj.insert(QStringLiteral("factor"), preset.factor);
+        QJsonArray manualSelectionArray;
+        for (const QUuid& uuid : preset.manualSelectionUuids)
+            manualSelectionArray.append(uuid.toString(QUuid::WithoutBraces));
+        presetObj.insert(QStringLiteral("manualSelectionUuids"), manualSelectionArray);
+        QJsonArray manualStatesArray;
+        for (auto stateIt = preset.uncapturedManualStates.cbegin();
+             stateIt != preset.uncapturedManualStates.cend(); ++stateIt)
+        {
+            QJsonObject stateObj;
+            stateObj.insert(QStringLiteral("meshUuid"), stateIt.key().toString(QUuid::WithoutBraces));
+            stateObj.insert(QStringLiteral("translation"), vector3ToJson(stateIt.value().translation));
+            stateObj.insert(QStringLiteral("rotation"), vector3ToJson(stateIt.value().rotation));
+            stateObj.insert(QStringLiteral("scale"), vector3ToJson(stateIt.value().scale));
+            stateObj.insert(QStringLiteral("rotationQuat"), quaternionToJson(stateIt.value().rotationQuat));
+            stateObj.insert(QStringLiteral("hasExactRotation"), stateIt.value().hasExactRotation);
+            manualStatesArray.append(stateObj);
+        }
+        presetObj.insert(QStringLiteral("uncapturedManualStates"), manualStatesArray);
         presetObj.insert(QStringLiteral("capturedStepCounter"), preset.capturedStepCounter);
         presetObj.insert(QStringLiteral("capturedGroupCounter"), preset.capturedGroupCounter);
         presetObj.insert(QStringLiteral("outputMode"), preset.outputMode);
@@ -472,6 +492,29 @@ void ExplodedViewPanel::restorePresetsFromJson(const QJsonArray& presetsJson,
             presetObj.value(QStringLiteral("userVector")).toArray(),
             QVector3D(1.0f, 0.0f, 0.0f));
         preset.factor = static_cast<float>(presetObj.value(QStringLiteral("factor")).toDouble(1.0));
+        for (const QJsonValue& uuidValue : presetObj.value(QStringLiteral("manualSelectionUuids")).toArray())
+        {
+            const QUuid uuid(uuidValue.toString());
+            if (!uuid.isNull())
+                preset.manualSelectionUuids.append(uuid);
+        }
+        for (const QJsonValue& stateValue : presetObj.value(QStringLiteral("uncapturedManualStates")).toArray())
+        {
+            const QJsonObject stateObj = stateValue.toObject();
+            const QUuid uuid(stateObj.value(QStringLiteral("meshUuid")).toString());
+            if (uuid.isNull())
+                continue;
+
+            TransformState state;
+            state.translation = vector3FromJson(stateObj.value(QStringLiteral("translation")).toArray());
+            state.rotation = vector3FromJson(stateObj.value(QStringLiteral("rotation")).toArray());
+            state.scale = vector3FromJson(
+                stateObj.value(QStringLiteral("scale")).toArray(),
+                QVector3D(1.0f, 1.0f, 1.0f));
+            state.rotationQuat = quaternionFromJson(stateObj.value(QStringLiteral("rotationQuat")).toArray());
+            state.hasExactRotation = stateObj.value(QStringLiteral("hasExactRotation")).toBool(false);
+            preset.uncapturedManualStates.insert(uuid, state);
+        }
         preset.capturedStepCounter = qMax(1, presetObj.value(QStringLiteral("capturedStepCounter")).toInt(1));
         preset.capturedGroupCounter = qMax(1, presetObj.value(QStringLiteral("capturedGroupCounter")).toInt(1));
         preset.outputMode = presetObj.value(QStringLiteral("outputMode")).toInt(0);
@@ -695,8 +738,11 @@ void ExplodedViewPanel::loadPresetIntoUi(int index)
     if (index < 0 || index >= _presets.size())
         return;
 
+    QScopedValueRollback<bool> suspendSync(_suspendingManualPresetSync, true);
+
     stopDraftPreview();
     cancelPickingMode();
+    syncActivePresetManualStateFromRuntime();
     if (_glWidget && (_glWidget->isExplodedViewManualPlacementActive()
         || _glWidget->hasExplodedViewManualPlacement()))
     {
@@ -768,7 +814,7 @@ void ExplodedViewPanel::loadPresetIntoUi(int index)
         const QString selectionText = describeAssemblySelection(selectionIds);
         lineEditAssembly->setText(selectionText);
     }
-    clearManualPlacementSelection();
+    restorePresetManualStateIntoRuntime(preset);
 
     if (!preset.anchorUuid.isNull() && _glWidget)
     {
@@ -792,7 +838,6 @@ void ExplodedViewPanel::loadPresetIntoUi(int index)
     if (listWidgetCapturedViews && !preset.capturedSteps.isEmpty())
         setCurrentCapturedStepRow(0);
     _hasUncapturedAutoPose = false;
-    _hasUncapturedManualPose = false;
     updateCaptureButton();
     updateManualPlacementUi();
     updatePreviewControls();
@@ -866,7 +911,11 @@ ExplodedViewPanel::ExplodedViewPanel(GLWidget* parent)
             updateCaptureButton();
         });
         connect(_glWidget, &GLWidget::explodedViewManualPlacementChanged, this, [this]() {
-            _hasUncapturedManualPose = _glWidget && _glWidget->hasExplodedViewManualTransformChanges();
+            if (_suspendingManualPresetSync)
+                return;
+            const bool changed = syncActivePresetManualStateFromRuntime();
+            if (changed)
+                markDocumentModified();
             updatePresetDirtyIndicator();
         });
     }
@@ -922,9 +971,11 @@ ExplodedViewPanel::ExplodedViewPanel(GLWidget* parent)
                     _glWidget->clearExplodedViewManualPlacement();
                 }
                 clearManualPlacementSelection();
+                syncActivePresetManualStateFromRuntime();
                 updateManualPlacementUi();
                 updateCaptureButton();
                 updatePreviewControls();
+                markDocumentModified();
                 emit selectionClearRequested();
             });
             menu.exec(lineEditManualSelection->mapToGlobal(pos));
@@ -1439,6 +1490,8 @@ void ExplodedViewPanel::applyManualPlacementEntries(const QVector<QUuid>& select
             _manualPlacementSelectionUuids.append(uuid);
     }
     updateManualPlacementSelectionDisplay();
+    if (syncActivePresetManualStateFromRuntime())
+        markDocumentModified();
 }
 
 void ExplodedViewPanel::updateManualPlacementSelectionDisplay()
@@ -1472,6 +1525,63 @@ void ExplodedViewPanel::clearManualPlacementSelection()
     _manualPlacementSelectionUuids.clear();
     if (lineEditManualSelection)
         lineEditManualSelection->clear();
+}
+
+bool ExplodedViewPanel::syncActivePresetManualStateFromRuntime()
+{
+    ExplodedViewPreset* preset = activePreset();
+    if (!preset)
+        return false;
+
+    const auto statesEqual = [](const QMap<QUuid, TransformState>& a,
+                                const QMap<QUuid, TransformState>& b) {
+        if (a.size() != b.size())
+            return false;
+        for (auto it = a.cbegin(); it != a.cend(); ++it)
+        {
+            auto jt = b.find(it.key());
+            if (jt == b.end())
+                return false;
+            const TransformState& lhs = it.value();
+            const TransformState& rhs = jt.value();
+            if (lhs.translation != rhs.translation
+                || lhs.rotation != rhs.rotation
+                || lhs.scale != rhs.scale
+                || lhs.rotationQuat != rhs.rotationQuat
+                || lhs.hasExactRotation != rhs.hasExactRotation)
+            {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    const QVector<QUuid> oldSelection = preset->manualSelectionUuids;
+    const QMap<QUuid, TransformState> oldStates = preset->uncapturedManualStates;
+
+    preset->manualSelectionUuids = _manualPlacementSelectionUuids;
+    preset->uncapturedManualStates = _glWidget ? _glWidget->explodedViewManualStates()
+                                               : QMap<QUuid, TransformState>{};
+
+    _hasUncapturedManualPose = !preset->uncapturedManualStates.isEmpty();
+    return preset->manualSelectionUuids != oldSelection
+        || !statesEqual(preset->uncapturedManualStates, oldStates);
+}
+
+void ExplodedViewPanel::restorePresetManualStateIntoRuntime(const ExplodedViewPreset& preset)
+{
+    _manualPlacementSelectionUuids.clear();
+    for (const QUuid& uuid : preset.manualSelectionUuids)
+    {
+        if (!uuid.isNull())
+            _manualPlacementSelectionUuids.append(uuid);
+    }
+    updateManualPlacementSelectionDisplay();
+
+    if (_glWidget)
+        _glWidget->restoreExplodedViewManualStates(preset.uncapturedManualStates);
+
+    _hasUncapturedManualPose = !preset.uncapturedManualStates.isEmpty();
 }
 
 void ExplodedViewPanel::applyAnchorSelection(const QList<int>& ids)
@@ -1918,27 +2028,25 @@ bool ExplodedViewPanel::buildCurrentCapturedExplosionStep(CapturedExplosionStep&
             continue;
 
         const LocalNodeTransform startTransform = decomposeLocalNodeTransform(aiToQMatrix(ownerNode->localTransform));
-        QMatrix4x4 currentWorld;
-        if (includeAutoPose && includeManualPose)
+        const QMatrix4x4 userTransform = mesh->getTransformation();
+        QMatrix4x4 visibleWorld = userTransform * mesh->getSceneRenderTransform();
+        if (includeManualPose)
+            visibleWorld = mesh->getExplodedViewTransformation() * visibleWorld;
+        if (includeAutoPose && !worldOffset.isNull())
         {
-            currentWorld = mesh->combinedRenderTransform();
+            QMatrix4x4 offsetMatrix;
+            offsetMatrix.setToIdentity();
+            offsetMatrix.translate(worldOffset);
+            visibleWorld = offsetMatrix * visibleWorld;
         }
-        else if (includeAutoPose)
+
+        QMatrix4x4 currentWorld = visibleWorld;
+        if (!userTransform.isIdentity())
         {
-            currentWorld = mesh->getSceneRenderTransform();
-            if (!worldOffset.isNull())
-            {
-                QMatrix4x4 offsetMatrix;
-                offsetMatrix.setToIdentity();
-                offsetMatrix.translate(worldOffset);
-                currentWorld = offsetMatrix * currentWorld;
-            }
-        }
-        else
-        {
-            currentWorld = mesh->getExplodedViewTransformation()
-                * mesh->getTransformation()
-                * mesh->getSceneRenderTransform();
+            bool userInvertible = false;
+            const QMatrix4x4 userTransformInv = userTransform.inverted(&userInvertible);
+            if (userInvertible)
+                currentWorld = userTransformInv * visibleWorld;
         }
         const LocalNodeTransform endTransform = decomposeLocalNodeTransform(parentWorldInv * currentWorld);
 
@@ -2826,6 +2934,8 @@ void ExplodedViewPanel::on_pushButtonReset_clicked()
     active.mode = ExplodedViewManager::Mode::Auto;
     active.userVector = QVector3D(1.0f, 0.0f, 0.0f);
     active.factor = 1.0f;
+    active.manualSelectionUuids.clear();
+    active.uncapturedManualStates.clear();
     active.capturedSteps.clear();
     active.capturedStepCounter = 1;
     active.capturedGroupCounter = 1;
@@ -2856,6 +2966,7 @@ void ExplodedViewPanel::on_pushButtonPresetNew_clicked()
 {
     stopDraftPreview();
     cancelPickingMode();
+    syncActivePresetManualStateFromRuntime();
     if (_glWidget)
         _glWidget->clearExplodedViewManualPlacement();
     clearManualPlacementSelection();
@@ -2888,6 +2999,7 @@ void ExplodedViewPanel::on_pushButtonPresetDuplicate_clicked()
 
     stopDraftPreview();
     cancelPickingMode();
+    syncActivePresetManualStateFromRuntime();
     if (_glWidget)
         _glWidget->clearExplodedViewManualPlacement();
     clearManualPlacementSelection();
@@ -2964,6 +3076,7 @@ void ExplodedViewPanel::on_pushButtonPresetActions_clicked()
 
     stopDraftPreview();
     cancelPickingMode();
+    syncActivePresetManualStateFromRuntime();
     if (_glWidget)
         _glWidget->clearExplodedViewManualPlacement();
 
@@ -3228,18 +3341,12 @@ bool ExplodedViewPanel::ensureDraftPreviewSession()
         _glWidget->seekAnimation(0.0);
     }
 
-    const QQuaternion identityQuat(1.0f, 0.0f, 0.0f, 0.0f);
     for (auto it = _draftPreviewMeshStates.begin(); it != _draftPreviewMeshStates.end(); ++it)
     {
         if (TriangleMesh* mesh = _glWidget->getMeshByUuid(it.key()))
         {
             mesh->setExplosionOffset(QVector3D());
-            mesh->setTranslation(QVector3D());
-            mesh->setRotationQuaternion(identityQuat, QVector3D());
-            mesh->setScaling(QVector3D(1.0f, 1.0f, 1.0f));
-            mesh->setExplodedViewTranslation(QVector3D());
-            mesh->setExplodedViewRotationQuaternion(identityQuat, QVector3D());
-            mesh->setExplodedViewScaling(QVector3D(1.0f, 1.0f, 1.0f));
+            mesh->resetExplodedViewTransformations();
         }
     }
 
@@ -3779,9 +3886,11 @@ void ExplodedViewPanel::on_pushButtonFinishManualPlacement_clicked()
     {
         _glWidget->finishExplodedViewManualPlacement();
         clearManualPlacementSelection();
+        syncActivePresetManualStateFromRuntime();
         updateManualPlacementUi();
         updateCaptureButton();
         updatePreviewControls();
+        markDocumentModified();
     }
 }
 
@@ -3792,10 +3901,14 @@ void ExplodedViewPanel::on_pushButtonClearManualPlacement_clicked()
     {
         _glWidget->clearExplodedViewManualPlacement();
         clearManualPlacementSelection();
+        if (ExplodedViewPreset* preset = activePreset())
+            preset->uncapturedManualStates.clear();
+        syncActivePresetManualStateFromRuntime();
         _hasUncapturedManualPose = false;
         updateManualPlacementUi();
         updateCaptureButton();
         updatePreviewControls();
+        markDocumentModified();
         emit explosionParametersChanged();
     }
 }

@@ -51,6 +51,61 @@ namespace
         return trs;
     }
 
+    aiQuaternion normalizedQuaternion(const aiQuaternion& q)
+    {
+        aiQuaternion copy = q;
+        copy.Normalize();
+        return copy;
+    }
+
+    aiQuaternion inverseQuaternion(const aiQuaternion& q)
+    {
+        aiQuaternion copy = normalizedQuaternion(q);
+        return copy.Conjugate();
+    }
+
+    aiVector3D rotateVectorByQuaternion(const aiQuaternion& q, const aiVector3D& v)
+    {
+        const aiQuaternion unit = normalizedQuaternion(q);
+        const aiQuaternion vecQuat(0.0f, v.x, v.y, v.z);
+        const aiQuaternion rotated = unit * vecQuat * inverseQuaternion(unit);
+        return aiVector3D(rotated.x, rotated.y, rotated.z);
+    }
+
+    aiVector3D remapTranslationKey(const aiVector3D& value,
+                                   const ExportNodeTrs& sourceBase,
+                                   const ExportNodeTrs& exportBase)
+    {
+        const aiVector3D sourceDelta = value - sourceBase.translation;
+        const aiQuaternion basisDelta =
+            normalizedQuaternion(exportBase.rotation * inverseQuaternion(sourceBase.rotation));
+        const aiVector3D rotatedDelta = rotateVectorByQuaternion(basisDelta, sourceDelta);
+        return exportBase.translation + rotatedDelta;
+    }
+
+    aiQuaternion remapRotationKey(const aiQuaternion& value,
+                                  const ExportNodeTrs& sourceBase,
+                                  const ExportNodeTrs& exportBase)
+    {
+        const aiQuaternion delta = normalizedQuaternion(value * inverseQuaternion(sourceBase.rotation));
+        return normalizedQuaternion(delta * exportBase.rotation);
+    }
+
+    float safeScaleRatio(float value, float base)
+    {
+        return std::abs(base) > 1.0e-8f ? (value / base) : value;
+    }
+
+    aiVector3D remapScaleKey(const aiVector3D& value,
+                             const ExportNodeTrs& sourceBase,
+                             const ExportNodeTrs& exportBase)
+    {
+        return aiVector3D(
+            exportBase.scale.x * safeScaleRatio(value.x, sourceBase.scale.x),
+            exportBase.scale.y * safeScaleRatio(value.y, sourceBase.scale.y),
+            exportBase.scale.z * safeScaleRatio(value.z, sourceBase.scale.z));
+    }
+
     void collectExportNodeBaseTrs(const aiNode* node, QMap<QString, ExportNodeTrs>& out)
     {
         if (!node)
@@ -867,6 +922,12 @@ aiScene* SceneGraphExporter::buildExportScene(
                     qDebug() << "[EXPORT-ANIMS-TRS] TRS channel target:" << targetNodeName
                              << "path:" << static_cast<int>(ch.targetPath);
 
+                    const ExportNodeTrs exportBaseTrs =
+                        exportNodeBaseTrsByName.value(targetNodeName, ExportNodeTrs());
+                    const ExportNodeTrs sourceBaseTrs = resolvedTargetNode
+                        ? decomposeNodeTrs(resolvedTargetNode->localTransform)
+                        : ExportNodeTrs();
+
                     if (!nodeAnimByName.contains(targetNodeName))
                     {
                         aiNodeAnim* na = new aiNodeAnim();
@@ -887,9 +948,10 @@ aiScene* SceneGraphExporter::buildExportScene(
                         {
                             const GltfAnimationVec3Key& key = ch.vec3Keys[k];
                             na->mPositionKeys[k].mTime  = key.timeSeconds * kTicksPerSecond;
-                            na->mPositionKeys[k].mValue = aiVector3D(key.value.x(),
-                                                                     key.value.y(),
-                                                                     key.value.z());
+                            na->mPositionKeys[k].mValue = remapTranslationKey(
+                                aiVector3D(key.value.x(), key.value.y(), key.value.z()),
+                                sourceBaseTrs,
+                                exportBaseTrs);
                         }
                     }
                     else if (ch.targetPath == GltfAnimationTargetPath::Rotation)
@@ -901,10 +963,13 @@ aiScene* SceneGraphExporter::buildExportScene(
                             const GltfAnimationQuatKey& key = ch.quatKeys[k];
                             // Assimp quaternion: (w, x, y, z)
                             na->mRotationKeys[k].mTime  = key.timeSeconds * kTicksPerSecond;
-                            na->mRotationKeys[k].mValue = aiQuaternion(key.value.scalar(),
-                                                                       key.value.x(),
-                                                                       key.value.y(),
-                                                                       key.value.z());
+                            na->mRotationKeys[k].mValue = remapRotationKey(
+                                aiQuaternion(key.value.scalar(),
+                                             key.value.x(),
+                                             key.value.y(),
+                                             key.value.z()),
+                                sourceBaseTrs,
+                                exportBaseTrs);
                         }
                     }
                     else // Scale
@@ -915,9 +980,10 @@ aiScene* SceneGraphExporter::buildExportScene(
                         {
                             const GltfAnimationVec3Key& key = ch.vec3Keys[k];
                             na->mScalingKeys[k].mTime  = key.timeSeconds * kTicksPerSecond;
-                            na->mScalingKeys[k].mValue = aiVector3D(key.value.x(),
-                                                                    key.value.y(),
-                                                                    key.value.z());
+                            na->mScalingKeys[k].mValue = remapScaleKey(
+                                aiVector3D(key.value.x(), key.value.y(), key.value.z()),
+                                sourceBaseTrs,
+                                exportBaseTrs);
                         }
                     }
                 }

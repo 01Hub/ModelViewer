@@ -4055,15 +4055,26 @@ bool GLWidget::hasExplodedViewManualTransformChanges() const
 {
 	for (auto it = _explodedViewManualOriginalStates.cbegin(); it != _explodedViewManualOriginalStates.cend(); ++it)
 	{
-		const TriangleMesh* mesh = getMeshByUuid(it.key());
-		if (!mesh)
-			continue;
+		TransformState currentState;
+		if (_explodedViewManualPlacementSuppressed)
+		{
+			auto hiddenIt = _explodedViewManualHiddenStates.find(it.key());
+			if (hiddenIt == _explodedViewManualHiddenStates.end())
+				continue;
+			currentState = hiddenIt.value();
+		}
+		else
+		{
+			const TriangleMesh* mesh = getMeshByUuid(it.key());
+			if (!mesh)
+				continue;
 
-		const TransformState currentState(
-			mesh->getExplodedViewTranslation(),
-			mesh->getExplodedViewRotation(),
-			mesh->getExplodedViewScaling(),
-			mesh->getExplodedViewRotationQuaternion());
+			currentState = TransformState(
+				mesh->getExplodedViewTranslation(),
+				mesh->getExplodedViewRotation(),
+				mesh->getExplodedViewScaling(),
+				mesh->getExplodedViewRotationQuaternion());
+		}
 		if (!transformStatesNearlyEqual(it.value(), currentState))
 			return true;
 	}
@@ -4076,15 +4087,26 @@ QSet<QUuid> GLWidget::explodedViewManualPlacementUuids() const
 	QSet<QUuid> uuids;
 	for (auto it = _explodedViewManualOriginalStates.cbegin(); it != _explodedViewManualOriginalStates.cend(); ++it)
 	{
-		const TriangleMesh* mesh = getMeshByUuid(it.key());
-		if (!mesh)
-			continue;
+		TransformState currentState;
+		if (_explodedViewManualPlacementSuppressed)
+		{
+			auto hiddenIt = _explodedViewManualHiddenStates.find(it.key());
+			if (hiddenIt == _explodedViewManualHiddenStates.end())
+				continue;
+			currentState = hiddenIt.value();
+		}
+		else
+		{
+			const TriangleMesh* mesh = getMeshByUuid(it.key());
+			if (!mesh)
+				continue;
 
-		const TransformState currentState(
-			mesh->getExplodedViewTranslation(),
-			mesh->getExplodedViewRotation(),
-			mesh->getExplodedViewScaling(),
-			mesh->getExplodedViewRotationQuaternion());
+			currentState = TransformState(
+				mesh->getExplodedViewTranslation(),
+				mesh->getExplodedViewRotation(),
+				mesh->getExplodedViewScaling(),
+				mesh->getExplodedViewRotationQuaternion());
+		}
 		if (!transformStatesNearlyEqual(it.value(), currentState))
 			uuids.insert(it.key());
 	}
@@ -4100,6 +4122,65 @@ QVector3D GLWidget::explodedViewManualPlacementTranslationDelta() const
 QVector3D GLWidget::explodedViewManualPlacementRotationDelta() const
 {
 	return _explodedViewManualSessionRotationEuler;
+}
+
+QMap<QUuid, TransformState> GLWidget::explodedViewManualStates() const
+{
+	QMap<QUuid, TransformState> states;
+	for (auto it = _explodedViewManualOriginalStates.cbegin(); it != _explodedViewManualOriginalStates.cend(); ++it)
+	{
+		TransformState currentState;
+		if (_explodedViewManualPlacementSuppressed)
+		{
+			auto hiddenIt = _explodedViewManualHiddenStates.find(it.key());
+			if (hiddenIt == _explodedViewManualHiddenStates.end())
+				continue;
+			currentState = hiddenIt.value();
+		}
+		else
+		{
+			const TriangleMesh* mesh = getMeshByUuid(it.key());
+			if (!mesh)
+				continue;
+
+			currentState = TransformState(
+				mesh->getExplodedViewTranslation(),
+				mesh->getExplodedViewRotation(),
+				mesh->getExplodedViewScaling(),
+				mesh->getExplodedViewRotationQuaternion());
+		}
+		if (!transformStatesNearlyEqual(it.value(), currentState))
+			states.insert(it.key(), currentState);
+	}
+
+	return states;
+}
+
+void GLWidget::restoreExplodedViewManualStates(const QMap<QUuid, TransformState>& states)
+{
+	clearExplodedViewManualPlacement();
+	if (states.isEmpty())
+		return;
+
+	_explodedViewManualOriginalStates.clear();
+	for (auto it = states.cbegin(); it != states.cend(); ++it)
+	{
+		TriangleMesh* mesh = getMeshByUuid(it.key());
+		if (!mesh)
+			continue;
+
+		_explodedViewManualOriginalStates.insert(it.key(), TransformState());
+		applyExplodedViewTransformState(mesh, it.value(), false);
+
+		const QVector3D savedExplosionOffset = mesh->explosionOffset();
+		mesh->setExplosionOffset(QVector3D());
+		mesh->fullUpdateRuntimeBounds();
+		mesh->setExplosionOffset(savedExplosionOffset);
+		mesh->setSceneRenderTransformFast(mesh->getSceneRenderTransform());
+	}
+
+	update();
+	emit explodedViewManualPlacementChanged();
 }
 
 void GLWidget::setExplodedViewManualPlacementTranslationDelta(const QVector3D& delta)
@@ -5246,6 +5327,8 @@ void GLWidget::setTransformation(const std::vector<int>& ids, const QVector3D& t
 	// Lights/cameras follow automatically: updatePunctualLights() derives the
 	// per-file user transform straight from the meshes' TRS state.
 	recalculateVisibleSceneStats(false);
+	if (_explodedViewPanel && _explodedViewPanel->isVisible())
+		updateExplosion();
 	updatePunctualLights();
 	triggerShadowRecomputation();
 	updateFloorPlane();
@@ -5273,6 +5356,8 @@ void GLWidget::resetTransformation(const std::vector<int>& ids)
 	_lightOffsetZ = 0.0f;
 
 	recalculateVisibleSceneStats(false);
+	if (_explodedViewPanel && _explodedViewPanel->isVisible())
+		updateExplosion();
 	updatePunctualLights();
 	fitAll();
 	triggerShadowRecomputation();
@@ -5315,6 +5400,8 @@ void GLWidget::applyTransforms(const QMap<int, TransformState>& transforms, bool
 
 	// Update all dependent systems once
 	recalculateVisibleSceneStats(false);
+	if (_explodedViewPanel && _explodedViewPanel->isVisible())
+		updateExplosion();
 	updatePunctualLights();
 	if (isModelLevelTransform && isGltfCameraActive() && _viewer)
 	{
@@ -6812,6 +6899,47 @@ void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)
 void GLWidget::setCornerAxisPosition(CornerAxisPosition position)
 {
 	_cornerAxisPosition = normalizeCornerAxisPosition(position);
+	update();
+}
+
+void GLWidget::applyExplodedViewTransforms(const QMap<int, TransformState>& transforms, bool fitView)
+{
+	Q_UNUSED(fitView);
+
+	QHash<QUuid, QVector3D> savedExplosionOffsets;
+	savedExplosionOffsets.reserve(transforms.size());
+
+	for (auto it = transforms.cbegin(); it != transforms.cend(); ++it)
+	{
+		const int index = it.key();
+		if (index < 0 || index >= static_cast<int>(_meshStore.size()))
+			continue;
+
+		TriangleMesh* mesh = _meshStore[index];
+		if (!mesh)
+			continue;
+
+		savedExplosionOffsets.insert(mesh->uuid(), mesh->explosionOffset());
+		mesh->setExplosionOffset(QVector3D());
+		applyExplodedViewTransformState(mesh, it.value(), false);
+		mesh->fullUpdateRuntimeBounds();
+	}
+
+	for (auto it = transforms.cbegin(); it != transforms.cend(); ++it)
+	{
+		const int index = it.key();
+		if (index < 0 || index >= static_cast<int>(_meshStore.size()))
+			continue;
+
+		TriangleMesh* mesh = _meshStore[index];
+		if (!mesh)
+			continue;
+
+		mesh->setExplosionOffset(savedExplosionOffsets.value(mesh->uuid()));
+		mesh->setSceneRenderTransformFast(mesh->getSceneRenderTransform());
+	}
+
+	emit explodedViewManualPlacementChanged();
 	update();
 }
 
@@ -8469,7 +8597,18 @@ void GLWidget::finishTransformGizmoTranslationDrag(bool commit)
 
 	if (_explodedViewManualPlacementActive)
 	{
-		if (!commit)
+		if (commit && moved && !oldStatesByUuid.isEmpty())
+		{
+			_viewer->getUndoStack()->push(new TransformCommand(
+				_viewer,
+				this,
+				oldStatesByUuid,
+				newStatesByUuid,
+				tr("Translate Exploded Placement"),
+				false,
+				TransformCommand::Target::ExplodedViewTransform));
+		}
+		else if (!commit)
 			_explodedViewManualSessionTranslationDelta = _explodedViewManualDragStartTranslationDelta;
 		emit explodedViewManualPlacementChanged();
 		update();
@@ -9004,7 +9143,18 @@ void GLWidget::finishTransformGizmoRotationDrag(bool commit)
 
 	if (_explodedViewManualPlacementActive)
 	{
-		if (!commit)
+		if (commit && moved && !oldStatesByUuid.isEmpty())
+		{
+			_viewer->getUndoStack()->push(new TransformCommand(
+				_viewer,
+				this,
+				oldStatesByUuid,
+				newStatesByUuid,
+				tr("Rotate Exploded Placement"),
+				false,
+				TransformCommand::Target::ExplodedViewTransform));
+		}
+		else if (!commit)
 		{
 			_explodedViewManualSessionRotationQuat = _explodedViewManualDragStartRotationQuat;
 			_explodedViewManualSessionRotationEuler = _explodedViewManualDragStartRotationEuler;

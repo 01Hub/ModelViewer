@@ -43,11 +43,13 @@ TransformCommand::TransformCommand(ModelViewer* viewer,
     const QMap<QUuid, TransformState>& oldStates,
     const QMap<QUuid, TransformState>& newStates,
     const QString& text,
-    bool fitView)
+    bool fitView,
+    Target target)
     : ModelViewerCommand(viewer, glWidget, text),
       _oldStates(oldStates),
       _newStates(newStates),
-      _fitView(fitView)
+      _fitView(fitView),
+      _target(target)
 {
 }
 
@@ -90,7 +92,10 @@ void TransformCommand::applyTransformStates(const QMap<QUuid, TransformState>& s
     // Apply all transformations efficiently (one update at end)
     if (!indexedStates.isEmpty())
     {
-        _glWidget->applyTransforms(indexedStates, _fitView);
+        if (_target == Target::ExplodedViewTransform)
+            _glWidget->applyExplodedViewTransforms(indexedStates, _fitView);
+        else
+            _glWidget->applyTransforms(indexedStates, _fitView);
         _viewer->syncLightPositionUiToScene();
         _glWidget->update();
 

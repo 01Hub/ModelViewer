@@ -12,9 +12,11 @@
 #include <QVector3D>
 #include <QQuaternion>
 #include <QWidget>
+#include <QScopedValueRollback>
 
 #include "ui_ExplodedViewPanel.h"
 #include "ExplodedViewManager.h"
+#include "TransformCommand.h"
 
 class GLWidget;
 class ModelViewer;
@@ -40,7 +42,7 @@ public:
     void applyContrastTheme(const QColor& textColor);
     void applyBackgroundTheme(const QColor& topColor, const QColor& bottomColor);
     void deactivateInteractiveState();
-    QJsonArray presetsToJson() const;
+    QJsonArray presetsToJson();
     QUuid activePresetId() const;
     int activeCapturedStepIndex() const;
     void restorePresetsFromJson(const QJsonArray& presetsJson,
@@ -118,6 +120,8 @@ private:
         ExplodedViewManager::Mode mode = ExplodedViewManager::Mode::Auto;
         QVector3D userVector = QVector3D(1.0f, 0.0f, 0.0f);
         float factor = 1.0f;
+        QVector<QUuid> manualSelectionUuids;
+        QMap<QUuid, TransformState> uncapturedManualStates;
         QVector<CapturedExplosionStep> capturedSteps;
         int capturedStepCounter = 1;
         int capturedGroupCounter = 1;
@@ -165,6 +169,8 @@ private:
     void applyManualPlacementEntries(const QVector<QUuid>& selectionUuids);
     void updateManualPlacementSelectionDisplay();
     void clearManualPlacementSelection();
+    bool syncActivePresetManualStateFromRuntime();
+    void restorePresetManualStateIntoRuntime(const ExplodedViewPreset& preset);
     QVector<QUuid> orderedAssemblyUuids() const;
     QString displayLabelForMeshUuid(const QUuid& uuid) const;
     void showExplodedViewSelectionEditor();
@@ -260,6 +266,7 @@ private:
     bool _draftPreviewPlaying = false;
     bool _draftPreviewLoopPlayback = true;
     bool _syncingManualPlacementEditors = false;
+    bool _suspendingManualPresetSync = false;
     bool _hasUncapturedAutoPose = false;
     bool _hasUncapturedManualPose = false;
     double _draftPreviewCurrentTime = 0.0;
