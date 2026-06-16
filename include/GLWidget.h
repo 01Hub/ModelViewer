@@ -1306,6 +1306,8 @@ private:
 	bool _transformGizmoLoggedTranslationUpdate = false;
 	bool _explodedViewManualPlacementActive = false;
 	QMap<QUuid, TransformState> _explodedViewManualOriginalStates;
+	QMap<QUuid, TransformState> _explodedViewManualHiddenStates;
+	bool _explodedViewManualPlacementSuppressed = false;
 	QSet<QUuid> _explodedViewManualPlacementSessionUuids;
 	QMap<QUuid, TransformState> _explodedViewManualSessionStartStates;
 	QMap<QUuid, QMatrix4x4> _explodedViewManualSessionStartMatrices;

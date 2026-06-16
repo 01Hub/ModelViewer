@@ -3374,23 +3374,104 @@ void GLWidget::showExplodedViewPanel(bool show)
 			_viewToolbar->setSectionViewChecked(false);
 		_explodedViewPanel->captureCurrentSelection();
 		_explodedViewPanel->show();
+		updateExplosion();
+
+		if (_explodedViewManualPlacementSuppressed && !_explodedViewManualHiddenStates.isEmpty())
+		{
+			QHash<QUuid, QVector3D> savedExplosionOffsets;
+			savedExplosionOffsets.reserve(static_cast<int>(_meshStore.size()));
+			for (TriangleMesh* mesh : _meshStore)
+			{
+				if (!mesh)
+					continue;
+
+				savedExplosionOffsets.insert(mesh->uuid(), mesh->explosionOffset());
+				mesh->setExplosionOffset(QVector3D());
+			}
+
+			for (auto it = _explodedViewManualHiddenStates.cbegin();
+			     it != _explodedViewManualHiddenStates.cend(); ++it)
+			{
+				TriangleMesh* mesh = getMeshByUuid(it.key());
+				if (!mesh)
+					continue;
+
+				const TransformState& state = it.value();
+				mesh->setTranslation(state.translation);
+				if (state.hasExactRotation)
+					mesh->setRotationQuaternion(state.rotationQuat, state.rotation);
+				else
+					mesh->setRotation(state.rotation);
+				mesh->setScaling(state.scale);
+			}
+
+			for (TriangleMesh* mesh : _meshStore)
+			{
+				if (!mesh)
+					continue;
+
+				mesh->setExplosionOffset(savedExplosionOffsets.value(mesh->uuid()));
+				mesh->setSceneRenderTransformFast(mesh->getSceneRenderTransform());
+			}
+
+			_explodedViewManualPlacementSuppressed = false;
+		}
 	} else {
-		// Zero explosion offsets BEFORE restoring manual placement TRS.
-		// clearExplodedViewManualPlacement() calls setTranslation/setRotation/
-		// setScaling, each of which rebuilds _trsfPoints via updateRuntimeBounds().
-		// If _explosionOffset is still set at that point the offset gets baked
-		// into _trsfPoints, leaving ray-pick detection shifted after panel close.
+		_explodedViewPanel->deactivateInteractiveState();
+		if (isExplodedViewManualPlacementActive())
+			finishExplodedViewManualPlacement();
+		else
+			showTransformGizmoForSelection(false);
+
+		if (!_explodedViewManualOriginalStates.isEmpty())
+		{
+			_explodedViewManualHiddenStates.clear();
+			for (auto it = _explodedViewManualOriginalStates.cbegin();
+			     it != _explodedViewManualOriginalStates.cend(); ++it)
+			{
+				TriangleMesh* mesh = getMeshByUuid(it.key());
+				if (!mesh)
+					continue;
+
+				_explodedViewManualHiddenStates.insert(it.key(), TransformState(
+					mesh->getTranslation(),
+					mesh->getRotation(),
+					mesh->getScaling(),
+					mesh->getRotationQuaternion()));
+			}
+		}
+
+		_explodedViewPanel->hide();
+		_explodedViewManager->reset();
+		_cachedHintsValid = false;
+
+		// Hide the entire exploded authoring state while the panel is closed.
+		// This means clearing auto offsets and temporarily restoring the original
+		// mesh TRS for any staged manual placement, without discarding the staged
+		// manual pose that will be restored when the panel is shown again.
 		for (size_t i = 0; i < _meshStore.size(); ++i)
 		{
 			if (_meshStore[i])
 				_meshStore[i]->setExplosionOffset(QVector3D());
 		}
-		_explodedViewPanel->deactivateInteractiveState();
-		clearExplodedViewManualPlacement();
-		_explodedViewPanel->hide();
-		_explodedViewManager->reset();
-		_cachedHintsValid = false;
-		// Recompute bounding boxes via the fast path (offset is already zero above).
+
+		for (auto it = _explodedViewManualOriginalStates.cbegin();
+		     it != _explodedViewManualOriginalStates.cend(); ++it)
+		{
+			TriangleMesh* mesh = getMeshByUuid(it.key());
+			if (!mesh)
+				continue;
+
+			const TransformState& state = it.value();
+			mesh->setTranslation(state.translation);
+			if (state.hasExactRotation)
+				mesh->setRotationQuaternion(state.rotationQuat, state.rotation);
+			else
+				mesh->setRotation(state.rotation);
+			mesh->setScaling(state.scale);
+		}
+
+		_explodedViewManualPlacementSuppressed = !_explodedViewManualHiddenStates.isEmpty();
 		for (size_t i = 0; i < _meshStore.size(); ++i)
 		{
 			if (_meshStore[i])
@@ -4013,6 +4094,23 @@ void GLWidget::setExplodedViewManualPlacementRotationDelta(const QVector3D& delt
 
 void GLWidget::finishExplodedViewManualPlacement()
 {
+	QVector<QUuid> changedUuids;
+	changedUuids.reserve(_explodedViewManualOriginalStates.size());
+	for (auto it = _explodedViewManualOriginalStates.cbegin(); it != _explodedViewManualOriginalStates.cend(); ++it)
+	{
+		TriangleMesh* mesh = getMeshByUuid(it.key());
+		if (!mesh)
+			continue;
+
+		const TransformState currentState(
+			mesh->getTranslation(),
+			mesh->getRotation(),
+			mesh->getScaling(),
+			mesh->getRotationQuaternion());
+		if (!transformStatesNearlyEqual(it.value(), currentState))
+			changedUuids.append(it.key());
+	}
+
 	showTransformGizmoForSelection(false);
 	_explodedViewManualPlacementActive = false;
 	_explodedViewManualPlacementSessionUuids.clear();
@@ -4025,11 +4123,48 @@ void GLWidget::finishExplodedViewManualPlacement()
 	_explodedViewManualDragStartTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
 	_explodedViewManualDragStartRotationQuat = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
 	_explodedViewManualDragStartRotationEuler = QVector3D(0.0f, 0.0f, 0.0f);
+
+	for (const QUuid& uuid : changedUuids)
+	{
+		if (TriangleMesh* mesh = getMeshByUuid(uuid))
+		{
+			const QVector3D savedExplosionOffset = mesh->explosionOffset();
+			mesh->setExplosionOffset(QVector3D());
+			mesh->fullUpdateRuntimeBounds();
+			mesh->setExplosionOffset(savedExplosionOffset);
+			mesh->setSceneRenderTransformFast(mesh->getSceneRenderTransform());
+		}
+	}
+
+	const QList<int> selectedIds = _selectionManager ? _selectionManager->getSelectedIds() : QList<int>{};
+	for (TriangleMesh* mesh : _meshStore)
+	{
+		if (mesh)
+			mesh->deselect();
+	}
+	for (int id : selectedIds)
+	{
+		if (id >= 0 && id < static_cast<int>(_meshStore.size()) && _meshStore[id])
+			_meshStore[id]->select();
+	}
+
+	update();
 	emit explodedViewManualPlacementChanged();
 }
 
 void GLWidget::clearExplodedViewManualPlacement()
 {
+	QHash<QUuid, QVector3D> savedExplosionOffsets;
+	savedExplosionOffsets.reserve(static_cast<int>(_meshStore.size()));
+	for (TriangleMesh* mesh : _meshStore)
+	{
+		if (!mesh)
+			continue;
+
+		savedExplosionOffsets.insert(mesh->uuid(), mesh->explosionOffset());
+		mesh->setExplosionOffset(QVector3D());
+	}
+
 	_explodedViewManualPlacementActive = false;
 	_explodedViewManualPlacementSessionUuids.clear();
 	_explodedViewManualSessionStartStates.clear();
@@ -4041,6 +4176,8 @@ void GLWidget::clearExplodedViewManualPlacement()
 	_explodedViewManualDragStartTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
 	_explodedViewManualDragStartRotationQuat = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
 	_explodedViewManualDragStartRotationEuler = QVector3D(0.0f, 0.0f, 0.0f);
+	_explodedViewManualHiddenStates.clear();
+	_explodedViewManualPlacementSuppressed = false;
 	showTransformGizmoForSelection(false);
 
 	for (auto it = _explodedViewManualOriginalStates.cbegin(); it != _explodedViewManualOriginalStates.cend(); ++it)
@@ -4056,6 +4193,15 @@ void GLWidget::clearExplodedViewManualPlacement()
 		else
 			mesh->setRotation(state.rotation);
 		mesh->setScaling(state.scale);
+	}
+
+	for (TriangleMesh* mesh : _meshStore)
+	{
+		if (!mesh)
+			continue;
+
+		mesh->setExplosionOffset(savedExplosionOffsets.value(mesh->uuid()));
+		mesh->setSceneRenderTransformFast(mesh->getSceneRenderTransform());
 	}
 
 	_explodedViewManualOriginalStates.clear();
