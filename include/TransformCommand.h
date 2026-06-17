@@ -57,6 +57,12 @@ struct TransformState
 class TransformCommand : public ModelViewerCommand
 {
 public:
+    enum class Target
+    {
+        UserTransform,
+        ExplodedViewTransform
+    };
+
     /**
      * @brief Construct a transform command
      * @param viewer The ModelViewer instance
@@ -80,7 +86,8 @@ public:
         const QMap<QUuid, TransformState>& oldStates,
         const QMap<QUuid, TransformState>& newStates,
         const QString& text = QObject::tr("Transform"),
-        bool fitView = true);
+        bool fitView = true,
+        Target target = Target::UserTransform);
 
     void undo() override;
     void redo() override;
@@ -103,6 +110,7 @@ private:
     QMap<QUuid, TransformState> _oldStates;  // Transform states before command
     QMap<QUuid, TransformState> _newStates;  // Transform states after command
     bool _fitView = true;
+    Target _target = Target::UserTransform;
 
     /**
      * @brief Apply transformation states to meshes

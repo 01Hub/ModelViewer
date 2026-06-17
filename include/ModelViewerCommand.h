@@ -28,6 +28,8 @@ public:
 
     virtual ~ModelViewerCommand() = default;
 
+    virtual bool affectsDocument() const { return true; }
+
 protected:
     ModelViewer* _viewer;
     GLWidget* _glWidget;

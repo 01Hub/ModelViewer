@@ -8,6 +8,7 @@
 #include "TransformCommand.h"
 #include "ShaderProgram.h"
 #include "AssImpModelLoader.h"
+#include "AssemblyRelationGraph.h"
 #include <math.h>
 #include <QColor>
 #include <QElapsedTimer>
@@ -173,13 +174,21 @@ public:
 
 	void showAxis(bool show);
 	void showTransformGizmoForSelection(bool show);
-	bool beginExplodedViewManualPlacement();
+	bool beginExplodedViewManualPlacement(const QVector<QUuid>& selectionUuids = {});
 	void finishExplodedViewManualPlacement();
 	void clearExplodedViewManualPlacement();
 	bool isExplodedViewManualPlacementActive() const { return _explodedViewManualPlacementActive; }
 	bool hasExplodedViewManualPlacement() const { return !_explodedViewManualOriginalStates.isEmpty(); }
 	bool hasExplodedViewManualTransformChanges() const;
 	QSet<QUuid> explodedViewManualPlacementUuids() const;
+	QVector3D explodedViewManualPlacementTranslationDelta() const;
+	QVector3D explodedViewManualPlacementRotationDelta() const;
+	void setExplodedViewManualPlacementTranslationDelta(const QVector3D& delta);
+	void setExplodedViewManualPlacementRotationDelta(const QVector3D& delta);
+	QMap<QUuid, TransformState> explodedViewManualStates() const;
+	void restoreExplodedViewManualStates(const QMap<QUuid, TransformState>& states);
+	bool userModelTransformForFile(const QString& sourceFile,
+	                               QMatrix4x4& outTransform) const;
 
 	void showShadows(bool show);
 	void showSelfShadows(bool show);
@@ -251,6 +260,7 @@ public:
 	void setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale);
 	void resetTransformation(const std::vector<int>& ids);
 	void applyTransforms(const QMap<int, TransformState>& transforms, bool fitView = true);
+	void applyExplodedViewTransforms(const QMap<int, TransformState>& transforms, bool fitView = false);
 
 	void setSkyBoxTextureFolder(QString folder);
 	bool loadCubemapFromSingleHDR(const QString& filePath);
@@ -563,6 +573,7 @@ signals:
 	void displayModeChanged(int);
 	void renderingModeChanged(int);
 	void animationStateChanged();
+	void explodedViewManualPlacementChanged();
 	void backgroundColorChanged(const QColor& topColor, const QColor& bottomColor);
 	// Forwarded from SelectionManager so external panels (e.g. TextureDebugPanel)
 	// can react to mesh selection changes without needing access to SelectionManager.
@@ -780,6 +791,8 @@ private:
 	void drawViewCubeLabels(const QMatrix4x4& viewMatrix, const QMatrix4x4& projectionMatrix, float cubeScale);
 	BoundingSphere computeTransformGizmoSelectionSphere() const;
 	QVector3D computeTransformGizmoPivot() const;
+	std::vector<int> activeTransformGizmoSelectionIds() const;
+	void applyExplodedViewManualPlacementSessionTransform();
 	void syncTransformGizmoToSelection();
 	bool beginTransformGizmoDrag(TransformGizmo::Handle handle, const QPoint& pixel);
 	bool beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle, const QPoint& pixel);
@@ -1202,6 +1215,14 @@ private:
 	ClippingPlanesEditor* _clippingPlanesEditor;
 	ExplodedViewPanel*    _explodedViewPanel;
 	ExplodedViewManager*  _explodedViewManager;
+
+	// Cache for assembly-aware auto-placement hints.
+	// Invalidated whenever assemblyUuids or anchorUuid change so the O(n²)
+	// graph build does not run on every slider tick.
+	QSet<QUuid>                              _cachedHintsAssemblyUuids;
+	QUuid                                    _cachedHintsAnchorUuid;
+	AssemblyRelationGraph::AutoPlacementHints _cachedAutoHints;
+	bool                                     _cachedHintsValid = false;
 	Plane* _clippingPlaneXY;
 	Plane* _clippingPlaneYZ;
 	Plane* _clippingPlaneZX;
@@ -1290,6 +1311,18 @@ private:
 	bool _transformGizmoLoggedTranslationUpdate = false;
 	bool _explodedViewManualPlacementActive = false;
 	QMap<QUuid, TransformState> _explodedViewManualOriginalStates;
+	QMap<QUuid, TransformState> _explodedViewManualHiddenStates;
+	bool _explodedViewManualPlacementSuppressed = false;
+	QSet<QUuid> _explodedViewManualPlacementSessionUuids;
+	QMap<QUuid, TransformState> _explodedViewManualSessionStartStates;
+	QMap<QUuid, QMatrix4x4> _explodedViewManualSessionStartMatrices;
+	QVector3D _explodedViewManualSessionStartPivot = QVector3D(0.0f, 0.0f, 0.0f);
+	QVector3D _explodedViewManualSessionTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
+	QQuaternion _explodedViewManualSessionRotationQuat = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+	QVector3D _explodedViewManualSessionRotationEuler = QVector3D(0.0f, 0.0f, 0.0f);
+	QVector3D _explodedViewManualDragStartTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
+	QQuaternion _explodedViewManualDragStartRotationQuat = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+	QVector3D _explodedViewManualDragStartRotationEuler = QVector3D(0.0f, 0.0f, 0.0f);
 	int _viewCubeHoveredRegionId = -1;
 	bool _customViewAnimationActive = false;
 	bool _showViewCubeOverride = true;
@@ -1364,8 +1397,6 @@ private:
 	// user applied a model-level transform.  Lights and glTF cameras of that
 	// file follow this exact matrix; the visible-scene bounding sphere plays
 	// no role, so hide/show/delete of other models cannot disturb them.
-	bool userModelTransformForFile(const QString& sourceFile,
-	                               QMatrix4x4& outTransform) const;
 	void updateOverlayEditorTheme();
 
 	void applyGltfCameraEntryTransform(const GltfCameraEntry& cam);

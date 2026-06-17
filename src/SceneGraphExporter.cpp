@@ -51,6 +51,61 @@ namespace
         return trs;
     }
 
+    aiQuaternion normalizedQuaternion(const aiQuaternion& q)
+    {
+        aiQuaternion copy = q;
+        copy.Normalize();
+        return copy;
+    }
+
+    aiQuaternion inverseQuaternion(const aiQuaternion& q)
+    {
+        aiQuaternion copy = normalizedQuaternion(q);
+        return copy.Conjugate();
+    }
+
+    aiVector3D rotateVectorByQuaternion(const aiQuaternion& q, const aiVector3D& v)
+    {
+        const aiQuaternion unit = normalizedQuaternion(q);
+        const aiQuaternion vecQuat(0.0f, v.x, v.y, v.z);
+        const aiQuaternion rotated = unit * vecQuat * inverseQuaternion(unit);
+        return aiVector3D(rotated.x, rotated.y, rotated.z);
+    }
+
+    aiVector3D remapTranslationKey(const aiVector3D& value,
+                                   const ExportNodeTrs& sourceBase,
+                                   const ExportNodeTrs& exportBase)
+    {
+        const aiVector3D sourceDelta = value - sourceBase.translation;
+        const aiQuaternion basisDelta =
+            normalizedQuaternion(exportBase.rotation * inverseQuaternion(sourceBase.rotation));
+        const aiVector3D rotatedDelta = rotateVectorByQuaternion(basisDelta, sourceDelta);
+        return exportBase.translation + rotatedDelta;
+    }
+
+    aiQuaternion remapRotationKey(const aiQuaternion& value,
+                                  const ExportNodeTrs& sourceBase,
+                                  const ExportNodeTrs& exportBase)
+    {
+        const aiQuaternion delta = normalizedQuaternion(value * inverseQuaternion(sourceBase.rotation));
+        return normalizedQuaternion(delta * exportBase.rotation);
+    }
+
+    float safeScaleRatio(float value, float base)
+    {
+        return std::abs(base) > 1.0e-8f ? (value / base) : value;
+    }
+
+    aiVector3D remapScaleKey(const aiVector3D& value,
+                             const ExportNodeTrs& sourceBase,
+                             const ExportNodeTrs& exportBase)
+    {
+        return aiVector3D(
+            exportBase.scale.x * safeScaleRatio(value.x, sourceBase.scale.x),
+            exportBase.scale.y * safeScaleRatio(value.y, sourceBase.scale.y),
+            exportBase.scale.z * safeScaleRatio(value.z, sourceBase.scale.z));
+    }
+
     void collectExportNodeBaseTrs(const aiNode* node, QMap<QString, ExportNodeTrs>& out)
     {
         if (!node)
@@ -530,6 +585,7 @@ aiScene* SceneGraphExporter::buildExportScene(
     std::vector<aiMaterial*> builtMaterials;
     builtMaterials.reserve(64);
     QHash<QUuid, QString> exportedNodeNameByUuid;
+    QHash<QUuid, QString> exportedMeshNodeNameByUuid;
     QSet<QString> usedExportNodeNames;
 
 
@@ -595,7 +651,7 @@ aiScene* SceneGraphExporter::buildExportScene(
             // ---------------------------------------------------------------------
 
             aiNode* dstChild = buildNodeRecursive(fileNode, resolveMesh, builtMeshes, builtMaterials,
-                materialKeyToIndex, exportedNodeNameByUuid, usedExportNodeNames,
+                materialKeyToIndex, exportedNodeNameByUuid, exportedMeshNodeNameByUuid, usedExportNodeNames,
                 aiMatrix4x4(), flattenTransforms, fileNode->importCorrection, outAnimMatRemap);
             exportRoot->mChildren[i] = dstChild;
             if (dstChild)
@@ -777,7 +833,8 @@ aiScene* SceneGraphExporter::buildExportScene(
                 for (const GltfAnimationChannel& ch : clip.channels)
                 {
                     SceneNode* resolvedTargetNode = nullptr;
-                    if (ch.targetNodeIndex >= 0 && ch.targetNodeIndex < animData.nodeBindings.size())
+                    if (ch.targetKind == GltfAnimationBindingTargetKind::Node
+                        && ch.targetNodeIndex >= 0 && ch.targetNodeIndex < animData.nodeBindings.size())
                     {
                         const GltfAnimationNodeBinding& binding = animData.nodeBindings[ch.targetNodeIndex];
                         SceneNode* fileNodeMutable = const_cast<SceneNode*>(fileNode);
@@ -810,9 +867,11 @@ aiScene* SceneGraphExporter::buildExportScene(
                         }
                     }
 
-                    const QString exportedTargetName = resolvedTargetNode
-                        ? exportedNodeNameByUuid.value(resolvedTargetNode->nodeUuid)
-                        : QString();
+                    const QString exportedTargetName =
+                        ch.targetKind == GltfAnimationBindingTargetKind::Mesh
+                            ? exportedMeshNodeNameByUuid.value(ch.targetMeshUuid)
+                            : (resolvedTargetNode ? exportedNodeNameByUuid.value(resolvedTargetNode->nodeUuid)
+                                                  : QString());
 
                     const bool isTRS = (ch.targetPath == GltfAnimationTargetPath::Translation ||
                                         ch.targetPath == GltfAnimationTargetPath::Rotation    ||
@@ -864,8 +923,14 @@ aiScene* SceneGraphExporter::buildExportScene(
 
                     const QString targetNodeName = !exportedTargetName.isEmpty() ? exportedTargetName : ch.targetNodeName;
                     const std::string nodeName = targetNodeName.toStdString();
-                    qDebug() << "[EXPORT-ANIMS-TRS] TRS channel target:" << targetNodeName
-                             << "path:" << static_cast<int>(ch.targetPath);
+
+                    const ExportNodeTrs exportBaseTrs =
+                        exportNodeBaseTrsByName.value(targetNodeName, ExportNodeTrs());
+                    const ExportNodeTrs sourceBaseTrs =
+                        ch.targetKind == GltfAnimationBindingTargetKind::Mesh
+                            ? ExportNodeTrs()
+                            : (resolvedTargetNode ? decomposeNodeTrs(resolvedTargetNode->localTransform)
+                                                  : ExportNodeTrs());
 
                     if (!nodeAnimByName.contains(targetNodeName))
                     {
@@ -887,9 +952,10 @@ aiScene* SceneGraphExporter::buildExportScene(
                         {
                             const GltfAnimationVec3Key& key = ch.vec3Keys[k];
                             na->mPositionKeys[k].mTime  = key.timeSeconds * kTicksPerSecond;
-                            na->mPositionKeys[k].mValue = aiVector3D(key.value.x(),
-                                                                     key.value.y(),
-                                                                     key.value.z());
+                            na->mPositionKeys[k].mValue = remapTranslationKey(
+                                aiVector3D(key.value.x(), key.value.y(), key.value.z()),
+                                sourceBaseTrs,
+                                exportBaseTrs);
                         }
                     }
                     else if (ch.targetPath == GltfAnimationTargetPath::Rotation)
@@ -901,10 +967,13 @@ aiScene* SceneGraphExporter::buildExportScene(
                             const GltfAnimationQuatKey& key = ch.quatKeys[k];
                             // Assimp quaternion: (w, x, y, z)
                             na->mRotationKeys[k].mTime  = key.timeSeconds * kTicksPerSecond;
-                            na->mRotationKeys[k].mValue = aiQuaternion(key.value.scalar(),
-                                                                       key.value.x(),
-                                                                       key.value.y(),
-                                                                       key.value.z());
+                            na->mRotationKeys[k].mValue = remapRotationKey(
+                                aiQuaternion(key.value.scalar(),
+                                             key.value.x(),
+                                             key.value.y(),
+                                             key.value.z()),
+                                sourceBaseTrs,
+                                exportBaseTrs);
                         }
                     }
                     else // Scale
@@ -915,9 +984,10 @@ aiScene* SceneGraphExporter::buildExportScene(
                         {
                             const GltfAnimationVec3Key& key = ch.vec3Keys[k];
                             na->mScalingKeys[k].mTime  = key.timeSeconds * kTicksPerSecond;
-                            na->mScalingKeys[k].mValue = aiVector3D(key.value.x(),
-                                                                    key.value.y(),
-                                                                    key.value.z());
+                            na->mScalingKeys[k].mValue = remapScaleKey(
+                                aiVector3D(key.value.x(), key.value.y(), key.value.z()),
+                                sourceBaseTrs,
+                                exportBaseTrs);
                         }
                     }
                 }
@@ -1090,6 +1160,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
     std::vector<aiMaterial*>& outMaterials,
     QMap<QString, unsigned int>& materialKeyToIndex,
     QHash<QUuid, QString>& exportedNodeNameByUuid,
+    QHash<QUuid, QString>& exportedMeshNodeNameByUuid,
     QSet<QString>& usedExportNodeNames,
     const aiMatrix4x4& parentWorldTransform,
     bool flattenTransforms,
@@ -1371,10 +1442,12 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
 
         if (splitMeshesIntoChildNodes)
         {
-            aiNode* meshNode = makeIdentityNode(triMesh->getName());
+            const QString uniqueMeshNodeName = makeUniqueExportNodeName(triMesh->getName(), usedExportNodeNames);
+            aiNode* meshNode = makeIdentityNode(uniqueMeshNodeName);
             meshNode->mNumMeshes = 1;
             meshNode->mMeshes = new unsigned int[1];
             meshNode->mMeshes[0] = exportMeshIndex;
+            exportedMeshNodeNameByUuid.insert(meshUuid, uniqueMeshNodeName);
 
             // Fold per-mesh user TRS into the child node for hierarchy formats.
             // Use correctedMeshTrs (viewer-space TRS remapped to model/export space).
@@ -1407,6 +1480,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
                 dstNode->mTransformation = parentWorldInv * correctedMeshTrs * worldTransform;
             }
             nodeMeshIndices.push_back(exportMeshIndex);
+            exportedMeshNodeNameByUuid.insert(meshUuid, uniqueExportNodeName);
         }
     }
 
@@ -1438,7 +1512,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
         {
             SceneNode* srcChild = srcNode->children.at(i);
             aiNode* dstChild = buildNodeRecursive(srcChild, resolveMesh, outMeshes, outMaterials,
-                materialKeyToIndex, exportedNodeNameByUuid, usedExportNodeNames,
+                materialKeyToIndex, exportedNodeNameByUuid, exportedMeshNodeNameByUuid, usedExportNodeNames,
                 worldTransform, flattenTransforms, importCorrection, animMatRemap);
             dstNode->mChildren[childIndex++] = dstChild;
             if (dstChild)

@@ -116,6 +116,17 @@ public:
 	QVector3D getScaling() const;
 	void setScaling(const QVector3D& scale);
 
+	QVector3D getExplodedViewTranslation() const;
+	void setExplodedViewTranslation(const QVector3D& trans);
+
+	QVector3D getExplodedViewRotation() const;
+	void setExplodedViewRotation(const QVector3D& rota);
+	QQuaternion getExplodedViewRotationQuaternion() const;
+	void setExplodedViewRotationQuaternion(const QQuaternion& quat, const QVector3D& displayEuler);
+
+	QVector3D getExplodedViewScaling() const;
+	void setExplodedViewScaling(const QVector3D& scale);
+
 	// Fast variants — update TRS and recompute the world-space bounding box from
 	// the 8 local AABB corners only (O(1)), skipping the full O(N) vertex transform
 	// that setTranslation/setRotation/setScaling do.  Use during interactive gizmo
@@ -124,9 +135,14 @@ public:
 	void setRotationFast(const QVector3D& rota);
 	void setRotationQuaternionFast(const QQuaternion& quat, const QVector3D& displayEuler);
 	void setScalingFast(const QVector3D& scale);
+	void setExplodedViewTranslationFast(const QVector3D& trans);
+	void setExplodedViewRotationFast(const QVector3D& rota);
+	void setExplodedViewRotationQuaternionFast(const QQuaternion& quat, const QVector3D& displayEuler);
+	void setExplodedViewScalingFast(const QVector3D& scale);
 	void fullUpdateRuntimeBounds();  // force full O(N) rebuild after drag ends
 
 	QMatrix4x4 getTransformation() const;
+	QMatrix4x4 getExplodedViewTransformation() const;
 	QMatrix4x4 getSceneRenderTransform() const;
 	QMatrix4x4 combinedRenderTransform() const;
 
@@ -143,6 +159,7 @@ public:
 	const std::vector<float>& getTrsfPoints() const;
 
 	void resetTransformations();
+	void resetExplodedViewTransformations();
 
 	void setHasNegativeScale(bool hasNegativeScale) { _hasNegativeScale = hasNegativeScale; };
 	bool hasNegativeScale() const { return _hasNegativeScale; }
@@ -381,6 +398,7 @@ protected: // methods
     void computeBounds();
     void deleteBuffers();
 	void rebuildAbsoluteTransformation();
+	void rebuildExplodedViewTransformation();
 	void fastUpdateWorldBounds();   // O(1) AABB update from 8 local corners
 
     virtual void setupTransformation();
@@ -522,6 +540,17 @@ protected:
 	float _scaleZ;
 
 	QMatrix4x4 _transformation;
+	float _explodedViewTransX;
+	float _explodedViewTransY;
+	float _explodedViewTransZ;
+	float _explodedViewRotateX;
+	float _explodedViewRotateY;
+	float _explodedViewRotateZ;
+	QQuaternion _explodedViewRotationQuat;
+	float _explodedViewScaleX;
+	float _explodedViewScaleY;
+	float _explodedViewScaleZ;
+	QMatrix4x4 _explodedViewTransformation;
 	QVector3D  _explosionOffset;
 
 	unsigned long long _memorySize;
