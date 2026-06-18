@@ -31,16 +31,14 @@
 #include <algorithm>
 #include <iostream>
 #include <QCryptographicHash>
-#include <QElapsedTimer>
 #include <QOpenGLContext>
+#include <QElapsedTimer>
 #include <QMessageBox>
 #include <QPainter>
-#include <QSettings>
 #include <QStyleFactory>
 #include <QThread>
 #include <QTreeView>
 #include <QDebug>
-#include "Logger.h"
 
 
 constexpr auto MAX_MODEL_SIZE_BYTES = 52428800; // bytes
@@ -74,80 +72,6 @@ struct ViewCubeStyle
 	float labelFaceOffset = 0.501f;
 	float labelFaceScale = 0.68f;
 };
-
-struct RenderSubmissionDiagnostics
-{
-	bool enabled = false;
-	QElapsedTimer windowTimer;
-	bool timerStarted = false;
-	int frames = 0;
-	int opaquePasses = 0;
-	int transparentPasses = 0;
-	qint64 opaqueCandidates = 0;
-	qint64 transparentCandidates = 0;
-	qint64 opaqueDraws = 0;
-	qint64 transparentDraws = 0;
-	double opaqueCollectSortMs = 0.0;
-	double transparentCollectSortMs = 0.0;
-	double opaqueLoopMs = 0.0;
-	double transparentLoopMs = 0.0;
-	double frameMs = 0.0;
-};
-
-RenderSubmissionDiagnostics g_renderSubmissionDiagnostics;
-
-void beginRenderSubmissionDiagnosticsFrame(bool enabled)
-{
-	if (!enabled)
-	{
-		g_renderSubmissionDiagnostics = RenderSubmissionDiagnostics{};
-		AssImpMesh::resetRenderDiagnostics(false);
-		return;
-	}
-
-	if (!g_renderSubmissionDiagnostics.timerStarted)
-	{
-		g_renderSubmissionDiagnostics.windowTimer.start();
-		g_renderSubmissionDiagnostics.timerStarted = true;
-	}
-
-	g_renderSubmissionDiagnostics.enabled = true;
-	++g_renderSubmissionDiagnostics.frames;
-	AssImpMesh::resetRenderDiagnostics(true);
-}
-
-void flushRenderSubmissionDiagnostics()
-{
-	if (!g_renderSubmissionDiagnostics.enabled || !g_renderSubmissionDiagnostics.timerStarted)
-		return;
-
-	if (g_renderSubmissionDiagnostics.windowTimer.elapsed() < 1000 || g_renderSubmissionDiagnostics.frames <= 0)
-	{
-		AssImpMesh::flushRenderDiagnostics();
-		return;
-	}
-
-	const double frames = static_cast<double>(g_renderSubmissionDiagnostics.frames);
-	Logger::instance().info(
-		QStringLiteral("[RenderSubmit.Frame] windowMs=%1 frames=%2 frameMs/frame=%3 opaquePasses/frame=%4 transparentPasses/frame=%5 opaqueCandidates/frame=%6 transparentCandidates/frame=%7 opaqueDraws/frame=%8 transparentDraws/frame=%9 opaqueCollectSortMs/frame=%10 transparentCollectSortMs/frame=%11 opaqueLoopMs/frame=%12 transparentLoopMs/frame=%13")
-			.arg(g_renderSubmissionDiagnostics.windowTimer.elapsed())
-			.arg(g_renderSubmissionDiagnostics.frames)
-			.arg(g_renderSubmissionDiagnostics.frameMs / frames, 0, 'f', 3)
-			.arg(g_renderSubmissionDiagnostics.opaquePasses / frames, 0, 'f', 2)
-			.arg(g_renderSubmissionDiagnostics.transparentPasses / frames, 0, 'f', 2)
-			.arg(g_renderSubmissionDiagnostics.opaqueCandidates / frames, 0, 'f', 1)
-			.arg(g_renderSubmissionDiagnostics.transparentCandidates / frames, 0, 'f', 1)
-			.arg(g_renderSubmissionDiagnostics.opaqueDraws / frames, 0, 'f', 1)
-			.arg(g_renderSubmissionDiagnostics.transparentDraws / frames, 0, 'f', 1)
-			.arg(g_renderSubmissionDiagnostics.opaqueCollectSortMs / frames, 0, 'f', 3)
-			.arg(g_renderSubmissionDiagnostics.transparentCollectSortMs / frames, 0, 'f', 3)
-			.arg(g_renderSubmissionDiagnostics.opaqueLoopMs / frames, 0, 'f', 3)
-			.arg(g_renderSubmissionDiagnostics.transparentLoopMs / frames, 0, 'f', 3),
-		QStringLiteral("Performance"));
-
-	g_renderSubmissionDiagnostics = RenderSubmissionDiagnostics{};
-	AssImpMesh::flushRenderDiagnostics();
-}
 
 bool transformStatesNearlyEqual(const TransformState& a, const TransformState& b)
 {
@@ -843,11 +767,6 @@ _floorPlane(nullptr),
     setMouseTracking(true);  // Enable mouseMoveEvent for hover highlighting
 
     _viewer = static_cast<ModelViewer*>(parent);
-	if (_viewer && _viewer->sceneGraph())
-	{
-		connect(_viewer->sceneGraph(), &SceneGraph::structureChanged,
-		        this, &GLWidget::invalidateRuntimeVisibilityHierarchy);
-	}
 	_transformGizmo = new TransformGizmo(this);
 
 
@@ -1831,6 +1750,9 @@ void GLWidget::initializeGL()
 	{
 		connect(_viewer->sceneGraph(), &SceneGraph::lightDataChanged,
 		        this, &GLWidget::onSceneLightDataChanged,
+		        Qt::UniqueConnection);
+		connect(_viewer->sceneGraph(), &SceneGraph::structureChanged,
+		        this, &GLWidget::invalidateRuntimeVisibilityHierarchy,
 		        Qt::UniqueConnection);
 	}
 }
@@ -6962,10 +6884,9 @@ void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	if (_shadowsEnabled)
 		renderToShadowBuffer();
 
-	if (!_lowResEnabled)
-		renderToSSSBuffer(_primaryCamera);
+	renderToSSSBuffer(_primaryCamera);
 
-	if (_transmissionEnabled && !_lowResEnabled)
+	if (_transmissionEnabled)
 		renderToTransmissionBuffer(_primaryCamera, topColor, botColor);
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -7031,10 +6952,9 @@ void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 	if (_shadowsEnabled)
 		renderToShadowBuffer();
 
-	if (!_lowResEnabled)
-		renderToSSSBuffer(_primaryCamera);
+	renderToSSSBuffer(_primaryCamera);
 
-	if (_transmissionEnabled && !_lowResEnabled)
+	if (_transmissionEnabled)
 		renderToTransmissionBuffer(_primaryCamera, topColor, botColor);
 
 	gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
@@ -7165,6 +7085,7 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	_fgShader->setUniformValue("sssCapture", false);
 	_fgShader->setUniformValue("modelMatrix", model);
 	_fgShader->setProperty("globalModelMatrix", QVariant::fromValue(model));
+	TriangleMesh::setCurrentRenderContext(model, _viewMatrix);
 	if (_reflectionsEnabled && drawReflection)
 	{
 		_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
@@ -7179,6 +7100,7 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	glCullFace(GL_FRONT);
 	configureGroundPass(false, _floorTextureDisplayed);
 	_fgShader->setProperty("globalModelMatrix", QVariant::fromValue(_modelMatrix));
+	TriangleMesh::setCurrentRenderContext(_modelMatrix, _viewMatrix);
 	_fgShader->setUniformValue("shadowSamples", 18.0f);
 
 	_floorPlane->setOpacity(0.95f);
@@ -7363,11 +7285,6 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 
 void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
 {
-	QElapsedTimer phaseTimer;
-	const bool profiling = g_renderSubmissionDiagnostics.enabled;
-	if (profiling)
-		phaseTimer.start();
-
 	QVector3D camPos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(prog, camPos);
 
@@ -7415,13 +7332,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 	}
 	std::sort(opaque.begin(), opaque.end(),
 		[](const auto& a, const auto& b) { return a.first < b.first; });
-	if (profiling)
-	{
-		++g_renderSubmissionDiagnostics.opaquePasses;
-		g_renderSubmissionDiagnostics.opaqueCandidates += static_cast<qint64>(opaque.size());
-		g_renderSubmissionDiagnostics.opaqueCollectSortMs += static_cast<double>(phaseTimer.elapsed());
-		phaseTimer.restart();
-	}
+
 	for (auto& [key, id] : opaque)
 	{
 		if (auto* mesh = _meshStore.at(id))
@@ -7438,21 +7349,11 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 			renderMeshExploded(mesh, _displayMode);
 		}
 	}
-	if (profiling)
-	{
-		g_renderSubmissionDiagnostics.opaqueDraws += static_cast<qint64>(opaque.size());
-		g_renderSubmissionDiagnostics.opaqueLoopMs += static_cast<double>(phaseTimer.elapsed());
-	}
 }
 
 
 void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
 {
-	QElapsedTimer phaseTimer;
-	const bool profiling = g_renderSubmissionDiagnostics.enabled;
-	if (profiling)
-		phaseTimer.start();
-
 	QVector3D camPos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(prog, camPos);
 
@@ -7481,6 +7382,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 	{
 		const std::vector<int>& objectIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
 		transparent.reserve(objectIds.size());
+
 		for (int id : objectIds)
 		{
 			if (auto* mesh = _meshStore.at(id))
@@ -7501,13 +7403,6 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 	// Sort far-to-near
 	std::sort(transparent.begin(), transparent.end(),
 		[](const auto& a, const auto& b) { return a.first > b.first; });
-	if (profiling)
-	{
-		++g_renderSubmissionDiagnostics.transparentPasses;
-		g_renderSubmissionDiagnostics.transparentCandidates += static_cast<qint64>(transparent.size());
-		g_renderSubmissionDiagnostics.transparentCollectSortMs += static_cast<double>(phaseTimer.elapsed());
-		phaseTimer.restart();
-	}
 
 	glEnable(GL_BLEND);
 	glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA,
@@ -7534,11 +7429,6 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 				prog->setUniformValue(sssObjectIdLocation, float(id + 1));
 			renderMeshExploded(mesh, _displayMode);
 		}
-	}
-	if (profiling)
-	{
-		g_renderSubmissionDiagnostics.transparentDraws += static_cast<qint64>(transparent.size());
-		g_renderSubmissionDiagnostics.transparentLoopMs += static_cast<double>(phaseTimer.elapsed());
 	}
 
 	glDepthMask(GL_TRUE);
@@ -10354,13 +10244,6 @@ void GLWidget::bindIBLTextures()
 
 void GLWidget::render(GLCamera* camera)
 {
-	QElapsedTimer frameTimer;
-	const bool profileRendering =
-		QSettings().value(QStringLiteral("profileRenderingCheckBox"), false).toBool();
-	beginRenderSubmissionDiagnosticsFrame(profileRendering);
-	if (profileRendering)
-		frameTimer.start();
-
 	glEnable(GL_DEPTH_TEST);
 	glDisable(GL_BLEND);
 	glDisable(GL_CULL_FACE);
@@ -10459,10 +10342,6 @@ void GLWidget::render(GLCamera* camera)
 	// --- 5) Overlays ---
 	if (_showAxis && _userShowAxisOverride) drawAxis();
 	if (_showLights) drawLights();
-
-	if (profileRendering)
-		g_renderSubmissionDiagnostics.frameMs += static_cast<double>(frameTimer.elapsed());
-	flushRenderSubmissionDiagnostics();
 }
 
 

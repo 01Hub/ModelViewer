@@ -11,6 +11,7 @@
 #include "AssemblyRelationGraph.h"
 #include <math.h>
 #include <QColor>
+#include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFormLayout>
 #include <QImage>
@@ -43,9 +44,9 @@ class Cone;
 class Sphere;
 class ViewCubeMesh;
 class AssImpModelLoader;
+struct SceneNode;
 
 class ModelViewer;
-struct SceneNode;
 
 enum class ViewMode { TOP, BOTTOM, LEFT, RIGHT, FRONT, BACK, ISOMETRIC, DIMETRIC, TRIMETRIC, NONE };
 enum class ViewProjection { ORTHOGRAPHIC, PERSPECTIVE };

@@ -6,7 +6,6 @@
 #include <iostream>
 #include <vector>
 #include <initializer_list>
-#include <cstdint>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -62,8 +61,7 @@ public:
 	virtual TriangleMesh* clone();
 	void render();
 	quint64 getRenderMaterialSortKey() const override;
-	static void resetRenderDiagnostics(bool enabled);
-	static void flushRenderDiagnostics();
+	void markUniformsDirty() override;
 
     std::vector<Vertex> vertices() const;
 
@@ -133,7 +131,6 @@ public:
 	void clearAllADSMaps() override;
 
 	virtual void setTextureMaps(const GLMaterial& material) override;
-	void markUniformsDirty() override;
 	void deleteTextures() override;
 	void replaceOrAppendTexture(const std::string& type, GLuint id, bool hasAlpha);
 
@@ -183,6 +180,8 @@ private:
 	static bool _currentUniformStateHadDebugOverrides;
 	static bool _currentBlendEnabled;
 	static GLenum _currentFrontFace;
+	mutable bool _uniformStateSignatureDirty = true;
+	mutable quint64 _cachedUniformStateSignature = 0;
 
 	unsigned int _diffuseADSMap = 0;
 	unsigned int _specularADSMap = 0;

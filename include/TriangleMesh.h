@@ -481,7 +481,7 @@ protected:
 
 	bool _uniformsDirty = true;
 	mutable QHash<QByteArray, int> _uniformLocationCache;
-
+	QOpenGLShaderProgram* _vaoConfiguredProgram = nullptr;
 	static QMatrix4x4 _currentGlobalModelMatrix;
 	static QMatrix4x4 _currentViewMatrix;
 

@@ -452,86 +452,90 @@ void TriangleMesh::buildTriangles()
 
 void TriangleMesh::setProg(QOpenGLShaderProgram* prog)
 {
-	if (_prog == prog)
-		return;
-
+	const bool progChanged = (_prog != prog);
 	_prog = prog;
-	clearUniformLocationCache();
+	if (progChanged)
+		clearUniformLocationCache();
 
-	_vertexArrayObject.bind();
-
-	//_indexBuffer.bind();
-
-	// Position
-	_positionBuffer.bind();
-	_prog->enableAttributeArray("vertexPosition");
-	_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
-
-	// Normal
-	_normalBuffer.bind();
-	_prog->enableAttributeArray("vertexNormal");
-	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
-
-	// Color
-	if (_colors.size())
+	if (_vaoConfiguredProgram != prog)
 	{
-		_hasVertexColors = true;
-		_colorBuffer.bind();
-		_prog->enableAttributeArray("vertexColor");
-		_prog->setAttributeBuffer("vertexColor", GL_FLOAT, 0, 4);
-	}
+		_vertexArrayObject.bind();
 
-	// Tex coords
-	if (_texCoords.size())
-	{
-		_texCoord0Buffer.bind();
-		_prog->enableAttributeArray("texCoord0");
-		_prog->setAttributeBuffer("texCoord0", GL_FLOAT, 0, 2);
+		//_indexBuffer.bind();
 
-		_texCoord1Buffer.bind();
-		_prog->enableAttributeArray("texCoord1");
-		_prog->setAttributeBuffer("texCoord1", GL_FLOAT, 0, 2);
+		// Position
+		_positionBuffer.bind();
+		_prog->enableAttributeArray("vertexPosition");
+		_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
 
-		_texCoord2Buffer.bind();
-		_prog->enableAttributeArray("texCoord2");
-		_prog->setAttributeBuffer("texCoord2", GL_FLOAT, 0, 2);
+		// Normal
+		_normalBuffer.bind();
+		_prog->enableAttributeArray("vertexNormal");
+		_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
+
+		// Color
+		if (_colors.size())
+		{
+			_hasVertexColors = true;
+			_colorBuffer.bind();
+			_prog->enableAttributeArray("vertexColor");
+			_prog->setAttributeBuffer("vertexColor", GL_FLOAT, 0, 4);
+		}
+
+		// Tex coords
+		if (_texCoords.size())
+		{
+			_texCoord0Buffer.bind();
+			_prog->enableAttributeArray("texCoord0");
+			_prog->setAttributeBuffer("texCoord0", GL_FLOAT, 0, 2);
+
+			_texCoord1Buffer.bind();
+			_prog->enableAttributeArray("texCoord1");
+			_prog->setAttributeBuffer("texCoord1", GL_FLOAT, 0, 2);
+
+			_texCoord2Buffer.bind();
+			_prog->enableAttributeArray("texCoord2");
+			_prog->setAttributeBuffer("texCoord2", GL_FLOAT, 0, 2);
 		
-		_texCoord3Buffer.bind();
-		_prog->enableAttributeArray("texCoord3");
-		_prog->setAttributeBuffer("texCoord3", GL_FLOAT, 0, 2);
+			_texCoord3Buffer.bind();
+			_prog->enableAttributeArray("texCoord3");
+			_prog->setAttributeBuffer("texCoord3", GL_FLOAT, 0, 2);
+		}
+
+		// Tangents
+		if (_tangents.size())
+		{
+			_tangentBuf.bind();
+			_prog->enableAttributeArray("vertexTangent");
+			_prog->setAttributeBuffer("vertexTangent", GL_FLOAT, 0, 3);
+		}
+
+		// Bitangents
+		if (_bitangents.size())
+		{
+			_bitangentBuf.bind();
+			_prog->enableAttributeArray("vertexBitangent");
+			_prog->setAttributeBuffer("vertexBitangent", GL_FLOAT, 0, 3);
+		}
+
+		if (_jointIndices.size())
+		{
+			_jointIndexBuffer.bind();
+			_prog->enableAttributeArray("jointIndices");
+			_prog->setAttributeBuffer("jointIndices", GL_FLOAT, 0, 4);
+		}
+
+		if (_jointWeights.size())
+		{
+			_jointWeightBuffer.bind();
+			_prog->enableAttributeArray("jointWeights");
+			_prog->setAttributeBuffer("jointWeights", GL_FLOAT, 0, 4);
+		}
+
+		_vertexArrayObject.release();
+		_vaoConfiguredProgram = prog;
 	}
 
-	// Tangents
-	if (_tangents.size())
-	{
-		_tangentBuf.bind();
-		_prog->enableAttributeArray("vertexTangent");
-		_prog->setAttributeBuffer("vertexTangent", GL_FLOAT, 0, 3);
-	}
-
-	// Bitangents
-	if (_bitangents.size())
-	{
-		_bitangentBuf.bind();
-		_prog->enableAttributeArray("vertexBitangent");
-		_prog->setAttributeBuffer("vertexBitangent", GL_FLOAT, 0, 3);
-	}
-
-	if (_jointIndices.size())
-	{
-		_jointIndexBuffer.bind();
-		_prog->enableAttributeArray("jointIndices");
-		_prog->setAttributeBuffer("jointIndices", GL_FLOAT, 0, 4);
-	}
-
-	if (_jointWeights.size())
-	{
-		_jointWeightBuffer.bind();
-		_prog->enableAttributeArray("jointWeights");
-		_prog->setAttributeBuffer("jointWeights", GL_FLOAT, 0, 4);
-	}
-
-	_vertexArrayObject.release();
 	markUniformsDirty();
 }
 

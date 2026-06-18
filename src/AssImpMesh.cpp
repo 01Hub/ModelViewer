@@ -1,5 +1,4 @@
 #include "AssImpMesh.h"
-#include "Logger.h"
 #include "TextureLocationManager.h"
 
 #include <QFileInfo>
@@ -8,182 +7,56 @@
 #include <QDebug>
 
 #include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <cstring>
 #include <meshoptimizer.h>
 #include <utility>
 
 using namespace std;
-using Clock = std::chrono::steady_clock;
+
+namespace {
+
+constexpr quint64 kFnvOffset = 1469598103934665603ull;
+constexpr quint64 kFnvPrime = 1099511628211ull;
+
+inline void mixHash(quint64& hash, quint64 value)
+{
+	hash ^= value;
+	hash *= kFnvPrime;
+}
+
+inline void mixInt(quint64& hash, int value)
+{
+	mixHash(hash, static_cast<quint64>(static_cast<quint32>(value)));
+}
+
+inline void mixBool(quint64& hash, bool value)
+{
+	mixHash(hash, value ? 1ull : 0ull);
+}
+
+inline void mixFloat(quint64& hash, float value)
+{
+	static_assert(sizeof(float) == sizeof(quint32), "unexpected float size");
+	quint32 bits = 0;
+	std::memcpy(&bits, &value, sizeof(float));
+	mixHash(hash, static_cast<quint64>(bits));
+}
+
+inline void mixVec3(quint64& hash, const QVector3D& value)
+{
+	mixFloat(hash, value.x());
+	mixFloat(hash, value.y());
+	mixFloat(hash, value.z());
+}
+
+}
 
 bool AssImpMesh::_currentBlendEnabled;
 GLenum AssImpMesh::_currentFrontFace;
 QOpenGLShaderProgram* AssImpMesh::_currentUniformStateShader = nullptr;
 quint64 AssImpMesh::_currentUniformStateSignature = 0;
 bool AssImpMesh::_currentUniformStateHadDebugOverrides = false;
-
-namespace
-{
-struct RenderDiagnostics
-{
-	bool enabled = false;
-	bool timerStarted = false;
-	Clock::time_point windowStart;
-	int frames = 0;
-	qint64 drawCalls = 0;
-	qint64 indexedDrawCalls = 0;
-	qint64 arrayDrawCalls = 0;
-	qint64 transparentDrawCalls = 0;
-	qint64 shaderRebinds = 0;
-	qint64 textureCacheRefreshes = 0;
-	qint64 materialUniformRefreshes = 0;
-	qint64 materialUniformReuses = 0;
-	qint64 materialUniformSignatureMismatches = 0;
-	qint64 materialUniformDebugOverrideBlocks = 0;
-	qint64 materialUniformShaderSwitches = 0;
-	qint64 materialUniformExplicitDirty = 0;
-	qint64 materialUniformOtherReasons = 0;
-	qint64 skinningDrawCalls = 0;
-	qint64 totalTextureBindings = 0;
-	qint64 totalJointsUploaded = 0;
-	double totalRenderMs = 0.0;
-	double shaderBindMs = 0.0;
-	double textureCacheMs = 0.0;
-	double transformUniformMs = 0.0;
-	double materialUniformMs = 0.0;
-	double textureBindMs = 0.0;
-	double renderStateMs = 0.0;
-	double drawMs = 0.0;
-};
-
-RenderDiagnostics g_renderDiagnostics;
-
-double elapsedMsSince(const Clock::time_point& start)
-{
-	return std::chrono::duration<double, std::milli>(Clock::now() - start).count();
-}
-
-quint64 hashInit()
-{
-	return 1469598103934665603ULL;
-}
-
-void hashBytes(quint64& hash, const void* data, size_t size)
-{
-	const auto* bytes = static_cast<const unsigned char*>(data);
-	for (size_t i = 0; i < size; ++i)
-	{
-		hash ^= static_cast<quint64>(bytes[i]);
-		hash *= 1099511628211ULL;
-	}
-}
-
-void hashBool(quint64& hash, bool value)
-{
-	const quint8 v = value ? 1 : 0;
-	hashBytes(hash, &v, sizeof(v));
-}
-
-void hashInt(quint64& hash, int value)
-{
-	hashBytes(hash, &value, sizeof(value));
-}
-
-void hashUInt(quint64& hash, unsigned int value)
-{
-	hashBytes(hash, &value, sizeof(value));
-}
-
-void hashFloat(quint64& hash, float value)
-{
-	quint32 bits = 0;
-	static_assert(sizeof(bits) == sizeof(value));
-	std::memcpy(&bits, &value, sizeof(value));
-	hashBytes(hash, &bits, sizeof(bits));
-}
-
-void hashVec2(quint64& hash, const QVector2D& value)
-{
-	hashFloat(hash, value.x());
-	hashFloat(hash, value.y());
-}
-
-void hashVec3(quint64& hash, const QVector3D& value)
-{
-	hashFloat(hash, value.x());
-	hashFloat(hash, value.y());
-	hashFloat(hash, value.z());
-}
-
-void hashPacking(quint64& hash, const GLMaterial::ChannelPacking& packing)
-{
-	hashInt(hash, packing.channel);
-	hashBool(hash, packing.invert);
-	hashFloat(hash, packing.scale);
-	hashFloat(hash, packing.bias);
-}
-}
-
-void AssImpMesh::resetRenderDiagnostics(bool enabled)
-{
-	if (!enabled)
-	{
-		g_renderDiagnostics = RenderDiagnostics{};
-		return;
-	}
-
-	if (!g_renderDiagnostics.timerStarted)
-	{
-		g_renderDiagnostics.windowStart = Clock::now();
-		g_renderDiagnostics.timerStarted = true;
-	}
-
-	g_renderDiagnostics.enabled = true;
-	++g_renderDiagnostics.frames;
-}
-
-void AssImpMesh::flushRenderDiagnostics()
-{
-	if (!g_renderDiagnostics.enabled || !g_renderDiagnostics.timerStarted)
-		return;
-
-	const double windowMs = elapsedMsSince(g_renderDiagnostics.windowStart);
-	if (windowMs < 1000.0 || g_renderDiagnostics.frames <= 0)
-		return;
-
-	const double frames = static_cast<double>(g_renderDiagnostics.frames);
-	Logger::instance().info(
-		QStringLiteral("[RenderSubmit.Mesh] windowMs=%1 frames=%2 drawCalls/frame=%3 indexed/frame=%4 arrays/frame=%5 transparent/frame=%6 shaderRebinds/frame=%7 texCacheRefresh/frame=%8 materialUniformRefresh/frame=%9 materialUniformReuse/frame=%10 materialSigMismatch/frame=%11 materialDebugBlock/frame=%12 materialShaderSwitch/frame=%13 materialDirty/frame=%14 materialOther/frame=%15 texBindings/frame=%16 joints/frame=%17 renderMs/frame=%18 shaderBindMs/frame=%19 texCacheMs/frame=%20 transformUniformMs/frame=%21 materialUniformMs/frame=%22 textureBindMs/frame=%23 renderStateMs/frame=%24 drawMs/frame=%25")
-			.arg(windowMs, 0, 'f', 1)
-			.arg(g_renderDiagnostics.frames)
-			.arg(g_renderDiagnostics.drawCalls / frames, 0, 'f', 1)
-			.arg(g_renderDiagnostics.indexedDrawCalls / frames, 0, 'f', 1)
-			.arg(g_renderDiagnostics.arrayDrawCalls / frames, 0, 'f', 1)
-			.arg(g_renderDiagnostics.transparentDrawCalls / frames, 0, 'f', 1)
-			.arg(g_renderDiagnostics.shaderRebinds / frames, 0, 'f', 1)
-			.arg(g_renderDiagnostics.textureCacheRefreshes / frames, 0, 'f', 1)
-			.arg(g_renderDiagnostics.materialUniformRefreshes / frames, 0, 'f', 1)
-			.arg(g_renderDiagnostics.materialUniformReuses / frames, 0, 'f', 1)
-			.arg(g_renderDiagnostics.materialUniformSignatureMismatches / frames, 0, 'f', 1)
-			.arg(g_renderDiagnostics.materialUniformDebugOverrideBlocks / frames, 0, 'f', 1)
-			.arg(g_renderDiagnostics.materialUniformShaderSwitches / frames, 0, 'f', 1)
-			.arg(g_renderDiagnostics.materialUniformExplicitDirty / frames, 0, 'f', 1)
-			.arg(g_renderDiagnostics.materialUniformOtherReasons / frames, 0, 'f', 1)
-			.arg(g_renderDiagnostics.totalTextureBindings / frames, 0, 'f', 1)
-			.arg(g_renderDiagnostics.totalJointsUploaded / frames, 0, 'f', 1)
-			.arg(g_renderDiagnostics.totalRenderMs / frames, 0, 'f', 3)
-			.arg(g_renderDiagnostics.shaderBindMs / frames, 0, 'f', 3)
-			.arg(g_renderDiagnostics.textureCacheMs / frames, 0, 'f', 3)
-			.arg(g_renderDiagnostics.transformUniformMs / frames, 0, 'f', 3)
-			.arg(g_renderDiagnostics.materialUniformMs / frames, 0, 'f', 3)
-			.arg(g_renderDiagnostics.textureBindMs / frames, 0, 'f', 3)
-			.arg(g_renderDiagnostics.renderStateMs / frames, 0, 'f', 3)
-			.arg(g_renderDiagnostics.drawMs / frames, 0, 'f', 3),
-		QStringLiteral("Performance"));
-
-	g_renderDiagnostics = RenderDiagnostics{};
-}
 
 /*  Functions  */
 // Constructor
@@ -237,6 +110,7 @@ quint64 AssImpMesh::getRenderMaterialSortKey() const
 
 void AssImpMesh::markUniformsDirty()
 {
+	_uniformStateSignatureDirty = true;
 	TriangleMesh::markUniformsDirty();
 }
 
@@ -245,51 +119,33 @@ void AssImpMesh::render()
 	if (!_vertexArrayObject.isCreated())
 		return;
 
-	const bool profiling = g_renderDiagnostics.enabled;
-	const auto renderStart = profiling ? Clock::now() : Clock::time_point{};
-
 	const QMatrix4x4& globalModelMatrix = currentGlobalModelMatrix();
 	const QMatrix4x4 modelMatrix = globalModelMatrix * combinedRenderTransform();
 	const QMatrix4x4& viewMatrix = currentViewMatrix();
 	const QMatrix4x4 modelViewMatrix = viewMatrix * modelMatrix;
-	const bool wasUniformsDirty = _uniformsDirty;
 
 	// Smart shader binding - only bind if different
-	bool shaderChanged = (_currentBoundShader != _prog);
-	if (shaderChanged)
+	bool shaderChanged = false;
+	if (_currentBoundShader != _prog)
 	{
-		const auto shaderBindStart = profiling ? Clock::now() : Clock::time_point{};
 		if (_currentBoundShader)
 		{
 			_currentBoundShader->release();
 		}
+		_prog->bind();
+		_currentBoundShader = _prog;
+		shaderChanged = true;
+
 		// When shader changes, we need to recache texture bindings
 		_textureBindingsDirty = true;
 		_uniformsDirty = true;
-
-		if (profiling)
-		{
-			++g_renderDiagnostics.shaderRebinds;
-			g_renderDiagnostics.shaderBindMs += elapsedMsSince(shaderBindStart);
-		}
 	}
-	_prog->bind();
-	_currentBoundShader = _prog;
 
-	const bool textureBindingsDirty = _textureBindingsDirty;
-	const auto textureCacheStart = profiling ? Clock::now() : Clock::time_point{};
 	cacheTextureBindings();
-	if (profiling)
-	{
-		if (textureBindingsDirty)
-			++g_renderDiagnostics.textureCacheRefreshes;
-		g_renderDiagnostics.textureCacheMs += elapsedMsSince(textureCacheStart);
-	}
 
 	// Always upload the per-mesh transform state. Skipping identity meshes lets
 	// them inherit the previous draw's model matrix from shader state, which
 	// causes unrelated meshes later in render order to appear transformed.
-	const auto transformUniformStart = profiling ? Clock::now() : Clock::time_point{};
 	if (uniformLocationCached("modelMatrix") >= 0)
 		_prog->setUniformValue("modelMatrix", modelMatrix);
 	if (uniformLocationCached("modelViewMatrix") >= 0)
@@ -310,47 +166,23 @@ void AssImpMesh::render()
 			if (jointLocation >= 0)
 				_prog->setUniformValue(jointLocation, jointPalette()[i]);
 		}
-		if (profiling)
-			g_renderDiagnostics.totalJointsUploaded += maxJoints;
 	}
-	if (profiling)
-		g_renderDiagnostics.transformUniformMs += elapsedMsSince(transformUniformStart);
 
 	const bool hasDebugUniformOverrides = !_debugUniformOverrides.isEmpty();
 	const quint64 uniformSignature = uniformStateSignature();
 	const bool sameUniformShader = (_currentUniformStateShader == _prog);
 	const bool signatureMatches = sameUniformShader && (_currentUniformStateSignature == uniformSignature);
-	const bool blockedByDebugOverrides = hasDebugUniformOverrides || _currentUniformStateHadDebugOverrides;
 	const bool canReuseUniformState =
 		sameUniformShader &&
 		signatureMatches &&
 		!hasDebugUniformOverrides &&
 		!_currentUniformStateHadDebugOverrides;
+
 	if (!canReuseUniformState || _uniformsDirty)
 	{
 		if (!_uniformsDirty)
 			_uniformsDirty = true;
-		const auto materialUniformStart = profiling ? Clock::now() : Clock::time_point{};
 		setupUniformsOptimized();
-		if (profiling)
-		{
-			++g_renderDiagnostics.materialUniformRefreshes;
-			if (wasUniformsDirty)
-				++g_renderDiagnostics.materialUniformExplicitDirty;
-			else if (shaderChanged)
-				++g_renderDiagnostics.materialUniformShaderSwitches;
-			else if (blockedByDebugOverrides)
-				++g_renderDiagnostics.materialUniformDebugOverrideBlocks;
-			else if (sameUniformShader && !signatureMatches)
-				++g_renderDiagnostics.materialUniformSignatureMismatches;
-			else
-				++g_renderDiagnostics.materialUniformOtherReasons;
-			g_renderDiagnostics.materialUniformMs += elapsedMsSince(materialUniformStart);
-		}
-	}
-	else if (profiling)
-	{
-		++g_renderDiagnostics.materialUniformReuses;
 	}
 	_currentUniformStateShader = _prog;
 	_currentUniformStateSignature = uniformSignature;
@@ -363,20 +195,11 @@ void AssImpMesh::render()
 	applyDebugUniformOverrides();
 
 	// Bind textures efficiently
-	const auto textureBindStart = profiling ? Clock::now() : Clock::time_point{};
 	bindTexturesOptimized();
 	applyDebugTextureOverrides();  // TextureDebugPanel per-unit overrides
-	if (profiling)
-	{
-		g_renderDiagnostics.totalTextureBindings += static_cast<qint64>(_textureBindings.size());
-		g_renderDiagnostics.textureBindMs += elapsedMsSince(textureBindStart);
-	}
 
 	// Set render state efficiently
-	const auto renderStateStart = profiling ? Clock::now() : Clock::time_point{};
 	setRenderStateOptimized();
-	if (profiling)
-		g_renderDiagnostics.renderStateMs += elapsedMsSince(renderStateStart);
 	
 	// Transparent draws must NOT write depth, but should still depth-test.	
 	GLboolean prevDepthMask = GL_TRUE;
@@ -403,24 +226,10 @@ void AssImpMesh::render()
 
 	// Draw indexed primitives when an element buffer exists, otherwise fall
 	// back to array drawing for glTF point/line primitives that omit indices.
-	const auto drawStart = profiling ? Clock::now() : Clock::time_point{};
 	if (_indices.empty())
 		glDrawArrays(_primitiveMode, 0, drawCount);
 	else
 		glDrawElements(_primitiveMode, drawCount, GL_UNSIGNED_INT, nullptr);
-	if (profiling)
-	{
-		++g_renderDiagnostics.drawCalls;
-		if (_indices.empty())
-			++g_renderDiagnostics.arrayDrawCalls;
-		else
-			++g_renderDiagnostics.indexedDrawCalls;
-		if (isTransparent())
-			++g_renderDiagnostics.transparentDrawCalls;
-		if (hasSkinning())
-			++g_renderDiagnostics.skinningDrawCalls;
-		g_renderDiagnostics.drawMs += elapsedMsSince(drawStart);
-	}
 	
 	// Reset point size
 	if (_primitiveMode == GL_POINTS)
@@ -433,10 +242,161 @@ void AssImpMesh::render()
 	if (isTransparent()) glDepthMask(prevDepthMask); // restore immediately
 
 	_prog->release();
-
-	if (profiling)
-		g_renderDiagnostics.totalRenderMs += elapsedMsSince(renderStart);
 	
+}
+
+quint64 AssImpMesh::uniformStateSignature() const
+{
+	if (!_uniformStateSignatureDirty)
+		return _cachedUniformStateSignature;
+
+	quint64 hash = kFnvOffset;
+
+	mixInt(hash, static_cast<int>(_primitiveMode));
+	mixBool(hash, _hasVertexColors);
+	mixBool(hash, _hasNegativeScale);
+	mixBool(hash, _selected);
+
+	mixVec3(hash, _material.ambient());
+	mixVec3(hash, _material.diffuse());
+	mixVec3(hash, _material.specular());
+
+	mixInt(hash, static_cast<int>(_material.blendMode()));
+	mixBool(hash, _material.twoSided());
+	mixBool(hash, _material.isUnlit());
+	mixBool(hash, _material.hasClearcoat());
+	mixBool(hash, _material.hasSheen());
+	mixBool(hash, _material.hasTransmission());
+	mixBool(hash, _material.getUseSpecularGlossiness());
+
+	mixFloat(hash, _material.opacity());
+	mixFloat(hash, _material.alphaThreshold());
+	mixFloat(hash, _material.metalness());
+	mixFloat(hash, _material.roughness());
+	mixFloat(hash, _material.normalScale());
+	mixFloat(hash, _material.occlusionStrength());
+	mixFloat(hash, _material.transmission());
+	mixFloat(hash, _material.ior());
+	mixFloat(hash, _material.clearcoat());
+	mixFloat(hash, _material.clearcoatRoughness());
+	mixFloat(hash, _material.shininess());
+	mixFloat(hash, _material.specularFactor());
+	mixFloat(hash, _material.glossinessFactor());
+	mixFloat(hash, _material.anisotropyStrength());
+	mixFloat(hash, _material.anisotropyRotation());
+	mixFloat(hash, _material.iridescenceFactor());
+	mixFloat(hash, _material.iridescenceIor());
+	mixFloat(hash, _material.iridescenceThicknessMin());
+	mixFloat(hash, _material.iridescenceThicknessMax());
+	mixFloat(hash, _material.thicknessFactor());
+	mixFloat(hash, _material.attenuationDistance());
+	mixFloat(hash, _material.dispersion());
+	mixFloat(hash, _material.emissiveStrength());
+	mixFloat(hash, _material.diffuseTransmissionFactor());
+
+	mixVec3(hash, _material.albedoColor());
+	mixVec3(hash, _material.emissive());
+	mixVec3(hash, _material.diffuseColor());
+	mixVec3(hash, _material.specularColor());
+	mixVec3(hash, _material.specularColorFactor());
+	mixVec3(hash, _material.sheenColor());
+	mixVec3(hash, _material.attenuationColor());
+	mixVec3(hash, _material.multiScatterColor());
+	mixVec3(hash, _material.diffuseTransmissionColorFactor());
+
+	mixBool(hash, _material.hasThicknessAlpha());
+	mixBool(hash, _material.hasVolumeScattering());
+	mixBool(hash, _material.isGLTFMaterial());
+	mixBool(hash, _material.isOpacityMapInverted());
+
+	auto mixTextureState = [&](bool hasMap, unsigned int textureId, int texCoord,
+		const QVector2D& offset, const QVector2D& scale, float rotation)
+	{
+		mixBool(hash, hasMap);
+		mixInt(hash, static_cast<int>(textureId));
+		mixInt(hash, texCoord);
+		mixFloat(hash, offset.x());
+		mixFloat(hash, offset.y());
+		mixFloat(hash, scale.x());
+		mixFloat(hash, scale.y());
+		mixFloat(hash, rotation);
+	};
+
+	mixTextureState(_material.hasAlbedoMap(), _material.albedoTextureId(), _material.albedoTexCoord(),
+		_material.albedoTexOffset(), _material.albedoTexScale(), _material.albedoTexRotation());
+	mixTextureState(_material.hasMetallicMap(), _material.metallicTextureId(), _material.metallicTexCoord(),
+		_material.metallicTexOffset(), _material.metallicTexScale(), _material.metallicTexRotation());
+	mixTextureState(_material.hasRoughnessMap(), _material.roughnessTextureId(), _material.roughnessTexCoord(),
+		_material.roughnessTexOffset(), _material.roughnessTexScale(), _material.roughnessTexRotation());
+	mixTextureState(_material.hasNormalMap(), _material.normalTextureId(), _material.normalTexCoord(),
+		_material.normalTexOffset(), _material.normalTexScale(), _material.normalTexRotation());
+	mixTextureState(_material.hasAOMap(), _material.occlusionTextureId(), _material.occlusionTexCoord(),
+		_material.occlusionTexOffset(), _material.occlusionTexScale(), _material.occlusionTexRotation());
+	mixTextureState(_material.hasEmissiveMap(), _material.emissiveTextureId(), _material.emissiveTexCoord(),
+		_material.emissiveTexOffset(), _material.emissiveTexScale(), _material.emissiveTexRotation());
+	mixTextureState(_material.hasHeightMap(), _material.heightTextureId(), _material.heightTexCoord(),
+		_material.heightTexOffset(), _material.heightTexScale(), _material.heightTexRotation());
+	mixTextureState(_material.hasOpacityMap(), _material.opacityTextureId(), _material.opacityTexCoord(),
+		_material.opacityTexOffset(), _material.opacityTexScale(), _material.opacityTexRotation());
+	mixTextureState(_material.hasTransmissionMap(), _material.transmissionTextureId(), _material.transmissionTexCoord(),
+		_material.transmissionTexOffset(), _material.transmissionTexScale(), _material.transmissionTexRotation());
+	mixTextureState(_material.hasIORMap(), _material.iorTextureId(), _material.iorTexCoord(),
+		_material.iorTexOffset(), _material.iorTexScale(), _material.iorTexRotation());
+	mixTextureState(_material.hasSheenColorMap(), _material.sheenColorTextureId(), _material.sheenColorTexCoord(),
+		_material.sheenColorTexOffset(), _material.sheenColorTexScale(), _material.sheenColorTexRotation());
+	mixTextureState(_material.hasSheenRoughnessMap(), _material.sheenRoughnessTextureId(), _material.sheenRoughnessTexCoord(),
+		_material.sheenRoughnessTexOffset(), _material.sheenRoughnessTexScale(), _material.sheenRoughnessTexRotation());
+	mixTextureState(_material.hasClearcoatColorMap(), _material.clearcoatColorTextureId(), _material.clearcoatColorTexCoord(),
+		_material.clearcoatColorTexOffset(), _material.clearcoatColorTexScale(), _material.clearcoatColorTexRotation());
+	mixTextureState(_material.hasClearcoatRoughnessMap(), _material.clearcoatRoughnessTextureId(), _material.clearcoatRoughnessTexCoord(),
+		_material.clearcoatRoughnessTexOffset(), _material.clearcoatRoughnessTexScale(), _material.clearcoatRoughnessTexRotation());
+	mixTextureState(_material.hasClearcoatNormalMap(), _material.clearcoatNormalTextureId(), _material.clearcoatNormalTexCoord(),
+		_material.clearcoatNormalTexOffset(), _material.clearcoatNormalTexScale(), _material.clearcoatNormalTexRotation());
+	mixTextureState(_material.hasSpecularFactorMap(), _material.specularFactorTextureId(), _material.specularFactorTexCoord(),
+		_material.specularFactorTexOffset(), _material.specularFactorTexScale(), _material.specularFactorTexRotation());
+	mixTextureState(_material.hasSpecularColorMap(), _material.specularColorTextureId(), _material.specularColorTexCoord(),
+		_material.specularColorTexOffset(), _material.specularColorTexScale(), _material.specularColorTexRotation());
+	mixTextureState(_material.hasDiffuseMap(), _material.diffuseTextureId(), _material.diffuseTexCoord(),
+		_material.diffuseTexOffset(), _material.diffuseTexScale(), _material.diffuseTexRotation());
+	mixTextureState(_material.hasSpecularGlossinessMap(), _material.specularGlossinessTextureId(), _material.specularGlossinessTexCoord(),
+		_material.specularGlossinessTexOffset(), _material.specularGlossinessTexScale(), _material.specularGlossinessTexRotation());
+	mixTextureState(_material.hasAnisotropyMap(), _material.anisotropyTextureId(), _material.anisotropyTexCoord(),
+		_material.anisotropyTexOffset(), _material.anisotropyTexScale(), _material.anisotropyTexRotation());
+	mixTextureState(_material.hasIridescenceMap(), _material.iridescenceTextureId(), _material.iridescenceTexCoord(),
+		_material.iridescenceTexOffset(), _material.iridescenceTexScale(), _material.iridescenceTexRotation());
+	mixTextureState(_material.hasIridescenceThicknessMap(), _material.iridescenceThicknessTextureId(), _material.iridescenceThicknessTexCoord(),
+		_material.iridescenceThicknessTexOffset(), _material.iridescenceThicknessTexScale(), _material.iridescenceThicknessTexRotation());
+	mixTextureState(_material.hasThicknessMap(), _material.thicknessTextureId(), _material.thicknessTexCoord(),
+		_material.thicknessTexOffset(), _material.thicknessTexScale(), _material.thicknessTexRotation());
+	mixTextureState(_material.hasDiffuseTransmissionMap(), _material.diffuseTransmissionTextureId(), _material.diffuseTransmissionTexCoord(),
+		_material.diffuseTransmissionTexOffset(), _material.diffuseTransmissionTexScale(), _material.diffuseTransmissionTexRotation());
+	mixTextureState(_material.hasDiffuseTransmissionColorMap(), _material.diffuseTransmissionColorTextureId(), _material.diffuseTransmissionColorTexCoord(),
+		_material.diffuseTransmissionColorTexOffset(), _material.diffuseTransmissionColorTexScale(), _material.diffuseTransmissionColorTexRotation());
+
+	const auto metallicPacking = _material.packingFor(QStringLiteral("metallic"));
+	const auto roughnessPacking = _material.packingFor(QStringLiteral("roughness"));
+	const auto aoPacking = _material.packingFor(QStringLiteral("ao"));
+	const auto opacityPacking = _material.packingFor(QStringLiteral("opacity"));
+	mixInt(hash, metallicPacking.channel);
+	mixBool(hash, metallicPacking.invert);
+	mixFloat(hash, metallicPacking.scale);
+	mixFloat(hash, metallicPacking.bias);
+	mixInt(hash, roughnessPacking.channel);
+	mixBool(hash, roughnessPacking.invert);
+	mixFloat(hash, roughnessPacking.scale);
+	mixFloat(hash, roughnessPacking.bias);
+	mixInt(hash, aoPacking.channel);
+	mixBool(hash, aoPacking.invert);
+	mixFloat(hash, aoPacking.scale);
+	mixFloat(hash, aoPacking.bias);
+	mixInt(hash, opacityPacking.channel);
+	mixBool(hash, opacityPacking.invert);
+	mixFloat(hash, opacityPacking.scale);
+	mixFloat(hash, opacityPacking.bias);
+
+	_cachedUniformStateSignature = hash;
+	_uniformStateSignatureDirty = false;
+	return _cachedUniformStateSignature;
 }
 
 void AssImpMesh::optimizeMesh()
@@ -831,139 +791,10 @@ void AssImpMesh::setRenderStateOptimized()
 void AssImpMesh::setupUniformsOptimized()
 {
 	if (!_uniformsDirty) return;
+
+	// Only call the expensive setupUniforms when actually needed
 	setupUniforms();
-}
-
-quint64 AssImpMesh::uniformStateSignature() const
-{
-	quint64 hash = hashInit();
-
-	hashInt(hash, static_cast<int>(_primitiveMode));
-	hashBool(hash, _hasVertexColors);
-	hashBool(hash, _hasNegativeScale);
-	hashBool(hash, _selected);
-
-	hashVec3(hash, _material.ambient());
-	hashVec3(hash, _material.diffuse());
-	hashVec3(hash, _material.specular());
-	hashVec3(hash, _material.emissive());
-	hashFloat(hash, _material.shininess());
-	hashBool(hash, _material.metallic());
-	hashFloat(hash, _material.opacity());
-
-	hashVec3(hash, _material.albedoColor());
-	hashFloat(hash, _material.metalness());
-	hashFloat(hash, _material.roughness());
-	hashFloat(hash, _material.normalScale());
-	hashFloat(hash, _material.occlusionStrength());
-	hashFloat(hash, _material.transmission());
-	hashFloat(hash, _material.ior());
-	hashVec3(hash, _material.sheenColor());
-	hashFloat(hash, _material.sheenRoughness());
-	hashFloat(hash, _material.clearcoat());
-	hashFloat(hash, _material.clearcoatRoughness());
-	hashFloat(hash, _material.alphaThreshold());
-	hashInt(hash, static_cast<int>(_material.blendMode()));
-	hashBool(hash, _material.twoSided());
-
-	hashBool(hash, _material.getUseSpecularGlossiness());
-	hashVec3(hash, _material.diffuseColor());
-	hashVec3(hash, _material.specularColor());
-	hashFloat(hash, _material.glossinessFactor());
-
-	hashFloat(hash, _material.specularFactor());
-	hashVec3(hash, _material.specularColorFactor());
-	hashFloat(hash, _material.anisotropyStrength());
-	hashFloat(hash, _material.anisotropyRotation());
-	hashFloat(hash, _material.iridescenceFactor());
-	hashFloat(hash, _material.iridescenceIor());
-	hashFloat(hash, _material.iridescenceThicknessMin());
-	hashFloat(hash, _material.iridescenceThicknessMax());
-	hashFloat(hash, _material.thicknessFactor());
-	hashBool(hash, _material.hasThicknessAlpha());
-	hashFloat(hash, _material.attenuationDistance());
-	hashVec3(hash, _material.attenuationColor());
-	hashFloat(hash, _material.dispersion());
-	hashBool(hash, _material.isUnlit());
-	hashFloat(hash, _material.emissiveStrength());
-	hashVec3(hash, _material.multiScatterColor());
-	hashBool(hash, _material.hasVolumeScattering());
-	hashFloat(hash, _material.diffuseTransmissionFactor());
-	hashVec3(hash, _material.diffuseTransmissionColorFactor());
-	hashBool(hash, _material.isGLTFMaterial());
-	hashBool(hash, _material.hasClearcoat());
-	hashBool(hash, _material.hasSheen());
-	hashBool(hash, _material.hasTransmission());
-
-	auto hashTextureState = [&](bool hasMap, unsigned int textureId, int texCoord,
-	                            const QVector2D& offset, const QVector2D& scale, float rotation)
-	{
-		hashBool(hash, hasMap);
-		hashUInt(hash, textureId);
-		hashInt(hash, texCoord);
-		hashVec2(hash, offset);
-		hashVec2(hash, scale);
-		hashFloat(hash, rotation);
-	};
-
-	hashTextureState(_material.hasAlbedoMap(), _material.albedoTextureId(), _material.albedoTexCoord(),
-	                 _material.albedoTexOffset(), _material.albedoTexScale(), _material.albedoTexRotation());
-	hashTextureState(_material.hasMetallicMap(), _material.metallicTextureId(), _material.metallicTexCoord(),
-	                 _material.metallicTexOffset(), _material.metallicTexScale(), _material.metallicTexRotation());
-	hashTextureState(_material.hasRoughnessMap(), _material.roughnessTextureId(), _material.roughnessTexCoord(),
-	                 _material.roughnessTexOffset(), _material.roughnessTexScale(), _material.roughnessTexRotation());
-	hashTextureState(_material.hasNormalMap(), _material.normalTextureId(), _material.normalTexCoord(),
-	                 _material.normalTexOffset(), _material.normalTexScale(), _material.normalTexRotation());
-	hashTextureState(_material.hasAOMap(), _material.occlusionTextureId(), _material.occlusionTexCoord(),
-	                 _material.occlusionTexOffset(), _material.occlusionTexScale(), _material.occlusionTexRotation());
-	hashTextureState(_material.hasEmissiveMap(), _material.emissiveTextureId(), _material.emissiveTexCoord(),
-	                 _material.emissiveTexOffset(), _material.emissiveTexScale(), _material.emissiveTexRotation());
-	hashTextureState(_material.hasHeightMap(), _material.heightTextureId(), _material.heightTexCoord(),
-	                 _material.heightTexOffset(), _material.heightTexScale(), _material.heightTexRotation());
-	hashTextureState(_material.hasOpacityMap(), _material.opacityTextureId(), _material.opacityTexCoord(),
-	                 _material.opacityTexOffset(), _material.opacityTexScale(), _material.opacityTexRotation());
-	hashBool(hash, _material.isOpacityMapInverted());
-	hashTextureState(_material.hasTransmissionMap(), _material.transmissionTextureId(), _material.transmissionTexCoord(),
-	                 _material.transmissionTexOffset(), _material.transmissionTexScale(), _material.transmissionTexRotation());
-	hashTextureState(_material.hasIORMap(), _material.iorTextureId(), _material.iorTexCoord(),
-	                 _material.iorTexOffset(), _material.iorTexScale(), _material.iorTexRotation());
-	hashTextureState(_material.hasSheenColorMap(), _material.sheenColorTextureId(), _material.sheenColorTexCoord(),
-	                 _material.sheenColorTexOffset(), _material.sheenColorTexScale(), _material.sheenColorTexRotation());
-	hashTextureState(_material.hasSheenRoughnessMap(), _material.sheenRoughnessTextureId(), _material.sheenRoughnessTexCoord(),
-	                 _material.sheenRoughnessTexOffset(), _material.sheenRoughnessTexScale(), _material.sheenRoughnessTexRotation());
-	hashTextureState(_material.hasClearcoatColorMap(), _material.clearcoatColorTextureId(), _material.clearcoatColorTexCoord(),
-	                 _material.clearcoatColorTexOffset(), _material.clearcoatColorTexScale(), _material.clearcoatColorTexRotation());
-	hashTextureState(_material.hasClearcoatRoughnessMap(), _material.clearcoatRoughnessTextureId(), _material.clearcoatRoughnessTexCoord(),
-	                 _material.clearcoatRoughnessTexOffset(), _material.clearcoatRoughnessTexScale(), _material.clearcoatRoughnessTexRotation());
-	hashTextureState(_material.hasClearcoatNormalMap(), _material.clearcoatNormalTextureId(), _material.clearcoatNormalTexCoord(),
-	                 _material.clearcoatNormalTexOffset(), _material.clearcoatNormalTexScale(), _material.clearcoatNormalTexRotation());
-	hashTextureState(_material.hasSpecularFactorMap(), _material.specularFactorTextureId(), _material.specularFactorTexCoord(),
-	                 _material.specularFactorTexOffset(), _material.specularFactorTexScale(), _material.specularFactorTexRotation());
-	hashTextureState(_material.hasSpecularColorMap(), _material.specularColorTextureId(), _material.specularColorTexCoord(),
-	                 _material.specularColorTexOffset(), _material.specularColorTexScale(), _material.specularColorTexRotation());
-	hashTextureState(_material.hasDiffuseMap(), _material.diffuseTextureId(), _material.diffuseTexCoord(),
-	                 _material.diffuseTexOffset(), _material.diffuseTexScale(), _material.diffuseTexRotation());
-	hashTextureState(_material.hasSpecularGlossinessMap(), _material.specularGlossinessTextureId(), _material.specularGlossinessTexCoord(),
-	                 _material.specularGlossinessTexOffset(), _material.specularGlossinessTexScale(), _material.specularGlossinessTexRotation());
-	hashTextureState(_material.hasAnisotropyMap(), _material.anisotropyTextureId(), _material.anisotropyTexCoord(),
-	                 _material.anisotropyTexOffset(), _material.anisotropyTexScale(), _material.anisotropyTexRotation());
-	hashTextureState(_material.hasIridescenceMap(), _material.iridescenceTextureId(), _material.iridescenceTexCoord(),
-	                 _material.iridescenceTexOffset(), _material.iridescenceTexScale(), _material.iridescenceTexRotation());
-	hashTextureState(_material.hasIridescenceThicknessMap(), _material.iridescenceThicknessTextureId(), _material.iridescenceThicknessTexCoord(),
-	                 _material.iridescenceThicknessTexOffset(), _material.iridescenceThicknessTexScale(), _material.iridescenceThicknessTexRotation());
-	hashTextureState(_material.hasThicknessMap(), _material.thicknessTextureId(), _material.thicknessTexCoord(),
-	                 _material.thicknessTexOffset(), _material.thicknessTexScale(), _material.thicknessTexRotation());
-	hashTextureState(_material.hasDiffuseTransmissionMap(), _material.diffuseTransmissionTextureId(), _material.diffuseTransmissionTexCoord(),
-	                 _material.diffuseTransmissionTexOffset(), _material.diffuseTransmissionTexScale(), _material.diffuseTransmissionTexRotation());
-	hashTextureState(_material.hasDiffuseTransmissionColorMap(), _material.diffuseTransmissionColorTextureId(), _material.diffuseTransmissionColorTexCoord(),
-	                 _material.diffuseTransmissionColorTexOffset(), _material.diffuseTransmissionColorTexScale(), _material.diffuseTransmissionColorTexRotation());
-
-	hashPacking(hash, _material.packingFor("metallic"));
-	hashPacking(hash, _material.packingFor("roughness"));
-	hashPacking(hash, _material.packingFor("ao"));
-	hashPacking(hash, _material.packingFor("opacity"));
-
-	return hash;
+	_uniformsDirty = false;
 }
 
 
