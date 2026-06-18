@@ -99,6 +99,7 @@ uniform int sheenPrefilterMipLevels;
 // uploaded from C++ (_prefilterMipLevels = log2(prefilterSize)+1, e.g. 9 for 256 px).
 uniform int prefilterMipLevels;
 uniform bool useIBL;
+uniform bool interactionFastPath;
 
 // material parameters
 uniform sampler2D albedoMap;
@@ -3434,7 +3435,7 @@ void evaluateBaseDirect(in SurfaceFrame frame, in MaterialParams params, in vec3
 	specularOut = (NdotL > 0.0) ? (specBRDF * lightIntensity * NdotL * lightFactor) : vec3(0.0);
 
 	float diffuseTransmissionThickness = computeVolumeThickness(params.thickness);
-	if (!sssCapture && params.diffuseTransmissionFactor > 0.0)
+	if (!sssCapture && !interactionFastPath && params.diffuseTransmissionFactor > 0.0)
 	{
 		diffuseOut *= (1.0 - params.diffuseTransmissionFactor);
 		if (NdotLBack > 0.0)
@@ -3458,7 +3459,7 @@ void evaluateBaseDirect(in SurfaceFrame frame, in MaterialParams params, in vec3
 		}
 	}
 
-	if (!sssCapture && params.transmission > 0.0)
+	if (!sssCapture && !interactionFastPath && params.transmission > 0.0)
 	{
 		vec3 transmittedLight = lightIntensity *
 			calculateTransmissionKHR(
@@ -3530,7 +3531,7 @@ void evaluateBaseIBL(in SurfaceFrame frame, in MaterialParams params, out vec3 d
 	vec3 f_diffuse = irradiance * params.baseColor;
 	float diffuseTransmissionThickness = computeVolumeThickness(params.thickness);
 
-	if (!sssCapture && params.diffuseTransmissionFactor > 0.0)
+	if (!sssCapture && !interactionFastPath && params.diffuseTransmissionFactor > 0.0)
 	{
 		vec3 backNormalIBL = transformNormalForIBL(normalize(-frame.N));
 		vec3 diffuseTransmissionIBL = texture(irradianceMap, backNormalIBL).rgb * envMapExposure * params.diffuseTransmissionColor;
@@ -3566,7 +3567,7 @@ void evaluateBaseIBL(in SurfaceFrame frame, in MaterialParams params, out vec3 d
 	prefilteredColor = max(prefilteredColor, vec3(0.0));
 	prefilteredColor *= envMapExposure;
 
-	if (!sssCapture && params.transmission > 0.0)
+	if (!sssCapture && !interactionFastPath && params.transmission > 0.0)
 	{
 		vec3 transmittedLight = vec3(0.0);
 		if (params.dispersion > 0.0)
@@ -4149,7 +4150,7 @@ vec4 calculatePBRLightingKHR(int renderMode, float side)
 
 	vec3 outRGB = composeLayeredPBR(frame, params, layers);
 
-	if (hasVolumeScattering)
+	if (hasVolumeScattering && !interactionFastPath)
 	{
 		float diffuseTransmissionThickness = computeVolumeThickness(params.thickness);
 		if (params.diffuseTransmissionFactor > 0.0 && diffuseTransmissionThickness > 0.0)

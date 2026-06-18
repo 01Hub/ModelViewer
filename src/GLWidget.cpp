@@ -31,14 +31,16 @@
 #include <algorithm>
 #include <iostream>
 #include <QCryptographicHash>
-#include <QOpenGLContext>
 #include <QElapsedTimer>
+#include <QOpenGLContext>
 #include <QMessageBox>
 #include <QPainter>
+#include <QSettings>
 #include <QStyleFactory>
 #include <QThread>
 #include <QTreeView>
 #include <QDebug>
+#include "Logger.h"
 
 
 constexpr auto MAX_MODEL_SIZE_BYTES = 52428800; // bytes
@@ -72,6 +74,80 @@ struct ViewCubeStyle
 	float labelFaceOffset = 0.501f;
 	float labelFaceScale = 0.68f;
 };
+
+struct RenderSubmissionDiagnostics
+{
+	bool enabled = false;
+	QElapsedTimer windowTimer;
+	bool timerStarted = false;
+	int frames = 0;
+	int opaquePasses = 0;
+	int transparentPasses = 0;
+	qint64 opaqueCandidates = 0;
+	qint64 transparentCandidates = 0;
+	qint64 opaqueDraws = 0;
+	qint64 transparentDraws = 0;
+	double opaqueCollectSortMs = 0.0;
+	double transparentCollectSortMs = 0.0;
+	double opaqueLoopMs = 0.0;
+	double transparentLoopMs = 0.0;
+	double frameMs = 0.0;
+};
+
+RenderSubmissionDiagnostics g_renderSubmissionDiagnostics;
+
+void beginRenderSubmissionDiagnosticsFrame(bool enabled)
+{
+	if (!enabled)
+	{
+		g_renderSubmissionDiagnostics = RenderSubmissionDiagnostics{};
+		AssImpMesh::resetRenderDiagnostics(false);
+		return;
+	}
+
+	if (!g_renderSubmissionDiagnostics.timerStarted)
+	{
+		g_renderSubmissionDiagnostics.windowTimer.start();
+		g_renderSubmissionDiagnostics.timerStarted = true;
+	}
+
+	g_renderSubmissionDiagnostics.enabled = true;
+	++g_renderSubmissionDiagnostics.frames;
+	AssImpMesh::resetRenderDiagnostics(true);
+}
+
+void flushRenderSubmissionDiagnostics()
+{
+	if (!g_renderSubmissionDiagnostics.enabled || !g_renderSubmissionDiagnostics.timerStarted)
+		return;
+
+	if (g_renderSubmissionDiagnostics.windowTimer.elapsed() < 1000 || g_renderSubmissionDiagnostics.frames <= 0)
+	{
+		AssImpMesh::flushRenderDiagnostics();
+		return;
+	}
+
+	const double frames = static_cast<double>(g_renderSubmissionDiagnostics.frames);
+	Logger::instance().info(
+		QStringLiteral("[RenderSubmit.Frame] windowMs=%1 frames=%2 frameMs/frame=%3 opaquePasses/frame=%4 transparentPasses/frame=%5 opaqueCandidates/frame=%6 transparentCandidates/frame=%7 opaqueDraws/frame=%8 transparentDraws/frame=%9 opaqueCollectSortMs/frame=%10 transparentCollectSortMs/frame=%11 opaqueLoopMs/frame=%12 transparentLoopMs/frame=%13")
+			.arg(g_renderSubmissionDiagnostics.windowTimer.elapsed())
+			.arg(g_renderSubmissionDiagnostics.frames)
+			.arg(g_renderSubmissionDiagnostics.frameMs / frames, 0, 'f', 3)
+			.arg(g_renderSubmissionDiagnostics.opaquePasses / frames, 0, 'f', 2)
+			.arg(g_renderSubmissionDiagnostics.transparentPasses / frames, 0, 'f', 2)
+			.arg(g_renderSubmissionDiagnostics.opaqueCandidates / frames, 0, 'f', 1)
+			.arg(g_renderSubmissionDiagnostics.transparentCandidates / frames, 0, 'f', 1)
+			.arg(g_renderSubmissionDiagnostics.opaqueDraws / frames, 0, 'f', 1)
+			.arg(g_renderSubmissionDiagnostics.transparentDraws / frames, 0, 'f', 1)
+			.arg(g_renderSubmissionDiagnostics.opaqueCollectSortMs / frames, 0, 'f', 3)
+			.arg(g_renderSubmissionDiagnostics.transparentCollectSortMs / frames, 0, 'f', 3)
+			.arg(g_renderSubmissionDiagnostics.opaqueLoopMs / frames, 0, 'f', 3)
+			.arg(g_renderSubmissionDiagnostics.transparentLoopMs / frames, 0, 'f', 3),
+		QStringLiteral("Performance"));
+
+	g_renderSubmissionDiagnostics = RenderSubmissionDiagnostics{};
+	AssImpMesh::flushRenderDiagnostics();
+}
 
 bool transformStatesNearlyEqual(const TransformState& a, const TransformState& b)
 {
@@ -767,6 +843,11 @@ _floorPlane(nullptr),
     setMouseTracking(true);  // Enable mouseMoveEvent for hover highlighting
 
     _viewer = static_cast<ModelViewer*>(parent);
+	if (_viewer && _viewer->sceneGraph())
+	{
+		connect(_viewer->sceneGraph(), &SceneGraph::structureChanged,
+		        this, &GLWidget::invalidateRuntimeVisibilityHierarchy);
+	}
 	_transformGizmo = new TransformGizmo(this);
 
 
@@ -6881,9 +6962,10 @@ void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	if (_shadowsEnabled)
 		renderToShadowBuffer();
 
-	renderToSSSBuffer(_primaryCamera);
+	if (!_lowResEnabled)
+		renderToSSSBuffer(_primaryCamera);
 
-	if (_transmissionEnabled)
+	if (_transmissionEnabled && !_lowResEnabled)
 		renderToTransmissionBuffer(_primaryCamera, topColor, botColor);
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -6949,9 +7031,10 @@ void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 	if (_shadowsEnabled)
 		renderToShadowBuffer();
 
-	renderToSSSBuffer(_primaryCamera);
+	if (!_lowResEnabled)
+		renderToSSSBuffer(_primaryCamera);
 
-	if (_transmissionEnabled)
+	if (_transmissionEnabled && !_lowResEnabled)
 		renderToTransmissionBuffer(_primaryCamera, topColor, botColor);
 
 	gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
@@ -7280,11 +7363,15 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 
 void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
 {
+	QElapsedTimer phaseTimer;
+	const bool profiling = g_renderSubmissionDiagnostics.enabled;
+	if (profiling)
+		phaseTimer.start();
+
 	QVector3D camPos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(prog, camPos);
 
 	if (_meshStore.empty()) return;
-	const std::vector<int>& objectIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
 
 	glDisable(GL_BLEND);
 	glDepthMask(GL_TRUE);
@@ -7303,16 +7390,38 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 	// Collect visible opaque meshes, then sort by texture signature to
 	// minimise GPU texture state changes across consecutive draw calls.
 	std::vector<std::pair<uint64_t, int>> opaque;
-	opaque.reserve(objectIds.size());
-	for (int id : objectIds)
+	if (_runtimeVisibilityPrepared && _runtimeVisibilityRootIndex >= 0)
 	{
-		if (auto* mesh = _meshStore.at(id))
-			if (!mesh->isTransparent() && isMeshVisible(mesh, activeClipPlaneIndex))
-				opaque.emplace_back(mesh->getTextureSortKey(), id);
+		std::vector<int> candidateIds;
+		candidateIds.reserve((_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds).size());
+		collectVisibleMeshIdsForPass(_runtimeVisibilityRootIndex, activeClipPlaneIndex, false, candidateIds);
+		opaque.reserve(candidateIds.size());
+		for (int id : candidateIds)
+		{
+			if (auto* mesh = _meshStore.at(id))
+				opaque.emplace_back(mesh->getRenderMaterialSortKey(), id);
+		}
+	}
+	else
+	{
+		const std::vector<int>& objectIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+		opaque.reserve(objectIds.size());
+		for (int id : objectIds)
+		{
+			if (auto* mesh = _meshStore.at(id))
+				if (!mesh->isTransparent() && isMeshVisible(mesh, activeClipPlaneIndex))
+					opaque.emplace_back(mesh->getRenderMaterialSortKey(), id);
+		}
 	}
 	std::sort(opaque.begin(), opaque.end(),
 		[](const auto& a, const auto& b) { return a.first < b.first; });
-
+	if (profiling)
+	{
+		++g_renderSubmissionDiagnostics.opaquePasses;
+		g_renderSubmissionDiagnostics.opaqueCandidates += static_cast<qint64>(opaque.size());
+		g_renderSubmissionDiagnostics.opaqueCollectSortMs += static_cast<double>(phaseTimer.elapsed());
+		phaseTimer.restart();
+	}
 	for (auto& [key, id] : opaque)
 	{
 		if (auto* mesh = _meshStore.at(id))
@@ -7329,34 +7438,62 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 			renderMeshExploded(mesh, _displayMode);
 		}
 	}
+	if (profiling)
+	{
+		g_renderSubmissionDiagnostics.opaqueDraws += static_cast<qint64>(opaque.size());
+		g_renderSubmissionDiagnostics.opaqueLoopMs += static_cast<double>(phaseTimer.elapsed());
+	}
 }
 
 
 void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
 {
+	QElapsedTimer phaseTimer;
+	const bool profiling = g_renderSubmissionDiagnostics.enabled;
+	if (profiling)
+		phaseTimer.start();
+
 	QVector3D camPos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(prog, camPos);
 
 	if (_meshStore.empty()) return;
-	const std::vector<int>& objectIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
 
 	std::vector<std::pair<float, int>> transparent;
-	transparent.reserve(objectIds.size());
-
-	for (int id : objectIds)
+	if (_runtimeVisibilityPrepared && _runtimeVisibilityRootIndex >= 0)
 	{
-		if (auto* mesh = _meshStore.at(id))
+		std::vector<int> candidateIds;
+		candidateIds.reserve((_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds).size());
+		collectVisibleMeshIdsForPass(_runtimeVisibilityRootIndex, activeClipPlaneIndex, true, candidateIds);
+		transparent.reserve(candidateIds.size());
+		for (int id : candidateIds)
 		{
-			if (mesh->isTransparent())
+			if (auto* mesh = _meshStore.at(id))
 			{
-				if (!isMeshVisible(mesh, activeClipPlaneIndex)) continue;
-				// Use a stable distance metric (camera -> mesh bounds center in world space)
-				const QVector3D c = mesh->getBoundingSphere().getCenter();   // return center in world space
+				const QVector3D c = mesh->getBoundingSphere().getCenter();
 				const float R = mesh->getBoundingSphere().getRadius();
-				const float d = (c - camPos).length();     // squared is fine for sorting
-				// farthest point distance
+				const float d = (c - camPos).length();
 				float farthest = d + R;
 				transparent.emplace_back(farthest, id);
+			}
+		}
+	}
+	else
+	{
+		const std::vector<int>& objectIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+		transparent.reserve(objectIds.size());
+		for (int id : objectIds)
+		{
+			if (auto* mesh = _meshStore.at(id))
+			{
+				if (mesh->isTransparent())
+				{
+					if (!isMeshVisible(mesh, activeClipPlaneIndex)) continue;
+					const QVector3D c = mesh->getBoundingSphere().getCenter();
+					const float R = mesh->getBoundingSphere().getRadius();
+					const float d = (c - camPos).length();
+					float farthest = d + R;
+					transparent.emplace_back(farthest, id);
+				}
 			}
 		}
 	}
@@ -7364,6 +7501,13 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 	// Sort far-to-near
 	std::sort(transparent.begin(), transparent.end(),
 		[](const auto& a, const auto& b) { return a.first > b.first; });
+	if (profiling)
+	{
+		++g_renderSubmissionDiagnostics.transparentPasses;
+		g_renderSubmissionDiagnostics.transparentCandidates += static_cast<qint64>(transparent.size());
+		g_renderSubmissionDiagnostics.transparentCollectSortMs += static_cast<double>(phaseTimer.elapsed());
+		phaseTimer.restart();
+	}
 
 	glEnable(GL_BLEND);
 	glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA,
@@ -7391,6 +7535,11 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 			renderMeshExploded(mesh, _displayMode);
 		}
 	}
+	if (profiling)
+	{
+		g_renderSubmissionDiagnostics.transparentDraws += static_cast<qint64>(transparent.size());
+		g_renderSubmissionDiagnostics.transparentLoopMs += static_cast<double>(phaseTimer.elapsed());
+	}
 
 	glDepthMask(GL_TRUE);
 	glDisable(GL_BLEND);
@@ -7399,6 +7548,209 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 // ---------------------------------------------------------------------------
 // Visibility culling helpers
 // ---------------------------------------------------------------------------
+
+void GLWidget::invalidateRuntimeVisibilityHierarchy()
+{
+	_runtimeVisibilityHierarchyDirty = true;
+	_runtimeVisibilityPrepared = false;
+	_runtimeVisibilityRootIndex = -1;
+	_runtimeVisibilityMeshStoreCount = static_cast<int>(_meshStore.size());
+	_runtimeVisibilityNodes.clear();
+	_runtimeBaseVisibleMask.clear();
+}
+
+int GLWidget::buildRuntimeVisibilityNodeRecursive(const SceneNode* node,
+                                                  const QHash<QUuid, int>& meshIndexByUuid)
+{
+	if (!node)
+		return -1;
+
+	const int nodeIndex = _runtimeVisibilityNodes.size();
+	_runtimeVisibilityNodes.push_back(RuntimeVisibilityNode{});
+	_runtimeVisibilityNodes[nodeIndex].sceneNode = node;
+	_runtimeVisibilityNodes[nodeIndex].meshIndices.reserve(node->meshUuids.size());
+
+	for (const QUuid& uuid : node->meshUuids)
+	{
+		const auto it = meshIndexByUuid.find(uuid);
+		if (it != meshIndexByUuid.end())
+			_runtimeVisibilityNodes[nodeIndex].meshIndices.push_back(it.value());
+	}
+
+	_runtimeVisibilityNodes[nodeIndex].children.reserve(node->children.size());
+	for (const SceneNode* child : node->children)
+	{
+		const int childIndex = buildRuntimeVisibilityNodeRecursive(child, meshIndexByUuid);
+		if (childIndex >= 0)
+			_runtimeVisibilityNodes[nodeIndex].children.push_back(childIndex);
+	}
+
+	return nodeIndex;
+}
+
+void GLWidget::rebuildRuntimeVisibilityHierarchy()
+{
+	_runtimeVisibilityNodes.clear();
+	_runtimeVisibilityRootIndex = -1;
+	_runtimeVisibilityPrepared = false;
+
+	if (!_viewer || !_viewer->sceneGraph())
+	{
+		_runtimeVisibilityHierarchyDirty = false;
+		_runtimeVisibilityMeshStoreCount = static_cast<int>(_meshStore.size());
+		return;
+	}
+
+	QHash<QUuid, int> meshIndexByUuid;
+	meshIndexByUuid.reserve(static_cast<int>(_meshStore.size()));
+	for (int meshIndex = 0; meshIndex < static_cast<int>(_meshStore.size()); ++meshIndex)
+	{
+		if (TriangleMesh* mesh = _meshStore[meshIndex])
+			meshIndexByUuid.insert(mesh->uuid(), meshIndex);
+	}
+
+	_runtimeVisibilityRootIndex = buildRuntimeVisibilityNodeRecursive(
+		_viewer->sceneGraph()->root(),
+		meshIndexByUuid);
+	_runtimeVisibilityHierarchyDirty = false;
+	_runtimeVisibilityMeshStoreCount = static_cast<int>(_meshStore.size());
+}
+
+bool GLWidget::ensureRuntimeVisibilityHierarchy()
+{
+	if (_runtimeVisibilityHierarchyDirty ||
+	    _runtimeVisibilityMeshStoreCount != static_cast<int>(_meshStore.size()))
+	{
+		rebuildRuntimeVisibilityHierarchy();
+	}
+
+	return _runtimeVisibilityRootIndex >= 0 &&
+	       _runtimeVisibilityRootIndex < _runtimeVisibilityNodes.size();
+}
+
+bool GLWidget::refreshRuntimeVisibilityNodeBounds(
+	int nodeIndex,
+	const std::vector<unsigned char>& baseVisibleMask)
+{
+	if (nodeIndex < 0 || nodeIndex >= _runtimeVisibilityNodes.size())
+		return false;
+
+	RuntimeVisibilityNode& runtimeNode = _runtimeVisibilityNodes[nodeIndex];
+	bool boundsInitialized = false;
+	bool hasVisibleMesh = false;
+	BoundingBox bounds;
+
+	for (int meshIndex : std::as_const(runtimeNode.meshIndices))
+	{
+		if (meshIndex < 0 || meshIndex >= static_cast<int>(_meshStore.size()))
+			continue;
+		if (meshIndex >= static_cast<int>(baseVisibleMask.size()) || !baseVisibleMask[meshIndex])
+			continue;
+
+		TriangleMesh* mesh = _meshStore[meshIndex];
+		if (!mesh || !isMeshAnimationVisible(mesh))
+			continue;
+
+		if (!boundsInitialized)
+		{
+			bounds = mesh->getBoundingBox();
+			boundsInitialized = true;
+		}
+		else
+		{
+			bounds.addBox(mesh->getBoundingBox());
+		}
+		hasVisibleMesh = true;
+	}
+
+	for (int childIndex : std::as_const(runtimeNode.children))
+	{
+		if (!refreshRuntimeVisibilityNodeBounds(childIndex, baseVisibleMask))
+			continue;
+
+		const RuntimeVisibilityNode& childNode = _runtimeVisibilityNodes[childIndex];
+		if (!boundsInitialized)
+		{
+			bounds = childNode.subtreeBounds;
+			boundsInitialized = true;
+		}
+		else
+		{
+			bounds.addBox(childNode.subtreeBounds);
+		}
+		hasVisibleMesh = true;
+	}
+
+	runtimeNode.subtreeHasVisibleMeshes = hasVisibleMesh;
+	if (boundsInitialized)
+		runtimeNode.subtreeBounds = bounds;
+
+	return hasVisibleMesh;
+}
+
+void GLWidget::refreshRuntimeVisibilityCacheForCurrentView()
+{
+	_runtimeVisibilityPrepared = false;
+	if (!ensureRuntimeVisibilityHierarchy())
+		return;
+
+	const std::vector<int>& visibleIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+	_runtimeBaseVisibleMask.assign(_meshStore.size(), 0u);
+	for (int meshIndex : visibleIds)
+	{
+		if (meshIndex >= 0 && meshIndex < static_cast<int>(_runtimeBaseVisibleMask.size()))
+			_runtimeBaseVisibleMask[meshIndex] = 1u;
+	}
+
+	refreshRuntimeVisibilityNodeBounds(_runtimeVisibilityRootIndex, _runtimeBaseVisibleMask);
+	_runtimeVisibilityPrepared = true;
+}
+
+void GLWidget::collectVisibleMeshIdsForPass(int nodeIndex,
+                                            int activeClipPlaneIndex,
+                                            bool wantTransparent,
+                                            std::vector<int>& out) const
+{
+	if (nodeIndex < 0 || nodeIndex >= _runtimeVisibilityNodes.size())
+		return;
+
+	const RuntimeVisibilityNode& runtimeNode = _runtimeVisibilityNodes[nodeIndex];
+	if (!runtimeNode.subtreeHasVisibleMeshes)
+		return;
+	if (isBoundingBoxOutsideFrustum(runtimeNode.subtreeBounds))
+		return;
+
+	if (activeClipPlaneIndex >= 0)
+	{
+		if (isBoundingBoxInvisibleInAllClipPasses(runtimeNode.subtreeBounds))
+			return;
+		if (activeClipPlaneIndex == 0 && isBoundingBoxFullyClipped_X(runtimeNode.subtreeBounds))
+			return;
+		if (activeClipPlaneIndex == 1 && isBoundingBoxFullyClipped_Y(runtimeNode.subtreeBounds))
+			return;
+		if (activeClipPlaneIndex == 2 && isBoundingBoxFullyClipped_Z(runtimeNode.subtreeBounds))
+			return;
+	}
+
+	for (int meshIndex : std::as_const(runtimeNode.meshIndices))
+	{
+		if (meshIndex < 0 || meshIndex >= static_cast<int>(_meshStore.size()))
+			continue;
+		TriangleMesh* mesh = _meshStore[meshIndex];
+		if (!mesh)
+			continue;
+		if (meshIndex >= static_cast<int>(_runtimeBaseVisibleMask.size()) ||
+		    !_runtimeBaseVisibleMask[meshIndex])
+			continue;
+		if (!isMeshVisible(mesh, activeClipPlaneIndex))
+			continue;
+		if (mesh->isTransparent() == wantTransparent)
+			out.push_back(meshIndex);
+	}
+
+	for (int childIndex : std::as_const(runtimeNode.children))
+		collectVisibleMeshIdsForPass(childIndex, activeClipPlaneIndex, wantTransparent, out);
+}
 
 void GLWidget::extractFrustumPlanes()
 {
@@ -7427,14 +7779,11 @@ void GLWidget::extractFrustumPlanes()
 	}
 }
 
-bool GLWidget::isMeshOutsideFrustum(const TriangleMesh* mesh) const
+bool GLWidget::isBoundingBoxOutsideFrustum(const BoundingBox& bb) const
 {
-	const BoundingBox& bb = mesh->getBoundingBox();
 	for (int i = 0; i < 6; ++i)
 	{
 		const QVector4D& p = _frustumPlanes[i];
-		// Support point: AABB corner furthest along the plane's inward normal.
-		// If even this corner is on the outside (negative side), the whole AABB is outside.
 		const float sx = p.x() >= 0.0f ? static_cast<float>(bb.xMax()) : static_cast<float>(bb.xMin());
 		const float sy = p.y() >= 0.0f ? static_cast<float>(bb.yMax()) : static_cast<float>(bb.yMin());
 		const float sz = p.z() >= 0.0f ? static_cast<float>(bb.zMax()) : static_cast<float>(bb.zMin());
@@ -7442,6 +7791,11 @@ bool GLWidget::isMeshOutsideFrustum(const TriangleMesh* mesh) const
 			return true;
 	}
 	return false;
+}
+
+bool GLWidget::isMeshOutsideFrustum(const TriangleMesh* mesh) const
+{
+	return mesh ? isBoundingBoxOutsideFrustum(mesh->getBoundingBox()) : true;
 }
 
 bool GLWidget::isMeshFullyInsideFrustum(const TriangleMesh* mesh) const
@@ -7524,88 +7878,111 @@ void GLWidget::updateZoomInLimit()
 		_zoomInLimit += (rawFloor - _zoomInLimit) * 0.12f;          // rise: gradual
 }
 
-bool GLWidget::isMeshFullyClipped_X(const TriangleMesh* mesh) const
+bool GLWidget::isBoundingBoxFullyClipped_X(const BoundingBox& bb) const
 {
-	// ClipPlaneX (YZ plane): world-space threshold = _clipXCoeff + scene centre X.
-	// Not flipped: keep side with x <= threshold → fully clipped when xMin > threshold.
-	// Flipped:     keep side with x >= threshold → fully clipped when xMax < threshold.
 	const float tx = _clipXCoeff + static_cast<float>(_boundingBox.center().getX());
-	const BoundingBox& bb = mesh->getBoundingBox();
 	return _clipXFlipped
 		? static_cast<float>(bb.xMax()) < tx
 		: static_cast<float>(bb.xMin()) > tx;
 }
 
-bool GLWidget::isMeshFullyClipped_Y(const TriangleMesh* mesh) const
+bool GLWidget::isBoundingBoxFullyClipped_Y(const BoundingBox& bb) const
 {
 	const float ty = _clipYCoeff + static_cast<float>(_boundingBox.center().getY());
-	const BoundingBox& bb = mesh->getBoundingBox();
 	return _clipYFlipped
 		? static_cast<float>(bb.yMax()) < ty
 		: static_cast<float>(bb.yMin()) > ty;
 }
 
-bool GLWidget::isMeshFullyClipped_Z(const TriangleMesh* mesh) const
+bool GLWidget::isBoundingBoxFullyClipped_Z(const BoundingBox& bb) const
 {
 	const float tz = _clipZCoeff + static_cast<float>(_boundingBox.center().getZ());
-	const BoundingBox& bb = mesh->getBoundingBox();
 	return _clipZFlipped
 		? static_cast<float>(bb.zMax()) < tz
 		: static_cast<float>(bb.zMin()) > tz;
 }
 
-bool GLWidget::isMeshFullyKept_X(const TriangleMesh* mesh) const
+bool GLWidget::isMeshFullyClipped_X(const TriangleMesh* mesh) const
 {
-	// Entire mesh is on the KEEP side of the YZ clip plane — no intersection with the cap.
-	// Not flipped: keep side is x <= threshold → fully kept when xMax <= threshold.
-	// Flipped:     keep side is x >= threshold → fully kept when xMin >= threshold.
+	return mesh ? isBoundingBoxFullyClipped_X(mesh->getBoundingBox()) : true;
+}
+
+bool GLWidget::isMeshFullyClipped_Y(const TriangleMesh* mesh) const
+{
+	return mesh ? isBoundingBoxFullyClipped_Y(mesh->getBoundingBox()) : true;
+}
+
+bool GLWidget::isMeshFullyClipped_Z(const TriangleMesh* mesh) const
+{
+	return mesh ? isBoundingBoxFullyClipped_Z(mesh->getBoundingBox()) : true;
+}
+
+bool GLWidget::isBoundingBoxFullyKept_X(const BoundingBox& bb) const
+{
 	const float tx = _clipXCoeff + static_cast<float>(_boundingBox.center().getX());
-	const BoundingBox& bb = mesh->getBoundingBox();
 	return _clipXFlipped
 		? static_cast<float>(bb.xMin()) >= tx
 		: static_cast<float>(bb.xMax()) <= tx;
 }
 
-bool GLWidget::isMeshFullyKept_Y(const TriangleMesh* mesh) const
+bool GLWidget::isBoundingBoxFullyKept_Y(const BoundingBox& bb) const
 {
 	const float ty = _clipYCoeff + static_cast<float>(_boundingBox.center().getY());
-	const BoundingBox& bb = mesh->getBoundingBox();
 	return _clipYFlipped
 		? static_cast<float>(bb.yMin()) >= ty
 		: static_cast<float>(bb.yMax()) <= ty;
 }
 
-bool GLWidget::isMeshFullyKept_Z(const TriangleMesh* mesh) const
+bool GLWidget::isBoundingBoxFullyKept_Z(const BoundingBox& bb) const
 {
 	const float tz = _clipZCoeff + static_cast<float>(_boundingBox.center().getZ());
-	const BoundingBox& bb = mesh->getBoundingBox();
 	return _clipZFlipped
 		? static_cast<float>(bb.zMin()) >= tz
 		: static_cast<float>(bb.zMax()) <= tz;
 }
 
-bool GLWidget::isMeshStraddlesCapPlane(const TriangleMesh* mesh, int planeIndex) const
+bool GLWidget::isMeshFullyKept_X(const TriangleMesh* mesh) const
 {
-	// A mesh must straddle the cap plane to contribute to the stencil count.
-	// Fully clipped (discard side) or fully kept (keep side) → no cap intersection → skip.
+	return mesh ? isBoundingBoxFullyKept_X(mesh->getBoundingBox()) : false;
+}
+
+bool GLWidget::isMeshFullyKept_Y(const TriangleMesh* mesh) const
+{
+	return mesh ? isBoundingBoxFullyKept_Y(mesh->getBoundingBox()) : false;
+}
+
+bool GLWidget::isMeshFullyKept_Z(const TriangleMesh* mesh) const
+{
+	return mesh ? isBoundingBoxFullyKept_Z(mesh->getBoundingBox()) : false;
+}
+
+bool GLWidget::isBoundingBoxStraddlesCapPlane(const BoundingBox& bb, int planeIndex) const
+{
 	switch (planeIndex)
 	{
-	case 0: return !isMeshFullyClipped_X(mesh) && !isMeshFullyKept_X(mesh);
-	case 1: return !isMeshFullyClipped_Y(mesh) && !isMeshFullyKept_Y(mesh);
-	case 2: return !isMeshFullyClipped_Z(mesh) && !isMeshFullyKept_Z(mesh);
+	case 0: return !isBoundingBoxFullyClipped_X(bb) && !isBoundingBoxFullyKept_X(bb);
+	case 1: return !isBoundingBoxFullyClipped_Y(bb) && !isBoundingBoxFullyKept_Y(bb);
+	case 2: return !isBoundingBoxFullyClipped_Z(bb) && !isBoundingBoxFullyKept_Z(bb);
 	default: return true;
 	}
 }
 
+bool GLWidget::isMeshStraddlesCapPlane(const TriangleMesh* mesh, int planeIndex) const
+{
+	return mesh ? isBoundingBoxStraddlesCapPlane(mesh->getBoundingBox(), planeIndex) : false;
+}
+
+bool GLWidget::isBoundingBoxInvisibleInAllClipPasses(const BoundingBox& bb) const
+{
+	if (_clipYZEnabled && !isBoundingBoxFullyClipped_X(bb)) return false;
+	if (_clipZXEnabled && !isBoundingBoxFullyClipped_Y(bb)) return false;
+	if (_clipXYEnabled && !isBoundingBoxFullyClipped_Z(bb)) return false;
+	return true;
+}
+
 bool GLWidget::isMeshInvisibleInAllClipPasses(const TriangleMesh* mesh) const
 {
-	// Returns true only when every enabled clip plane fully clips this mesh,
-	// meaning it contributes nothing to any pass of the union rendering.
-	// If ANY enabled plane does NOT fully clip the mesh, it is visible in that pass.
-	if (_clipYZEnabled && !isMeshFullyClipped_X(mesh)) return false;
-	if (_clipZXEnabled && !isMeshFullyClipped_Y(mesh)) return false;
-	if (_clipXYEnabled && !isMeshFullyClipped_Z(mesh)) return false;
-	return true;
+	return mesh ? isBoundingBoxInvisibleInAllClipPasses(mesh->getBoundingBox()) : true;
 }
 
 bool GLWidget::isMeshAnimationVisible(const TriangleMesh* mesh) const
@@ -7718,13 +8095,16 @@ void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 	QVector3D viewDir = _primaryCamera->getViewDir();
 	bool floorVisible = QVector3D::dotProduct(viewDir, zDir) < 0.0f;
 	bool showShadows = (_shadowsEnabled && floorVisible && !_lowResEnabled && camera == _primaryCamera);
+	const bool interactionFastPath = _lowResEnabled && (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES);
 
 	prog->setUniformValue("shadowsEnabled", showShadows);
 	prog->setUniformValue("selfShadowsEnabled", _selfShadowsEnabled);
+	prog->setUniformValue("interactionFastPath", interactionFastPath);
 	prog->setUniformValue("cameraPos", camPos);
 	prog->setUniformValue("cameraDir", camDir);
 	prog->setUniformValue("lightPos",
 		_lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
+	TriangleMesh::setCurrentRenderContext(_modelMatrix, camera->getViewMatrix());
 	prog->setUniformValue("modelMatrix", _modelMatrix);
 	prog->setProperty("globalModelMatrix", QVariant::fromValue(_modelMatrix));
 	prog->setUniformValue("viewMatrix", camera->getViewMatrix());
@@ -9974,6 +10354,13 @@ void GLWidget::bindIBLTextures()
 
 void GLWidget::render(GLCamera* camera)
 {
+	QElapsedTimer frameTimer;
+	const bool profileRendering =
+		QSettings().value(QStringLiteral("profileRenderingCheckBox"), false).toBool();
+	beginRenderSubmissionDiagnosticsFrame(profileRendering);
+	if (profileRendering)
+		frameTimer.start();
+
 	glEnable(GL_DEPTH_TEST);
 	glDisable(GL_BLEND);
 	glDisable(GL_CULL_FACE);
@@ -9995,6 +10382,7 @@ void GLWidget::render(GLCamera* camera)
 
 	// Extract frustum planes once per frame for AABB culling
 	extractFrustumPlanes();
+	refreshRuntimeVisibilityCacheForCurrentView();
 
 	// --- 1) Skybox ---
 	if (_skyBoxEnabled)
@@ -10071,6 +10459,10 @@ void GLWidget::render(GLCamera* camera)
 	// --- 5) Overlays ---
 	if (_showAxis && _userShowAxisOverride) drawAxis();
 	if (_showLights) drawLights();
+
+	if (profileRendering)
+		g_renderSubmissionDiagnostics.frameMs += static_cast<double>(frameTimer.elapsed());
+	flushRenderSubmissionDiagnostics();
 }
 
 
@@ -10120,6 +10512,7 @@ void GLWidget::renderToShadowBuffer()
 	);
 
 	_lightSpaceMatrix = lightProjection * lightView;
+	TriangleMesh::setCurrentRenderContext(_modelMatrix, lightView);
 
 	// render scene from light's point of view
 	_shadowMappingShader->bind();

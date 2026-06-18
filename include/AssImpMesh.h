@@ -6,6 +6,7 @@
 #include <iostream>
 #include <vector>
 #include <initializer_list>
+#include <cstdint>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -60,6 +61,9 @@ public:
 	~AssImpMesh();
 	virtual TriangleMesh* clone();
 	void render();
+	quint64 getRenderMaterialSortKey() const override;
+	static void resetRenderDiagnostics(bool enabled);
+	static void flushRenderDiagnostics();
 
     std::vector<Vertex> vertices() const;
 
@@ -129,6 +133,7 @@ public:
 	void clearAllADSMaps() override;
 
 	virtual void setTextureMaps(const GLMaterial& material) override;
+	void markUniformsDirty() override;
 	void deleteTextures() override;
 	void replaceOrAppendTexture(const std::string& type, GLuint id, bool hasAlpha);
 
@@ -146,6 +151,7 @@ private:
 	void bindTexturesOptimized();
 	void setRenderStateOptimized();
 	void setupUniformsOptimized();
+	quint64 uniformStateSignature() const;
 	void removeTexturesByType(std::initializer_list<std::string> types);
 
 	// sync texture path entries into _textures from the material's stored map (if _textures empty)
@@ -172,6 +178,9 @@ private:
 	std::vector<PrecomputedTexture> _textureBindings;
 	// State caching
 	QOpenGLShaderProgram* _currentBoundShader;
+	static QOpenGLShaderProgram* _currentUniformStateShader;
+	static quint64 _currentUniformStateSignature;
+	static bool _currentUniformStateHadDebugOverrides;
 	static bool _currentBlendEnabled;
 	static GLenum _currentFrontFace;
 

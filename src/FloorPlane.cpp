@@ -15,24 +15,20 @@ void FloorPlane::render()
 	if (!_vertexArrayObject.isCreated())
 		return;
 
-	const QVariant globalModelVar = _prog->property("globalModelMatrix");
-	const QMatrix4x4 globalModelMatrix = globalModelVar.isValid()
-		? globalModelVar.value<QMatrix4x4>()
-		: QMatrix4x4();
+	const QMatrix4x4& globalModelMatrix = currentGlobalModelMatrix();
 	const QMatrix4x4 modelMatrix = globalModelMatrix * combinedRenderTransform();
-	const QVariant viewVar = _prog->property("viewMatrix");
-	const QMatrix4x4 viewMatrix = viewVar.isValid() ? viewVar.value<QMatrix4x4>() : QMatrix4x4();
+	const QMatrix4x4& viewMatrix = currentViewMatrix();
 	const QMatrix4x4 modelViewMatrix = viewMatrix * modelMatrix;
 
-	if (_prog->uniformLocation("modelMatrix") >= 0)
+	if (uniformLocationCached("modelMatrix") >= 0)
 		_prog->setUniformValue("modelMatrix", modelMatrix);
-	if (_prog->uniformLocation("modelViewMatrix") >= 0)
+	if (uniformLocationCached("modelViewMatrix") >= 0)
 		_prog->setUniformValue("modelViewMatrix", modelViewMatrix);
-	if (_prog->uniformLocation("normalMatrix") >= 0)
+	if (uniformLocationCached("normalMatrix") >= 0)
 		_prog->setUniformValue("normalMatrix", modelViewMatrix.normalMatrix());
-	if (_prog->uniformLocation("hasSkinning") >= 0)
+	if (uniformLocationCached("hasSkinning") >= 0)
 		_prog->setUniformValue("hasSkinning", false);
-	if (_prog->uniformLocation("jointCount") >= 0)
+	if (uniformLocationCached("jointCount") >= 0)
 		_prog->setUniformValue("jointCount", 0);
 
 	setupTextures();

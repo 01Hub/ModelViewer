@@ -11,7 +11,6 @@
 #include "AssemblyRelationGraph.h"
 #include <math.h>
 #include <QColor>
-#include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFormLayout>
 #include <QImage>
@@ -46,6 +45,7 @@ class ViewCubeMesh;
 class AssImpModelLoader;
 
 class ModelViewer;
+struct SceneNode;
 
 enum class ViewMode { TOP, BOTTOM, LEFT, RIGHT, FRONT, BACK, ISOMETRIC, DIMETRIC, TRIMETRIC, NONE };
 enum class ViewProjection { ORTHOGRAPHIC, PERSPECTIVE };
@@ -763,10 +763,19 @@ private:
 
 	// Visibility culling
 	void extractFrustumPlanes();
+	bool  isBoundingBoxOutsideFrustum(const BoundingBox& bb) const;
 	bool  isMeshOutsideFrustum(const TriangleMesh* mesh) const;
 	bool  isMeshFullyInsideFrustum(const TriangleMesh* mesh) const;
 	float computeFullyVisibleMinMeshRadius() const;
 	void  updateZoomInLimit();
+	bool isBoundingBoxFullyClipped_X(const BoundingBox& bb) const;
+	bool isBoundingBoxFullyClipped_Y(const BoundingBox& bb) const;
+	bool isBoundingBoxFullyClipped_Z(const BoundingBox& bb) const;
+	bool isBoundingBoxFullyKept_X(const BoundingBox& bb) const;
+	bool isBoundingBoxFullyKept_Y(const BoundingBox& bb) const;
+	bool isBoundingBoxFullyKept_Z(const BoundingBox& bb) const;
+	bool isBoundingBoxStraddlesCapPlane(const BoundingBox& bb, int planeIndex) const;
+	bool isBoundingBoxInvisibleInAllClipPasses(const BoundingBox& bb) const;
 	bool isMeshFullyClipped_X(const TriangleMesh* mesh) const;
 	bool isMeshFullyClipped_Y(const TriangleMesh* mesh) const;
 	bool isMeshFullyClipped_Z(const TriangleMesh* mesh) const;
@@ -777,6 +786,18 @@ private:
 	bool isMeshInvisibleInAllClipPasses(const TriangleMesh* mesh) const;
 	bool isMeshAnimationVisible(const TriangleMesh* mesh) const;
 	bool isMeshVisible(const TriangleMesh* mesh, int activeClipPlaneIndex) const;
+	void invalidateRuntimeVisibilityHierarchy();
+	void rebuildRuntimeVisibilityHierarchy();
+	bool ensureRuntimeVisibilityHierarchy();
+	void refreshRuntimeVisibilityCacheForCurrentView();
+	int buildRuntimeVisibilityNodeRecursive(const SceneNode* node,
+	                                        const QHash<QUuid, int>& meshIndexByUuid);
+	bool refreshRuntimeVisibilityNodeBounds(int nodeIndex,
+	                                        const std::vector<unsigned char>& baseVisibleMask);
+	void collectVisibleMeshIdsForPass(int nodeIndex,
+	                                  int activeClipPlaneIndex,
+	                                  bool wantTransparent,
+	                                  std::vector<int>& out) const;
 
 	void drawSectionCapping();
 	void drawFloor(const bool& drawReflection = true);
@@ -1199,6 +1220,21 @@ private:
 	std::vector<TriangleMesh*> _meshStore;
 	std::vector<int> _displayedObjectsIds;
 	std::vector<int> _hiddenObjectsIds;
+
+	struct RuntimeVisibilityNode
+	{
+		const SceneNode* sceneNode = nullptr;
+		QVector<int> children;
+		QVector<int> meshIndices;
+		BoundingBox subtreeBounds;
+		bool subtreeHasVisibleMeshes = false;
+	};
+	QVector<RuntimeVisibilityNode> _runtimeVisibilityNodes;
+	int _runtimeVisibilityRootIndex = -1;
+	bool _runtimeVisibilityHierarchyDirty = true;
+	int _runtimeVisibilityMeshStoreCount = -1;
+	bool _runtimeVisibilityPrepared = false;
+	std::vector<unsigned char> _runtimeBaseVisibleMask;
 
 	// Accumulates mesh UUIDs in DFS load order during a single loadAssImpModel
 	// call (both progressive and non-progressive paths).  Consumed by

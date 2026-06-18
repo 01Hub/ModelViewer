@@ -8,6 +8,8 @@
 #include "GltfAnimationData.h"
 #include "GltfVariantData.h"
 
+#include <QHash>
+#include <QMatrix4x4>
 #include <QMap>
 #include <QQuaternion>
 #include <QVariant>
@@ -26,6 +28,10 @@ public:
 	virtual void setProg(QOpenGLShaderProgram* prog);
 
 	virtual TriangleMesh* clone() = 0;
+
+	static void setCurrentRenderContext(const QMatrix4x4& globalModelMatrix,
+	                                   const QMatrix4x4& viewMatrix);
+	static void clearCurrentRenderContext();
 
 	// Setter for primitive mode (from glTF)
 	void setPrimitiveMode(GLenum mode)
@@ -227,6 +233,11 @@ public:
 		return (a << 32) ^ (n * 2654435761ULL);
 	}
 
+	virtual quint64 getRenderMaterialSortKey() const
+	{
+		return getTextureSortKey();
+	}
+
 	virtual bool intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint);
 
 	virtual void setAlbedoPBRMap(unsigned int albedoMap);
@@ -401,9 +412,15 @@ protected: // methods
 	void rebuildExplodedViewTransformation();
 	void fastUpdateWorldBounds();   // O(1) AABB update from 8 local corners
 
-    virtual void setupTransformation();
+	virtual void setupTransformation();
 	virtual void setupTextures();
 	virtual void setupUniforms();
+	int uniformLocationCached(const char* name) const;
+	int uniformLocationCached(const QByteArray& name) const;
+	int uniformLocationCached(const QString& name) const;
+	void clearUniformLocationCache();
+	static const QMatrix4x4& currentGlobalModelMatrix();
+	static const QMatrix4x4& currentViewMatrix();
 
 	// Rebinds debug-override textures after the normal texture setup.
 	// Call at the end of any render() path that binds textures.
@@ -463,6 +480,10 @@ protected:
 	bool _textureBindingsDirty = true;
 
 	bool _uniformsDirty = true;
+	mutable QHash<QByteArray, int> _uniformLocationCache;
+
+	static QMatrix4x4 _currentGlobalModelMatrix;
+	static QMatrix4x4 _currentViewMatrix;
 
 	// Debug texture overrides set by TextureDebugPanel.
 	// Maps GL texture unit index → replacement texture ID.

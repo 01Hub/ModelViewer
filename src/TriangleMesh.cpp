@@ -24,6 +24,32 @@ QQuaternion meshEulerToQuaternion(const QVector3D& rotation)
 }
 }
 
+QMatrix4x4 TriangleMesh::_currentGlobalModelMatrix;
+QMatrix4x4 TriangleMesh::_currentViewMatrix;
+
+void TriangleMesh::setCurrentRenderContext(const QMatrix4x4& globalModelMatrix,
+                                           const QMatrix4x4& viewMatrix)
+{
+	_currentGlobalModelMatrix = globalModelMatrix;
+	_currentViewMatrix = viewMatrix;
+}
+
+void TriangleMesh::clearCurrentRenderContext()
+{
+	_currentGlobalModelMatrix.setToIdentity();
+	_currentViewMatrix.setToIdentity();
+}
+
+const QMatrix4x4& TriangleMesh::currentGlobalModelMatrix()
+{
+	return _currentGlobalModelMatrix;
+}
+
+const QMatrix4x4& TriangleMesh::currentViewMatrix()
+{
+	return _currentViewMatrix;
+}
+
 TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Drawable(prog),
 _nVerts(0),
 _fallbackTexture(0),
@@ -426,7 +452,11 @@ void TriangleMesh::buildTriangles()
 
 void TriangleMesh::setProg(QOpenGLShaderProgram* prog)
 {
+	if (_prog == prog)
+		return;
+
 	_prog = prog;
+	clearUniformLocationCache();
 
 	_vertexArrayObject.bind();
 
@@ -503,6 +533,35 @@ void TriangleMesh::setProg(QOpenGLShaderProgram* prog)
 
 	_vertexArrayObject.release();
 	markUniformsDirty();
+}
+
+int TriangleMesh::uniformLocationCached(const char* name) const
+{
+	return uniformLocationCached(QByteArray(name));
+}
+
+int TriangleMesh::uniformLocationCached(const QByteArray& name) const
+{
+	if (!_prog)
+		return -1;
+
+	const auto it = _uniformLocationCache.constFind(name);
+	if (it != _uniformLocationCache.constEnd())
+		return it.value();
+
+	const int location = _prog->uniformLocation(name.constData());
+	_uniformLocationCache.insert(name, location);
+	return location;
+}
+
+int TriangleMesh::uniformLocationCached(const QString& name) const
+{
+	return uniformLocationCached(name.toUtf8());
+}
+
+void TriangleMesh::clearUniformLocationCache()
+{
+	_uniformLocationCache.clear();
 }
 
 void TriangleMesh::setupTextures()
@@ -1092,16 +1151,16 @@ void TriangleMesh::setupUniforms()
 		const QByteArray scaleName = QString("%1Scale").arg(base).toUtf8();
 		const QByteArray biasName = QString("%1Bias").arg(base).toUtf8();
 
-		int locChan = _prog->uniformLocation(channelName.constData());
+		int locChan = uniformLocationCached(channelName);
 		if (locChan != -1) _prog->setUniformValue(locChan, ch);
 
-		int locInv = _prog->uniformLocation(invertName.constData());
+		int locInv = uniformLocationCached(invertName);
 		if (locInv != -1) _prog->setUniformValue(locInv, p.invert ? 1 : 0);
 
-		int locScale = _prog->uniformLocation(scaleName.constData());
+		int locScale = uniformLocationCached(scaleName);
 		if (locScale != -1) _prog->setUniformValue(locScale, p.scale);
 
-		int locBias = _prog->uniformLocation(biasName.constData());
+		int locBias = uniformLocationCached(biasName);
 		if (locBias != -1) _prog->setUniformValue(locBias, p.bias);
 		};
 
@@ -1231,24 +1290,20 @@ void TriangleMesh::render()
 	if (!_vertexArrayObject.isCreated())
 		return;
 
-	const QVariant globalModelVar = _prog->property("globalModelMatrix");
-	const QMatrix4x4 globalModelMatrix = globalModelVar.isValid()
-		? globalModelVar.value<QMatrix4x4>()
-		: QMatrix4x4();
+	const QMatrix4x4& globalModelMatrix = currentGlobalModelMatrix();
 	const QMatrix4x4 modelMatrix = globalModelMatrix * combinedRenderTransform();
-	const QVariant viewVar = _prog->property("viewMatrix");
-	const QMatrix4x4 viewMatrix = viewVar.isValid() ? viewVar.value<QMatrix4x4>() : QMatrix4x4();
+	const QMatrix4x4& viewMatrix = currentViewMatrix();
 	const QMatrix4x4 modelViewMatrix = viewMatrix * modelMatrix;
 
-	if (_prog->uniformLocation("modelMatrix") >= 0)
+	if (uniformLocationCached("modelMatrix") >= 0)
 		_prog->setUniformValue("modelMatrix", modelMatrix);
-	if (_prog->uniformLocation("modelViewMatrix") >= 0)
+	if (uniformLocationCached("modelViewMatrix") >= 0)
 		_prog->setUniformValue("modelViewMatrix", modelViewMatrix);
-	if (_prog->uniformLocation("normalMatrix") >= 0)
+	if (uniformLocationCached("normalMatrix") >= 0)
 		_prog->setUniformValue("normalMatrix", modelViewMatrix.normalMatrix());
-	if (_prog->uniformLocation("hasSkinning") >= 0)
+	if (uniformLocationCached("hasSkinning") >= 0)
 		_prog->setUniformValue("hasSkinning", hasSkinning());
-	if (_prog->uniformLocation("jointCount") >= 0)
+	if (uniformLocationCached("jointCount") >= 0)
 		_prog->setUniformValue("jointCount", static_cast<int>(_jointPalette.size()));
 	if (hasSkinning() && !_jointPalette.isEmpty())
 	{
@@ -1256,8 +1311,9 @@ void TriangleMesh::render()
 		for (int i = 0; i < maxJoints; ++i)
 		{
 			const QString uniformName = QStringLiteral("jointMatrices[%1]").arg(i);
-			if (_prog->uniformLocation(uniformName.toUtf8().constData()) >= 0)
-				_prog->setUniformValue(uniformName.toUtf8().constData(), _jointPalette[i]);
+			const int jointLocation = uniformLocationCached(uniformName);
+			if (jointLocation >= 0)
+				_prog->setUniformValue(jointLocation, _jointPalette[i]);
 		}
 	}
 
@@ -1309,15 +1365,12 @@ void TriangleMesh::renderShadow()
 	if (!_vertexArrayObject.isCreated())
 		return;
 
-	const QVariant globalModelVar = _prog->property("globalModelMatrix");
-	const QMatrix4x4 globalModelMatrix = globalModelVar.isValid()
-		? globalModelVar.value<QMatrix4x4>()
-		: QMatrix4x4();
-	if (_prog->uniformLocation("model") >= 0)
+	const QMatrix4x4& globalModelMatrix = currentGlobalModelMatrix();
+	if (uniformLocationCached("model") >= 0)
 		_prog->setUniformValue("model", globalModelMatrix * combinedRenderTransform());
-	if (_prog->uniformLocation("hasSkinning") >= 0)
+	if (uniformLocationCached("hasSkinning") >= 0)
 		_prog->setUniformValue("hasSkinning", hasSkinning());
-	if (_prog->uniformLocation("jointCount") >= 0)
+	if (uniformLocationCached("jointCount") >= 0)
 		_prog->setUniformValue("jointCount", static_cast<int>(_jointPalette.size()));
 	if (hasSkinning() && !_jointPalette.isEmpty())
 	{
@@ -1325,8 +1378,9 @@ void TriangleMesh::renderShadow()
 		for (int i = 0; i < maxJoints; ++i)
 		{
 			const QString uniformName = QStringLiteral("jointMatrices[%1]").arg(i);
-			if (_prog->uniformLocation(uniformName.toUtf8().constData()) >= 0)
-				_prog->setUniformValue(uniformName.toUtf8().constData(), _jointPalette[i]);
+			const int jointLocation = uniformLocationCached(uniformName);
+			if (jointLocation >= 0)
+				_prog->setUniformValue(jointLocation, _jointPalette[i]);
 		}
 	}
 
