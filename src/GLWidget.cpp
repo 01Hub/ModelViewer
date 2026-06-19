@@ -7287,6 +7287,7 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
 {
 	TriangleMesh::resetTextureBindingCacheForCurrentContext();
+	TriangleMesh::resetBoundProgramCacheForCurrentContext();
 
 	QVector3D camPos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(prog, camPos);
@@ -7299,6 +7300,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 	// Bind shader and set uniforms that are identical for every opaque mesh once,
 	// outside the loop, to avoid redundant driver calls per draw.
 	prog->bind();
+	TriangleMesh::notifyProgramBound(prog);
 	// Suppress hover highlighting while Ctrl is held — avoids flashes during
 	// Ctrl+drag view manipulation as the pointer crosses mesh boundaries.
 	const bool ctrlHeld = QGuiApplication::queryKeyboardModifiers() & Qt::ControlModifier;
@@ -7360,6 +7362,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
 {
 	TriangleMesh::resetTextureBindingCacheForCurrentContext();
+	TriangleMesh::resetBoundProgramCacheForCurrentContext();
 
 	QVector3D camPos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(prog, camPos);
@@ -7417,6 +7420,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 
 	// Bind once and set uniforms constant across all transparent meshes
 	prog->bind();
+	TriangleMesh::notifyProgramBound(prog);
 	const bool ctrlHeldT = QGuiApplication::queryKeyboardModifiers() & Qt::ControlModifier;
 	const bool hoverHighlightingEnabledT = !ctrlHeldT &&
 		(_selectionManager->getHoverMode() != HoverHighlightMode::Disabled);
@@ -10666,6 +10670,7 @@ void GLWidget::renderQuad()
 void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 {
 	_fgShader->bind();
+	TriangleMesh::notifyProgramBound(_fgShader.get()); // keep program cache coherent with raw bind
 	GLint modelViewLoc;
 	GLint prog = 0;
 	switch (mode)
@@ -10765,6 +10770,7 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 	glDisable(GL_POLYGON_OFFSET_FILL);
 
 	_fgShader->release();
+	TriangleMesh::resetBoundProgramCacheForCurrentContext();
 }
 
 void GLWidget::gradientBackground(float top_r, float top_g, float top_b, float top_a,

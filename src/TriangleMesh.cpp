@@ -17,6 +17,7 @@ namespace
 using TextureBindingCache = std::array<GLuint, 40>;
 constexpr GLuint kUnknownTextureBinding = std::numeric_limits<GLuint>::max();
 QHash<QOpenGLContext*, TextureBindingCache> s_textureBindingsByContext;
+QHash<QOpenGLContext*, QOpenGLShaderProgram*> s_currentBoundPrograms;
 
 QQuaternion meshEulerToQuaternion(const QVector3D& rotation)
 {
@@ -93,6 +94,30 @@ void TriangleMesh::resetTextureBindingCacheForCurrentContext()
 {
 	if (QOpenGLContext* context = QOpenGLContext::currentContext())
 		s_textureBindingsByContext.remove(context);
+}
+
+void TriangleMesh::bindProgramCached(QOpenGLShaderProgram* prog)
+{
+	QOpenGLContext* ctx = QOpenGLContext::currentContext();
+	if (!ctx) { prog->bind(); return; }
+	auto it = s_currentBoundPrograms.find(ctx);
+	if (it == s_currentBoundPrograms.end() || it.value() != prog)
+	{
+		prog->bind();
+		s_currentBoundPrograms[ctx] = prog;
+	}
+}
+
+void TriangleMesh::notifyProgramBound(QOpenGLShaderProgram* prog)
+{
+	if (QOpenGLContext* ctx = QOpenGLContext::currentContext())
+		s_currentBoundPrograms[ctx] = prog;
+}
+
+void TriangleMesh::resetBoundProgramCacheForCurrentContext()
+{
+	if (QOpenGLContext* ctx = QOpenGLContext::currentContext())
+		s_currentBoundPrograms.remove(ctx);
 }
 
 quint64 TriangleMesh::currentRuntimeBoundsRevision()

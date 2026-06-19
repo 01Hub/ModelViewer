@@ -133,10 +133,11 @@ void AssImpMesh::render()
 	const QMatrix4x4& viewMatrix = currentViewMatrix();
 	const QMatrix4x4 modelViewMatrix = viewMatrix * modelMatrix;
 
-	// The caller owns pass sequencing; bind the assigned program but do not
-	// keep faux "current shader" state on the mesh itself. That state is not
-	// reliable across windows/contexts in MDI usage.
-	_prog->bind();
+	// Skip the glUseProgram call when the pass loop already established this
+	// program on the current context. renderMeshWithDisplayMode always
+	// (re-)binds the correct program before calling render(), so the cached
+	// value is authoritative at this point.
+	bindProgramCached(_prog);
 
 	cacheTextureBindings();
 

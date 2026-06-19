@@ -36,6 +36,9 @@ public:
 	static void clearCurrentRenderContext();
 	static void bindTextureUnitCached(GLenum textureUnit, GLuint textureId);
 	static void resetTextureBindingCacheForCurrentContext();
+	static void bindProgramCached(QOpenGLShaderProgram* prog);
+	static void notifyProgramBound(QOpenGLShaderProgram* prog);
+	static void resetBoundProgramCacheForCurrentContext();
 	static quint64 currentRuntimeBoundsRevision();
 
 	// Setter for primitive mode (from glTF)
