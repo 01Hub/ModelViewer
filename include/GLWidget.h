@@ -794,7 +794,8 @@ private:
 	int buildRuntimeVisibilityNodeRecursive(const SceneNode* node,
 	                                        const QHash<QUuid, int>& meshIndexByUuid);
 	bool refreshRuntimeVisibilityNodeBounds(int nodeIndex,
-	                                        const std::vector<unsigned char>& baseVisibleMask);
+	                                        const std::vector<unsigned char>& baseVisibleMask,
+	                                        bool refreshBounds);
 	void collectVisibleMeshIdsForPass(int nodeIndex,
 	                                  int activeClipPlaneIndex,
 	                                  bool wantTransparent,
@@ -1235,6 +1236,7 @@ private:
 	bool _runtimeVisibilityHierarchyDirty = true;
 	int _runtimeVisibilityMeshStoreCount = -1;
 	bool _runtimeVisibilityPrepared = false;
+	quint64 _runtimeVisibilityBoundsRevision = 0;
 	std::vector<unsigned char> _runtimeBaseVisibleMask;
 
 	// Accumulates mesh UUIDs in DFS load order during a single loadAssImpModel

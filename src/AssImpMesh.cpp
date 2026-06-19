@@ -62,7 +62,6 @@ bool AssImpMesh::_currentUniformStateHadDebugOverrides = false;
 // Constructor
 AssImpMesh::AssImpMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<GLMaterial::Texture> textures, GLMaterial material, bool skipOptimization) : TriangleMesh(shader, "AssImpMesh")
 {
-	_currentBoundShader = nullptr;
 	_currentBlendEnabled = false;
 	_currentFrontFace = GL_CCW;
 	_skipOptimization = skipOptimization;
@@ -91,7 +90,6 @@ AssImpMesh::~AssImpMesh()
 			glDeleteTextures(1, &t.id);
 		}
 	}*/
-	releaseCurrentShader();
 }
 
 TriangleMesh* AssImpMesh::clone()
@@ -114,6 +112,17 @@ void AssImpMesh::markUniformsDirty()
 	TriangleMesh::markUniformsDirty();
 }
 
+void AssImpMesh::setProg(QOpenGLShaderProgram* prog)
+{
+	const bool progChanged = (_prog != prog);
+	TriangleMesh::setProg(prog);
+	if (progChanged)
+	{
+		_textureBindingsDirty = true;
+		_uniformsDirty = true;
+	}
+}
+
 void AssImpMesh::render()
 {
 	if (!_vertexArrayObject.isCreated())
@@ -124,22 +133,10 @@ void AssImpMesh::render()
 	const QMatrix4x4& viewMatrix = currentViewMatrix();
 	const QMatrix4x4 modelViewMatrix = viewMatrix * modelMatrix;
 
-	// Smart shader binding - only bind if different
-	bool shaderChanged = false;
-	if (_currentBoundShader != _prog)
-	{
-		if (_currentBoundShader)
-		{
-			_currentBoundShader->release();
-		}
-		_prog->bind();
-		_currentBoundShader = _prog;
-		shaderChanged = true;
-
-		// When shader changes, we need to recache texture bindings
-		_textureBindingsDirty = true;
-		_uniformsDirty = true;
-	}
+	// The caller owns pass sequencing; bind the assigned program but do not
+	// keep faux "current shader" state on the mesh itself. That state is not
+	// reliable across windows/contexts in MDI usage.
+	_prog->bind();
 
 	cacheTextureBindings();
 
@@ -202,8 +199,7 @@ void AssImpMesh::render()
 	setRenderStateOptimized();
 	
 	// Transparent draws must NOT write depth, but should still depth-test.	
-	GLboolean prevDepthMask = GL_TRUE;
-	glGetBooleanv(GL_DEPTH_WRITEMASK, &prevDepthMask);
+	constexpr GLboolean prevDepthMask = GL_TRUE;
 	if (isTransparent() && needsDepthMaskOff()) glDepthMask(GL_FALSE);
 
 	_vertexArrayObject.bind();
@@ -240,9 +236,6 @@ void AssImpMesh::render()
 	_vertexArrayObject.release();
 
 	if (isTransparent()) glDepthMask(prevDepthMask); // restore immediately
-
-	_prog->release();
-	
 }
 
 quint64 AssImpMesh::uniformStateSignature() const
@@ -740,8 +733,7 @@ void AssImpMesh::bindTexturesOptimized()
 	{
 		if (binding.isValid)
 		{
-			glActiveTexture(binding.textureUnit);
-			glBindTexture(GL_TEXTURE_2D, binding.textureId);
+			bindTextureUnitCached(binding.textureUnit, binding.textureId);
 			glUniform1i(binding.uniformLocation, binding.textureUnit - GL_TEXTURE0);
 		}
 	}
@@ -1627,21 +1619,6 @@ void AssImpMesh::removeTexturesByType(std::initializer_list<std::string> types)
 				return std::find(types.begin(), types.end(), texture.type) != types.end();
 			}),
 		_textures.end());
-}
-
-
-// Cleanup method
-void AssImpMesh::releaseCurrentShader()
-{
-	if (_currentBoundShader)
-	{
-		QOpenGLContext* ctx = QOpenGLContext::currentContext();
-		if (ctx && ctx->isValid() && ctx->thread() == QThread::currentThread())
-		{
-			_currentBoundShader->release();			
-		}
-	}
-	_currentBoundShader = nullptr;
 }
 
 void AssImpMesh::deleteTextures()

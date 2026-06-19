@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <vector>
 #include "Drawable.h"
 #include "BoundingSphere.h"
@@ -11,6 +12,7 @@
 #include <QHash>
 #include <QMatrix4x4>
 #include <QMap>
+#include <QOpenGLContext>
 #include <QQuaternion>
 #include <QVariant>
 #include <QVector3D>
@@ -32,6 +34,9 @@ public:
 	static void setCurrentRenderContext(const QMatrix4x4& globalModelMatrix,
 	                                   const QMatrix4x4& viewMatrix);
 	static void clearCurrentRenderContext();
+	static void bindTextureUnitCached(GLenum textureUnit, GLuint textureId);
+	static void resetTextureBindingCacheForCurrentContext();
+	static quint64 currentRuntimeBoundsRevision();
 
 	// Setter for primitive mode (from glTF)
 	void setPrimitiveMode(GLenum mode)
@@ -155,7 +160,11 @@ public:
 	// Explosion offset — world-space translation added by ExplodedViewManager.
 	// Baked into combinedRenderTransform() so every render path (main + selection)
 	// automatically draws and picks the mesh at the correct exploded position.
-	void setExplosionOffset(const QVector3D& offset) { _explosionOffset = offset; }
+	void setExplosionOffset(const QVector3D& offset)
+	{
+		_explosionOffset = offset;
+		invalidateCombinedRenderTransformCache();
+	}
 	QVector3D explosionOffset() const { return _explosionOffset; }
 
 	std::vector<unsigned int> getIndices() const;
@@ -411,6 +420,8 @@ protected: // methods
 	void rebuildAbsoluteTransformation();
 	void rebuildExplodedViewTransformation();
 	void fastUpdateWorldBounds();   // O(1) AABB update from 8 local corners
+	void invalidateCombinedRenderTransformCache() const;
+	static void markRuntimeBoundsChanged();
 
 	virtual void setupTransformation();
 	virtual void setupTextures();
@@ -484,6 +495,7 @@ protected:
 	QOpenGLShaderProgram* _vaoConfiguredProgram = nullptr;
 	static QMatrix4x4 _currentGlobalModelMatrix;
 	static QMatrix4x4 _currentViewMatrix;
+	static std::atomic<quint64> _runtimeBoundsRevision;
 
 	// Debug texture overrides set by TextureDebugPanel.
 	// Maps GL texture unit index → replacement texture ID.
@@ -573,6 +585,8 @@ protected:
 	float _explodedViewScaleZ;
 	QMatrix4x4 _explodedViewTransformation;
 	QVector3D  _explosionOffset;
+	mutable QMatrix4x4 _cachedCombinedRenderTransform;
+	mutable bool _combinedRenderTransformDirty = true;
 
 	unsigned long long _memorySize;
 };

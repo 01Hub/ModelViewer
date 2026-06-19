@@ -7004,6 +7004,8 @@ void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 
 void GLWidget::drawFloor(const bool& drawReflection)
 {
+	TriangleMesh::resetTextureBindingCacheForCurrentContext();
+
 	auto bindFloorSharedSamplerState = [this]()
 	{
 		// Units 32/33: prevent the floor from sampling the transmission FBO while it is
@@ -7084,7 +7086,6 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	bindFloorSharedSamplerState();
 	_fgShader->setUniformValue("sssCapture", false);
 	_fgShader->setUniformValue("modelMatrix", model);
-	_fgShader->setProperty("globalModelMatrix", QVariant::fromValue(model));
 	TriangleMesh::setCurrentRenderContext(model, _viewMatrix);
 	if (_reflectionsEnabled && drawReflection)
 	{
@@ -7285,6 +7286,8 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 
 void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
 {
+	TriangleMesh::resetTextureBindingCacheForCurrentContext();
+
 	QVector3D camPos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(prog, camPos);
 
@@ -7332,16 +7335,18 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 	}
 	std::sort(opaque.begin(), opaque.end(),
 		[](const auto& a, const auto& b) { return a.first < b.first; });
+	const bool requiresPerMeshProgRebind =
+		(_displayMode == DisplayMode::FLATSHADED ||
+		 _displayMode == DisplayMode::WIRESHADED ||
+		 prog != _fgShader.get());
 
 	for (auto& [key, id] : opaque)
 	{
 		if (auto* mesh = _meshStore.at(id))
 		{
 			mesh->setProg(prog);
-			// Re-bind before setting the per-mesh varying uniform and drawing.
-			// renderMeshWithDisplayMode may internally rebind a different shader
-			// (e.g. wireframe overlay), so prog must be current here.
-			prog->bind();
+			if (requiresPerMeshProgRebind)
+				prog->bind();
 			prog->setUniformValue("hovered",
 				hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
 			if (sssObjectIdLocation >= 0)
@@ -7354,6 +7359,8 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 
 void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
 {
+	TriangleMesh::resetTextureBindingCacheForCurrentContext();
+
 	QVector3D camPos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(prog, camPos);
 
@@ -7416,13 +7423,18 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 	prog->setUniformValue("hoverHighlighting", hoverHighlightingEnabledT);
 	prog->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));
 	const int sssObjectIdLocation = prog->uniformLocation("sssObjectId");
+	const bool requiresPerMeshProgRebind =
+		(_displayMode == DisplayMode::FLATSHADED ||
+		 _displayMode == DisplayMode::WIRESHADED ||
+		 prog != _fgShader.get());
 	for (auto& it : transparent)
 	{
 		if (auto* mesh = _meshStore.at(it.second))
 		{
 			const int id = it.second;
 			mesh->setProg(prog);
-			prog->bind();
+			if (requiresPerMeshProgRebind)
+				prog->bind();
 			prog->setUniformValue("hovered",
 				hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
 			if (sssObjectIdLocation >= 0)
@@ -7445,6 +7457,7 @@ void GLWidget::invalidateRuntimeVisibilityHierarchy()
 	_runtimeVisibilityPrepared = false;
 	_runtimeVisibilityRootIndex = -1;
 	_runtimeVisibilityMeshStoreCount = static_cast<int>(_meshStore.size());
+	_runtimeVisibilityBoundsRevision = 0;
 	_runtimeVisibilityNodes.clear();
 	_runtimeBaseVisibleMask.clear();
 }
@@ -7488,6 +7501,7 @@ void GLWidget::rebuildRuntimeVisibilityHierarchy()
 	{
 		_runtimeVisibilityHierarchyDirty = false;
 		_runtimeVisibilityMeshStoreCount = static_cast<int>(_meshStore.size());
+		_runtimeVisibilityBoundsRevision = 0;
 		return;
 	}
 
@@ -7504,6 +7518,7 @@ void GLWidget::rebuildRuntimeVisibilityHierarchy()
 		meshIndexByUuid);
 	_runtimeVisibilityHierarchyDirty = false;
 	_runtimeVisibilityMeshStoreCount = static_cast<int>(_meshStore.size());
+	_runtimeVisibilityBoundsRevision = 0;
 }
 
 bool GLWidget::ensureRuntimeVisibilityHierarchy()
@@ -7520,7 +7535,8 @@ bool GLWidget::ensureRuntimeVisibilityHierarchy()
 
 bool GLWidget::refreshRuntimeVisibilityNodeBounds(
 	int nodeIndex,
-	const std::vector<unsigned char>& baseVisibleMask)
+	const std::vector<unsigned char>& baseVisibleMask,
+	bool refreshBounds)
 {
 	if (nodeIndex < 0 || nodeIndex >= _runtimeVisibilityNodes.size())
 		return false;
@@ -7555,16 +7571,16 @@ bool GLWidget::refreshRuntimeVisibilityNodeBounds(
 
 	for (int childIndex : std::as_const(runtimeNode.children))
 	{
-		if (!refreshRuntimeVisibilityNodeBounds(childIndex, baseVisibleMask))
+		if (!refreshRuntimeVisibilityNodeBounds(childIndex, baseVisibleMask, refreshBounds))
 			continue;
 
 		const RuntimeVisibilityNode& childNode = _runtimeVisibilityNodes[childIndex];
-		if (!boundsInitialized)
+		if (refreshBounds && !boundsInitialized)
 		{
 			bounds = childNode.subtreeBounds;
 			boundsInitialized = true;
 		}
-		else
+		else if (refreshBounds)
 		{
 			bounds.addBox(childNode.subtreeBounds);
 		}
@@ -7572,7 +7588,7 @@ bool GLWidget::refreshRuntimeVisibilityNodeBounds(
 	}
 
 	runtimeNode.subtreeHasVisibleMeshes = hasVisibleMesh;
-	if (boundsInitialized)
+	if (refreshBounds && boundsInitialized)
 		runtimeNode.subtreeBounds = bounds;
 
 	return hasVisibleMesh;
@@ -7592,7 +7608,14 @@ void GLWidget::refreshRuntimeVisibilityCacheForCurrentView()
 			_runtimeBaseVisibleMask[meshIndex] = 1u;
 	}
 
-	refreshRuntimeVisibilityNodeBounds(_runtimeVisibilityRootIndex, _runtimeBaseVisibleMask);
+	const quint64 currentBoundsRevision = TriangleMesh::currentRuntimeBoundsRevision();
+	const bool refreshBounds = (_runtimeVisibilityBoundsRevision != currentBoundsRevision);
+	refreshRuntimeVisibilityNodeBounds(
+		_runtimeVisibilityRootIndex,
+		_runtimeBaseVisibleMask,
+		refreshBounds);
+	if (refreshBounds)
+		_runtimeVisibilityBoundsRevision = currentBoundsRevision;
 	_runtimeVisibilityPrepared = true;
 }
 
@@ -7925,6 +7948,8 @@ bool GLWidget::isMeshVisible(const TriangleMesh* mesh, int activeClipPlaneIndex)
 void GLWidget::drawMeshesWithClipping(QOpenGLShaderProgram* prog,
 	bool transparentPass)
 {
+	TriangleMesh::resetTextureBindingCacheForCurrentContext();
+
 	//glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::WIREFRAME ? GL_LINE : GL_FILL);
 	//glLineWidth(_displayMode == DisplayMode::WIREFRAME ? 1.25 : 1.0);
 
@@ -7996,9 +8021,7 @@ void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 		_lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	TriangleMesh::setCurrentRenderContext(_modelMatrix, camera->getViewMatrix());
 	prog->setUniformValue("modelMatrix", _modelMatrix);
-	prog->setProperty("globalModelMatrix", QVariant::fromValue(_modelMatrix));
 	prog->setUniformValue("viewMatrix", camera->getViewMatrix());
-	prog->setProperty("viewMatrix", QVariant::fromValue(camera->getViewMatrix()));
 	prog->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
 	prog->setUniformValue("lightFarPlane", _lightPosition.z() + _lightOffsetZ);
 	prog->setUniformValue("hdrToneMapping", _hdrToneMapping);

@@ -15,13 +15,8 @@ void FloorPlane::render()
 	if (!_vertexArrayObject.isCreated())
 		return;
 
-	const QVariant globalModelVar = _prog->property("globalModelMatrix");
-	const QMatrix4x4 globalModelMatrix = globalModelVar.isValid()
-		? globalModelVar.value<QMatrix4x4>()
-		: QMatrix4x4();
-	const QMatrix4x4 modelMatrix = globalModelMatrix * combinedRenderTransform();
-	const QVariant viewVar = _prog->property("viewMatrix");
-	const QMatrix4x4 viewMatrix = viewVar.isValid() ? viewVar.value<QMatrix4x4>() : QMatrix4x4();
+	const QMatrix4x4 modelMatrix = currentGlobalModelMatrix() * combinedRenderTransform();
+	const QMatrix4x4 viewMatrix = currentViewMatrix();
 	const QMatrix4x4 modelViewMatrix = viewMatrix * modelMatrix;
 
 	if (_prog->uniformLocation("modelMatrix") >= 0)

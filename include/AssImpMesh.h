@@ -59,6 +59,7 @@ public:
 	AssImpMesh(QOpenGLShaderProgram* shader, QString name, std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<GLMaterial::Texture> textures, GLMaterial material, bool skipOptimization = false);
 	~AssImpMesh();
 	virtual TriangleMesh* clone();
+	void setProg(QOpenGLShaderProgram* prog) override;
 	void render();
 	quint64 getRenderMaterialSortKey() const override;
 	void markUniformsDirty() override;
@@ -134,9 +135,6 @@ public:
 	void deleteTextures() override;
 	void replaceOrAppendTexture(const std::string& type, GLuint id, bool hasAlpha);
 
-
-	void releaseCurrentShader();
-
 	
 private:
 	void optimizeMesh();
@@ -174,7 +172,6 @@ private:
 	};
 	std::vector<PrecomputedTexture> _textureBindings;
 	// State caching
-	QOpenGLShaderProgram* _currentBoundShader;
 	static QOpenGLShaderProgram* _currentUniformStateShader;
 	static quint64 _currentUniformStateSignature;
 	static bool _currentUniformStateHadDebugOverrides;

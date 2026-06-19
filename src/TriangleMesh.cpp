@@ -5,6 +5,7 @@
 #include "TriangleMollerTrumbore.h"
 #include "Utils.h"
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <iostream>
 #include <QApplication>
@@ -13,6 +14,10 @@
 
 namespace
 {
+using TextureBindingCache = std::array<GLuint, 40>;
+constexpr GLuint kUnknownTextureBinding = std::numeric_limits<GLuint>::max();
+QHash<QOpenGLContext*, TextureBindingCache> s_textureBindingsByContext;
+
 QQuaternion meshEulerToQuaternion(const QVector3D& rotation)
 {
 	QMatrix4x4 matrix;
@@ -26,6 +31,7 @@ QQuaternion meshEulerToQuaternion(const QVector3D& rotation)
 
 QMatrix4x4 TriangleMesh::_currentGlobalModelMatrix;
 QMatrix4x4 TriangleMesh::_currentViewMatrix;
+std::atomic<quint64> TriangleMesh::_runtimeBoundsRevision{1};
 
 void TriangleMesh::setCurrentRenderContext(const QMatrix4x4& globalModelMatrix,
                                            const QMatrix4x4& viewMatrix)
@@ -48,6 +54,55 @@ const QMatrix4x4& TriangleMesh::currentGlobalModelMatrix()
 const QMatrix4x4& TriangleMesh::currentViewMatrix()
 {
 	return _currentViewMatrix;
+}
+
+void TriangleMesh::bindTextureUnitCached(GLenum textureUnit, GLuint textureId)
+{
+	QOpenGLContext* context = QOpenGLContext::currentContext();
+	if (!context)
+	{
+		return;
+	}
+
+	QOpenGLFunctions* funcs = context->functions();
+	funcs->glActiveTexture(textureUnit);
+
+	const int unitIndex = static_cast<int>(textureUnit - GL_TEXTURE0);
+	if (unitIndex < 0 || unitIndex >= 40)
+	{
+		funcs->glBindTexture(GL_TEXTURE_2D, textureId);
+		return;
+	}
+
+	auto it = s_textureBindingsByContext.find(context);
+	if (it == s_textureBindingsByContext.end())
+	{
+		TextureBindingCache fresh;
+		fresh.fill(kUnknownTextureBinding);
+		it = s_textureBindingsByContext.insert(context, fresh);
+	}
+	TextureBindingCache& cache = it.value();
+	if (cache[unitIndex] != textureId)
+	{
+		funcs->glBindTexture(GL_TEXTURE_2D, textureId);
+		cache[unitIndex] = textureId;
+	}
+}
+
+void TriangleMesh::resetTextureBindingCacheForCurrentContext()
+{
+	if (QOpenGLContext* context = QOpenGLContext::currentContext())
+		s_textureBindingsByContext.remove(context);
+}
+
+quint64 TriangleMesh::currentRuntimeBoundsRevision()
+{
+	return _runtimeBoundsRevision.load(std::memory_order_relaxed);
+}
+
+void TriangleMesh::markRuntimeBoundsChanged()
+{
+	_runtimeBoundsRevision.fetch_add(1, std::memory_order_relaxed);
 }
 
 TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Drawable(prog),
@@ -108,8 +163,7 @@ _baseAttenuationDistance(std::numeric_limits<float>::infinity())
 	_fallbackTextureImage = convertToGLFormat(_fallbackTextureBuffer);
 
 	glGenTextures(1, &_fallbackTexture);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, _fallbackTexture);
+	bindTextureUnitCached(GL_TEXTURE0, _fallbackTexture);
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -609,62 +663,39 @@ void TriangleMesh::setupTextures()
 	// and PBR specular-glossiness simultaneously.  Previously there were two consecutive bind
 	// blocks for the same units (ADS then PBR), with the PBR block overwriting the ADS one;
 	// the ADS-only block obscured the specular-glossiness bug and has been removed.
-	glActiveTexture(GL_TEXTURE10);
-	glBindTexture(GL_TEXTURE_2D, baseColorTex);
-	glActiveTexture(GL_TEXTURE11);
-	glBindTexture(GL_TEXTURE_2D, _material.hasMetallicMap() ? static_cast<GLuint>(_material.metallicTextureId()) : 0U);
-	glActiveTexture(GL_TEXTURE12);
-	glBindTexture(GL_TEXTURE_2D, _material.hasEmissiveMap() ? static_cast<GLuint>(_material.emissiveTextureId()) : 0U);
-	glActiveTexture(GL_TEXTURE13);
-	glBindTexture(GL_TEXTURE_2D, _material.hasNormalMap() ? static_cast<GLuint>(_material.normalTextureId()) : 0U);
-	glActiveTexture(GL_TEXTURE14);
-	glBindTexture(GL_TEXTURE_2D, _material.hasHeightMap() ? static_cast<GLuint>(_material.heightTextureId()) : 0U);
-	glActiveTexture(GL_TEXTURE15);
-	glBindTexture(GL_TEXTURE_2D, _material.hasOpacityMap() ? static_cast<GLuint>(_material.opacityTextureId()) : 0U);
-	glActiveTexture(GL_TEXTURE16);
-	glBindTexture(GL_TEXTURE_2D, _material.hasRoughnessMap() ? static_cast<GLuint>(_material.roughnessTextureId()) : 0U);
-	glActiveTexture(GL_TEXTURE17);
-	glBindTexture(GL_TEXTURE_2D, _material.hasAOMap() ? static_cast<GLuint>(_material.occlusionTextureId()) : 0U);
+	bindTextureUnitCached(GL_TEXTURE10, baseColorTex);
+	bindTextureUnitCached(GL_TEXTURE11, _material.hasMetallicMap() ? static_cast<GLuint>(_material.metallicTextureId()) : 0U);
+	bindTextureUnitCached(GL_TEXTURE12, _material.hasEmissiveMap() ? static_cast<GLuint>(_material.emissiveTextureId()) : 0U);
+	bindTextureUnitCached(GL_TEXTURE13, _material.hasNormalMap() ? static_cast<GLuint>(_material.normalTextureId()) : 0U);
+	bindTextureUnitCached(GL_TEXTURE14, _material.hasHeightMap() ? static_cast<GLuint>(_material.heightTextureId()) : 0U);
+	bindTextureUnitCached(GL_TEXTURE15, _material.hasOpacityMap() ? static_cast<GLuint>(_material.opacityTextureId()) : 0U);
+	bindTextureUnitCached(GL_TEXTURE16, _material.hasRoughnessMap() ? static_cast<GLuint>(_material.roughnessTextureId()) : 0U);
+	bindTextureUnitCached(GL_TEXTURE17, _material.hasAOMap() ? static_cast<GLuint>(_material.occlusionTextureId()) : 0U);
 	
 	// Mesh-owned material block (units 10–29). These are the feature-complete
 	// material slots we keep inside the guaranteed 0..31 range.
-	glActiveTexture(GL_TEXTURE18);
-	glBindTexture(GL_TEXTURE_2D, hasClearcoatColorTex ? static_cast<GLuint>(_material.clearcoatColorTextureId()) : 0U);
-	glActiveTexture(GL_TEXTURE19);
-	glBindTexture(GL_TEXTURE_2D, hasClearcoatRoughnessTex ? static_cast<GLuint>(_material.clearcoatRoughnessTextureId()) : 0U);
-	glActiveTexture(GL_TEXTURE20);
-	glBindTexture(GL_TEXTURE_2D, hasClearcoatNormalTex ? static_cast<GLuint>(_material.clearcoatNormalTextureId()) : 0U);
-	glActiveTexture(GL_TEXTURE21);
-	glBindTexture(GL_TEXTURE_2D, hasSpecularFactorTex ? static_cast<GLuint>(_material.specularFactorTextureId()) : 0U);
-	glActiveTexture(GL_TEXTURE22);
-	glBindTexture(GL_TEXTURE_2D, hasSpecularColorTex ? static_cast<GLuint>(_material.specularColorTextureId()) : 0U);
-	glActiveTexture(GL_TEXTURE23);
-	glBindTexture(GL_TEXTURE_2D, hasAnisotropyTex ? static_cast<GLuint>(_material.anisotropyTextureId()) : 0U);
-	glActiveTexture(GL_TEXTURE24);
-	glBindTexture(GL_TEXTURE_2D, hasIridescenceTex ? static_cast<GLuint>(_material.iridescenceTextureId()) : 0U);
-	glActiveTexture(GL_TEXTURE25);
-	glBindTexture(GL_TEXTURE_2D, hasIridescenceThicknessTex ? static_cast<GLuint>(_material.iridescenceThicknessTextureId()) : 0U);
-	glActiveTexture(GL_TEXTURE26);
-	glBindTexture(GL_TEXTURE_2D, hasSheenColorTex ? static_cast<GLuint>(_material.sheenColorTextureId()) : 0U);
-	glActiveTexture(GL_TEXTURE27);
-	glBindTexture(GL_TEXTURE_2D, hasSheenRoughnessTex ? static_cast<GLuint>(_material.sheenRoughnessTextureId()) : 0U);
-	glActiveTexture(GL_TEXTURE28);
-	glBindTexture(GL_TEXTURE_2D, hasTransmissionTex ? static_cast<GLuint>(_material.transmissionTextureId()) : 0U);
-	glActiveTexture(GL_TEXTURE29);
-	glBindTexture(GL_TEXTURE_2D, hasIORTex ? static_cast<GLuint>(_material.iorTextureId()) : 0U);
+	bindTextureUnitCached(GL_TEXTURE18, hasClearcoatColorTex ? static_cast<GLuint>(_material.clearcoatColorTextureId()) : 0U);
+	bindTextureUnitCached(GL_TEXTURE19, hasClearcoatRoughnessTex ? static_cast<GLuint>(_material.clearcoatRoughnessTextureId()) : 0U);
+	bindTextureUnitCached(GL_TEXTURE20, hasClearcoatNormalTex ? static_cast<GLuint>(_material.clearcoatNormalTextureId()) : 0U);
+	bindTextureUnitCached(GL_TEXTURE21, hasSpecularFactorTex ? static_cast<GLuint>(_material.specularFactorTextureId()) : 0U);
+	bindTextureUnitCached(GL_TEXTURE22, hasSpecularColorTex ? static_cast<GLuint>(_material.specularColorTextureId()) : 0U);
+	bindTextureUnitCached(GL_TEXTURE23, hasAnisotropyTex ? static_cast<GLuint>(_material.anisotropyTextureId()) : 0U);
+	bindTextureUnitCached(GL_TEXTURE24, hasIridescenceTex ? static_cast<GLuint>(_material.iridescenceTextureId()) : 0U);
+	bindTextureUnitCached(GL_TEXTURE25, hasIridescenceThicknessTex ? static_cast<GLuint>(_material.iridescenceThicknessTextureId()) : 0U);
+	bindTextureUnitCached(GL_TEXTURE26, hasSheenColorTex ? static_cast<GLuint>(_material.sheenColorTextureId()) : 0U);
+	bindTextureUnitCached(GL_TEXTURE27, hasSheenRoughnessTex ? static_cast<GLuint>(_material.sheenRoughnessTextureId()) : 0U);
+	bindTextureUnitCached(GL_TEXTURE28, hasTransmissionTex ? static_cast<GLuint>(_material.transmissionTextureId()) : 0U);
+	bindTextureUnitCached(GL_TEXTURE29, hasIORTex ? static_cast<GLuint>(_material.iorTextureId()) : 0U);
 
 	// Overflow material bundles (units 34+).
 	if (hasDiffuseTransmissionTex) {
-		glActiveTexture(GL_TEXTURE0 + 34);
-		glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(_material.diffuseTransmissionTextureId()));
+		bindTextureUnitCached(GL_TEXTURE0 + 34, static_cast<GLuint>(_material.diffuseTransmissionTextureId()));
 	}
 	if (hasDiffuseTransmissionColorTex) {
-		glActiveTexture(GL_TEXTURE0 + 35);
-		glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(_material.diffuseTransmissionColorTextureId()));
+		bindTextureUnitCached(GL_TEXTURE0 + 35, static_cast<GLuint>(_material.diffuseTransmissionColorTextureId()));
 	}
 	if (hasThicknessTex) {
-		glActiveTexture(GL_TEXTURE30);
-		glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(_material.thicknessTextureId()));
+		bindTextureUnitCached(GL_TEXTURE30, static_cast<GLuint>(_material.thicknessTextureId()));
 	}
 }
 
@@ -1737,6 +1768,7 @@ void TriangleMesh::rebuildAbsoluteTransformation()
 	_transformation.translate(_transX, _transY, _transZ);
 	_transformation.rotate(_rotationQuat);
 	_transformation.scale(_scaleX, _scaleY, _scaleZ);
+	invalidateCombinedRenderTransformCache();
 }
 
 void TriangleMesh::rebuildExplodedViewTransformation()
@@ -1747,6 +1779,7 @@ void TriangleMesh::rebuildExplodedViewTransformation()
 	_explodedViewTransformation.rotate(_explodedViewRotationQuat);
 	_explodedViewTransformation.scale(
 		_explodedViewScaleX, _explodedViewScaleY, _explodedViewScaleZ);
+	invalidateCombinedRenderTransformCache();
 }
 
 QMatrix4x4 TriangleMesh::getTransformation() const
@@ -1800,23 +1833,37 @@ QMatrix4x4 TriangleMesh::getSceneRenderTransform() const
 
 QMatrix4x4 TriangleMesh::combinedRenderTransform() const
 {
-	const QMatrix4x4 base = _explodedViewTransformation * _transformation * _sceneRenderTransform;
-	if (_explosionOffset.isNull())
-		return base;
-	QMatrix4x4 t;
-	t.translate(_explosionOffset);
-	return t * base;
+	if (_combinedRenderTransformDirty)
+	{
+		_cachedCombinedRenderTransform =
+			_explodedViewTransformation * _transformation * _sceneRenderTransform;
+		if (!_explosionOffset.isNull())
+		{
+			QMatrix4x4 t;
+			t.translate(_explosionOffset);
+			_cachedCombinedRenderTransform = t * _cachedCombinedRenderTransform;
+		}
+		_combinedRenderTransformDirty = false;
+	}
+	return _cachedCombinedRenderTransform;
+}
+
+void TriangleMesh::invalidateCombinedRenderTransformCache() const
+{
+	_combinedRenderTransformDirty = true;
 }
 
 void TriangleMesh::setSceneRenderTransform(const QMatrix4x4& trsf)
 {
 	_sceneRenderTransform = trsf;
+	invalidateCombinedRenderTransformCache();
 	updateRuntimeBounds();
 }
 
 void TriangleMesh::setSceneRenderTransformFast(const QMatrix4x4& trsf)
 {
 	_sceneRenderTransform = trsf;
+	invalidateCombinedRenderTransformCache();
 
 	// Update the world-space bounding box cheaply by transforming the 8 corners of the
 	// local-space bounding box (from _points, no transform) through the current combined
@@ -1845,6 +1892,7 @@ void TriangleMesh::setSceneRenderTransformFast(const QMatrix4x4& trsf)
 			static_cast<double>(xMin), static_cast<double>(xMax),
 			static_cast<double>(yMin), static_cast<double>(yMax),
 			static_cast<double>(zMin), static_cast<double>(zMax));
+		markRuntimeBoundsChanged();
 	}
 }
 
@@ -1884,6 +1932,7 @@ void TriangleMesh::fastUpdateWorldBounds()
 		static_cast<double>(xMin), static_cast<double>(xMax),
 		static_cast<double>(yMin), static_cast<double>(yMax),
 		static_cast<double>(zMin), static_cast<double>(zMax));
+	markRuntimeBoundsChanged();
 }
 
 void TriangleMesh::setTranslationFast(const QVector3D& trans)
@@ -2093,6 +2142,7 @@ void TriangleMesh::updateRuntimeBounds()
 
 	buildTriangles();
 	computeBounds();
+	markRuntimeBoundsChanged();
 }
 
 float TriangleMesh::shininess() const
@@ -2885,8 +2935,7 @@ void TriangleMesh::applyDebugTextureOverrides()
 	for (auto it = _debugTextureOverrides.constBegin();
 	     it != _debugTextureOverrides.constEnd(); ++it)
 	{
-		glActiveTexture(GL_TEXTURE0 + it.key());
-		glBindTexture(GL_TEXTURE_2D, it.value());
+		bindTextureUnitCached(GL_TEXTURE0 + it.key(), it.value());
 	}
 	// Restore the active texture to unit 0 so subsequent code is not confused.
 	glActiveTexture(GL_TEXTURE0);
