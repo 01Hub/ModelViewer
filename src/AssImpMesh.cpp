@@ -3,6 +3,7 @@
 
 #include <QFileInfo>
 #include <QImage>
+#include <QElapsedTimer>
 #include <QVariantMap>
 #include <QDebug>
 
@@ -112,6 +113,13 @@ void AssImpMesh::markUniformsDirty()
 	TriangleMesh::markUniformsDirty();
 }
 
+void AssImpMesh::resetSharedUniformStateCache()
+{
+	_currentUniformStateShader = nullptr;
+	_currentUniformStateSignature = 0;
+	_currentUniformStateHadDebugOverrides = false;
+}
+
 void AssImpMesh::setProg(QOpenGLShaderProgram* prog)
 {
 	const bool progChanged = (_prog != prog);
@@ -128,6 +136,11 @@ void AssImpMesh::render()
 	if (!_vertexArrayObject.isCreated())
 		return;
 
+	QElapsedTimer renderTimer;
+	const bool profiling = renderDiagnosticsEnabled();
+	if (profiling)
+		renderTimer.start();
+
 	const QMatrix4x4& globalModelMatrix = currentGlobalModelMatrix();
 	const QMatrix4x4 modelMatrix = globalModelMatrix * combinedRenderTransform();
 	const QMatrix4x4& viewMatrix = currentViewMatrix();
@@ -139,21 +152,44 @@ void AssImpMesh::render()
 	// value is authoritative at this point.
 	bindProgramCached(_prog);
 
+	QElapsedTimer stageTimer;
+	if (profiling)
+		stageTimer.start();
 	cacheTextureBindings();
+	if (profiling)
+		recordTextureCacheCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
 
 	// Always upload the per-mesh transform state. Skipping identity meshes lets
 	// them inherit the previous draw's model matrix from shader state, which
 	// causes unrelated meshes later in render order to appear transformed.
+	if (profiling)
+		stageTimer.restart();
+	int transformUniformUploads = 0;
 	if (uniformLocationCached("modelMatrix") >= 0)
+	{
 		_prog->setUniformValue("modelMatrix", modelMatrix);
+		++transformUniformUploads;
+	}
 	if (uniformLocationCached("modelViewMatrix") >= 0)
+	{
 		_prog->setUniformValue("modelViewMatrix", modelViewMatrix);
+		++transformUniformUploads;
+	}
 	if (uniformLocationCached("normalMatrix") >= 0)
+	{
 		_prog->setUniformValue("normalMatrix", modelViewMatrix.normalMatrix());
+		++transformUniformUploads;
+	}
 	if (uniformLocationCached("hasSkinning") >= 0)
+	{
 		_prog->setUniformValue("hasSkinning", hasSkinning());
+		++transformUniformUploads;
+	}
 	if (uniformLocationCached("jointCount") >= 0)
+	{
 		_prog->setUniformValue("jointCount", static_cast<int>(jointPalette().size()));
+		++transformUniformUploads;
+	}
 	if (hasSkinning() && !jointPalette().isEmpty())
 	{
 		const int maxJoints = std::min(static_cast<int>(jointPalette().size()), 128);
@@ -164,7 +200,11 @@ void AssImpMesh::render()
 			if (jointLocation >= 0)
 				_prog->setUniformValue(jointLocation, jointPalette()[i]);
 		}
+		recordJointUniformUploads(maxJoints);
 	}
+	recordTransformUniformUploads(transformUniformUploads);
+	if (profiling)
+		recordTransformUniformCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
 
 	const bool hasDebugUniformOverrides = !_debugUniformOverrides.isEmpty();
 	const quint64 uniformSignature = uniformStateSignature();
@@ -176,12 +216,26 @@ void AssImpMesh::render()
 		!hasDebugUniformOverrides &&
 		!_currentUniformStateHadDebugOverrides;
 
+	if (profiling)
+		stageTimer.restart();
 	if (!canReuseUniformState || _uniformsDirty)
 	{
+		const bool explicitDirty = _uniformsDirty;
+		const bool shaderSwitch = !sameUniformShader;
+		const bool signatureMismatch = sameUniformShader && !signatureMatches;
+		const bool debugBlocked = hasDebugUniformOverrides || _currentUniformStateHadDebugOverrides;
 		if (!_uniformsDirty)
 			_uniformsDirty = true;
 		setupUniformsOptimized();
+		recordMaterialUniformRefresh(explicitDirty);
+		recordMaterialRefreshReason(explicitDirty, shaderSwitch, signatureMismatch, debugBlocked);
 	}
+	else
+	{
+		recordMaterialUniformReuse();
+	}
+	if (profiling)
+		recordMaterialUniformCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
 	_currentUniformStateShader = _prog;
 	_currentUniformStateSignature = uniformSignature;
 	_currentUniformStateHadDebugOverrides = hasDebugUniformOverrides;
@@ -193,11 +247,19 @@ void AssImpMesh::render()
 	applyDebugUniformOverrides();
 
 	// Bind textures efficiently
+	if (profiling)
+		stageTimer.restart();
 	bindTexturesOptimized();
 	applyDebugTextureOverrides();  // TextureDebugPanel per-unit overrides
+	if (profiling)
+		recordTextureBindCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
 
 	// Set render state efficiently
+	if (profiling)
+		stageTimer.restart();
 	setRenderStateOptimized();
+	if (profiling)
+		recordRenderStateCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
 	
 	// Transparent draws must NOT write depth, but should still depth-test.	
 	constexpr GLboolean prevDepthMask = GL_TRUE;
@@ -223,10 +285,15 @@ void AssImpMesh::render()
 
 	// Draw indexed primitives when an element buffer exists, otherwise fall
 	// back to array drawing for glTF point/line primitives that omit indices.
+	if (profiling)
+		stageTimer.restart();
 	if (_indices.empty())
 		glDrawArrays(_primitiveMode, 0, drawCount);
 	else
 		glDrawElements(_primitiveMode, drawCount, GL_UNSIGNED_INT, nullptr);
+	recordDrawCall(!_indices.empty(), isTransparent());
+	if (profiling)
+		recordDrawCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
 	
 	// Reset point size
 	if (_primitiveMode == GL_POINTS)
@@ -237,6 +304,8 @@ void AssImpMesh::render()
 	_vertexArrayObject.release();
 
 	if (isTransparent()) glDepthMask(prevDepthMask); // restore immediately
+	if (profiling)
+		recordAssImpRenderCpuMs(static_cast<double>(renderTimer.nsecsElapsed()) / 1000000.0);
 }
 
 quint64 AssImpMesh::uniformStateSignature() const
@@ -273,6 +342,7 @@ quint64 AssImpMesh::uniformStateSignature() const
 	mixFloat(hash, _material.ior());
 	mixFloat(hash, _material.clearcoat());
 	mixFloat(hash, _material.clearcoatRoughness());
+	mixFloat(hash, _material.sheenRoughness());
 	mixFloat(hash, _material.shininess());
 	mixFloat(hash, _material.specularFactor());
 	mixFloat(hash, _material.glossinessFactor());

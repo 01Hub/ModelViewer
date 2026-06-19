@@ -39,6 +39,34 @@ public:
 	static void bindProgramCached(QOpenGLShaderProgram* prog);
 	static void notifyProgramBound(QOpenGLShaderProgram* prog);
 	static void resetBoundProgramCacheForCurrentContext();
+	static bool renderDiagnosticsEnabled();
+	static void beginRenderDiagnosticsFrame(bool enabled);
+	static void recordFrameCpuMs(double ms);
+	static void recordOpaquePassCpuMs(double ms);
+	static void recordTransparentPassCpuMs(double ms);
+	static void recordFloorPassCpuMs(double ms);
+	static void recordRenderMeshWithDisplayModeCpuMs(double ms);
+	static void recordAssImpRenderCpuMs(double ms);
+	static void recordProgramBindCall(bool actualBind);
+	static void recordTextureBindCall(bool actualBind);
+	static void recordVaoProgramReconfigure();
+	static void recordMaterialUniformRefresh(bool explicitDirty);
+	static void recordMaterialUniformReuse();
+	static void recordMaterialRefreshReason(bool explicitDirty,
+		bool shaderSwitch,
+		bool signatureMismatch,
+		bool debugOverridesBlockedReuse);
+	static void recordMaterialDirtyBySetProg();
+	static void recordTransformUniformUploads(int count);
+	static void recordJointUniformUploads(int count);
+	static void recordDrawCall(bool indexed, bool transparent);
+	static void recordTextureCacheCpuMs(double ms);
+	static void recordTransformUniformCpuMs(double ms);
+	static void recordMaterialUniformCpuMs(double ms);
+	static void recordTextureBindCpuMs(double ms);
+	static void recordRenderStateCpuMs(double ms);
+	static void recordDrawCpuMs(double ms);
+	static void flushRenderDiagnostics();
 	static quint64 currentRuntimeBoundsRevision();
 
 	// Setter for primitive mode (from glTF)

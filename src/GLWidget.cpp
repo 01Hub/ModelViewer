@@ -7064,6 +7064,10 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	_floorPlane->setOpacity(0.1f);
 	_floorPlane->render();
+	// FloorPlane writes mesh-like material uniforms through _fgShader without
+	// participating in AssImpMesh's shared material-uniform cache. Invalidate
+	// that cache so subsequent scene meshes always republish their own state.
+	AssImpMesh::resetSharedUniformStateCache();
 	glDisable(GL_BLEND);
 	glDisable(GL_CULL_FACE);
 
@@ -7106,6 +7110,9 @@ void GLWidget::drawFloor(const bool& drawReflection)
 
 	_floorPlane->setOpacity(0.95f);
 	_floorPlane->render();
+	// The final visible floor pass also mutates _fgShader material uniforms,
+	// so clear the shared cache before later transparent scene draws.
+	AssImpMesh::resetSharedUniformStateCache();
 	glDisable(GL_CULL_FACE);
 	_fgShader->bind();
 	_fgShader->setUniformValue("floorRendering", false);
@@ -7300,6 +7307,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 	// Bind shader and set uniforms that are identical for every opaque mesh once,
 	// outside the loop, to avoid redundant driver calls per draw.
 	prog->bind();
+	TriangleMesh::recordProgramBindCall(true);
 	TriangleMesh::notifyProgramBound(prog);
 	// Suppress hover highlighting while Ctrl is held — avoids flashes during
 	// Ctrl+drag view manipulation as the pointer crosses mesh boundaries.
@@ -7348,7 +7356,10 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		{
 			mesh->setProg(prog);
 			if (requiresPerMeshProgRebind)
+			{
 				prog->bind();
+				TriangleMesh::recordProgramBindCall(true);
+			}
 			prog->setUniformValue("hovered",
 				hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
 			if (sssObjectIdLocation >= 0)
@@ -7420,6 +7431,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 
 	// Bind once and set uniforms constant across all transparent meshes
 	prog->bind();
+	TriangleMesh::recordProgramBindCall(true);
 	TriangleMesh::notifyProgramBound(prog);
 	const bool ctrlHeldT = QGuiApplication::queryKeyboardModifiers() & Qt::ControlModifier;
 	const bool hoverHighlightingEnabledT = !ctrlHeldT &&
@@ -7438,7 +7450,10 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 			const int id = it.second;
 			mesh->setProg(prog);
 			if (requiresPerMeshProgRebind)
+			{
 				prog->bind();
+				TriangleMesh::recordProgramBindCall(true);
+			}
 			prog->setUniformValue("hovered",
 				hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
 			if (sssObjectIdLocation >= 0)
@@ -10271,6 +10286,13 @@ void GLWidget::bindIBLTextures()
 
 void GLWidget::render(GLCamera* camera)
 {
+	QElapsedTimer frameTimer;
+	const bool profileRendering =
+		QSettings().value(QStringLiteral("profileRenderingCheckBox"), false).toBool();
+	TriangleMesh::beginRenderDiagnosticsFrame(profileRendering);
+	if (profileRendering)
+		frameTimer.start();
+
 	glEnable(GL_DEPTH_TEST);
 	glDisable(GL_BLEND);
 	glDisable(GL_CULL_FACE);
@@ -10312,8 +10334,16 @@ void GLWidget::render(GLCamera* camera)
 	glActiveTexture(GL_TEXTURE0);
 
 	_fgShader->bind();
+	TriangleMesh::recordProgramBindCall(true);
 	setCommonUniforms(_fgShader.get(), camera);	
-	drawMeshesWithClipping(_fgShader.get(), false); // opaque pass
+	{
+		QElapsedTimer opaqueTimer;
+		if (profileRendering)
+			opaqueTimer.start();
+		drawMeshesWithClipping(_fgShader.get(), false); // opaque pass
+		if (profileRendering)
+			TriangleMesh::recordOpaquePassCpuMs(static_cast<double>(opaqueTimer.nsecsElapsed()) / 1000000.0);
+	}
 	_fgShader->release();
 
 	// --- 2.5) Section caps (after opaque, before floor & transparents) ---
@@ -10342,7 +10372,12 @@ void GLWidget::render(GLCamera* camera)
 			glBindTexture(GL_TEXTURE_2D,
 				(camera == _primaryCamera && _transmissionDepthTexture != 0) ? _transmissionDepthTexture : _whiteTexture);
 			glActiveTexture(GL_TEXTURE0);
+			QElapsedTimer floorTimer;
+			if (profileRendering)
+				floorTimer.start();
 			drawFloor();
+			if (profileRendering)
+				TriangleMesh::recordFloorPassCpuMs(static_cast<double>(floorTimer.nsecsElapsed()) / 1000000.0);
 		}
 		else if (_groundMode == GroundMode::Grid)
 		{
@@ -10362,13 +10397,24 @@ void GLWidget::render(GLCamera* camera)
 
 	// --- 4) Transparent meshes (with clipping) ---
 	_fgShader->bind();
+	TriangleMesh::recordProgramBindCall(true);
 	setCommonUniforms(_fgShader.get(), camera);
-	drawMeshesWithClipping(_fgShader.get(), true); // transparent pass
+	{
+		QElapsedTimer transparentTimer;
+		if (profileRendering)
+			transparentTimer.start();
+		drawMeshesWithClipping(_fgShader.get(), true); // transparent pass
+		if (profileRendering)
+			TriangleMesh::recordTransparentPassCpuMs(static_cast<double>(transparentTimer.nsecsElapsed()) / 1000000.0);
+	}
 	_fgShader->release();
 
 	// --- 5) Overlays ---
 	if (_showAxis && _userShowAxisOverride) drawAxis();
 	if (_showLights) drawLights();
+	if (profileRendering)
+		TriangleMesh::recordFrameCpuMs(static_cast<double>(frameTimer.nsecsElapsed()) / 1000000.0);
+	TriangleMesh::flushRenderDiagnostics();
 }
 
 
@@ -10669,7 +10715,13 @@ void GLWidget::renderQuad()
 
 void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 {
+	QElapsedTimer meshModeTimer;
+	const bool profiling = TriangleMesh::renderDiagnosticsEnabled();
+	if (profiling)
+		meshModeTimer.start();
+
 	_fgShader->bind();
+	TriangleMesh::recordProgramBindCall(true);
 	TriangleMesh::notifyProgramBound(_fgShader.get()); // keep program cache coherent with raw bind
 	GLint modelViewLoc;
 	GLint prog = 0;
@@ -10685,6 +10737,7 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 		glLineWidth(1.0f);
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		_fgShader->bind();
+		TriangleMesh::recordProgramBindCall(true);
 		mesh->render();
 		break;
 
@@ -10706,15 +10759,18 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 			// uniforms via mesh->render().
 			syncUniformsToFlatShader();
 			_fgFlatShader->bind();
+			TriangleMesh::recordProgramBindCall(true);
 			mesh->setProg(_fgFlatShader.get());
 			mesh->render();
 			// Restore main shader so subsequent draws (wireframe overlay, etc.)
 			// use the correct program.
 			_fgShader->bind();
+			TriangleMesh::recordProgramBindCall(true);
 		}
 		else
 		{
 			_fgShader->bind();
+			TriangleMesh::recordProgramBindCall(true);
 			mesh->render();
 		}
 		break;
@@ -10728,6 +10784,7 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 		glLineWidth(1.25f);
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		_fgShader->bind();
+		TriangleMesh::recordProgramBindCall(true);
 		mesh->render();
 		break;
 
@@ -10737,6 +10794,7 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glLineWidth(1.0f);
 		_fgShader->bind();
+		TriangleMesh::recordProgramBindCall(true);
 		_fgShader->setUniformValue("isWireframePass", false);
 		mesh->render();
 				
@@ -10747,6 +10805,7 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 		glPolygonOffset(-1.0f, -1.0f);
 
 		_fgShader->bind();		
+		TriangleMesh::recordProgramBindCall(true);
 		_fgShader->setUniformValue("isWireframePass", true);
 		mesh->render();
 
@@ -10760,6 +10819,7 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 		glLineWidth(1.0f);
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		_fgShader->bind();
+		TriangleMesh::recordProgramBindCall(true);
 		mesh->render();
 		break;
 	}
@@ -10771,6 +10831,8 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 
 	_fgShader->release();
 	TriangleMesh::resetBoundProgramCacheForCurrentContext();
+	if (profiling)
+		TriangleMesh::recordRenderMeshWithDisplayModeCpuMs(static_cast<double>(meshModeTimer.nsecsElapsed()) / 1000000.0);
 }
 
 void GLWidget::gradientBackground(float top_r, float top_g, float top_b, float top_a,
@@ -10900,6 +10962,7 @@ void GLWidget::splitScreen()
 void GLWidget::setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos)
 {
 	prog->bind();
+	TriangleMesh::recordProgramBindCall(true);
 	if (_clipYZEnabled || _clipZXEnabled || _clipXYEnabled || !(_clipDX == 0 && _clipDY == 0 && _clipDZ == 0))
 	{
 		prog->setUniformValue("sectionActive", true);

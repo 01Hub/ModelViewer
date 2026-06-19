@@ -4,11 +4,13 @@
 #include "TriangleMesh.h"
 #include "TriangleMollerTrumbore.h"
 #include "Utils.h"
+#include "Logger.h"
 #include <algorithm>
 #include <array>
 #include <atomic>
 #include <iostream>
 #include <QApplication>
+#include <QElapsedTimer>
 #include <QQuaternion>
 #include <QVector3D>
 
@@ -18,6 +20,48 @@ using TextureBindingCache = std::array<GLuint, 40>;
 constexpr GLuint kUnknownTextureBinding = std::numeric_limits<GLuint>::max();
 QHash<QOpenGLContext*, TextureBindingCache> s_textureBindingsByContext;
 QHash<QOpenGLContext*, QOpenGLShaderProgram*> s_currentBoundPrograms;
+
+struct RenderDiagnostics
+{
+	bool enabled = false;
+	bool timerStarted = false;
+	QElapsedTimer windowTimer;
+	int frames = 0;
+	qint64 drawCalls = 0;
+	qint64 indexedDrawCalls = 0;
+	qint64 arrayDrawCalls = 0;
+	qint64 transparentDrawCalls = 0;
+	qint64 rawProgramBindCalls = 0;
+	qint64 cachedProgramBindCalls = 0;
+	qint64 cachedProgramBindHits = 0;
+	qint64 rawTextureBindCalls = 0;
+	qint64 cachedTextureBindCalls = 0;
+	qint64 cachedTextureBindHits = 0;
+	qint64 vaoProgramReconfigures = 0;
+	qint64 materialUniformRefreshes = 0;
+	qint64 materialUniformExplicitDirtyRefreshes = 0;
+	qint64 materialUniformShaderSwitchRefreshes = 0;
+	qint64 materialUniformSignatureMismatchRefreshes = 0;
+	qint64 materialUniformDebugOverrideRefreshes = 0;
+	qint64 materialUniformReuses = 0;
+	qint64 materialDirtyBySetProg = 0;
+	qint64 transformUniformUploads = 0;
+	qint64 jointUniformUploads = 0;
+	double frameCpuMs = 0.0;
+	double opaquePassCpuMs = 0.0;
+	double transparentPassCpuMs = 0.0;
+	double floorPassCpuMs = 0.0;
+	double renderMeshWithDisplayModeCpuMs = 0.0;
+	double assImpRenderCpuMs = 0.0;
+	double textureCacheCpuMs = 0.0;
+	double transformUniformCpuMs = 0.0;
+	double materialUniformCpuMs = 0.0;
+	double textureBindCpuMs = 0.0;
+	double renderStateCpuMs = 0.0;
+	double drawCpuMs = 0.0;
+};
+
+RenderDiagnostics s_renderDiagnostics;
 
 QQuaternion meshEulerToQuaternion(const QVector3D& rotation)
 {
@@ -72,6 +116,7 @@ void TriangleMesh::bindTextureUnitCached(GLenum textureUnit, GLuint textureId)
 	if (unitIndex < 0 || unitIndex >= 40)
 	{
 		funcs->glBindTexture(GL_TEXTURE_2D, textureId);
+		recordTextureBindCall(true);
 		return;
 	}
 
@@ -87,6 +132,11 @@ void TriangleMesh::bindTextureUnitCached(GLenum textureUnit, GLuint textureId)
 	{
 		funcs->glBindTexture(GL_TEXTURE_2D, textureId);
 		cache[unitIndex] = textureId;
+		recordTextureBindCall(true);
+	}
+	else
+	{
+		recordTextureBindCall(false);
 	}
 }
 
@@ -99,12 +149,22 @@ void TriangleMesh::resetTextureBindingCacheForCurrentContext()
 void TriangleMesh::bindProgramCached(QOpenGLShaderProgram* prog)
 {
 	QOpenGLContext* ctx = QOpenGLContext::currentContext();
-	if (!ctx) { prog->bind(); return; }
+	if (!ctx)
+	{
+		prog->bind();
+		recordProgramBindCall(true);
+		return;
+	}
 	auto it = s_currentBoundPrograms.find(ctx);
 	if (it == s_currentBoundPrograms.end() || it.value() != prog)
 	{
 		prog->bind();
 		s_currentBoundPrograms[ctx] = prog;
+		recordProgramBindCall(true);
+	}
+	else
+	{
+		recordProgramBindCall(false);
 	}
 }
 
@@ -118,6 +178,243 @@ void TriangleMesh::resetBoundProgramCacheForCurrentContext()
 {
 	if (QOpenGLContext* ctx = QOpenGLContext::currentContext())
 		s_currentBoundPrograms.remove(ctx);
+}
+
+bool TriangleMesh::renderDiagnosticsEnabled()
+{
+	return s_renderDiagnostics.enabled;
+}
+
+void TriangleMesh::beginRenderDiagnosticsFrame(bool enabled)
+{
+	if (!enabled)
+	{
+		s_renderDiagnostics = RenderDiagnostics{};
+		return;
+	}
+
+	if (!s_renderDiagnostics.timerStarted)
+	{
+		s_renderDiagnostics.windowTimer.start();
+		s_renderDiagnostics.timerStarted = true;
+	}
+
+	s_renderDiagnostics.enabled = true;
+	++s_renderDiagnostics.frames;
+}
+
+void TriangleMesh::recordFrameCpuMs(double ms)
+{
+	if (s_renderDiagnostics.enabled)
+		s_renderDiagnostics.frameCpuMs += ms;
+}
+
+void TriangleMesh::recordOpaquePassCpuMs(double ms)
+{
+	if (s_renderDiagnostics.enabled)
+		s_renderDiagnostics.opaquePassCpuMs += ms;
+}
+
+void TriangleMesh::recordTransparentPassCpuMs(double ms)
+{
+	if (s_renderDiagnostics.enabled)
+		s_renderDiagnostics.transparentPassCpuMs += ms;
+}
+
+void TriangleMesh::recordFloorPassCpuMs(double ms)
+{
+	if (s_renderDiagnostics.enabled)
+		s_renderDiagnostics.floorPassCpuMs += ms;
+}
+
+void TriangleMesh::recordRenderMeshWithDisplayModeCpuMs(double ms)
+{
+	if (s_renderDiagnostics.enabled)
+		s_renderDiagnostics.renderMeshWithDisplayModeCpuMs += ms;
+}
+
+void TriangleMesh::recordAssImpRenderCpuMs(double ms)
+{
+	if (s_renderDiagnostics.enabled)
+		s_renderDiagnostics.assImpRenderCpuMs += ms;
+}
+
+void TriangleMesh::recordProgramBindCall(bool actualBind)
+{
+	if (!s_renderDiagnostics.enabled)
+		return;
+	++s_renderDiagnostics.cachedProgramBindCalls;
+	if (actualBind)
+		++s_renderDiagnostics.rawProgramBindCalls;
+	else
+		++s_renderDiagnostics.cachedProgramBindHits;
+}
+
+void TriangleMesh::recordTextureBindCall(bool actualBind)
+{
+	if (!s_renderDiagnostics.enabled)
+		return;
+	++s_renderDiagnostics.cachedTextureBindCalls;
+	if (actualBind)
+		++s_renderDiagnostics.rawTextureBindCalls;
+	else
+		++s_renderDiagnostics.cachedTextureBindHits;
+}
+
+void TriangleMesh::recordVaoProgramReconfigure()
+{
+	if (s_renderDiagnostics.enabled)
+		++s_renderDiagnostics.vaoProgramReconfigures;
+}
+
+void TriangleMesh::recordMaterialUniformRefresh(bool explicitDirty)
+{
+	if (!s_renderDiagnostics.enabled)
+		return;
+	++s_renderDiagnostics.materialUniformRefreshes;
+	if (explicitDirty)
+		++s_renderDiagnostics.materialUniformExplicitDirtyRefreshes;
+}
+
+void TriangleMesh::recordMaterialUniformReuse()
+{
+	if (s_renderDiagnostics.enabled)
+		++s_renderDiagnostics.materialUniformReuses;
+}
+
+void TriangleMesh::recordMaterialRefreshReason(bool explicitDirty,
+	bool shaderSwitch,
+	bool signatureMismatch,
+	bool debugOverridesBlockedReuse)
+{
+	if (!s_renderDiagnostics.enabled)
+		return;
+	if (explicitDirty)
+		++s_renderDiagnostics.materialUniformExplicitDirtyRefreshes;
+	if (shaderSwitch)
+		++s_renderDiagnostics.materialUniformShaderSwitchRefreshes;
+	if (signatureMismatch)
+		++s_renderDiagnostics.materialUniformSignatureMismatchRefreshes;
+	if (debugOverridesBlockedReuse)
+		++s_renderDiagnostics.materialUniformDebugOverrideRefreshes;
+}
+
+void TriangleMesh::recordMaterialDirtyBySetProg()
+{
+	if (s_renderDiagnostics.enabled)
+		++s_renderDiagnostics.materialDirtyBySetProg;
+}
+
+void TriangleMesh::recordTransformUniformUploads(int count)
+{
+	if (s_renderDiagnostics.enabled)
+		s_renderDiagnostics.transformUniformUploads += count;
+}
+
+void TriangleMesh::recordJointUniformUploads(int count)
+{
+	if (s_renderDiagnostics.enabled)
+		s_renderDiagnostics.jointUniformUploads += count;
+}
+
+void TriangleMesh::recordDrawCall(bool indexed, bool transparent)
+{
+	if (!s_renderDiagnostics.enabled)
+		return;
+	++s_renderDiagnostics.drawCalls;
+	if (indexed)
+		++s_renderDiagnostics.indexedDrawCalls;
+	else
+		++s_renderDiagnostics.arrayDrawCalls;
+	if (transparent)
+		++s_renderDiagnostics.transparentDrawCalls;
+}
+
+void TriangleMesh::recordTextureCacheCpuMs(double ms)
+{
+	if (s_renderDiagnostics.enabled)
+		s_renderDiagnostics.textureCacheCpuMs += ms;
+}
+
+void TriangleMesh::recordTransformUniformCpuMs(double ms)
+{
+	if (s_renderDiagnostics.enabled)
+		s_renderDiagnostics.transformUniformCpuMs += ms;
+}
+
+void TriangleMesh::recordMaterialUniformCpuMs(double ms)
+{
+	if (s_renderDiagnostics.enabled)
+		s_renderDiagnostics.materialUniformCpuMs += ms;
+}
+
+void TriangleMesh::recordTextureBindCpuMs(double ms)
+{
+	if (s_renderDiagnostics.enabled)
+		s_renderDiagnostics.textureBindCpuMs += ms;
+}
+
+void TriangleMesh::recordRenderStateCpuMs(double ms)
+{
+	if (s_renderDiagnostics.enabled)
+		s_renderDiagnostics.renderStateCpuMs += ms;
+}
+
+void TriangleMesh::recordDrawCpuMs(double ms)
+{
+	if (s_renderDiagnostics.enabled)
+		s_renderDiagnostics.drawCpuMs += ms;
+}
+
+void TriangleMesh::flushRenderDiagnostics()
+{
+	if (!s_renderDiagnostics.enabled || !s_renderDiagnostics.timerStarted)
+		return;
+
+	const qint64 windowMs = s_renderDiagnostics.windowTimer.elapsed();
+	if (windowMs < 1000 || s_renderDiagnostics.frames <= 0)
+		return;
+
+	const double frames = static_cast<double>(s_renderDiagnostics.frames);
+	Logger::instance().info(
+		QStringLiteral("[RenderDiagnostics] windowMs=%1 frames=%2 frameCpuMs/frame=%3 opaqueMs/frame=%4 transparentMs/frame=%5 floorMs/frame=%6 meshModeMs/frame=%7 assImpMs/frame=%8 textureCacheMs/frame=%9 transformUniformMs/frame=%10 materialUniformMs/frame=%11 textureBindMs/frame=%12 renderStateMs/frame=%13 drawMs/frame=%14 draws/frame=%15 indexed/frame=%16 arrays/frame=%17 transparentDraws/frame=%18 rawProgBinds/frame=%19 progBindObservations/frame=%20 progCacheHits/frame=%21 rawTexBinds/frame=%22 texBindObservations/frame=%23 texCacheHits/frame=%24 vaoReconfig/frame=%25 materialRefresh/frame=%26 materialDirtyRefresh/frame=%27 materialShaderSwitchRefresh/frame=%28 materialSignatureRefresh/frame=%29 materialDebugBlockedRefresh/frame=%30 materialDirtyBySetProg/frame=%31 materialReuse/frame=%32 transformUniforms/frame=%33 jointUniforms/frame=%34")
+			.arg(windowMs)
+			.arg(s_renderDiagnostics.frames)
+			.arg(s_renderDiagnostics.frameCpuMs / frames, 0, 'f', 3)
+			.arg(s_renderDiagnostics.opaquePassCpuMs / frames, 0, 'f', 3)
+			.arg(s_renderDiagnostics.transparentPassCpuMs / frames, 0, 'f', 3)
+			.arg(s_renderDiagnostics.floorPassCpuMs / frames, 0, 'f', 3)
+			.arg(s_renderDiagnostics.renderMeshWithDisplayModeCpuMs / frames, 0, 'f', 3)
+			.arg(s_renderDiagnostics.assImpRenderCpuMs / frames, 0, 'f', 3)
+			.arg(s_renderDiagnostics.textureCacheCpuMs / frames, 0, 'f', 3)
+			.arg(s_renderDiagnostics.transformUniformCpuMs / frames, 0, 'f', 3)
+			.arg(s_renderDiagnostics.materialUniformCpuMs / frames, 0, 'f', 3)
+			.arg(s_renderDiagnostics.textureBindCpuMs / frames, 0, 'f', 3)
+			.arg(s_renderDiagnostics.renderStateCpuMs / frames, 0, 'f', 3)
+			.arg(s_renderDiagnostics.drawCpuMs / frames, 0, 'f', 3)
+			.arg(s_renderDiagnostics.drawCalls / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.indexedDrawCalls / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.arrayDrawCalls / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.transparentDrawCalls / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.rawProgramBindCalls / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.cachedProgramBindCalls / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.cachedProgramBindHits / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.rawTextureBindCalls / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.cachedTextureBindCalls / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.cachedTextureBindHits / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.vaoProgramReconfigures / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.materialUniformRefreshes / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.materialUniformExplicitDirtyRefreshes / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.materialUniformShaderSwitchRefreshes / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.materialUniformSignatureMismatchRefreshes / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.materialUniformDebugOverrideRefreshes / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.materialDirtyBySetProg / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.materialUniformReuses / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.transformUniformUploads / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.jointUniformUploads / frames, 0, 'f', 1),
+		QStringLiteral("Performance"));
+
+	s_renderDiagnostics = RenderDiagnostics{};
 }
 
 quint64 TriangleMesh::currentRuntimeBoundsRevision()
@@ -534,10 +831,14 @@ void TriangleMesh::setProg(QOpenGLShaderProgram* prog)
 	const bool progChanged = (_prog != prog);
 	_prog = prog;
 	if (progChanged)
+	{
+		recordMaterialDirtyBySetProg();
 		clearUniformLocationCache();
+	}
 
 	if (_vaoConfiguredProgram != prog)
 	{
+		recordVaoProgramReconfigure();
 		_vertexArrayObject.bind();
 
 		//_indexBuffer.bind();
@@ -615,7 +916,8 @@ void TriangleMesh::setProg(QOpenGLShaderProgram* prog)
 		_vaoConfiguredProgram = prog;
 	}
 
-	markUniformsDirty();
+	if (progChanged)
+		markUniformsDirty();
 }
 
 int TriangleMesh::uniformLocationCached(const char* name) const

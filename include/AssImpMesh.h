@@ -63,6 +63,7 @@ public:
 	void render();
 	quint64 getRenderMaterialSortKey() const override;
 	void markUniformsDirty() override;
+	static void resetSharedUniformStateCache();
 
     std::vector<Vertex> vertices() const;
 
