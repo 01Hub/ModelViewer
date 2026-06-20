@@ -265,6 +265,7 @@ void SettingsDialog::applySettings()
     settings.setValue("comboProjectionMode", camera_projectionModeIndex);
     settings.setValue("comboDefaultView", camera_defaultViewIndex);
     settings.setValue("comboDefaultProjection", camera_defaultProjectionIndex);
+    settings.setValue("comboCameraUpAxis", camera_defaultUpAxisIndex);
     settings.setValue("checkTrackball", camera_trackball);
     settings.setValue("checkInvertZoom", camera_invertZoom);
     settings.setValue("spinZoomFactor", camera_zoomFactor);
@@ -339,7 +340,6 @@ void SettingsDialog::applySettings()
     settings.setValue("assimpCalcTangentsCheckBox", import_assimpCalcTangents);
     settings.setValue("assimpOptimizeMeshCheckBox", import_assimpOptimizeMesh);
     settings.setValue("assimpRemoveDuplicatesCheckBox", import_assimpRemoveDuplicates);
-	settings.setValue("assimpAutoScaleCheckBox", import_assimpAutoScaleModel);
     settings.setValue("assimpAutoOrientCheckBox", import_assimpAutoOrientModel);
     settings.setValue("assimpMaxFaceVerticesSpinBox", import_assimpMaxFaceVertices);
 
@@ -427,6 +427,7 @@ void SettingsDialog::setDefaultValues()
     ui->comboProjectionMode->setCurrentIndex(0);       // "Orthographic"
     ui->comboDefaultView->setCurrentIndex(0);          // "Isometric"
     ui->comboDefaultProjection->setCurrentIndex(0);    // "Isometric"
+    ui->comboCameraUpAxis->setCurrentIndex(0);         // "Z-Up"
     ui->checkTrackball->setChecked(false);             // No 'checked' property found
     ui->checkInvertZoom->setChecked(false);            // No 'checked' property found
     ui->spinZoomFactor->setValue(1.0);                 // Explicitly set to 1.0
@@ -514,7 +515,6 @@ void SettingsDialog::setDefaultValues()
     ui->assimpOptimizeMeshCheckBox->setChecked(true);
     ui->assimpRemoveDuplicatesCheckBox->setChecked(true);
 	ui->assimpAutoOrientCheckBox->setChecked(true);
-	ui->assimpAutoScaleCheckBox->setChecked(true);
     ui->assimpMaxFaceVerticesSpinBox->setValue(3);
 
     // Import/Export Tab - Export
@@ -629,6 +629,7 @@ void SettingsDialog::syncStateFromUi()
     camera_projectionModeIndex = ui->comboProjectionMode->currentIndex();
     camera_defaultViewIndex = ui->comboDefaultView->currentIndex();
     camera_defaultProjectionIndex = ui->comboDefaultProjection->currentIndex();
+    camera_defaultUpAxisIndex = ui->comboCameraUpAxis->currentIndex();
     camera_trackball = ui->checkTrackball->isChecked();
     camera_invertZoom = ui->checkInvertZoom->isChecked();
     camera_zoomFactor = ui->spinZoomFactor->value();
@@ -704,7 +705,6 @@ void SettingsDialog::syncStateFromUi()
     import_assimpCalcTangents = ui->assimpCalcTangentsCheckBox->isChecked();
     import_assimpOptimizeMesh = ui->assimpOptimizeMeshCheckBox->isChecked();
     import_assimpRemoveDuplicates = ui->assimpRemoveDuplicatesCheckBox->isChecked();
-    import_assimpAutoScaleModel = ui->assimpAutoScaleCheckBox->isChecked();
     import_assimpAutoOrientModel = ui->assimpAutoOrientCheckBox->isChecked();
     import_assimpMaxFaceVertices = ui->assimpMaxFaceVerticesSpinBox->value();
     export_exportScene = ui->radioButtonExportScene->isChecked();
@@ -776,6 +776,8 @@ void SettingsDialog::loadSettings()
     ui->comboDefaultView->setCurrentIndex(iVal);
     iVal = settings.value("comboDefaultProjection", ui->comboDefaultProjection->currentIndex()).toInt();
     ui->comboDefaultProjection->setCurrentIndex(iVal);
+    iVal = settings.value("comboCameraUpAxis", ui->comboCameraUpAxis->currentIndex()).toInt();
+    ui->comboCameraUpAxis->setCurrentIndex(iVal);
     bVal = settings.value("checkTrackball", ui->checkTrackball->isChecked()).toBool();
     ui->checkTrackball->setChecked(bVal);
     bVal = settings.value("checkInvertZoom", ui->checkInvertZoom->isChecked()).toBool();
@@ -887,8 +889,6 @@ void SettingsDialog::loadSettings()
     ui->assimpOptimizeMeshCheckBox->setChecked(bVal);
     bVal = settings.value("assimpRemoveDuplicatesCheckBox", ui->assimpRemoveDuplicatesCheckBox->isChecked()).toBool();
     ui->assimpRemoveDuplicatesCheckBox->setChecked(bVal);
-    bVal = settings.value("assimpAutoScaleCheckBox", ui->assimpAutoScaleCheckBox->isChecked()).toBool();
-    ui->assimpAutoScaleCheckBox->setChecked(bVal);
     bVal = settings.value("assimpAutoOrientCheckBox", ui->assimpAutoOrientCheckBox->isChecked()).toBool();
     ui->assimpAutoOrientCheckBox->setChecked(bVal);
     iVal = settings.value("assimpMaxFaceVerticesSpinBox", ui->assimpMaxFaceVerticesSpinBox->value()).toInt();
@@ -1021,6 +1021,7 @@ void SettingsDialog::restoreDefaults()
         ui->comboBoxTheme, ui->comboBoxLanguage, ui->checkPromptOverwrite,
 		ui->checkRestoreLastFile, ui->checkTooltips, ui->checkConfirmExit, ui->checkTutorialLaunch, ui->spinBoxUndoLimit,
         ui->comboProjectionMode, ui->comboDefaultView, ui->comboDefaultProjection,
+        ui->comboCameraUpAxis,
         ui->checkTrackball, ui->checkInvertZoom, ui->spinZoomFactor,
         ui->comboBoxBackgroundStyle, ui->pushButtonTopColor, ui->pushButtonBottomColor,
         ui->comboBoxGradientStyle, ui->showBoundingBoxCheckBox, ui->showCornerTrihedronCheckBox,
@@ -1040,7 +1041,7 @@ void SettingsDialog::restoreDefaults()
         ui->occtUnifyFacesCheckBox, ui->occtUnifyEdgesCheckBox, ui->occtBuildCurvesCheckBox,
         ui->assimpTriangulateCheckBox, ui->assimpGenNormalsCheckBox, ui->assimpSmoothNormalsCheckBox,
         ui->assimpCalcTangentsCheckBox, ui->assimpOptimizeMeshCheckBox, ui->assimpRemoveDuplicatesCheckBox,
-		ui->assimpAutoScaleCheckBox, ui->assimpAutoOrientCheckBox,
+		ui->assimpAutoOrientCheckBox,
         ui->assimpMaxFaceVerticesSpinBox, ui->radioButtonExportScene, ui->radioButtonExportMeshes,
         ui->checkMultithreadedLoad, ui->spinThreadLimit,
         ui->checkSkyboxBlending, ui->checkProgressiveLoading, ui->maxFpsSpinBox,
@@ -1123,6 +1124,11 @@ void SettingsDialog::on_comboDefaultView_currentIndexChanged()
 void SettingsDialog::on_comboDefaultProjection_currentIndexChanged()
 {
     camera_defaultProjectionIndex = ui->comboDefaultProjection->currentIndex();
+}
+
+void SettingsDialog::on_comboCameraUpAxis_currentIndexChanged()
+{
+    camera_defaultUpAxisIndex = ui->comboCameraUpAxis->currentIndex();
 }
 
 void SettingsDialog::on_checkTrackball_stateChanged()
@@ -1424,11 +1430,6 @@ void SettingsDialog::on_assimpOptimizeMeshCheckBox_stateChanged()
 void SettingsDialog::on_assimpRemoveDuplicatesCheckBox_stateChanged()
 {
     import_assimpRemoveDuplicates = ui->assimpRemoveDuplicatesCheckBox->isChecked();
-}
-
-void SettingsDialog::on_assimpAutoScaleCheckBox_stateChanged()
-{
-    import_assimpAutoScaleModel = ui->assimpAutoScaleCheckBox->isChecked();
 }
 
 void SettingsDialog::on_assimpAutoOrientCheckBox_stateChanged()

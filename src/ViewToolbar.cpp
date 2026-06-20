@@ -283,6 +283,32 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _toolButtonCameraModes->setMenu(camModeMenu);
     _toolButtonCameraModes->setDefaultAction(_orbitAction);
 
+    _toolButtonCameraUpAxis = new FlyOutViewButton(this);
+    _toolButtonCameraUpAxis->setIcon(QIcon(":/icons/res/camera_z_up.png"));
+    _toolButtonCameraUpAxis->setIconSize(QSize(48, 48));
+    _toolButtonCameraUpAxis->setToolTip(tr("Camera Up Axis"));
+    _toolButtonCameraUpAxis->setPopupMode(QToolButton::DelayedPopup);
+    _toolButtonCameraUpAxis->setAutoRaise(true);
+    _mainLayout->addWidget(_toolButtonCameraUpAxis);
+
+    QMenu* cameraUpAxisMenu = new QMenu;
+    cameraUpAxisMenu->setStyleSheet(flyoutStyleSheet);
+    _cameraZUpAction = cameraUpAxisMenu->addAction(QIcon(":/icons/res/camera_z_up.png"), tr("Z-Up"));
+    _cameraYUpAction = cameraUpAxisMenu->addAction(QIcon(":/icons/res/camera_y_up.png"), tr("Y-Up"));
+
+    connect(_cameraZUpAction, &QAction::triggered, this, [this]() {
+        _toolButtonCameraUpAxis->setDefaultAction(_cameraZUpAction);
+        emit cameraUpAxisToggled(true);
+    });
+
+    connect(_cameraYUpAction, &QAction::triggered, this, [this]() {
+        _toolButtonCameraUpAxis->setDefaultAction(_cameraYUpAction);
+        emit cameraUpAxisToggled(false);
+    });
+
+    _toolButtonCameraUpAxis->setMenu(cameraUpAxisMenu);
+    _toolButtonCameraUpAxis->setDefaultAction(_cameraZUpAction);
+
     // Standard Views
     _toolButtonViews = new FlyOutViewButton(this);
     _toolButtonViews->setIcon(QIcon(":/icons/res/top.png"));
@@ -782,6 +808,20 @@ void ViewToolbar::setExplodedViewChecked(bool checked)
 	_explodedBtn->blockSignals(oldState);
 }
 
+void ViewToolbar::setCameraUpAxisZUp(bool zUp)
+{
+    if (!_toolButtonCameraUpAxis)
+        return;
+
+    _toolButtonCameraUpAxis->setDefaultAction(zUp ? _cameraZUpAction : _cameraYUpAction);
+}
+
+bool ViewToolbar::isCameraUpAxisZUp() const
+{
+    return _toolButtonCameraUpAxis &&
+        _toolButtonCameraUpAxis->defaultAction() == _cameraZUpAction;
+}
+
 
 void ViewToolbar::paintEvent(QPaintEvent* event)
 {
@@ -868,6 +908,9 @@ void ViewToolbar::retranslateUI()
 	_orbitAction->setText(tr("Orbit"));
 	_flyAction->setText(tr("Fly"));
 	_firstPersonAction->setText(tr("First Person"));
+    _toolButtonCameraUpAxis->setToolTip(tr("Camera Up Axis"));
+    _cameraZUpAction->setText(tr("Z-Up"));
+    _cameraYUpAction->setText(tr("Y-Up"));
 
 	// View dropdown button
 	_toolButtonViews->setToolTip(tr("Standard Views"));

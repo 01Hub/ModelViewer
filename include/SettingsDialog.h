@@ -38,6 +38,7 @@ public:
     int cameraProjectionModeIndex() const { return camera_projectionModeIndex; }
     int cameraDefaultViewIndex() const { return camera_defaultViewIndex; }
     int cameraDefaultProjectionIndex() const { return camera_defaultProjectionIndex; }
+    int cameraDefaultUpAxisIndex() const { return camera_defaultUpAxisIndex; }
     bool cameraTrackball() const { return camera_trackball; }
     bool cameraInvertZoom() const { return camera_invertZoom; }
     double cameraZoomFactor() const { return camera_zoomFactor; }
@@ -177,6 +178,7 @@ private slots:
     void on_comboProjectionMode_currentIndexChanged();
     void on_comboDefaultView_currentIndexChanged();
     void on_comboDefaultProjection_currentIndexChanged();
+    void on_comboCameraUpAxis_currentIndexChanged();
     void on_checkTrackball_stateChanged();
     void on_checkInvertZoom_stateChanged();
     void on_spinZoomFactor_valueChanged();
@@ -233,7 +235,6 @@ private slots:
     void on_assimpCalcTangentsCheckBox_stateChanged();
     void on_assimpOptimizeMeshCheckBox_stateChanged();
     void on_assimpRemoveDuplicatesCheckBox_stateChanged();
-	void on_assimpAutoScaleCheckBox_stateChanged();
 	void on_assimpAutoOrientCheckBox_stateChanged();
     void on_assimpMaxFaceVerticesSpinBox_valueChanged();
 	void on_radioButtonExportScene_toggled(bool checked);
@@ -298,6 +299,7 @@ private:
     int camera_projectionModeIndex = 0;
     int camera_defaultViewIndex = 0;
     int camera_defaultProjectionIndex = 0;
+    int camera_defaultUpAxisIndex = 0;
     bool camera_trackball = false;
     bool camera_invertZoom = false;
     double camera_zoomFactor = 1.0;
@@ -374,7 +376,6 @@ private:
     bool import_assimpCalcTangents = false;
     bool import_assimpOptimizeMesh = false;
     bool import_assimpRemoveDuplicates = false;
-	bool import_assimpAutoScaleModel = true;
 	bool import_assimpAutoOrientModel = true;
     int import_assimpMaxFaceVertices = 3;
 

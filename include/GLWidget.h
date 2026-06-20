@@ -4,6 +4,7 @@
 #include "AdaptiveShadowMapper.h"
 #include "BoundingSphere.h"
 #include "GLCamera.h"
+#include "Plane.h"
 #include "TriangleMesh.h"
 #include "TransformCommand.h"
 #include "ShaderProgram.h"
@@ -38,7 +39,6 @@ class ClippingPlanesEditor;
 class ExplodedViewPanel;
 class ExplodedViewManager;
 class AssImpModelLoader;
-class Plane;
 class Cube;
 class Cone;
 class Sphere;
@@ -119,6 +119,8 @@ public:
 
 	void resizeView(int w, int h) { resizeGL(w, h); }
 	void setViewMode(ViewMode mode);
+	void setCameraUpAxisZUp(bool zUp, bool syncToolbar = true);
+	bool isCameraUpAxisZUp() const { return _cameraUpAxisZUp; }
 	void setProjection(ViewProjection proj);
 	void setCameraMode(GLCamera::CameraMode mode);
 	GLCamera::CameraMode cameraMode() const;
@@ -738,6 +740,12 @@ private:
 	void loadGrid();
 	void applyFloorPlaneMaterialSettings();
 	void syncFloorPlaneAlbedoTexture();
+	Plane::Orientation floorPlaneOrientation() const;
+	QVector3D currentWorldUpVector() const;
+	float coordinateAlongCurrentWorldUp(const QVector3D& point) const;
+	void setCoordinateAlongCurrentWorldUp(QVector3D& point, float value) const;
+	QVector3D effectiveWorldLightOffset() const;
+	QVector3D effectiveWorldLightPosition() const;
 	void updateMainLightPosition(float halfObjectSize);
 	float updateFloorGeometry();
 	void syncDefaultLightColorUniforms();
@@ -807,7 +815,7 @@ private:
 	void drawSkyBox();
 	void drawVertexNormals();
 	void drawFaceNormals();
-	void drawAxis();
+	void drawAxis(GLCamera* camera);
 	void drawCornerAxis(CornerAxisPosition position);
 	void drawTransformGizmo(GLCamera* camera);
 	void drawViewCube();
@@ -839,6 +847,16 @@ private:
 
 	void gradientBackground(float top_r, float top_g, float top_b, float top_a,
 		float bot_r, float bot_g, float bot_b, float bot_a, int gradientStyle);
+	QQuaternion cameraUpAxisConventionRotation() const;
+	QVector3D transformVectorForCameraUpAxis(const QVector3D& vector) const;
+	void standardViewBasis(ViewMode mode, QVector3D& viewDir, QVector3D& upDir, QVector3D& rightDir) const;
+	QQuaternion standardViewRotation(ViewMode mode) const;
+	void syncCameraWorldUp();
+	void rotateCurrentCameraAroundWorldX(float degrees);
+	bool sceneUpAxisIsZUp(SceneUpAxis sceneUpAxis) const;
+	QString sceneUpAxisLabel(SceneUpAxis sceneUpAxis) const;
+	void applyAutoOrientCameraConvention(SceneUpAxis sceneUpAxis);
+	void warnOnConflictingImportedSceneUpAxis(const QString& fileName, SceneUpAxis sceneUpAxis);
 
 	void loadBgColorSettings();
 	float groundPlaneZ();
@@ -890,6 +908,25 @@ private:
 	// Convenience: collects visible corners + reads axes from the current
 	// view matrix (used by fitAll and projection-toggle).
 	float computeFitViewRange(QVector3D* outCenter = nullptr) const;
+	float computeOrthographicFitViewRangeForViewport(
+		const std::vector<QVector3D>& corners,
+		const QVector3D& right,
+		const QVector3D& up,
+		const QVector3D& viewDir,
+		int viewportWidth,
+		int viewportHeight,
+		QVector3D* outCenter = nullptr) const;
+	QVector3D computeVisibleWorldCenter(const std::vector<QVector3D>& corners) const;
+	float computeSharedOrthographicMultiViewRange(
+		const std::vector<QVector3D>& corners,
+		int viewportWidth,
+		int viewportHeight) const;
+	void configureOrthoSubviewCamera(ViewMode viewMode,
+		const std::vector<QVector3D>& corners,
+		int viewportWidth,
+		int viewportHeight,
+		const QVector3D& sharedCenter,
+		float sharedViewRange);
 
 	float highestModelZ();
 	float lowestModelZ();
@@ -995,6 +1032,9 @@ private:
 	QPoint _leftButtonPoint;
 	QPoint _rightButtonPoint;
 	QPoint _middleButtonPoint;
+	bool _navigationViewportLocked = false;
+	QRect _navigationLockedViewport;
+	QRect _navigationLockedClientRect;
 
 	QPoint _lastPanPoint;
 	int _lastZoomDirection = 0; // +1 for zoom in, -1 for zoom out, 0 for none
@@ -1364,6 +1404,7 @@ private:
 	QVector3D _explodedViewManualDragStartRotationEuler = QVector3D(0.0f, 0.0f, 0.0f);
 	int _viewCubeHoveredRegionId = -1;
 	bool _customViewAnimationActive = false;
+	bool _cameraUpAxisZUp = true;
 	bool _showViewCubeOverride = true;
 	std::array<GLuint, 6> _viewCubeLabelTextures = { 0, 0, 0, 0, 0, 0 };
 	GLuint _viewCubeLabelVAO = 0;

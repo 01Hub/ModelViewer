@@ -9,6 +9,7 @@ uniform vec3 screenCenter;
 uniform float floorSize;
 uniform float groundReferenceSize;
 uniform float gridPlaneZ;
+uniform int worldUpAxis = 2;
 uniform float opacity;
 
 out vec4 fragColor;
@@ -54,11 +55,13 @@ void main()
 	vec3 nearPoint = unprojectPoint(-1.0);
 	vec3 farPoint = unprojectPoint(1.0);
 
-	float denom = farPoint.z - nearPoint.z;
+	float nearUp = (worldUpAxis == 1) ? nearPoint.y : nearPoint.z;
+	float farUp = (worldUpAxis == 1) ? farPoint.y : farPoint.z;
+	float denom = farUp - nearUp;
 	if (abs(denom) < 1e-6)
 		discard;
 
-	float t = (gridPlaneZ - nearPoint.z) / denom;
+	float t = (gridPlaneZ - nearUp) / denom;
 	if (t < 0.0)
 		discard;
 
@@ -69,14 +72,16 @@ void main()
 	if (gl_FragDepth < 0.0 || gl_FragDepth > 1.0)
 		discard;
 
-	vec2 planePos = hitPoint.xy - screenCenter.xy;
+	vec2 planePos = (worldUpAxis == 1)
+		? (hitPoint.xz - screenCenter.xz)
+		: (hitPoint.xy - screenCenter.xy);
 	float radialGridDistance = length(planePos);
 	float sceneScale = max(groundReferenceSize, 1.0);
 	float gridCellSize = max(sceneScale / 120.0, 0.01);
 	float minPixelsBetweenCells = 2.0;
 
-	vec2 dvx = vec2(dFdx(hitPoint.x), dFdy(hitPoint.x));
-	vec2 dvy = vec2(dFdx(hitPoint.y), dFdy(hitPoint.y));
+	vec2 dvx = vec2(dFdx(planePos.x), dFdy(planePos.x));
+	vec2 dvy = vec2(dFdx(planePos.y), dFdy(planePos.y));
 	vec2 dudv = vec2(length(dvx), length(dvy));
 	float l = length(dudv);
 	float lod = max(0.0, log10f(l * minPixelsBetweenCells / gridCellSize) + 1.0);
@@ -87,13 +92,13 @@ void main()
 
 	vec2 aaDudv = max(dudv * 5.25, vec2(1e-5));
 
-	vec2 modDiv = mod(hitPoint.xy, cellLod0) / aaDudv;
+	vec2 modDiv = mod(planePos, cellLod0) / aaDudv;
 	float lod0a = max2(vec2(1.0) - abs(satv(modDiv) * 2.0 - vec2(1.0)));
 
-	modDiv = mod(hitPoint.xy, cellLod1) / aaDudv;
+	modDiv = mod(planePos, cellLod1) / aaDudv;
 	float lod1a = max2(vec2(1.0) - abs(satv(modDiv) * 2.0 - vec2(1.0)));
 
-	modDiv = mod(hitPoint.xy, cellLod2) / aaDudv;
+	modDiv = mod(planePos, cellLod2) / aaDudv;
 	float lod2a = max2(vec2(1.0) - abs(satv(modDiv) * 2.0 - vec2(1.0)));
 
 	float lodFade = fract(lod);

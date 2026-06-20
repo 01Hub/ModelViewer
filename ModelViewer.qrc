@@ -81,6 +81,8 @@
         <file>res/checkmark.png</file>
         <file>res/item_down.png</file>
         <file>res/item_up.png</file>
+        <file>res/camera_y_up.png</file>
+        <file>res/camera_z_up.png</file>
     </qresource>
     <qresource prefix="/styles">
         <file>themes/DarkOrange.qss</file>

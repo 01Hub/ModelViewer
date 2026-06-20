@@ -805,8 +805,6 @@ AssImpModelLoader::AssImpModelLoader() : QObject(),
 	_importer.SetProgressHandler(_progHandler);
 	connect(_progHandler, SIGNAL(fileReadProcessed(float)), this, SLOT(processFileReadProgress(float)));
 
-	_autoScale = QSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName())
-		.value("assimpAutoScaleCheckBox", true).toBool();
 	_autoOrient = QSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName())
 		.value("assimpAutoOrientCheckBox", true).toBool();
 }
@@ -941,6 +939,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	QString qPath = QString::fromStdString(path);
 	const bool isGltfLike = qPath.endsWith(".gltf", Qt::CaseInsensitive) ||
 		qPath.endsWith(".glb", Qt::CaseInsensitive);
+	_sceneUpAxis = detectSceneUpAxis(_scene, path);
 
 	// Capture original glTF material indices before deduplication so import,
 	// variants, and export continue to share the authored material numbering.
@@ -966,9 +965,9 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		parseGltfVariants(qPath);
 		_animationData = GltfAnimationData();
 		parseSceneAnimations();
-		// parseSceneCameras() is deferred to after applyCoordinateSystemTransformations()
-		// so that findNodeWorldTransform() sees the corrected root-node matrix
-		// (auto-orient rotation + auto-scale) that is also applied to mesh vertices.
+		// parseSceneCameras() is deferred until after the import-time scale pass
+		// so that findNodeWorldTransform() sees the same scaled root-node matrix
+		// that the runtime meshes use.
 		_cameraData = GltfCameraData();
 	}
 	else
@@ -989,14 +988,12 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		return;
 	}
 
-	// check if auto scaling is active and apply it
+	// Apply any import-time scale normalization. Orientation compensation now
+	// lives in camera space rather than mutating the imported scene graph.
 	applyCoordinateSystemTransformations(path);
 
-	// Parse cameras AFTER the coordinate-system correction so that
-	// findNodeWorldTransform() accumulates the corrected root-node matrix
-	// (auto-orient rotation + auto-scale already baked into mRootNode->mTransformation).
-	// This keeps the stored worldPosition / worldDirection / worldUp in the same
-	// world space that mesh vertices occupy after applyCoordinateSystemTransformations().
+	// Parse cameras AFTER the scale correction so that findNodeWorldTransform()
+	// accumulates the same scaled root-node matrix that mesh vertices occupy.
 	parseSceneCameras();
 
 	if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
@@ -1119,9 +1116,10 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		}
 	}
 
-	// Apply the same autoOrient / autoScale correction to each light's position,
-	// direction, and range so they stay consistent with the transformed geometry.
-	if (!parsedLights.isEmpty() && (_autoScale || _autoOrient))
+	// Apply the import-time scale correction to each light so it stays
+	// consistent with the scaled geometry. Orientation compensation is now
+	// handled in camera space, so punctual lights remain in authored space.
+	if (!parsedLights.isEmpty() && _autoScale)
 	{
 		for (auto& entry : parsedLights.lights)
 		{
@@ -2108,26 +2106,14 @@ SceneMeshInfo AssImpModelLoader::collectSceneMeshInfo(const aiScene* scene)
 
 void AssImpModelLoader::applyCoordinateSystemTransformations(const std::string& path)
 {
-	if (_autoScale || _autoOrient)
+	Q_UNUSED(path);
+	_autoOrientWasApplied = false;
+
+	if (_autoScale)
 	{
 		_appliedTransform = glm::mat4(1.0f);
-		std::string extension = path.substr(path.find_last_of("."));
-		std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
-		// Apply only coordinate system conversion
-		if (_autoOrient)
-		{
-			glm::mat4 coordTransform = getCoordinateSystemTransform(_scene, path);
-			_appliedTransform = coordTransform;
-			// Record whether a non-identity orientation rotation was actually applied
-			_autoOrientWasApplied = (coordTransform != glm::mat4(1.0f));
-		}
-
-		// Apply scaling separately
-		if (_autoScale)
-		{
-			_appliedScale = calculateConditionalScale(_sceneStats.minDimension, _sceneStats.maxDimension);
-			_appliedTransform = glm::scale(_appliedTransform, glm::vec3(_appliedScale));
-		}
+		_appliedScale = calculateConditionalScale(_sceneStats.minDimension, _sceneStats.maxDimension);
+		_appliedTransform = glm::scale(_appliedTransform, glm::vec3(_appliedScale));
 
 		applyTransformToNode(_scene->mRootNode, _appliedTransform);
 	}
@@ -2144,84 +2130,63 @@ void AssImpModelLoader::applyTransformToNode(aiNode* node, const glm::mat4& tran
 	node->mTransformation = aiTransform * node->mTransformation;
 }
 
-glm::mat4 AssImpModelLoader::getCoordinateSystemTransform(const aiScene* scene, const std::string& filePath)
+SceneUpAxis AssImpModelLoader::detectSceneUpAxis(const aiScene* scene, const std::string& filePath) const
 {
-	glm::mat4 transform = glm::mat4(1.0f);
 	bool foundMetadata = false;
-		
-	// First: Try to get coordinate system from scene metadata
-	if (scene && scene->mMetaData)
-	{	
-		// Try different possible metadata keys
-		aiString upAxis;
-		int upAxisInt;
 
-		// String-based up axis
+	if (scene && scene->mMetaData)
+	{
+		aiString upAxis;
+		int upAxisInt = 0;
+
 		if (scene->mMetaData->Get("UpAxis", upAxis) ||
 			scene->mMetaData->Get("up_axis", upAxis) ||
 			scene->mMetaData->Get("UP_AXIS", upAxis) ||
 			scene->mMetaData->Get("CoordinateSystem", upAxis))
 		{
-
 			std::string upStr = upAxis.C_Str();
 			std::transform(upStr.begin(), upStr.end(), upStr.begin(), ::tolower);
 
 			if (upStr.find("y") != std::string::npos || upStr == "y_up")
-			{
-				transform = glm::rotate(glm::mat4(1.0f),
-					glm::radians(90.0f),
-					glm::vec3(1.0f, 0.0f, 0.0f));
-				foundMetadata = true;
-			}
-			else if (upStr.find("z") != std::string::npos || upStr == "z_up")
-			{
-				transform = glm::mat4(1.0f); // Already Z-up
-				foundMetadata = true;
-			}			
+				return SceneUpAxis::YUp;
+			if (upStr.find("z") != std::string::npos || upStr == "z_up")
+				return SceneUpAxis::ZUp;
+
+			foundMetadata = true;
 		}
-		// Integer-based up axis
 		else if (scene->mMetaData->Get("UpAxis", upAxisInt) ||
 			scene->mMetaData->Get("up_axis", upAxisInt))
 		{
+			foundMetadata = true;
 			switch (upAxisInt)
 			{
-			case 1: // Y-up
-				transform = glm::rotate(glm::mat4(1.0f),
-					glm::radians(90.0f),
-					glm::vec3(1.0f, 0.0f, 0.0f));
-				foundMetadata = true;
-				break;
-			case 2: // Z-up
-				transform = glm::mat4(1.0f);
-				foundMetadata = true;
+			case 1:
+				return SceneUpAxis::YUp;
+			case 2:
+				return SceneUpAxis::ZUp;
+			default:
 				break;
 			}
 		}
-
-#ifdef DEBUG
-		if (foundMetadata)
-		{
-			printf("Found coordinate system metadata\n");
-		}
-		else
-		{
-			printf("No coordinate system metadata found\n");
-		}
-#endif
 	}
 
-	// Fallback to file extension if no metadata found
-	if (!foundMetadata)
-	{
-		std::string extension = filePath.substr(filePath.find_last_of("."));
-		std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
-		transform = getCoordinateSystemFromFileType(extension);
-	}
+	if (foundMetadata)
+		return SceneUpAxis::ZUp;
 
-	return transform;
+	std::string extension = filePath.substr(filePath.find_last_of("."));
+	std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+	const glm::mat4 transform = getCoordinateSystemFromFileType(extension);
+	return transform == glm::mat4(1.0f) ? SceneUpAxis::ZUp : SceneUpAxis::YUp;
 }
 
-glm::mat4 AssImpModelLoader::getCoordinateSystemFromFileType(const std::string& fileExtension)
+glm::mat4 AssImpModelLoader::getCoordinateSystemTransform(const aiScene* scene, const std::string& filePath)
+{
+	Q_UNUSED(scene);
+	Q_UNUSED(filePath);
+	return glm::mat4(1.0f);
+}
+
+glm::mat4 AssImpModelLoader::getCoordinateSystemFromFileType(const std::string& fileExtension) const
 {
 	glm::mat4 transform = glm::mat4(1.0f);
 

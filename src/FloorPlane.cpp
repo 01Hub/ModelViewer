@@ -1,13 +1,13 @@
 #include "FloorPlane.h"
 
-FloorPlane::FloorPlane(QOpenGLShaderProgram* prog, QVector3D center, float xsize, float ysize, int xdivs, int ydivs, float zlevel, float smax, float tmax) :
-	Plane(prog, center, xsize, ysize, xdivs, ydivs, zlevel, smax, tmax)
+FloorPlane::FloorPlane(QOpenGLShaderProgram* prog, QVector3D center, float xsize, float ysize, int xdivs, int ydivs, float zlevel, float smax, float tmax, Orientation orientation) :
+	Plane(prog, center, xsize, ysize, xdivs, ydivs, zlevel, smax, tmax, orientation)
 {
 }
 
 TriangleMesh* FloorPlane::clone()
 {
-	return new FloorPlane(_prog, _center, _xSize, _ySize, _xDivs, _yDivs, _zLevel, _sMax, _tMax);
+	return new FloorPlane(_prog, _center, _xSize, _ySize, _xDivs, _yDivs, _zLevel, _sMax, _tMax, _orientation);
 }
 
 void FloorPlane::render()

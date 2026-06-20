@@ -131,6 +131,7 @@ public:
 	float getZoom() const { return _zoomValue; }
 	void setView(ViewProjection iProj);
 	void setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir);
+	void setWorldUpVector(const QVector3D& upVector);
 	void setPosition(float iX, float iY, float iZ);
 	void setPosition(QVector3D pos);
 
@@ -139,6 +140,7 @@ public:
 	QVector3D getViewDir()		const { return _viewDir; }
 	QVector3D getRightVector() const { return _rightVector; }
 	QVector3D getUpVector()	const { return _upVector; }
+	QVector3D getWorldUpVector() const { return _worldUpVector; }
 	QVector3D getPosition()	const { return _position; }
 	QVector3D getRenderPosition() const;
 	float getOrbitDistance() const;
@@ -170,6 +172,7 @@ private:
 	QVector3D _viewDir;
 	QVector3D _rightVector;
 	QVector3D _upVector;
+	QVector3D _worldUpVector;
 	QVector3D _position;
 
 	float _width;

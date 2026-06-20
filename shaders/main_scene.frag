@@ -325,6 +325,7 @@ uniform vec3 screenCenter;
 uniform float floorSize;
 uniform float groundReferenceSize = 1.0;
 uniform bool isReflectedPass;
+uniform int worldUpAxis = 2;
 
 struct LineInfo
 {
@@ -750,6 +751,13 @@ float floorRadius = floorSize * 0.5; // Adjust radius based on floor size
 float fadeStart = floorRadius * 0.65;   // Start fading 
 float fadeEnd = floorRadius * 1.025;     // Fully faded
 
+vec2 groundPlaneCoords(vec3 worldPos)
+{
+    return (worldUpAxis == 1)
+        ? (worldPos.xz - screenCenter.xz)
+        : (worldPos.xy - screenCenter.xy);
+}
+
 float gridLineMask(vec2 planePos, float cellSize, float lineWidthPixels)
 {
 	vec2 scaled = planePos / max(cellSize, 1e-4);
@@ -761,7 +769,7 @@ float gridLineMask(vec2 planePos, float cellSize, float lineWidthPixels)
 
 vec4 computeGridOverlayColor()
 {
-	vec2 planePos = v_position.xy - screenCenter.xy;
+	vec2 planePos = groundPlaneCoords(v_position);
 	float sceneScale = max(groundReferenceSize, 1.0);
 	float majorCell = max(sceneScale / 12.0, 0.25);
 	float minorCell = majorCell / 10.0;
@@ -816,7 +824,7 @@ void main()
 	// Early discard for reflected pass beyond fade start
 	if (isReflectedPass)
 	{
-		float distance = length(v_position - screenCenter);
+		float distance = length(groundPlaneCoords(v_position));
 		if (distance > fadeStart)
 			discard;
 	}
@@ -829,9 +837,23 @@ void main()
 	// Choose rendering path - ADS vs PBR
 	if (renderingMode == 0)
 	{
-		vec3 baseNormal = getUnsignedViewGeometryNormal();
-		v_color_front = shadeBlinnPhong(lightSource, lightModel, material, v_position, baseNormal);
-		v_color_back = shadeBlinnPhong(lightSource, lightModel, material, v_position, -baseNormal);
+		if (floorRendering)
+		{
+			// Floor keeps an analytical up vector, but transform it into view space so
+			// ADS lighting stays in one consistent space.
+			vec3 floorUpWorld = (worldUpAxis == 1) ? vec3(0.0, 1.0, 0.0) : vec3(0.0, 0.0, 1.0);
+			vec3 floorUpNormal = normalize(mat3(viewMatrix) * floorUpWorld);
+			v_color_front = shadeBlinnPhong(lightSource, lightModel, material, v_position, floorUpNormal);
+			v_color_back  = v_color_front;
+		}
+		else
+		{
+			// Meshes stay in view space in ADS so the legacy CAD-style lighting,
+			// bump mapping, hover highlight, and two-sided shading all agree.
+			vec3 baseNormal = getUnsignedViewGeometryNormal();
+			v_color_front = shadeBlinnPhong(lightSource, lightModel, material, v_position, baseNormal);
+			v_color_back  = shadeBlinnPhong(lightSource, lightModel, material, v_position, -baseNormal);
+		}
 	}
 	else
 	{
@@ -1185,7 +1207,7 @@ void main()
 		else if (!isReflectedPass && floorTextureEnabled)
 			fragColor = v_color * texture(texture_diffuse, getDiffuseTextureUV());
 		// Compute distance-based blending factor
-		float distance = length(v_position.xy - screenCenter.xy);
+		float distance = length(groundPlaneCoords(v_position));
 
 		// Set fade parameters first, before any calculations
 		// Early discard for pixels beyond fade range
@@ -1197,17 +1219,17 @@ void main()
 		if (fadeFactor >= 1.0)
 			discard;
 		// Blend floor color with the background gradient
-		// View-angle modulation: reduce background mix when looking straight down
-		// NdotV in world (front/back already handled above)
-		vec3 N_main = getSignedViewGeometryNormal();
+		// View-angle modulation: reduce background mix when looking straight down.
+		// Use the analytical world-space floor normal (always pointing down along the up-axis)
+		// so the angle is correct regardless of camera rotation — avoids mixed view/world space.
+		// NdotV_main ≈ 1 when camera looks straight down; ≈ 0 at grazing.
+		vec3 N_main = (worldUpAxis == 1) ? vec3(0.0, -1.0, 0.0) : vec3(0.0, 0.0, -1.0);
 		vec3 V_main = normalize(cameraDir);
-		float NdotV_main = clamp(dot(N_main, V_main), 0.0, 1.0);
+		float NdotV_main = abs(dot(N_main, V_main));
 
-		// Reduce background contribution when NdotV is high (top view).
-		// When looking straight down (NdotV~1), bgMix gets smaller -> floor doesn't wash out.
-		// Reduce background mixing when looking straight down (NdotV ~ 1)
+		// at top-down (NdotV~1) → angleMod = 0.25  (floor more opaque)
+		// at grazing  (NdotV~0) → angleMod = 1.0   (floor fades into background)
 		float angleMod = mix(1.0, 0.25, NdotV_main);
-		// at grazing -> 1.0, at top-down -> 0.25
 		float bgMix = fadeFactor * angleMod;
 
 		// Get background color
@@ -2377,7 +2399,7 @@ float calculateShadow(vec4 fragPosLightSpace)
 	float currentDepth = projCoords.z;
 
 	vec3 normal = normalize(fs_in_shadow.Normal);
-	vec3 lightDir = normalize(lightSource.position);
+	vec3 lightDir = normalize(fs_in_shadow.lightPos - fs_in_shadow.FragPos);
 
 	//float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
 	float bias = clamp(0.005 * tan(acos(dot(normal, lightDir))), 0.005, 0.05);
@@ -3715,10 +3737,14 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	}
 
 	// --- Lighting vectors ---
+	// ADS stays in view space: the active camera convention already rotates the
+	// scene into the desired basis, so the inspection light remains the legacy
+	// camera-aligned +Z direction.
 	vec3 lightDir, viewDir;
+	vec3 inspectionDir = normalize(vec3(0.0, 0.0, 1.0));
 
-	viewDir = normalize(vec3(0, 0, 1));
-	lightDir = normalize(source.position - getFragPosition());
+	viewDir = inspectionDir;
+	lightDir = inspectionDir;
 
 	vec3 halfVector = normalize(lightDir + viewDir);
 	float nDotVP = max(dot(normal, normalize(lightDir + viewDir)), 0.0);
@@ -3820,10 +3846,11 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	{
 		float fa = clamp(floorAlpha, 0.0, 1.0);
 
-		// View-angle term to avoid "whiteout" when looking straight down
-		vec3 Nf = getSignedViewGeometryNormal();
+		// View-angle term to avoid "whiteout" when looking straight down.
+		// Analytical world-space floor normal — consistent regardless of camera rotation.
+		vec3 Nf = (worldUpAxis == 1) ? vec3(0.0, -1.0, 0.0) : vec3(0.0, 0.0, -1.0);
 		vec3 Vf = normalize(cameraPos - v_position);
-		float NdotVf = clamp(dot(Nf, Vf), 0.0, 1.0);
+		float NdotVf = abs(dot(Nf, Vf));
 		// Fresnel-like dampening of spec when NdotV is high (looking straight down)
 		float fresDampen = mix(1.0 - floorFresnelDampen, 1.0, pow(1.0 - NdotVf, 5.0));
 
@@ -4171,7 +4198,9 @@ vec4 calculatePBRLightingKHR(int renderMode, float side)
 	if (floorRendering && !isReflectedPass)
 	{
 		float fa = clamp(floorAlpha, 0.0, 1.0);
-		float NdotVf = clamp(dot(frame.Ng, frame.V), 0.0, 1.0);
+		// Floor normal faces downward (away from camera); use abs() so top-down view gives
+		// NdotVf ≈ 1 (minimum dampen) and grazing view gives NdotVf ≈ 0 (full dampen).
+		float NdotVf = abs(dot(frame.Ng, frame.V));
 		float fresDampen = mix(1.0 - floorFresnelDampen, 1.0, pow(1.0 - NdotVf, 5.0));
 		vec3 floorBase = (layers.emissive + layers.sheenDirect + layers.sheenIBL +
 			layers.baseDirectDiffuse +

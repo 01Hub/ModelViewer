@@ -3,21 +3,22 @@
 #include <cstdio>
 #include <cmath>
 
-Plane::Plane(QOpenGLShaderProgram* prog, QVector3D center, float xsize, float ysize, int xdivs, int ydivs, float zlevel, float smax, float tmax) :
+Plane::Plane(QOpenGLShaderProgram* prog, QVector3D center, float xsize, float ysize, int xdivs, int ydivs, float zlevel, float smax, float tmax, Orientation orientation) :
 	TriangleMesh(prog, "Plane"),
 	_center(center),
 	_xSize(xsize),
 	_ySize(ysize),
 	_xDivs(xdivs),
 	_yDivs(ydivs),
-	_zLevel(zlevel)
+	_zLevel(zlevel),
+	_orientation(orientation)
 {
 	_sMax = smax;
 	_tMax = tmax;
-	buildMesh(_center, _xSize, _ySize, _xDivs, _yDivs, _zLevel, _sMax, _tMax);
+	buildMesh(_center, _xSize, _ySize, _xDivs, _yDivs, _zLevel, _sMax, _tMax, _orientation);
 }
 
-void Plane::setPlane(QOpenGLShaderProgram* prog, QVector3D center, float xsize, float ysize, int xdivs, int ydivs, float zlevel, float smax, float tmax)
+void Plane::setPlane(QOpenGLShaderProgram* prog, QVector3D center, float xsize, float ysize, int xdivs, int ydivs, float zlevel, float smax, float tmax, Orientation orientation)
 {
 	_center = center;
 	_xSize = xsize;
@@ -27,16 +28,17 @@ void Plane::setPlane(QOpenGLShaderProgram* prog, QVector3D center, float xsize, 
 	_zLevel = zlevel;
 	_sMax = smax;
 	_tMax = tmax;
+	_orientation = orientation;
 	setProg(prog);
-	buildMesh(_center, _xSize, _ySize, _xDivs, _yDivs, _zLevel, _sMax, _tMax);
+	buildMesh(_center, _xSize, _ySize, _xDivs, _yDivs, _zLevel, _sMax, _tMax, _orientation);
 }
 
 TriangleMesh* Plane::clone()
 {
-	return new Plane(_prog, _center, _xSize, _ySize, _xDivs, _yDivs, _zLevel, _sMax, _tMax);
+	return new Plane(_prog, _center, _xSize, _ySize, _xDivs, _yDivs, _zLevel, _sMax, _tMax, _orientation);
 }
 
-void Plane::buildMesh(QVector3D center, float xsize, float ysize, int xdivs, int ydivs, float zlevel, float smax, float tmax)
+void Plane::buildMesh(QVector3D center, float xsize, float ysize, int xdivs, int ydivs, float zlevel, float smax, float tmax, Orientation orientation)
 {
 	std::vector<float> p(3 * (xdivs + 1) * (ydivs + 1));
 	std::vector<float> n(3 * (xdivs + 1) * (ydivs + 1));
@@ -56,12 +58,24 @@ void Plane::buildMesh(QVector3D center, float xsize, float ysize, int xdivs, int
 		for (int j = 0; j <= xdivs; j++)
 		{
 			x = jFactor * j - x2;
-			p[vidx] = center.x() + x;
-			p[vidx + 1] = center.y() + y;
-			p[vidx + 2] = zlevel;
-			n[vidx] = 0.0f;
-			n[vidx + 1] = 0.0f;
-			n[vidx + 2] = -1.0f;
+			if (orientation == Orientation::XZ_YNormal)
+			{
+				p[vidx] = center.x() + x;
+				p[vidx + 1] = zlevel;
+				p[vidx + 2] = center.z() + y;
+				n[vidx] = 0.0f;
+				n[vidx + 1] = -1.0f;
+				n[vidx + 2] = 0.0f;
+			}
+			else
+			{
+				p[vidx] = center.x() + x;
+				p[vidx + 1] = center.y() + y;
+				p[vidx + 2] = zlevel;
+				n[vidx] = 0.0f;
+				n[vidx + 1] = 0.0f;
+				n[vidx + 2] = -1.0f;
+			}
 
 			// Calculate base texture coordinates
 			float texS = j * texi;
@@ -85,12 +99,24 @@ void Plane::buildMesh(QVector3D center, float xsize, float ysize, int xdivs, int
 		rowStart = (unsigned int)(i * (xdivs + 1));
 		nextRowStart = (unsigned int)((i + 1) * (xdivs + 1));
 		for (int j = 0; j < xdivs; j++) {
-			el[idx] = rowStart + j;
-			el[idx + 1] = nextRowStart + j;
-			el[idx + 2] = nextRowStart + j + 1;
-			el[idx + 3] = rowStart + j;
-			el[idx + 4] = nextRowStart + j + 1;
-			el[idx + 5] = rowStart + j + 1;
+			if (orientation == Orientation::XZ_YNormal)
+			{
+				el[idx] = rowStart + j;
+				el[idx + 1] = nextRowStart + j + 1;
+				el[idx + 2] = nextRowStart + j;
+				el[idx + 3] = rowStart + j;
+				el[idx + 4] = rowStart + j + 1;
+				el[idx + 5] = nextRowStart + j + 1;
+			}
+			else
+			{
+				el[idx] = rowStart + j;
+				el[idx + 1] = nextRowStart + j;
+				el[idx + 2] = nextRowStart + j + 1;
+				el[idx + 3] = rowStart + j;
+				el[idx + 4] = nextRowStart + j + 1;
+				el[idx + 5] = rowStart + j + 1;
+			}
 			idx += 6;
 		}
 	}

@@ -41,9 +41,12 @@ public:
     void setSwapVisibleChecked(bool checked);
     void setSectionViewChecked(bool checked);
     void setExplodedViewChecked(bool checked);
+    void setCameraUpAxisZUp(bool zUp);
+    bool isCameraUpAxisZUp() const;
 
 signals:
     void cameraModeSelected(const QString& type);
+    void cameraUpAxisToggled(bool zUp);
     void viewSelected(const QString& viewName);
     void axonometricSelected(const QString& type);
     void displayModeSelected(const QString& type);
@@ -101,6 +104,8 @@ private:
     QAction* _orbitAction;
     QAction* _flyAction;
     QAction* _firstPersonAction;
+    QAction* _cameraZUpAction;
+    QAction* _cameraYUpAction;
 
     // View mode actions (grouped in dropdown menu)
     QAction* _topViewAction;
@@ -141,6 +146,7 @@ private:
     // Flyout buttons and action maps
     FlyOutViewButton* _toolButtonCameraModes;
     QMap<CameraModeActions, QAction*> _cameraModeActions;
+    FlyOutViewButton* _toolButtonCameraUpAxis;
 
     FlyOutViewButton* _toolButtonNavigation;
     QMap<NavigationActions, QAction*> _navigationActions;

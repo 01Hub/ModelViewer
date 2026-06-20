@@ -11,6 +11,14 @@
 #include <cmath>
 #include <iomanip>
 
+namespace
+{
+QVector3D projectOntoWorldUpPlane(const QVector3D& vector, const QVector3D& worldUp)
+{
+	return vector - QVector3D::dotProduct(vector, worldUp) * worldUp;
+}
+}
+
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
@@ -103,6 +111,7 @@ void GLCamera::resetAll(void)
 	_viewDir = QVector3D(0.0, 0.0, -1.0);
 	_rightVector = QVector3D(1.0, 0.0, 0.0);
 	_upVector = QVector3D(0.0, 1.0, 0.0);
+	_worldUpVector = QVector3D(0.0, 0.0, 1.0);
 
 	//Only to be sure:
 	_rotatedX = _rotatedY = _rotatedZ = 0.0;
@@ -296,7 +305,7 @@ void GLCamera::moveForward(float iDist)
 
 void GLCamera::moveForwardPlanar(float iDist)
 {
-	QVector3D planarForward(_viewDir.x(), _viewDir.y(), 0.0f);
+	QVector3D planarForward = projectOntoWorldUpPlane(_viewDir, _worldUpVector);
 	if (planarForward.lengthSquared() <= 1.0e-8f)
 		return;
 
@@ -312,7 +321,7 @@ void GLCamera::moveUpward(float iDist)
 
 void GLCamera::moveWorldUp(float iDist)
 {
-	_position = _position + QVector3D(0.0f, 0.0f, iDist);
+	_position = _position + _worldUpVector * iDist;
 	updateViewMatrix();
 }
 
@@ -324,11 +333,11 @@ void GLCamera::moveAcross(float iDist)
 
 void GLCamera::moveAcrossPlanar(float iDist)
 {
-	QVector3D planarRight(_rightVector.x(), _rightVector.y(), 0.0f);
+	QVector3D planarRight = projectOntoWorldUpPlane(_rightVector, _worldUpVector);
 	if (planarRight.lengthSquared() <= 1.0e-8f)
 	{
-		const QVector3D planarForward(_viewDir.x(), _viewDir.y(), 0.0f);
-		planarRight = QVector3D::crossProduct(planarForward, QVector3D(0.0f, 0.0f, 1.0f));
+		const QVector3D planarForward = projectOntoWorldUpPlane(_viewDir, _worldUpVector);
+		planarRight = QVector3D::crossProduct(planarForward, _worldUpVector);
 	}
 
 	if (planarRight.lengthSquared() <= 1.0e-8f)
@@ -448,6 +457,14 @@ void GLCamera::setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QV
 	updateViewMatrix();
 }
 
+void GLCamera::setWorldUpVector(const QVector3D& upVector)
+{
+	if (upVector.lengthSquared() <= 1.0e-8f)
+		return;
+
+	_worldUpVector = upVector.normalized();
+}
+
 void GLCamera::setPosition(float iX, float iY, float iZ)
 {
 	_position.setX(iX);
@@ -486,17 +503,19 @@ void GLCamera::updateFlyView()
 {
 	float yawRad = qDegreesToRadians(_yaw);
 	float pitchRad = qDegreesToRadians(_pitch);
+	const QVector3D worldUp = _worldUpVector.normalized();
+	const QVector3D referenceForward(1.0f, 0.0f, 0.0f);
+	QVector3D referenceRight = QVector3D::crossProduct(referenceForward, worldUp).normalized();
+	if (referenceRight.lengthSquared() <= 1.0e-8f)
+		referenceRight = QVector3D(0.0f, 0.0f, 1.0f);
 
-	_viewDir = QVector3D(
-		cos(pitchRad) * cos(yawRad),
-		cos(pitchRad) * sin(yawRad),
-		sin(pitchRad)   // Z-up, not Y-up
-	).normalized();
+	const QVector3D planarForward =
+		(std::cos(yawRad) * referenceForward + std::sin(yawRad) * referenceRight).normalized();
+	_viewDir = (std::cos(pitchRad) * planarForward + std::sin(pitchRad) * worldUp).normalized();
 
-	// World up = Z+, not Y+
-	const QVector3D worldUp(0, 0, 1);
-
-	_rightVector = QVector3D::crossProduct(_viewDir, worldUp).normalized();
+	_rightVector = QVector3D::crossProduct(_viewDir, _worldUpVector).normalized();
+	if (_rightVector.lengthSquared() <= 1.0e-8f)
+		_rightVector = QVector3D::crossProduct(_viewDir, QVector3D(1.0f, 0.0f, 0.0f)).normalized();
 	_upVector = QVector3D::crossProduct(_rightVector, _viewDir).normalized();
 
 	updateViewMatrix();
@@ -525,8 +544,9 @@ void GLCamera::setMode(CameraMode mode)
 
 	if (mode == CameraMode::Fly || mode == CameraMode::FirstPerson)
 	{
-		// Use Z+ as world up
-		_rightVector = QVector3D::crossProduct(_viewDir, QVector3D(0, 0, 1)).normalized();
+		_rightVector = QVector3D::crossProduct(_viewDir, _worldUpVector).normalized();
+		if (_rightVector.lengthSquared() <= 1.0e-8f)
+			_rightVector = QVector3D::crossProduct(_viewDir, QVector3D(1.0f, 0.0f, 0.0f)).normalized();
 		_upVector = QVector3D::crossProduct(_rightVector, _viewDir).normalized();
 		updateViewMatrix(); // Apply updated orientation
 	}
@@ -536,13 +556,17 @@ void GLCamera::setMode(CameraMode mode)
 void GLCamera::setYawPitchFromViewDir()
 {
 	QVector3D dir = _viewDir.normalized();
+	const QVector3D worldUp = _worldUpVector.normalized();
+	const QVector3D referenceForward(1.0f, 0.0f, 0.0f);
+	const QVector3D referenceRight = QVector3D::crossProduct(referenceForward, worldUp).normalized();
+	const QVector3D planarDir = projectOntoWorldUpPlane(dir, worldUp).normalized();
 
-	// World up is Z+, so pitch is around Z-axis
-	float z = std::clamp(dir.z(), -1.0f, 1.0f);  // pitch component
+	if (planarDir.lengthSquared() > 1.0e-8f && referenceRight.lengthSquared() > 1.0e-8f)
+		_yaw = qRadiansToDegrees(std::atan2(
+			QVector3D::dotProduct(planarDir, referenceRight),
+			QVector3D::dotProduct(planarDir, referenceForward)));
 
-	// Yaw is angle in XY plane (Z is up)
-	_yaw = qRadiansToDegrees(std::atan2(dir.y(), dir.x()));
-	_pitch = qRadiansToDegrees(std::asin(z));
+	_pitch = qRadiansToDegrees(std::asin(std::clamp(QVector3D::dotProduct(dir, worldUp), -1.0f, 1.0f)));
 
 	// Clamp pitch to prevent gimbal issues
 	_pitch = std::clamp(_pitch, -89.0f, 89.0f);
