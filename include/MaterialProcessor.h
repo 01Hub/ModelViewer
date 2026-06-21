@@ -9,6 +9,9 @@
 #include "AssImpMesh.h"
 #include "GLLights.h"
 #include "GltfLightData.h"
+#include <QByteArray>
+#include <QJsonDocument>
+#include <QVector>
 
 
 class MaterialProcessor
@@ -28,6 +31,13 @@ public:
 	void setTextureTransforms(const std::vector<GLMaterial::Texture>& textures, GLMaterial& mat);
 	void addExtensionMaps(GLMaterial& mat, std::vector<GLMaterial::Texture>& textures);
 	void clearLoadedTextures() { _loadedTextures.clear(); }
+
+	// GLB cache accessors used by AssImpModelLoader free functions that need
+	// per-instance cache data without direct access to private members.
+	bool fillAnimDataFromCache(const QString& path, QJsonDocument& outDoc,
+	                           QVector<QByteArray>& outBufferData) const;
+	void seedGlbCacheIfAbsent(const QString& path, const QJsonDocument& doc,
+	                          std::vector<uint8_t> binary);
 
 	/**
 	 * Ensures Assimp scene has valid texture data before deep copying or merging.

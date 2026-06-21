@@ -2655,6 +2655,29 @@ void MaterialProcessor::clearGLBCaches()
 	s_glbImageIndices.clear();
 }
 
+bool MaterialProcessor::fillAnimDataFromCache(const QString& path, QJsonDocument& outDoc,
+                                              QVector<QByteArray>& outBufferData) const
+{
+	if (!s_glbJsonCache.contains(path) || !s_glbBinaryCache.contains(path))
+		return false;
+	outDoc = s_glbJsonCache[path];
+	const std::vector<uint8_t>& bin = s_glbBinaryCache[path];
+	outBufferData.clear();
+	outBufferData.append(QByteArray(reinterpret_cast<const char*>(bin.data()),
+		static_cast<int>(bin.size())));
+	return outDoc.isObject();
+}
+
+void MaterialProcessor::seedGlbCacheIfAbsent(const QString& path, const QJsonDocument& doc,
+                                             std::vector<uint8_t> binary)
+{
+	if (!s_glbJsonCache.contains(path))
+	{
+		s_glbJsonCache[path] = doc;
+		s_glbBinaryCache[path] = std::move(binary);
+	}
+}
+
 #include "ModelViewerApplication.h"
 QString MaterialProcessor::getGlbCacheDir(const QString& glbPath)
 {
@@ -4125,6 +4148,16 @@ void MaterialProcessor::synthesizeADSAliases(std::vector<GLMaterial::Texture>& t
 		return false;
 		};
 
+	// Check whether an ADS alias with this type+path is already in the global loaded cache.
+	// Needed because synthesizeADSAliases is called once per mesh, but _loadedTextures
+	// persists across meshes — without this guard it pushes a new alias on every mesh
+	// that shares the same material, causing unbounded growth of _loadedTextures.
+	auto adsAliasAlreadyCached = [&](const std::string& adsType, const std::string& path) {
+		for (const auto& lt : _loadedTextures)
+			if (lt.type == adsType && lt.path == path) return true;
+		return false;
+		};
+
 	// for each mapping, if PBR is present but ADS is missing -> create alias entry
 	for (auto& map : pbrToAds)
 	{
@@ -4158,7 +4191,8 @@ void MaterialProcessor::synthesizeADSAliases(std::vector<GLMaterial::Texture>& t
 				alias.minFilter = tex.minFilter;
 
 				textures.push_back(alias);
-				_loadedTextures.push_back(alias); // register to global cache so future loads reuse
+				if (!adsAliasAlreadyCached(adsName, alias.path))
+					_loadedTextures.push_back(alias); // register to global cache so future loads reuse
 				break;
 			}
 		}

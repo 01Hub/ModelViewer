@@ -309,11 +309,23 @@ void reorderMorphTargetsToImportedVertexOrder(QVector<MorphTargetData>& morphTar
 	}
 }
 
-bool loadAnimationJsonAndBuffer(const QString& gltfPath, QJsonDocument& doc, QVector<QByteArray>& bufferData)
+// gltfPath  – path to the .glb / .gltf file
+// matProc   – optional pointer to the loader's MaterialProcessor instance; when
+//             provided its per-instance GLB caches are checked first so the file
+//             is not re-read on every mesh.  Pass nullptr to force a cold read
+//             (used only when no loader context is available).
+bool loadAnimationJsonAndBuffer(const QString& gltfPath, QJsonDocument& doc,
+                                QVector<QByteArray>& bufferData,
+                                MaterialProcessor* matProc = nullptr)
 {
 	const bool isGlb = gltfPath.endsWith(".glb", Qt::CaseInsensitive);
 	if (isGlb)
 	{
+		// Use the per-loader-instance cache populated by updateAiSceneWithGltfMaterials
+		// and processGltf2CoreAndExtensions to avoid re-reading large binaries per mesh.
+		if (matProc && matProc->fillAnimDataFromCache(gltfPath, doc, bufferData))
+			return true;
+
 		std::vector<uint8_t> glbBinaryBuffer;
 		const QString jsonString = MaterialProcessor::extractJsonFromGLB(gltfPath, glbBinaryBuffer);
 		if (jsonString.isEmpty())
@@ -618,11 +630,12 @@ bool loadMorphTargetsForAiMesh(const QString& gltfPath,
 	unsigned int expectedVertexCount,
 	QVector<MorphTargetData>& outTargets,
 	QVector<float>& outDefaultWeights,
-	GltfPrimitiveVertexBasis* outBaseBasis = nullptr)
+	GltfPrimitiveVertexBasis* outBaseBasis = nullptr,
+	MaterialProcessor* matProc = nullptr)
 {
 	QJsonDocument doc;
 	QVector<QByteArray> bufferData;
-	if (!loadAnimationJsonAndBuffer(gltfPath, doc, bufferData) || !doc.isObject() || !scene || !scene->mRootNode)
+	if (!loadAnimationJsonAndBuffer(gltfPath, doc, bufferData, matProc) || !doc.isObject() || !scene || !scene->mRootNode)
 		return false;
 
 	const QJsonObject root = doc.object();
@@ -1463,7 +1476,8 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	if (importPath.endsWith(".gltf", Qt::CaseInsensitive) || importPath.endsWith(".glb", Qt::CaseInsensitive))
 	{
 		loadMorphTargetsForAiMesh(
-			importPath, scene, meshIndex, mesh->mNumVertices, morphTargets, defaultMorphWeights, &morphBaseBasis);
+			importPath, scene, meshIndex, mesh->mNumVertices, morphTargets, defaultMorphWeights, &morphBaseBasis,
+			&_materialProcessor);
 	}
 
 	if (!morphTargets.isEmpty() &&
@@ -2818,7 +2832,7 @@ void AssImpModelLoader::parseSceneAnimations()
 
 	QJsonDocument doc;
 	QVector<QByteArray> bufferData;
-	if (!loadAnimationJsonAndBuffer(QString::fromStdString(_path), doc, bufferData) || !doc.isObject())
+	if (!loadAnimationJsonAndBuffer(QString::fromStdString(_path), doc, bufferData, &_materialProcessor) || !doc.isObject())
 		return;
 
 	const QJsonObject root = doc.object();
@@ -3345,7 +3359,7 @@ void AssImpModelLoader::parseSceneCameras()
     {
         QJsonDocument doc;
         QVector<QByteArray> bufferData;
-        if (loadAnimationJsonAndBuffer(QString::fromStdString(_path), doc, bufferData) && doc.isObject())
+        if (loadAnimationJsonAndBuffer(QString::fromStdString(_path), doc, bufferData, &_materialProcessor) && doc.isObject())
         {
             const QJsonObject root = doc.object();
             const QJsonArray nodes = root.value("nodes").toArray();
@@ -3584,6 +3598,10 @@ void AssImpModelLoader::updateAiSceneWithGltfMaterials(const QString& gltfPath, 
 			return;
 
 		doc = QJsonDocument::fromJson(jsonString.toUtf8());
+
+		// Seed the per-instance cache so loadAnimationJsonAndBuffer and
+		// processGltf2CoreAndExtensions can skip redundant file reads for every mesh.
+		_materialProcessor.seedGlbCacheIfAbsent(gltfPath, doc, glbBinaryBuffer);
 	}
 	else
 	{
