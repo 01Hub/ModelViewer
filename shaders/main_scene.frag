@@ -687,7 +687,6 @@ vec3	multiToSingleScatter();
 vec3    sampleCapturedSSSDiffuse(float attenuationDistance, vec3 diffuseColor);
 
 // ---- Shadows ---------------------------------------------------------------
-float   calculateShadow(vec4 fragPosLightSpace);
 float   calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 lightPos);
 
 // ---- Background ------------------------------------------------------------
@@ -728,7 +727,7 @@ void  buildAnisotropyBasis(in SurfaceFrame frame, in MaterialParams params, out 
 vec3  sampleAnisotropicSpecularIBL(in SurfaceFrame frame, in MaterialParams params);
 float computeSheenScaling(float Ndot, float sheenRoughness);
 float computeCharlieBRDF(float Ndot, float sheenRoughness);
-vec3  computeIBLGGXFresnel(vec3 N, vec3 V, float roughness, vec3 F0, float specularWeight);
+vec3  computeIBLGGXFresnelFromSample(float NdotV, float roughness, vec2 f_ab, vec3 F0, float specularWeight);
 vec3  computeAnisotropicSpecularLobe(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir);
 vec3  calculateBackgroundColor();
 
@@ -2387,45 +2386,6 @@ vec3 sampleCapturedSSSDiffuse(float attenuationDistance, vec3 diffuseColor)
 // ---- Shadows ----------------------------------------------------------------
 
 // ----------------------------------------------------------------------------
-float calculateShadow(vec4 fragPosLightSpace)
-{
-	// perform perspective divide
-	vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
-	// transform to [0,1] range
-	projCoords = projCoords * 0.5 + 0.5;
-	// get closest depth value from light's perspective (using [0,1] range fragPosLight as coords)
-	float closestDepth = texture(shadowMap, projCoords.xy).r;
-	// get depth of current fragment from light's perspective
-	float currentDepth = projCoords.z;
-
-	vec3 normal = normalize(fs_in_shadow.Normal);
-	vec3 lightDir = normalize(fs_in_shadow.lightPos - fs_in_shadow.FragPos);
-
-	//float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
-	float bias = clamp(0.005 * tan(acos(dot(normal, lightDir))), 0.005, 0.05);
-
-	// PCF - Percentage Closer Filtering
-	float shadow = 0.0;
-	vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
-	for (int x = -1; x <= 1; ++x)
-	{
-		for (int y = -1; y <= 1; ++y)
-		{
-			float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
-			shadow += currentDepth - bias > pcfDepth ? 1.0 : 0.0;
-		}
-	}
-
-	shadow /= shadowSamples;
-
-	// keep the shadow at 0.0 when outside the far_plane region of the light's frustum.
-	if (projCoords.z > 1.0)
-		shadow = 0.0;
-
-	return shadow;
-}
-
-// Function to fetch shadow value with variable kernel size
 float calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 lightPos)
 {
 	vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
@@ -2462,8 +2422,8 @@ float calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 l
 	{
 		for (int y = -kernelSize; y <= kernelSize; ++y)
 		{
-			float distance = sqrt(float(x * x + y * y));
-			float weight = exp(-distance * distance / (2.0 * float(kernelSize * kernelSize) * 0.5));
+			float distSq = float(x * x + y * y);
+			float weight = exp(-distSq / float(kernelSize * kernelSize));
 			totalWeight += weight;
 
 			vec2 offset = vec2(x, y) * adaptiveSoftness * 1.5 / lightFarPlane;
@@ -3196,11 +3156,8 @@ float computeCharlieBRDF(float Ndot, float sheenRoughness)
 	return texture(charlieLUT, brdfCoord).b;
 }
 
-vec3 computeIBLGGXFresnel(vec3 N, vec3 V, float roughness, vec3 F0, float specularWeight)
+vec3 computeIBLGGXFresnelFromSample(float NdotV, float roughness, vec2 f_ab, vec3 F0, float specularWeight)
 {
-	float NdotV = clamp(dot(N, V), 0.0, 1.0);
-	vec2 brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0), vec2(1.0));
-	vec2 f_ab = max(texture(brdfLUT, brdfSamplePoint).rg, vec2(0.0));
 	vec3 Fr = max(vec3(1.0 - roughness), F0) - F0;
 	vec3 kS = F0 + Fr * pow(1.0 - NdotV, 5.0);
 	vec3 FssEss = specularWeight * (kS * f_ab.x + f_ab.y);
@@ -3636,14 +3593,23 @@ void evaluateBaseIBL(in SurfaceFrame frame, in MaterialParams params, out vec3 d
 	}
 	if (params.useSpecGloss)
 	{
-		vec3 f_dielectric_fresnel_ibl = computeIBLGGXFresnel(frame.N, frame.V, params.roughness, params.dielectricF0, 1.0);
+		float NdotV_ibl = clamp(dot(frame.N, frame.V), 0.0, 1.0);
+		vec2 brdfSamplePoint = clamp(vec2(NdotV_ibl, params.roughness), vec2(0.0), vec2(1.0));
+		vec2 f_ab = max(texture(brdfLUT, brdfSamplePoint).rg, vec2(0.0));
+		vec3 f_dielectric_fresnel_ibl = computeIBLGGXFresnelFromSample(
+			NdotV_ibl, params.roughness, f_ab, params.dielectricF0, 1.0);
 		diffuseIBLOut = vec3(0.0);
 		specularIBLOut = mix(f_diffuse, f_specular_dielectric, f_dielectric_fresnel_ibl) * params.ambientOcclusion;
 		return;
 	}
-	vec3 f_metal_fresnel_ibl = computeIBLGGXFresnel(frame.N, frame.V, params.roughness, params.baseColor, 1.0);
+	float NdotV_ibl = clamp(dot(frame.N, frame.V), 0.0, 1.0);
+	vec2 brdfSamplePoint = clamp(vec2(NdotV_ibl, params.roughness), vec2(0.0), vec2(1.0));
+	vec2 f_ab = max(texture(brdfLUT, brdfSamplePoint).rg, vec2(0.0));
+	vec3 f_metal_fresnel_ibl = computeIBLGGXFresnelFromSample(
+		NdotV_ibl, params.roughness, f_ab, params.baseColor, 1.0);
 	vec3 f_metal_brdf_ibl = f_metal_fresnel_ibl * f_specular_metal;
-	vec3 f_dielectric_fresnel_ibl = computeIBLGGXFresnel(frame.N, frame.V, params.roughness, params.dielectricF0, params.specularFactor);
+	vec3 f_dielectric_fresnel_ibl = computeIBLGGXFresnelFromSample(
+		NdotV_ibl, params.roughness, f_ab, params.dielectricF0, params.specularFactor);
 	vec3 f_dielectric_brdf_ibl = mix(f_diffuse, f_specular_dielectric, f_dielectric_fresnel_ibl);
 
 	if (params.iridescenceFactor > 0.001 && params.iridescenceThickness > 0.0)

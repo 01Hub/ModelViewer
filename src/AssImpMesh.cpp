@@ -180,6 +180,11 @@ void AssImpMesh::render()
 		_prog->setUniformValue("normalMatrix", modelViewMatrix.normalMatrix());
 		++transformUniformUploads;
 	}
+	if (uniformLocationCached("worldNormalMatrix") >= 0)
+	{
+		_prog->setUniformValue("worldNormalMatrix", modelMatrix.normalMatrix());
+		++transformUniformUploads;
+	}
 	if (uniformLocationCached("hasSkinning") >= 0)
 	{
 		_prog->setUniformValue("hasSkinning", hasSkinning());

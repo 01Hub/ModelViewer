@@ -16,6 +16,7 @@ uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
 uniform mat4 modelViewMatrix;
 uniform mat3 normalMatrix;
+uniform mat3 worldNormalMatrix;
 uniform mat4 projectionMatrix;
 uniform vec4 clipPlaneX;
 uniform vec4 clipPlaneY;
@@ -130,7 +131,6 @@ void main()
     else
         v_bitangent = transformedBitangent / transformedBitangentLen;
 
-    mat3 worldNormalMatrix = mat3(transpose(inverse(modelMatrix)));
     vec3 worldTangent = worldNormalMatrix * skinnedTangent;
     float worldTangentLen = length(worldTangent);
     if (worldTangentLen < 1e-8)
@@ -149,7 +149,7 @@ void main()
 
     // Shadow mapping
     vs_out_shadow.FragPos = vec3(worldPos);
-    vec3 shadowNormal = mat3(transpose(inverse(modelMatrix))) * skinnedNormal;
+    vec3 shadowNormal = worldNormalMatrix * skinnedNormal;
     float shadowNormalLen = length(shadowNormal);
     if (shadowNormalLen < 1e-8)
         vs_out_shadow.Normal = vec3(0.0);
@@ -162,7 +162,7 @@ void main()
 
     // Cube environment mapping
     v_reflectionPosition = vec3(worldPos);
-    vec3 reflNormal = mat3(transpose(inverse(modelMatrix))) * skinnedNormal;
+    vec3 reflNormal = worldNormalMatrix * skinnedNormal;
     float reflNormalLen = length(reflNormal);
     if (reflNormalLen < 1e-8)
         v_reflectionNormal = vec3(0.0);
