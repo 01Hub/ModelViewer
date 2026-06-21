@@ -91,7 +91,7 @@ void ApplyMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materia
         if (!mesh->getSourceFile().isEmpty())
             affectedAnimatedSourceFiles.insert(mesh->getSourceFile());
 
-        if (mat.hasTransmission())
+        if (mat.hasTransmission() || mat.diffuseTransmissionFactor() > 0.0f)
             _glWidget->setTransmissionEnabled(true);
     }
 

@@ -3758,6 +3758,7 @@ void GLWidget::updateExplosion()
                 _meshStore[i]->setSceneRenderTransformFast(_meshStore[i]->getSceneRenderTransform());
             }
         }
+        _shadowMapNeedsInitialization = true;
         update();
         return;
     }
@@ -3867,6 +3868,7 @@ void GLWidget::updateExplosion()
         }
     }
 
+    _shadowMapNeedsInitialization = true;
     update();
 }
 
@@ -4409,6 +4411,7 @@ void GLWidget::restoreExplodedViewManualStates(const QMap<QUuid, TransformState>
 		mesh->setSceneRenderTransformFast(mesh->getSceneRenderTransform());
 	}
 
+	_shadowMapNeedsInitialization = true;
 	update();
 	emit explodedViewManualPlacementChanged();
 }
@@ -4490,6 +4493,7 @@ void GLWidget::finishExplodedViewManualPlacement()
 			_meshStore[id]->select();
 	}
 
+	_shadowMapNeedsInitialization = true;
 	update();
 	emit explodedViewManualPlacementChanged();
 }
@@ -4542,6 +4546,7 @@ void GLWidget::clearExplodedViewManualPlacement()
 	}
 
 	_explodedViewManualOriginalStates.clear();
+	_shadowMapNeedsInitialization = true;
 	update();
 	emit explodedViewManualPlacementChanged();
 }
@@ -5160,7 +5165,7 @@ void GLWidget::setMaterialToObjects(const std::vector<int>& ids, const GLMateria
 		{
 			TriangleMesh* mesh = _meshStore[id];
 			mesh->setMaterial(mat);
-			if(mat.hasTransmission())
+			if (mat.hasTransmission() || mat.diffuseTransmissionFactor() > 0.0f)
 				setTransmissionEnabled(true);
 		}
 		catch (const std::exception& ex)
@@ -7184,9 +7189,10 @@ void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	if (_shadowsEnabled)
 		renderToShadowBuffer();
 
-	renderToSSSBuffer(_primaryCamera);
+	if (sceneHasVisibleSSSMaterials())
+		renderToSSSBuffer(_primaryCamera);
 
-	if (_transmissionEnabled)
+	if (_transmissionEnabled && sceneHasVisibleTransmissionMaterials())
 		renderToTransmissionBuffer(_primaryCamera, topColor, botColor);
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -7252,9 +7258,10 @@ void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 	if (_shadowsEnabled)
 		renderToShadowBuffer();
 
-	renderToSSSBuffer(_primaryCamera);
+	if (sceneHasVisibleSSSMaterials())
+		renderToSSSBuffer(_primaryCamera);
 
-	if (_transmissionEnabled)
+	if (_transmissionEnabled && sceneHasVisibleTransmissionMaterials())
 		renderToTransmissionBuffer(_primaryCamera, topColor, botColor);
 
 	gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
@@ -8268,6 +8275,40 @@ bool GLWidget::isMeshVisible(const TriangleMesh* mesh, int activeClipPlaneIndex)
 	return true;
 }
 
+bool GLWidget::sceneHasVisibleTransmissionMaterials() const
+{
+	const std::vector<int>& ids = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+	for (int id : ids)
+	{
+		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+			continue;
+		const TriangleMesh* mesh = _meshStore[id];
+		if (!mesh || !isMeshAnimationVisible(mesh))
+			continue;
+
+		const GLMaterial& mat = mesh->getMaterial();
+		if (mat.hasTransmission() || mat.diffuseTransmissionFactor() > 0.0f)
+			return true;
+	}
+	return false;
+}
+
+bool GLWidget::sceneHasVisibleSSSMaterials() const
+{
+	const std::vector<int>& ids = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+	for (int id : ids)
+	{
+		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+			continue;
+		const TriangleMesh* mesh = _meshStore[id];
+		if (!mesh || !isMeshAnimationVisible(mesh))
+			continue;
+		if (mesh->getMaterial().hasVolumeScattering())
+			return true;
+	}
+	return false;
+}
+
 // ---------------------------------------------------------------------------
 
 void GLWidget::drawMeshesWithClipping(QOpenGLShaderProgram* prog,
@@ -8961,6 +9002,7 @@ void GLWidget::applyExplodedViewManualPlacementSessionTransform()
 		mesh->setExplodedViewScalingFast(startState.scale);
 	}
 
+	_shadowMapNeedsInitialization = true;
 	update();
 }
 
@@ -9179,6 +9221,7 @@ void GLWidget::updateTransformGizmoTranslationDrag(const QPoint& pixel)
 		emit explodedViewManualPlacementChanged();
 	}
 
+	_shadowMapNeedsInitialization = true;
 	update();
 }
 
@@ -9449,6 +9492,7 @@ void GLWidget::updateTransformGizmoScaleDrag(const QPoint& pixel)
 		_viewer->objectTransformPanel->setScaleValues(_transformGizmoCurrentScaleDelta);
 	}
 
+	_shadowMapNeedsInitialization = true;
 	update();
 }
 
@@ -9725,6 +9769,7 @@ void GLWidget::updateTransformGizmoRotationDrag(const QPoint& pixel)
 		emit explodedViewManualPlacementChanged();
 	}
 
+	_shadowMapNeedsInitialization = true;
 	update();
 }
 
@@ -10800,6 +10845,28 @@ void GLWidget::renderToShadowBuffer()
 	_shadowMappingShader->setUniformValue("model", _modelMatrix);
 	_shadowMappingShader->setProperty("globalModelMatrix", QVariant::fromValue(_modelMatrix));
 
+	auto isMeshOutsideShadowVolume = [&](const TriangleMesh* mesh) -> bool
+	{
+		if (!mesh)
+			return true;
+
+		const BoundingSphere sphere = mesh->getBoundingSphere();
+		const QMatrix4x4 worldTransform = _modelMatrix * mesh->combinedRenderTransform();
+		const QVector3D col0(worldTransform(0, 0), worldTransform(1, 0), worldTransform(2, 0));
+		const QVector3D col1(worldTransform(0, 1), worldTransform(1, 1), worldTransform(2, 1));
+		const QVector3D col2(worldTransform(0, 2), worldTransform(1, 2), worldTransform(2, 2));
+		const float maxScale = (std::max)(1.0f, (std::max)(col0.length(), (std::max)(col1.length(), col2.length())));
+		const float radiusWithSlack = (std::max)(sphere.getRadius() * maxScale, 0.001f) * 1.05f;
+		const QVector3D centerLS = (lightView * worldTransform * QVector4D(sphere.getCenter(), 1.0f)).toVector3D();
+
+		return centerLS.x() + radiusWithSlack < -totalSize ||
+		       centerLS.x() - radiusWithSlack >  totalSize ||
+		       centerLS.y() + radiusWithSlack < -totalSize ||
+		       centerLS.y() - radiusWithSlack >  totalSize ||
+		       centerLS.z() + radiusWithSlack < -totalSize ||
+		       centerLS.z() - radiusWithSlack >  totalSize;
+	};
+
 	if (_meshStore.size() != 0)
 	{
 		for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
@@ -10807,7 +10874,7 @@ void GLWidget::renderToShadowBuffer()
 			try
 			{
 				TriangleMesh* mesh = _meshStore.at(i);
-				if (mesh)
+				if (mesh && isMeshAnimationVisible(mesh) && !isMeshOutsideShadowVolume(mesh))
 				{
 					mesh->setProg(_shadowMappingShader.get());
 					mesh->getVAO().bind();					
@@ -13492,17 +13559,7 @@ void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topCol
 
 void GLWidget::renderToSSSBuffer(GLCamera* camera)
 {
-	// Skip entirely if no SSS meshes are loaded
-	bool anySSS = false;
-	for (TriangleMesh* mesh : _meshStore)
-	{
-		if (mesh && mesh->getMaterial().hasVolumeScattering())
-		{
-			anySSS = true;
-			break;
-		}
-	}
-	if (!anySSS)
+	if (!sceneHasVisibleSSSMaterials())
 		return;
 
 	resizeSSSBuffer(width(), height());
@@ -15993,8 +16050,9 @@ void GLWidget::setDisplayMode(DisplayMode mode)
 
 void GLWidget::setTransmissionEnabled(const bool& enabled)
 {
-	_transmissionEnabled = enabled;	
-	initTransmissionBuffer();
+	_transmissionEnabled = enabled;
+	if (_transmissionEnabled)
+		initTransmissionBuffer();
 	update();
 }
 

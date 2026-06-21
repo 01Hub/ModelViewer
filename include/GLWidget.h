@@ -796,6 +796,8 @@ private:
 	bool isMeshInvisibleInAllClipPasses(const TriangleMesh* mesh) const;
 	bool isMeshAnimationVisible(const TriangleMesh* mesh) const;
 	bool isMeshVisible(const TriangleMesh* mesh, int activeClipPlaneIndex) const;
+	bool sceneHasVisibleTransmissionMaterials() const;
+	bool sceneHasVisibleSSSMaterials() const;
 	void invalidateRuntimeVisibilityHierarchy();
 	void rebuildRuntimeVisibilityHierarchy();
 	bool ensureRuntimeVisibilityHierarchy();

@@ -2061,7 +2061,8 @@ void ModelViewer::updateDisplayList()
 	_glWidget->setTransmissionEnabled(false);
 	for (TriangleMesh* mesh : _glWidget->getMeshStore())
 	{
-		if (mesh->getMaterial().hasTransmission())
+		const GLMaterial& mat = mesh->getMaterial();
+		if (mat.hasTransmission() || mat.diffuseTransmissionFactor() > 0.0f)
 		{
 			_glWidget->setTransmissionEnabled(true);
 			break;
