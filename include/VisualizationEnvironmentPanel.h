@@ -117,6 +117,9 @@ public slots:
 	// ===== Display Mode Changed Signal from GLWidget =====
 	void onDisplayModeChanged(int mode);
 
+	// ===== Camera Up-Axis =====
+	void updateSkyBoxRotationLabels(bool zUp);
+
 	// ===== Detach Button =====
 	void onDetachButtonClicked();
 

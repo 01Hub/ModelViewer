@@ -583,6 +583,7 @@ signals:
 	void selectionChanged(const QList<int>& selectedIds);
 	// Emitted by requestTextureReadback() once the GL readback is complete.
 	void textureReadbackReady(QVector<TextureSlotInfo> slots, QString meshName);
+	void cameraUpAxisChanged(bool zUp);
 
 public slots:
 	void animateViewChange();
@@ -915,12 +916,14 @@ private:
 		const QVector3D& viewDir,
 		int viewportWidth,
 		int viewportHeight,
-		QVector3D* outCenter = nullptr) const;
+		QVector3D* outCenter = nullptr,
+		const QVector3D& eyePos = QVector3D(0, 0, 0)) const;
 	QVector3D computeVisibleWorldCenter(const std::vector<QVector3D>& corners) const;
 	float computeSharedOrthographicMultiViewRange(
 		const std::vector<QVector3D>& corners,
 		int viewportWidth,
-		int viewportHeight) const;
+		int viewportHeight,
+		const QVector3D& eyePos = QVector3D(0, 0, 0)) const;
 	void configureOrthoSubviewCamera(ViewMode viewMode,
 		const std::vector<QVector3D>& corners,
 		int viewportWidth,

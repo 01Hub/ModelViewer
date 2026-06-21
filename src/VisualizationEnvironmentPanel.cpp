@@ -190,6 +190,9 @@ void VisualizationEnvironmentPanel::connectSignalsAndSlots()
 	ui->groupBoxPunctualLights->setVisible(false);
 
 	// ===== Skybox Controls =====
+	connect(_glWidget, &GLWidget::cameraUpAxisChanged,
+	        this, &VisualizationEnvironmentPanel::updateSkyBoxRotationLabels);
+	updateSkyBoxRotationLabels(_glWidget->isCameraUpAxisZUp());
 	connect(ui->checkBoxSkyBox, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onSkyBoxStateChanged);
 	connect(ui->checkBoxSkyBoxHDRI, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onSkyBoxHDRIChanged);
 	connect(ui->checkBoxSkyBoxHDRI, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onLoadSkyBoxPresetMaps);
@@ -587,6 +590,14 @@ void VisualizationEnvironmentPanel::onIBLChanged(bool checked)
 }
 
 // ==================== SKYBOX CONTROLS ====================
+
+void VisualizationEnvironmentPanel::updateSkyBoxRotationLabels(bool zUp)
+{
+	// Items 0/1 (X+/X-) are the same in both conventions.
+	// Items 2/3 name the second horizontal axis: Y in Z-up, Z in Y-up.
+	ui->comboBoxSkyBoxRotation->setItemText(2, zUp ? tr("Y+") : tr("Z+"));
+	ui->comboBoxSkyBoxRotation->setItemText(3, zUp ? tr("Y-") : tr("Z-"));
+}
 
 void VisualizationEnvironmentPanel::onSkyBoxStateChanged(bool checked)
 {

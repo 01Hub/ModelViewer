@@ -2749,11 +2749,14 @@ void GLWidget::setCameraUpAxisZUp(bool zUp, bool syncToolbar)
 	rotateCurrentCameraAroundWorldX(zUp ? 90.0f : -90.0f);
 	updateEnvMapRotationMatrix();
 	updateFloorPlane();
+	recalculateVisibleSceneStats(false);
 	_shadowMapNeedsInitialization = true;
 	initializeViewCubeLabels();
 
 	if (syncToolbar && _viewToolbar)
 		_viewToolbar->setCameraUpAxisZUp(zUp);
+
+	emit cameraUpAxisChanged(zUp);
 }
 
 void GLWidget::setViewMode(ViewMode mode)
@@ -3069,16 +3072,27 @@ bool GLWidget::positionGameplayCameraForScene(GLCamera::CameraMode mode)
 	if (_meshStore.empty() || visibleIds.empty())
 		return false;
 
+	const QVector3D worldUp = currentWorldUpVector();
 	const QVector3D center = _boundingSphere.getCenter();
 	const float radius = std::max(_boundingSphere.getRadius(), 0.001f);
-	const float lowestZ = lowestModelZ();
-	const float highestZ = highestModelZ();
-	const float modelHeight = std::max(highestZ - lowestZ, radius * 2.0f);
 
+	// Derive scene extent along the current world-up axis directly from the bounding box
+	// so this is always correct regardless of convention and when recalculate was last called.
+	const float lowestUp  = _cameraUpAxisZUp ? static_cast<float>(_boundingBox.zMin())
+	                                          : static_cast<float>(_boundingBox.yMin());
+	const float highestUp = _cameraUpAxisZUp ? static_cast<float>(_boundingBox.zMax())
+	                                          : static_cast<float>(_boundingBox.yMax());
+	const float modelHeight = std::max(highestUp - lowestUp, radius * 2.0f);
+
+	// Strip the world-up component to get a purely horizontal direction.
 	QVector3D horizontalViewDir = _primaryCamera->getViewDir();
-	horizontalViewDir.setZ(0.0f);
+	horizontalViewDir -= QVector3D::dotProduct(horizontalViewDir, worldUp) * worldUp;
 	if (horizontalViewDir.lengthSquared() <= 1.0e-8f)
-		horizontalViewDir = QVector3D(-1.0f, 1.0f, 0.0f);
+	{
+		// Camera looking nearly straight up/down — pick a non-up fallback axis.
+		const QVector3D alt = (std::abs(worldUp.x()) < 0.9f) ? QVector3D(1, 0, 0) : QVector3D(0, 1, 0);
+		horizontalViewDir = alt - QVector3D::dotProduct(alt, worldUp) * worldUp;
+	}
 	horizontalViewDir.normalize();
 
 	QVector3D eye;
@@ -3089,26 +3103,27 @@ bool GLWidget::positionGameplayCameraForScene(GLCamera::CameraMode mode)
 		const float flyLift = std::clamp(modelHeight * 0.35f, radius * 0.25f, radius * 1.25f);
 		const float targetLift = std::clamp(modelHeight * 0.10f, 0.0f, radius * 0.35f);
 
-		eye = center - horizontalViewDir * flyDistance + QVector3D(0.0f, 0.0f, flyLift);
-		target.setZ(center.z() + targetLift);
+		eye    = center - horizontalViewDir * flyDistance + worldUp * flyLift;
+		target = center + worldUp * targetLift;
 	}
 	else
 	{
-		const float eyeHeight = std::clamp(modelHeight * 0.18f, radius * 0.12f, radius * 0.45f);
+		const float eyeHeight    = std::clamp(modelHeight * 0.18f, radius * 0.12f, radius * 0.45f);
 		const float walkDistance = std::max(radius * 2.6f, modelHeight * 0.75f);
-		const float targetHeight = std::clamp(lowestZ + modelHeight * 0.33f, lowestZ + eyeHeight * 0.8f, highestZ);
+		const float targetHeight = std::clamp(lowestUp + modelHeight * 0.33f,
+		                                      lowestUp + eyeHeight * 0.8f, highestUp);
 
 		eye = center - horizontalViewDir * walkDistance;
-		eye.setZ(lowestZ + eyeHeight);
-		target.setZ(targetHeight);
+		// Replace the up-axis component of eye and target with the desired heights.
+		eye    += (lowestUp  + eyeHeight - QVector3D::dotProduct(eye,    worldUp)) * worldUp;
+		target += (targetHeight          - QVector3D::dotProduct(target, worldUp)) * worldUp;
 	}
 
 	QVector3D viewDir = target - eye;
 	if (viewDir.lengthSquared() <= 1.0e-8f)
-		viewDir = QVector3D(0.0f, 1.0f, 0.0f);
+		viewDir = horizontalViewDir;
 	viewDir.normalize();
 
-	const QVector3D worldUp(0.0f, 0.0f, 1.0f);
 	QVector3D rightDir = QVector3D::crossProduct(viewDir, worldUp);
 	if (rightDir.lengthSquared() <= 1.0e-8f)
 		rightDir = QVector3D(1.0f, 0.0f, 0.0f);
@@ -3340,8 +3355,10 @@ void GLWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 				_boundingBox.addBox(meshBox);
 			}
 
-			lowestZ = std::min(lowestZ, static_cast<float>(meshBox.zMin()));
-			highestZ = std::max(highestZ, static_cast<float>(meshBox.zMax()));
+			const float meshLow  = _cameraUpAxisZUp ? static_cast<float>(meshBox.zMin()) : static_cast<float>(meshBox.yMin());
+			const float meshHigh = _cameraUpAxisZUp ? static_cast<float>(meshBox.zMax()) : static_cast<float>(meshBox.yMax());
+			lowestZ  = std::min(lowestZ,  meshLow);
+			highestZ = std::max(highestZ, meshHigh);
 		}
 		catch (const std::out_of_range& ex)
 		{
@@ -7243,12 +7260,13 @@ void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 	gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
 		botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _gradientStyle);
 	const std::vector<QVector3D> multiViewCorners = collectVisibleCorners();
-	const QVector3D sharedMultiViewCenter =
-		(_primaryCamera && _primaryCamera->getMode() == GLCamera::CameraMode::Orbit)
-			? _primaryCamera->getPosition()
-			: _boundingSphere.getCenter();
+	const QVector3D sharedMultiViewCenter = _primaryCamera->getPosition();
+	// Computed range (eye-relative from orbit center) gives the correct full-scene fit.
+	// Scale it by the perspective zoom ratio so ISO zoom/pan drives ortho zoom/pan.
+	const float zoomScale = (_viewBoundingSphereDia > 0.0f)
+		? (_viewRange / _viewBoundingSphereDia) : 1.0f;
 	const float sharedMultiViewRange = computeSharedOrthographicMultiViewRange(
-		multiViewCorners, width() / 2, height() / 2);
+		multiViewCorners, width() / 2, height() / 2, sharedMultiViewCenter) * zoomScale;
 	// Render orthographic views with ortho view camera
 	// Top View
 	glViewport(0, 0, width() / 2, height() / 2);
@@ -14725,17 +14743,16 @@ GLCamera* GLWidget::getCameraForPoint(const QPoint& pixel)
 
 	// Configure the shared ortho camera exactly as the matching pane was rendered.
 	const std::vector<QVector3D> multiViewCorners = collectVisibleCorners();
-	const QVector3D sharedMultiViewCenter =
-		(_primaryCamera && _primaryCamera->getMode() == GLCamera::CameraMode::Orbit)
-			? _primaryCamera->getPosition()
-			: _boundingSphere.getCenter();
+	const QVector3D sharedMultiViewCenter = _primaryCamera->getPosition();
+	const float zoomScale = (_viewBoundingSphereDia > 0.0f)
+		? (_viewRange / _viewBoundingSphereDia) : 1.0f;
 	configureOrthoSubviewCamera(
 		viewMode,
 		multiViewCorners,
 		width() / 2,
 		height() / 2,
 		sharedMultiViewCenter,
-		computeSharedOrthographicMultiViewRange(multiViewCorners, width() / 2, height() / 2));
+		computeSharedOrthographicMultiViewRange(multiViewCorners, width() / 2, height() / 2, sharedMultiViewCenter) * zoomScale);
 	return _orthoViewsCamera;
 }
 
@@ -15263,7 +15280,8 @@ float GLWidget::computeOrthographicFitViewRangeForViewport(
 	const QVector3D& viewDir,
 	int viewportWidth,
 	int viewportHeight,
-	QVector3D* outCenter) const
+	QVector3D* outCenter,
+	const QVector3D& eyePos) const
 {
 	if (corners.empty())
 	{
@@ -15280,21 +15298,26 @@ float GLWidget::computeOrthographicFitViewRangeForViewport(
 
 	for (const QVector3D& c : corners)
 	{
-		const float xc = QVector3D::dotProduct(c, right);
-		const float yc = QVector3D::dotProduct(c, up);
-		const float zc = QVector3D::dotProduct(c, viewDir);
+		// Project relative to eyePos so the range is the actual screen-space extent
+		// from the ortho camera's origin (the orbit center / look-at point).
+		const QVector3D rel = c - eyePos;
+		const float xc = QVector3D::dotProduct(rel, right);
+		const float yc = QVector3D::dotProduct(rel, up);
+		const float zc = QVector3D::dotProduct(rel, viewDir);
 		xMin_v = std::min(xMin_v, xc);  xMax_v = std::max(xMax_v, xc);
 		yMin_v = std::min(yMin_v, yc);  yMax_v = std::max(yMax_v, yc);
 		zMin_v = std::min(zMin_v, zc);  zMax_v = std::max(zMax_v, zc);
 	}
 
-	const float halfX = (xMax_v - xMin_v) * 0.5f;
-	const float halfY = (yMax_v - yMin_v) * 0.5f;
+	// The ortho window is symmetric around the eye, so the required half-extent
+	// is the farthest corner distance from the eye on each screen axis.
+	const float halfX = std::max(std::abs(xMin_v), std::abs(xMax_v));
+	const float halfY = std::max(std::abs(yMin_v), std::abs(yMax_v));
 	const float cx = (xMin_v + xMax_v) * 0.5f;
 	const float cy = (yMin_v + yMax_v) * 0.5f;
 	const float cz = (zMin_v + zMax_v) * 0.5f;
 	if (outCenter)
-		*outCenter = right * cx + up * cy + viewDir * cz;
+		*outCenter = eyePos + right * cx + up * cy + viewDir * cz;
 
 	const int safeWidth = std::max(viewportWidth, 1);
 	const int safeHeight = std::max(viewportHeight, 1);
@@ -15346,7 +15369,8 @@ QVector3D GLWidget::computeVisibleWorldCenter(const std::vector<QVector3D>& corn
 float GLWidget::computeSharedOrthographicMultiViewRange(
 	const std::vector<QVector3D>& corners,
 	int viewportWidth,
-	int viewportHeight) const
+	int viewportHeight,
+	const QVector3D& eyePos) const
 {
 	float sharedRange = 0.0001f;
 	for (const ViewMode viewMode : { ViewMode::TOP, ViewMode::FRONT, ViewMode::LEFT })
@@ -15358,7 +15382,7 @@ float GLWidget::computeSharedOrthographicMultiViewRange(
 		sharedRange = std::max(
 			sharedRange,
 			computeOrthographicFitViewRangeForViewport(
-				corners, rightDir, upDir, viewDir, viewportWidth, viewportHeight, nullptr));
+				corners, rightDir, upDir, viewDir, viewportWidth, viewportHeight, nullptr, eyePos));
 	}
 	return sharedRange;
 }
@@ -15828,6 +15852,12 @@ void GLWidget::setSkyBoxZRotation(int index)
 
 void GLWidget::updateEnvMapRotationMatrix()
 {
+	// _fgShader is null before initializeGL() — the call from the constructor
+	// (settings-based setCameraUpAxisZUp) is a no-op; initializeGL() picks up
+	// the correct state at line 1729 after createShaderPrograms().
+	if (!_fgShader)
+		return;
+
 	// Build Ry(-theta) · Rx(-90°) using Qt post-multiply (M = M*R):
 	//
 	//   envMapRotationMatrix = Ry(-theta) · Rx(-90°)
