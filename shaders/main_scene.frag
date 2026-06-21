@@ -2390,6 +2390,8 @@ float calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 l
 {
 	vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
 	projCoords = projCoords * 0.5 + 0.5;
+	if (projCoords.z > 1.0)
+		return 0.0;
 
 	float distanceToLight = length(fragPos - lightPos);
 

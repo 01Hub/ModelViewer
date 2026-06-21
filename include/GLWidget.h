@@ -1127,6 +1127,7 @@ private:
 
 	unsigned int _shadowWidth;
 	unsigned int _shadowHeight;
+	float _shadowFarDist = 1.0f;
 
 	bool _shadowMapNeedsInitialization = true;
 

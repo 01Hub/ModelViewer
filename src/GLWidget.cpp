@@ -5916,10 +5916,9 @@ void GLWidget::loadFloor()
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-		float borderColor[] = { 0.0, 0.0, 0.0, 0.0 };
+		float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
 		glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
 		// attach depth texture as FBO's depth buffer
 		if (_shadowMapFBO != 0)
 		{
@@ -8390,8 +8389,7 @@ void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 	prog->setUniformValue("modelMatrix", _modelMatrix);
 	prog->setUniformValue("viewMatrix", camera->getViewMatrix());
 	prog->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
-	prog->setUniformValue("lightFarPlane",
-		coordinateAlongCurrentWorldUp(shaderLightPos));
+	prog->setUniformValue("lightFarPlane", _shadowFarDist);
 	prog->setUniformValue("hdrToneMapping", _hdrToneMapping);
 	prog->setUniformValue("gammaCorrection", _gammaCorrection);
 	prog->setUniformValue("screenGamma", _screenGamma);
@@ -10824,16 +10822,91 @@ void GLWidget::renderToShadowBuffer()
 
 	lightView.lookAt(lightPos, lightDir, lightUp);
 
-	// Use scene bounding sphere for orthographic projection
-	// This ensures the frustum always encompasses the entire scene
-	float orthoSize = radius * 4.0f;
-	float margin = orthoSize * 3.0f; // 300% margin
-	float totalSize = orthoSize + margin;
+	BoundingBox shadowCasterBounds;
+	BoundingBox skinnedBounds;
+	bool hasShadowCasterBounds = false;
+	bool hasSkinnedBounds = false;
+	const std::vector<int>& visibleIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+	for (int i : visibleIds)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore.at(i);
+			if (!mesh || !isMeshAnimationVisible(mesh))
+				continue;
+
+			const BoundingBox bb = mesh->getBoundingBox();
+			if (!hasShadowCasterBounds)
+			{
+				shadowCasterBounds = bb;
+				hasShadowCasterBounds = true;
+			}
+			else
+			{
+				shadowCasterBounds.addBox(bb);
+			}
+
+			if (mesh->hasSkinning())
+			{
+				if (!hasSkinnedBounds) { skinnedBounds = bb; hasSkinnedBounds = true; }
+				else skinnedBounds.addBox(bb);
+			}
+		}
+		catch (const std::exception&)
+		{
+		}
+	}
+
+	if (!hasShadowCasterBounds)
+	{
+		const float fallbackExtent = (std::max)(radius, 0.001f);
+		shadowCasterBounds.setLimits(
+			center.x() - fallbackExtent, center.x() + fallbackExtent,
+			center.y() - fallbackExtent, center.y() + fallbackExtent,
+			center.z() - fallbackExtent, center.z() + fallbackExtent);
+	}
+
+	if (hasSkinnedBounds)
+	{
+		const float skinPad = (std::max)(static_cast<float>(skinnedBounds.getMaxDimension()) * 0.1f, 0.01f);
+		skinnedBounds.setLimits(
+			skinnedBounds.xMin() - skinPad, skinnedBounds.xMax() + skinPad,
+			skinnedBounds.yMin() - skinPad, skinnedBounds.yMax() + skinPad,
+			skinnedBounds.zMin() - skinPad, skinnedBounds.zMax() + skinPad);
+		shadowCasterBounds.addBox(skinnedBounds);
+	}
+
+	float lsMinX =  std::numeric_limits<float>::max();
+	float lsMaxX = -std::numeric_limits<float>::max();
+	float lsMinY =  std::numeric_limits<float>::max();
+	float lsMaxY = -std::numeric_limits<float>::max();
+	float lsMinZ =  std::numeric_limits<float>::max();
+	float lsMaxZ = -std::numeric_limits<float>::max();
+	const QMatrix4x4 lightModel = lightView * _modelMatrix;
+	for (const QVector3D& corner : shadowCasterBounds.getCorners())
+	{
+		const QVector3D ls = lightModel.map(corner);
+		lsMinX = (std::min)(lsMinX, ls.x());
+		lsMaxX = (std::max)(lsMaxX, ls.x());
+		lsMinY = (std::min)(lsMinY, ls.y());
+		lsMaxY = (std::max)(lsMaxY, ls.y());
+		lsMinZ = (std::min)(lsMinZ, ls.z());
+		lsMaxZ = (std::max)(lsMaxZ, ls.z());
+	}
+
+	const float rawW = lsMaxX - lsMinX;
+	const float rawH = lsMaxY - lsMinY;
+	const float texelPadX = rawW / (std::max)(static_cast<float>(_shadowWidth), 1.0f) * 4.0f;
+	const float texelPadY = rawH / (std::max)(static_cast<float>(_shadowHeight), 1.0f) * 4.0f;
+	const float xyPad = (std::max)((std::max)(texelPadX, texelPadY), (std::max)(radius * 0.005f, 0.001f));
+	const float nearDist = (std::max)(0.01f, -lsMaxZ);
+	const float farDist = (std::max)(nearDist + 0.01f, -lsMinZ + radius * 1.5f);
+	_shadowFarDist = farDist;
 
 	lightProjection.ortho(
-		-totalSize, totalSize,
-		-totalSize, totalSize,
-		-totalSize, totalSize  // Use consistent near/far planes
+		lsMinX - xyPad, lsMaxX + xyPad,
+		lsMinY - xyPad, lsMaxY + xyPad,
+		nearDist, farDist
 	);
 
 	_lightSpaceMatrix = lightProjection * lightView;
@@ -10844,6 +10917,13 @@ void GLWidget::renderToShadowBuffer()
 	_shadowMappingShader->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
 	_shadowMappingShader->setUniformValue("model", _modelMatrix);
 	_shadowMappingShader->setProperty("globalModelMatrix", QVariant::fromValue(_modelMatrix));
+
+	const float fsMinX = lsMinX - xyPad;
+	const float fsMaxX = lsMaxX + xyPad;
+	const float fsMinY = lsMinY - xyPad;
+	const float fsMaxY = lsMaxY + xyPad;
+	const float fsMinZ = -farDist;
+	const float fsMaxZ = -nearDist;
 
 	auto isMeshOutsideShadowVolume = [&](const TriangleMesh* mesh) -> bool
 	{
@@ -10859,17 +10939,17 @@ void GLWidget::renderToShadowBuffer()
 		const float radiusWithSlack = (std::max)(sphere.getRadius() * maxScale, 0.001f) * 1.05f;
 		const QVector3D centerLS = (lightView * worldTransform * QVector4D(sphere.getCenter(), 1.0f)).toVector3D();
 
-		return centerLS.x() + radiusWithSlack < -totalSize ||
-		       centerLS.x() - radiusWithSlack >  totalSize ||
-		       centerLS.y() + radiusWithSlack < -totalSize ||
-		       centerLS.y() - radiusWithSlack >  totalSize ||
-		       centerLS.z() + radiusWithSlack < -totalSize ||
-		       centerLS.z() - radiusWithSlack >  totalSize;
+		return centerLS.x() + radiusWithSlack < fsMinX ||
+		       centerLS.x() - radiusWithSlack > fsMaxX ||
+		       centerLS.y() + radiusWithSlack < fsMinY ||
+		       centerLS.y() - radiusWithSlack > fsMaxY ||
+		       centerLS.z() + radiusWithSlack < fsMinZ ||
+		       centerLS.z() - radiusWithSlack > fsMaxZ;
 	};
 
 	if (_meshStore.size() != 0)
 	{
-		for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
+		for (int i : visibleIds)
 		{
 			try
 			{
@@ -12218,10 +12298,11 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 {
 	if (!_viewer || !_viewer->sceneGraph())
 		return;
+	SceneGraph* sceneGraph = _viewer->sceneGraph();
 
 	RuntimeAnimationFileState& runtime = _runtimeAnimationsByFile[sourceFile];
 	if (runtime.data.sourceFile.isEmpty())
-		runtime.data = _viewer->sceneGraph()->animationDataForFile(sourceFile);
+		runtime.data = sceneGraph->animationDataForFile(sourceFile);
 
 	if (clipIndex < 0 || clipIndex >= runtime.data.clips.size())
 	{
@@ -12229,7 +12310,7 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 		return;
 	}
 
-	SceneNode* fileNode = _viewer->sceneGraph()->findFileNode(sourceFile);
+	SceneNode* fileNode = sceneGraph->findFileNode(sourceFile);
 	if (!fileNode)
 		return;
 
@@ -12245,6 +12326,42 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 	{
 		return resolveRuntimeNodeUuid(runtime, channel.targetNodeIndex, channel.targetNodeName);
 	};
+	QHash<QUuid, bool> nodeAffectsShadowCache;
+	std::function<bool(const QUuid&)> nodeAffectsShadow = [&](const QUuid& nodeUuid) -> bool
+	{
+		if (nodeUuid.isNull())
+			return false;
+		if (nodeAffectsShadowCache.contains(nodeUuid))
+			return nodeAffectsShadowCache.value(nodeUuid);
+
+		const SceneNode* node = sceneGraph->findNodeByUuid(nodeUuid);
+		if (!node)
+		{
+			nodeAffectsShadowCache.insert(nodeUuid, false);
+			return false;
+		}
+
+		std::function<bool(const SceneNode*)> hasMeshInSubtree = [&](const SceneNode* current) -> bool
+		{
+			if (!current)
+				return false;
+			// Camera/helper nodes can animate without affecting casters. Only
+			// nodes that own a mesh subtree should invalidate the shadow map.
+			if (!current->meshUuids.isEmpty())
+				return true;
+			for (const SceneNode* child : current->children)
+			{
+				if (hasMeshInSubtree(child))
+					return true;
+			}
+			return false;
+		};
+
+		const bool affects = hasMeshInSubtree(node);
+		nodeAffectsShadowCache.insert(nodeUuid, affects);
+		return affects;
+	};
+	bool animationAffectsShadowCasters = false;
 	for (const GltfAnimationChannel& channel : clip.channels)
 	{
 		if (channel.targetPath == GltfAnimationTargetPath::Pointer)
@@ -12289,6 +12406,9 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 			{
 				if (channel.targetNodeIndex >= 0)
 				{
+					const QUuid resolvedNodeUuid = resolveRuntimeNodeUuid(runtime, channel.targetNodeIndex);
+					animationAffectsShadowCasters =
+						animationAffectsShadowCasters || nodeAffectsShadow(resolvedNodeUuid);
 					sampledNodeVisibility.insert(channel.targetNodeIndex,
 						sampleBoolKeys(channel.boolKeys,
 							timeSeconds,
@@ -12302,6 +12422,14 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 		{
 			if (channel.targetMeshUuid.isNull())
 				continue;
+
+			if (channel.targetPath == GltfAnimationTargetPath::Translation ||
+				channel.targetPath == GltfAnimationTargetPath::Rotation ||
+				channel.targetPath == GltfAnimationTargetPath::Scale ||
+				channel.targetPath == GltfAnimationTargetPath::Weights)
+			{
+				animationAffectsShadowCasters = true;
+			}
 
 			RuntimeNodeTransform meshTransform = sampledMeshTransforms.value(channel.targetMeshUuid);
 			if (meshTransform.rotation.isNull())
@@ -12331,6 +12459,17 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 		const QUuid resolvedNodeUuid = resolveChannelNodeUuid(channel);
 		if (resolvedNodeUuid.isNull())
 			continue;
+		// Skinned clips are a special case: joint nodes usually do not own meshes
+		// directly, but their TRS still deforms skinned vertices and must refresh
+		// shadows every tick.
+		if ((channel.targetPath == GltfAnimationTargetPath::Translation ||
+		     channel.targetPath == GltfAnimationTargetPath::Rotation ||
+		     channel.targetPath == GltfAnimationTargetPath::Scale ||
+		     channel.targetPath == GltfAnimationTargetPath::Weights) &&
+		    (runtime.data.hasSkinning || nodeAffectsShadow(resolvedNodeUuid)))
+		{
+			animationAffectsShadowCasters = true;
+		}
 
 		RuntimeNodeTransform node = sampled.value(resolvedNodeUuid);
 		switch (channel.targetPath)
@@ -12635,7 +12774,8 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 		if (TriangleMesh* mesh = getMeshByUuid(it.key()))
 			mesh->setMaterial(it.value());
 	}
-	_shadowMapNeedsInitialization = true;
+	if (animationAffectsShadowCasters)
+		_shadowMapNeedsInitialization = true;
 	update();
 }
 
