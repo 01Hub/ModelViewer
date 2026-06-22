@@ -1721,7 +1721,6 @@ void GLWidget::initializeGL()
 	_fgShader->setUniformValue("transmissionDepthTexture", 33);
 	_fgShader->setUniformValue("sssDiffuseTexture", 37);
 	_fgShader->setUniformValue("sssDepthTexture", 38);
-	_fgShader->setUniformValue("shadowSamples", 27.0f);
 	_fgShader->setUniformValue("displayMode", static_cast<int>(_displayMode));
 	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));	
 	_fgShader->setUniformValue("selectionHighlighting", _selectionHighlighting);
@@ -3421,7 +3420,10 @@ void GLWidget::triggerShadowRecomputation()
 	_viewBoundingSphereDia = boundingRadius * 2;
 
 	float lightDistance = calculateLightDistance();
-	float shadowFactor = shadowMapper.calculateShadowFactor(boundingRadius, lightDistance);
+	const float coverageHint = (_shadowFrustumExtentW > 0.0f)
+		? (std::max)(_shadowFrustumExtentW, _shadowFrustumExtentH)
+		: -1.0f;
+	float shadowFactor = shadowMapper.calculateShadowFactor(boundingRadius, lightDistance, coverageHint);
 	shadowFactor = std::clamp(shadowFactor, 1.0f, 8.0f);
 
 	_shadowWidth = static_cast<int>(1024 * shadowFactor);
@@ -3434,9 +3436,7 @@ void GLWidget::triggerShadowRecomputation()
 
 	_fgShader->bind();
 
-	// Existing uniforms
 	_fgShader->setUniformValue("shadowSoftness", shadowSoftness);
-	_fgShader->setUniformValue("shadowSamples", static_cast<float>(shadowParams.shadowSamples));
 
 	// Size-aware uniforms
 	_fgShader->setUniformValue("shadowMaxKernelSize", shadowParams.maxKernelSize);
@@ -7427,8 +7427,6 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	configureGroundPass(false, _floorTextureDisplayed);
 	_fgShader->setProperty("globalModelMatrix", QVariant::fromValue(_modelMatrix));
 	TriangleMesh::setCurrentRenderContext(_modelMatrix, _viewMatrix);
-	_fgShader->setUniformValue("shadowSamples", 18.0f);
-
 	_floorPlane->setOpacity(0.95f);
 	_floorPlane->render();
 	// The final visible floor pass also mutates _fgShader material uniforms,
@@ -10896,6 +10894,8 @@ void GLWidget::renderToShadowBuffer()
 
 	const float rawW = lsMaxX - lsMinX;
 	const float rawH = lsMaxY - lsMinY;
+	_shadowFrustumExtentW = rawW;
+	_shadowFrustumExtentH = rawH;
 	const float texelPadX = rawW / (std::max)(static_cast<float>(_shadowWidth), 1.0f) * 4.0f;
 	const float texelPadY = rawH / (std::max)(static_cast<float>(_shadowHeight), 1.0f) * 4.0f;
 	const float xyPad = (std::max)((std::max)(texelPadX, texelPadY), (std::max)(radius * 0.005f, 0.001f));

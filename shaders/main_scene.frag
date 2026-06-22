@@ -285,7 +285,6 @@ uniform bool envMapEnabled;
 uniform mat3 envMapRotationMatrix;
 uniform bool shadowsEnabled;
 uniform bool selfShadowsEnabled;
-uniform float shadowSamples;
 uniform vec3 cameraPos;
 uniform vec3 cameraDir;
 uniform mat4 viewMatrix;
@@ -2425,6 +2424,7 @@ float calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 l
 		for (int y = -kernelSize; y <= kernelSize; ++y)
 		{
 			float distSq = float(x * x + y * y);
+			if (distSq > float(kernelSize * kernelSize)) continue;
 			float weight = exp(-distSq / float(kernelSize * kernelSize));
 			totalWeight += weight;
 

@@ -44,14 +44,6 @@ AdaptiveShadowMapper::ShadowQualityParams AdaptiveShadowMapper::getShadowQuality
 		settings.baseKernelSize + 2
 	);
 
-	// Smooth sample count scaling
-	float sampleFloat = settings.baseSamples * sizeScale;
-	params.shadowSamples = std::clamp(
-		static_cast<int>(std::round(sampleFloat)),
-		static_cast<int>(settings.baseSamples * 0.8f),
-		static_cast<int>(settings.baseSamples * 1.3f)
-	);
-
 	// Much gentler softness adjustment
 	params.softnessScale = settings.softnessScale *
 		mix(0.95f, 1.05f, (sizeScale - 0.7f) / 0.6f);
@@ -102,9 +94,6 @@ AdaptiveShadowMapper::ShadowQualityParams AdaptiveShadowMapper::getShadowQuality
 	params.maxKernelSize = static_cast<int>(
 		std::round(mix(lower.baseKernelSize, upper.baseKernelSize, t))
 		);
-	params.shadowSamples = static_cast<int>(
-		std::round(mix(lower.baseSamples, upper.baseSamples, t))
-		);
 	params.softnessScale = mix(lower.softnessScale, upper.softnessScale, t);
 	params.maxSoftnessClamp = mix(lower.maxSoftnessClamp, upper.maxSoftnessClamp, t);
 	params.biasMin = mix(lower.biasMin, upper.biasMin, t);
@@ -115,25 +104,23 @@ AdaptiveShadowMapper::ShadowQualityParams AdaptiveShadowMapper::getShadowQuality
 	return params;
 }
 
-float AdaptiveShadowMapper::calculateShadowFactor(float boundingRadius, float lightDistance)
+float AdaptiveShadowMapper::calculateShadowFactor(float boundingRadius, float lightDistance, float coverageHint)
 {
 	const auto& settings = qualityMap[currentQuality];
 
-	// Boost texel density for very small objects
 	float adjustedTexelsPerUnit = settings.texelsPerUnit;
 
 	if (boundingRadius < 5.0f)
 	{
-		// Small objects need much higher texel density
-		float smallObjectBoost = 5.0f / boundingRadius;  // Inverse relationship
+		float smallObjectBoost = 5.0f / boundingRadius;
 		adjustedTexelsPerUnit *= std::min(smallObjectBoost, 4.0f);
 	}
 
-	float shadowCoverage = calculateShadowCoverage(boundingRadius);
+	float shadowCoverage = (coverageHint > 0.0f) ? coverageHint : calculateShadowCoverage(boundingRadius);
 	float requiredResolution = shadowCoverage * adjustedTexelsPerUnit;
 	float shadowFactor = requiredResolution / 1024.0f;
 
-	return std::clamp(shadowFactor, 2.0f, 8.0f);  // Never go below 2048x2048 for small objects
+	return std::clamp(shadowFactor, 2.0f, 8.0f);
 }
 
 float AdaptiveShadowMapper::calculateShadowSoftness(float boundingRadius)
