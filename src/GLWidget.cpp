@@ -10364,13 +10364,9 @@ void GLWidget::drawViewCube()
 	GLboolean scissorWasEnabled = glIsEnabled(GL_SCISSOR_TEST);
 	GLboolean stencilWasEnabled = glIsEnabled(GL_STENCIL_TEST);
 	GLboolean polygonOffsetFillWasEnabled = glIsEnabled(GL_POLYGON_OFFSET_FILL);
-	GLboolean depthMask = GL_TRUE;
-	GLboolean colorMask[4] = { GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE };
 	GLint frontFaceMode = GL_CCW;
 	GLint cullFaceMode = GL_BACK;
 	GLint depthFuncMode = GL_LESS;
-	glGetBooleanv(GL_DEPTH_WRITEMASK, &depthMask);
-	glGetBooleanv(GL_COLOR_WRITEMASK, colorMask);
 	glGetIntegerv(GL_FRONT_FACE, &frontFaceMode);
 	glGetIntegerv(GL_CULL_FACE_MODE, &cullFaceMode);
 	glGetIntegerv(GL_DEPTH_FUNC, &depthFuncMode);
@@ -10431,8 +10427,10 @@ void GLWidget::drawViewCube()
 
 	if (!depthWasEnabled)
 		glDisable(GL_DEPTH_TEST);
-	glDepthMask(depthMask);
-	glColorMask(colorMask[0], colorMask[1], colorMask[2], colorMask[3]);
+	// All scene rendering is complete by this point; restore the engine's
+	// canonical writable masks instead of querying them from the driver.
+	glDepthMask(GL_TRUE);
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 	if (cullWasEnabled)
 		glEnable(GL_CULL_FACE);
 	else
