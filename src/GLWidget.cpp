@@ -7671,10 +7671,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		if (auto* mesh = _meshStore.at(id))
 		{
 			mesh->setProg(prog);
-			// renderMeshWithDisplayMode() releases the program after each mesh draw,
-			// so the per-mesh hover uniform must always rebind before updating.
-			prog->bind();
-			TriangleMesh::recordProgramBindCall(true);
+			TriangleMesh::bindProgramCached(prog);
 			prog->setUniformValue("hovered",
 				hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
 			if (sssObjectIdLocation >= 0)
@@ -7760,10 +7757,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 		{
 			const int id = it.second;
 			mesh->setProg(prog);
-			// renderMeshWithDisplayMode() releases the program after each mesh draw,
-			// so the per-mesh hover uniform must always rebind before updating.
-			prog->bind();
-			TriangleMesh::recordProgramBindCall(true);
+			TriangleMesh::bindProgramCached(prog);
 			prog->setUniformValue("hovered",
 				hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
 			if (sssObjectIdLocation >= 0)
@@ -11195,11 +11189,6 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 	if (profiling)
 		meshModeTimer.start();
 
-	_fgShader->bind();
-	TriangleMesh::recordProgramBindCall(true);
-	TriangleMesh::notifyProgramBound(_fgShader.get()); // keep program cache coherent with raw bind
-	GLint modelViewLoc;
-	GLint prog = 0;
 	switch (mode)
 	{
 		// ============================================
@@ -11211,8 +11200,6 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glLineWidth(1.0f);
 		glDisable(GL_POLYGON_OFFSET_FILL);
-		_fgShader->bind();
-		TriangleMesh::recordProgramBindCall(true);
 		mesh->render();
 		break;
 
@@ -11233,19 +11220,12 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 			// from previous draw) to _fgFlatShader before updating per-mesh
 			// uniforms via mesh->render().
 			syncUniformsToFlatShader();
-			_fgFlatShader->bind();
-			TriangleMesh::recordProgramBindCall(true);
+			TriangleMesh::bindProgramCached(_fgFlatShader.get());
 			mesh->setProg(_fgFlatShader.get());
 			mesh->render();
-			// Restore main shader so subsequent draws (wireframe overlay, etc.)
-			// use the correct program.
-			_fgShader->bind();
-			TriangleMesh::recordProgramBindCall(true);
 		}
 		else
 		{
-			_fgShader->bind();
-			TriangleMesh::recordProgramBindCall(true);
 			mesh->render();
 		}
 		break;
@@ -11258,8 +11238,6 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glLineWidth(1.25f);
 		glDisable(GL_POLYGON_OFFSET_FILL);
-		_fgShader->bind();
-		TriangleMesh::recordProgramBindCall(true);
 		mesh->render();
 		break;
 
@@ -11268,8 +11246,6 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 		// Pass 1: Solid
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glLineWidth(1.0f);
-		_fgShader->bind();
-		TriangleMesh::recordProgramBindCall(true);
 		_fgShader->setUniformValue("isWireframePass", false);
 		mesh->render();
 				
@@ -11279,8 +11255,6 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 		glEnable(GL_POLYGON_OFFSET_FILL);
 		glPolygonOffset(-1.0f, -1.0f);
 
-		_fgShader->bind();		
-		TriangleMesh::recordProgramBindCall(true);
 		_fgShader->setUniformValue("isWireframePass", true);
 		mesh->render();
 
@@ -11293,8 +11267,6 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glLineWidth(1.0f);
 		glDisable(GL_POLYGON_OFFSET_FILL);
-		_fgShader->bind();
-		TriangleMesh::recordProgramBindCall(true);
 		mesh->render();
 		break;
 	}
@@ -11303,9 +11275,6 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 	glLineWidth(1.0f);
 	glDisable(GL_POLYGON_OFFSET_FILL);
-
-	_fgShader->release();
-	TriangleMesh::resetBoundProgramCacheForCurrentContext();
 	if (profiling)
 		TriangleMesh::recordRenderMeshWithDisplayModeCpuMs(static_cast<double>(meshModeTimer.nsecsElapsed()) / 1000000.0);
 }
