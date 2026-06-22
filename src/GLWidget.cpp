@@ -7532,6 +7532,12 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 {
 	QVector3D camPos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(prog, camPos);
+	if (_displayMode == DisplayMode::FLATSHADED &&
+		prog == _fgShader.get() &&
+		_fgFlatShader && _fgFlatShader->isLinked())
+	{
+		syncUniformsToFlatShader();
+	}
 
 	if (_meshStore.empty()) return;
 
@@ -7640,6 +7646,17 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 	prog->setUniformValue("hoverHighlighting", hoverHighlightingEnabled);
 	prog->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));
 	const int sssObjectIdLocation = prog->uniformLocation("sssObjectId");
+	QOpenGLShaderProgram* flatProg = nullptr;
+	int flatSssObjectIdLocation = -1;
+	if (_displayMode == DisplayMode::FLATSHADED &&
+		_fgFlatShader && _fgFlatShader->isLinked())
+	{
+		syncUniformsToFlatShader();
+		flatProg = _fgFlatShader.get();
+		flatProg->setUniformValue("hoverHighlighting", hoverHighlightingEnabled);
+		flatProg->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));
+		flatSssObjectIdLocation = flatProg->uniformLocation("sssObjectId");
+	}
 	// Collect visible opaque meshes, then sort by texture signature to
 	// minimise GPU texture state changes across consecutive draw calls.
 	std::vector<std::pair<uint64_t, int>> opaque;
@@ -7672,12 +7689,19 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 	{
 		if (auto* mesh = _meshStore.at(id))
 		{
-			mesh->setProg(prog);
-			TriangleMesh::bindProgramCached(prog);
-			prog->setUniformValue("hovered",
+			QOpenGLShaderProgram* activeProg = prog;
+			int activeSssObjectIdLocation = sssObjectIdLocation;
+			if (flatProg && mesh->getPrimitiveMode() == GL_TRIANGLES)
+			{
+				activeProg = flatProg;
+				activeSssObjectIdLocation = flatSssObjectIdLocation;
+			}
+			mesh->setProg(activeProg);
+			TriangleMesh::bindProgramCached(activeProg);
+			activeProg->setUniformValue("hovered",
 				hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
-			if (sssObjectIdLocation >= 0)
-				prog->setUniformValue(sssObjectIdLocation, float(id + 1));
+			if (activeSssObjectIdLocation >= 0)
+				activeProg->setUniformValue(activeSssObjectIdLocation, float(id + 1));
 			renderMeshExploded(mesh, _displayMode);
 		}
 	}
@@ -7753,17 +7777,35 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 	prog->setUniformValue("hoverHighlighting", hoverHighlightingEnabledT);
 	prog->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));
 	const int sssObjectIdLocation = prog->uniformLocation("sssObjectId");
+	QOpenGLShaderProgram* flatProg = nullptr;
+	int flatSssObjectIdLocation = -1;
+	if (_displayMode == DisplayMode::FLATSHADED &&
+		_fgFlatShader && _fgFlatShader->isLinked())
+	{
+		syncUniformsToFlatShader();
+		flatProg = _fgFlatShader.get();
+		flatProg->setUniformValue("hoverHighlighting", hoverHighlightingEnabledT);
+		flatProg->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));
+		flatSssObjectIdLocation = flatProg->uniformLocation("sssObjectId");
+	}
 	for (auto& it : transparent)
 	{
 		if (auto* mesh = _meshStore.at(it.second))
 		{
 			const int id = it.second;
-			mesh->setProg(prog);
-			TriangleMesh::bindProgramCached(prog);
-			prog->setUniformValue("hovered",
+			QOpenGLShaderProgram* activeProg = prog;
+			int activeSssObjectIdLocation = sssObjectIdLocation;
+			if (flatProg && mesh->getPrimitiveMode() == GL_TRIANGLES)
+			{
+				activeProg = flatProg;
+				activeSssObjectIdLocation = flatSssObjectIdLocation;
+			}
+			mesh->setProg(activeProg);
+			TriangleMesh::bindProgramCached(activeProg);
+			activeProg->setUniformValue("hovered",
 				hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
-			if (sssObjectIdLocation >= 0)
-				prog->setUniformValue(sssObjectIdLocation, float(id + 1));
+			if (activeSssObjectIdLocation >= 0)
+				activeProg->setUniformValue(activeSssObjectIdLocation, float(id + 1));
 			renderMeshExploded(mesh, _displayMode);
 		}
 	}
@@ -11223,21 +11265,14 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glLineWidth(1.0f);
 		glDisable(GL_POLYGON_OFFSET_FILL);
-		if (_fgFlatShader && _fgFlatShader->isLinked()
-		    && mesh->getPrimitiveMode() == GL_TRIANGLES)
+		if (_fgFlatShader && _fgFlatShader->isLinked() &&
+			mesh->getPrimitiveMode() == GL_TRIANGLES &&
+			mesh->prog() == _fgShader.get())
 		{
-			// Sync all current _fgShader uniform state (per-frame + per-mesh
-			// from previous draw) to _fgFlatShader before updating per-mesh
-			// uniforms via mesh->render().
-			syncUniformsToFlatShader();
 			TriangleMesh::bindProgramCached(_fgFlatShader.get());
 			mesh->setProg(_fgFlatShader.get());
-			mesh->render();
 		}
-		else
-		{
-			mesh->render();
-		}
+		mesh->render();
 		break;
 
 		// ============================================
