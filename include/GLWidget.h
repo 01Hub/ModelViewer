@@ -1286,6 +1286,8 @@ private:
 	int _runtimeVisibilityMeshStoreCount = -1;
 	bool _runtimeVisibilityPrepared = false;
 	quint64 _runtimeVisibilityBoundsRevision = 0;
+	quint64 _runtimeVisibilityMaskRevision = 1;
+	quint64 _runtimeVisibilityMaskProcessedRevision = 0;
 	std::vector<unsigned char> _runtimeBaseVisibleMask;
 
 	// Accumulates mesh UUIDs in DFS load order during a single loadAssImpModel

@@ -3245,6 +3245,7 @@ void GLWidget::setZoomingActive(bool active)
 void GLWidget::setDisplayList(const std::vector<int>& ids)
 {
 	_displayedObjectsIds = ids;
+	++_runtimeVisibilityMaskRevision;
 
 	std::vector<int> allObjectIDs;
 	for (size_t i = 0; i < _meshStore.size(); i++)
@@ -5120,6 +5121,7 @@ void GLWidget::showNodeMeshLoadingProgress(int processedNodes, int totalNodes, i
 void GLWidget::swapVisible(bool checked)
 {
 	_visibleSwapped = checked;
+	++_runtimeVisibilityMaskRevision;
 	recalculateVisibleSceneStats(false);
 	triggerShadowRecomputation();
 	updateFloorPlane();
@@ -7933,12 +7935,22 @@ void GLWidget::refreshRuntimeVisibilityCacheForCurrentView()
 
 	const quint64 currentBoundsRevision = TriangleMesh::currentRuntimeBoundsRevision();
 	const bool refreshBounds = (_runtimeVisibilityBoundsRevision != currentBoundsRevision);
+	const bool maskChanged = (_runtimeVisibilityMaskProcessedRevision != _runtimeVisibilityMaskRevision);
+
+	if (!refreshBounds && !maskChanged)
+	{
+		_runtimeVisibilityPrepared = true;
+		return;
+	}
+
 	refreshRuntimeVisibilityNodeBounds(
 		_runtimeVisibilityRootIndex,
 		_runtimeBaseVisibleMask,
 		refreshBounds);
 	if (refreshBounds)
 		_runtimeVisibilityBoundsRevision = currentBoundsRevision;
+	if (maskChanged)
+		_runtimeVisibilityMaskProcessedRevision = _runtimeVisibilityMaskRevision;
 	_runtimeVisibilityPrepared = true;
 }
 
