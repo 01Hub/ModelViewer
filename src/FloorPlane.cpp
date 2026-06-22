@@ -65,14 +65,12 @@ void FloorPlane::render()
 	glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, 0);
 	_vertexArrayObject.release();
 
-	glBindTexture(GL_TEXTURE_2D, 0);
 	glDisable(GL_BLEND);
 }
 
 void FloorPlane::setupTextures()
 {
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, _fallbackTexture);
+	bindTextureUnitCached(GL_TEXTURE0, _fallbackTexture);
 	if (_textureBindingsDirty && !_fallbackTextureImage.isNull())
 	{
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, _fallbackTextureImage.width(), _fallbackTextureImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _fallbackTextureImage.bits());
@@ -83,8 +81,7 @@ void FloorPlane::setupTextures()
 		? static_cast<GLuint>(_material.albedoTextureId())
 		: (_material.hasDiffuseMap() ? static_cast<GLuint>(_material.diffuseTextureId()) : 0U);
 
-	glActiveTexture(GL_TEXTURE10);
-	glBindTexture(GL_TEXTURE_2D, diffuseTex);
+	bindTextureUnitCached(GL_TEXTURE10, diffuseTex);
 
 	_textureBindingsDirty = false;
 }

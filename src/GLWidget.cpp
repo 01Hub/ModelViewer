@@ -5896,11 +5896,8 @@ void GLWidget::setIBLFaceBasis(QOpenGLShaderProgram* prog, int faceIndex)
 	}
 }
 
-void GLWidget::loadFloor()
+void GLWidget::ensureShadowMapResources()
 {
-	// configure depth map FBO
-	// -----------------------
-	// create depth texture
 	if (_shadowMap == 0 || _shadowMapNeedsInitialization)
 	{
 		if (_shadowMap != 0)
@@ -5934,7 +5931,16 @@ void GLWidget::loadFloor()
 		glDrawBuffer(GL_NONE);
 		glReadBuffer(GL_NONE);
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
+		// Restore active unit: createGPUTextureFromImage() binds without setting
+		// glActiveTexture first, so if unit 2 is still active it steals the shadow
+		// map slot and shadows disappear for the rest of the frame.
+		glActiveTexture(GL_TEXTURE0);
 	}
+}
+
+void GLWidget::loadFloor()
+{
+	ensureShadowMapResources();
 
 	// Use helper to update floor geometry
 	float halfObjectSize = updateFloorGeometry();
@@ -5942,25 +5948,20 @@ void GLWidget::loadFloor()
 	// Use helper to set main light position
 	updateMainLightPosition(halfObjectSize);
 
-	const float workspaceExtent = static_cast<float>(std::max({
-		_boundingBox.getXSize(),
-		_boundingBox.getYSize(),
-		_boundingBox.getZSize()
-	}));
 	float floorPlaneCoeff = _meshStore.empty()
 		? -_floorSize - (_floorSize * 0.05f)
 		: groundPlaneZ();
 	_floorPlaneZ = floorPlaneCoeff;
 
-	// FIX: Delete old floor plane to prevent memory leak
-	if (_floorPlane != nullptr)
-	{
-		delete _floorPlane;
-		_floorPlane = nullptr;
-	}
-
 	const float groundExtent = groundPlaneExtent();
-	_floorPlane = new FloorPlane(_fgShader.get(), _floorCenter, groundExtent, groundExtent, 1, 1, floorPlaneCoeff, 1, 1, floorPlaneOrientation());
+	if (_floorPlane == nullptr)
+	{
+		_floorPlane = new FloorPlane(_fgShader.get(), _floorCenter, groundExtent, groundExtent, 1, 1, floorPlaneCoeff, _floorTexRepeatS, _floorTexRepeatT, floorPlaneOrientation());
+	}
+	else
+	{
+		_floorPlane->setPlane(_fgShader.get(), _floorCenter, groundExtent, groundExtent, 1, 1, floorPlaneCoeff, _floorTexRepeatS, _floorTexRepeatT, floorPlaneOrientation());
+	}
 
 	// Use helper to apply common material/texture settings
 	applyFloorPlaneMaterialSettings();
@@ -7318,45 +7319,45 @@ void GLWidget::drawFloor(const bool& drawReflection)
 {
 	TriangleMesh::resetTextureBindingCacheForCurrentContext();
 
-	auto bindFloorSharedSamplerState = [this]()
-	{
-		// Units 32/33: prevent the floor from sampling the transmission FBO while it is
-		// the active render target (or stale from a previous frame).
-		glActiveTexture(GL_TEXTURE0 + 32);
-		glBindTexture(GL_TEXTURE_2D, _whiteTexture);
-		glActiveTexture(GL_TEXTURE0 + 33);
-		glBindTexture(GL_TEXTURE_2D, _whiteTexture);
-		// Units 37/38 (sssDiffuseTexture/sssDepthTexture) need no protection here:
-		// floor rendering never has hasVolumeScattering=true so sampleCapturedSSSDiffuse
-		// is never called.
-		glActiveTexture(GL_TEXTURE0);
-	};
-
-	auto configureGroundSharedState = [this, &bindFloorSharedSamplerState]()
+	// Per-pass uniforms: 3 that differ between passes + 2 that drawMesh() may overwrite.
+	// bind() is required here: drawMesh() ends with _prog->release() per mesh, leaving
+	// no program active; the bind before each pass restores _fgShader so the uniform
+	// uploads and the matrix uploads in FloorPlane::render() reach the right program.
+	auto configureGroundPass = [this](bool reflectedPass, bool textureEnabled)
 	{
 		_fgShader->bind();
-		bindFloorSharedSamplerState();
 		_fgShader->setUniformValue("sssCapture", false);
 		_fgShader->setUniformValue("envMapEnabled", false);
-		_fgShader->setUniformValue("floorRendering", true);
-		_fgShader->setUniformValue("groundMode", static_cast<int>(_groundMode));
-		_fgShader->setUniformValue("topColor", QVector4D(_bgTopColor.red(), _bgTopColor.green(), _bgTopColor.blue(), _bgTopColor.alpha()));
-		_fgShader->setUniformValue("botColor", QVector4D(_bgBotColor.red(), _bgBotColor.green(), _bgBotColor.blue(), _bgBotColor.alpha()));
-		_fgShader->setUniformValue("screenSize", QVector2D(width(), height()));
-		_fgShader->setUniformValue("screenCenter", _floorCenter);
-		_fgShader->setUniformValue("gradientStyle", _gradientStyle);
-		_fgShader->setUniformValue("floorSize", groundPlaneExtent());
-		_fgShader->setUniformValue("groundReferenceSize", _floorSize);
-		_fgShader->setUniformValue("worldUpAxis", _cameraUpAxisZUp ? 2 : 1);
-	};
-
-	auto configureGroundPass = [this, &configureGroundSharedState](bool reflectedPass, bool textureEnabled)
-	{
-		configureGroundSharedState();
 		_fgShader->setUniformValue("isReflectedPass", reflectedPass);
 		_fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_BLINN_PHONG));
 		_fgShader->setUniformValue("floorTextureEnabled", textureEnabled);
 	};
+
+	// Units 32/33: prevent the floor from sampling the transmission FBO while it is
+	// the active render target (or stale from a previous frame). Scene meshes in the
+	// reflection pass do not rebind these units, so one call covers all three passes.
+	// Units 37/38 (sssDiffuseTexture/sssDepthTexture) need no protection here:
+	// floor rendering never has hasVolumeScattering=true so sampleCapturedSSSDiffuse
+	// is never called.
+	glActiveTexture(GL_TEXTURE0 + 32);
+	glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+	glActiveTexture(GL_TEXTURE0 + 33);
+	glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+	glActiveTexture(GL_TEXTURE0);
+
+	// Upload uniforms shared by both floor passes once; only per-pass values are
+	// re-uploaded via configureGroundPass() before each individual pass.
+	_fgShader->bind();
+	_fgShader->setUniformValue("floorRendering", true);
+	_fgShader->setUniformValue("groundMode", static_cast<int>(_groundMode));
+	_fgShader->setUniformValue("topColor", QVector4D(_bgTopColor.red(), _bgTopColor.green(), _bgTopColor.blue(), _bgTopColor.alpha()));
+	_fgShader->setUniformValue("botColor", QVector4D(_bgBotColor.red(), _bgBotColor.green(), _bgBotColor.blue(), _bgBotColor.alpha()));
+	_fgShader->setUniformValue("screenSize", QVector2D(width(), height()));
+	_fgShader->setUniformValue("screenCenter", _floorCenter);
+	_fgShader->setUniformValue("gradientStyle", _gradientStyle);
+	_fgShader->setUniformValue("floorSize", groundPlaneExtent());
+	_fgShader->setUniformValue("groundReferenceSize", _floorSize);
+	_fgShader->setUniformValue("worldUpAxis", _cameraUpAxisZUp ? 2 : 1);
 
 	//https://open.gl/depthstencils
 	glEnable(GL_STENCIL_TEST);
@@ -7408,7 +7409,6 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	}
 
 	_fgShader->bind();
-	bindFloorSharedSamplerState();
 	_fgShader->setUniformValue("sssCapture", false);
 	_fgShader->setUniformValue("modelMatrix", model);
 	TriangleMesh::setCurrentRenderContext(model, _viewMatrix);

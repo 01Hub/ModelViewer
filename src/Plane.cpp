@@ -20,6 +20,24 @@ Plane::Plane(QOpenGLShaderProgram* prog, QVector3D center, float xsize, float ys
 
 void Plane::setPlane(QOpenGLShaderProgram* prog, QVector3D center, float xsize, float ysize, int xdivs, int ydivs, float zlevel, float smax, float tmax, Orientation orientation)
 {
+	setProg(prog);
+	const auto nearlyEqual = [](float a, float b) -> bool
+	{
+		const float scale = std::max(1.0f, std::max(std::abs(a), std::abs(b)));
+		return std::abs(a - b) <= 1.0e-6f * scale;
+	};
+	if (nearlyEqual(center.x(), _center.x()) &&
+	    nearlyEqual(center.y(), _center.y()) &&
+	    nearlyEqual(center.z(), _center.z()) &&
+	    nearlyEqual(xsize, _xSize) &&
+	    nearlyEqual(ysize, _ySize) &&
+	    xdivs == _xDivs &&
+	    ydivs == _yDivs &&
+	    nearlyEqual(zlevel, _zLevel) &&
+	    nearlyEqual(smax, _sMax) &&
+	    nearlyEqual(tmax, _tMax) &&
+	    orientation == _orientation)
+		return;
 	_center = center;
 	_xSize = xsize;
 	_ySize = ysize;
@@ -29,7 +47,6 @@ void Plane::setPlane(QOpenGLShaderProgram* prog, QVector3D center, float xsize, 
 	_sMax = smax;
 	_tMax = tmax;
 	_orientation = orientation;
-	setProg(prog);
 	buildMesh(_center, _xSize, _ySize, _xDivs, _yDivs, _zLevel, _sMax, _tMax, _orientation);
 }
 

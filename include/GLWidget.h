@@ -738,6 +738,7 @@ private:
 	GLuint loadPresetEnvironmentMap(const QString& hdrFilePath);
 	bool generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradianceMap, GLuint& outPrefilterMap, GLuint& outSheenPrefilterMap);
 	void loadFloor();
+	void ensureShadowMapResources();
 	void loadGrid();
 	void applyFloorPlaneMaterialSettings();
 	void syncFloorPlaneAlbedoTexture();

@@ -516,8 +516,8 @@ protected:
 	unsigned int _fallbackTexture;
 	bool _hasTextureAlpha;
 	
-	unsigned int _sMax;
-	unsigned int _tMax;
+	float _sMax;
+	float _tMax;
 
 	bool _textureBindingsDirty = true;
 
