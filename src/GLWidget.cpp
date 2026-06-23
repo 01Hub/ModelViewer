@@ -11211,13 +11211,14 @@ void GLWidget::renderToShadowBuffer()
 			return true;
 
 		const BoundingSphere sphere = mesh->getBoundingSphere();
-		const QMatrix4x4 worldTransform = _modelMatrix * mesh->combinedRenderTransform();
-		const QVector3D col0(worldTransform(0, 0), worldTransform(1, 0), worldTransform(2, 0));
-		const QVector3D col1(worldTransform(0, 1), worldTransform(1, 1), worldTransform(2, 1));
-		const QVector3D col2(worldTransform(0, 2), worldTransform(1, 2), worldTransform(2, 2));
-		const float maxScale = (std::max)(1.0f, (std::max)(col0.length(), (std::max)(col1.length(), col2.length())));
-		const float radiusWithSlack = (std::max)(sphere.getRadius() * maxScale, 0.001f) * 1.05f;
-		const QVector3D centerLS = (lightView * worldTransform * QVector4D(sphere.getCenter(), 1.0f)).toVector3D();
+		// sphere.getCenter() and sphere.getRadius() are in world space — they come from
+		// _boundingSphere which computeBounds() derives from _trsfPoints, and _trsfPoints
+		// is already combinedRenderTransform() * raw_vertices.  Map to light space using
+		// the same lightView * _modelMatrix used for the shadow AABB above; do NOT apply
+		// combinedRenderTransform() again or the center gets double-translated (position T
+		// becomes 2T, landing outside the frustum that correctly spans T±r).
+		const float radiusWithSlack = (std::max)(sphere.getRadius(), 0.001f) * 1.05f;
+		const QVector3D centerLS = (lightView * _modelMatrix).map(sphere.getCenter());
 
 		return centerLS.x() + radiusWithSlack < fsMinX ||
 		       centerLS.x() - radiusWithSlack > fsMaxX ||
