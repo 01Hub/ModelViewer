@@ -313,6 +313,76 @@ void AssImpMesh::render()
 		recordAssImpRenderCpuMs(static_cast<double>(renderTimer.nsecsElapsed()) / 1000000.0);
 }
 
+void AssImpMesh::renderWireframeFast(QOpenGLShaderProgram* wireProg)
+{
+	if (!_vertexArrayObject.isCreated() || !wireProg)
+		return;
+
+	// Wireframe is a geometry-only visualisation: material alpha, transmission, and
+	// blending properties are intentionally ignored — all meshes show their geometry shape.
+	// Skinned meshes are fully supported: joint matrices are uploaded below.
+	// Clip planes are handled by the caller (useWireShader gated on activeClipPlaneIndex < 0),
+	// so we never reach here while a clip plane is active.
+	//
+	// IMPORTANT: do not call render() as a fallback here. render() rebinds _fgShader via
+	// bindProgramCached, which corrupts the wireframe shader binding for subsequent meshes
+	// (Qt's glUniform* calls apply to the currently-bound program, not to wireProg).
+
+	// The caller sets hasVertexColors / hasAlbedoMap / hasSkinning / jointCount to their
+	// default (false / false / false / 0) once before the mesh loop. We only upload a
+	// uniform when it differs from that default, and restore it immediately after the draw.
+	// For a pure CAD assembly this reduces to 2 GL calls per mesh: modelMatrix + baseColor.
+
+	const QMatrix4x4 modelMatrix = currentGlobalModelMatrix() * combinedRenderTransform();
+	wireProg->setUniformValue("modelMatrix", modelMatrix);
+	wireProg->setUniformValue("baseColor",   _material.albedoColor());
+
+	if (_hasVertexColors)
+		wireProg->setUniformValue("hasVertexColors", true);
+
+	const bool hasAlbedo = _material.hasAlbedoMap() && _material.albedoTextureId() != 0;
+	if (hasAlbedo)
+	{
+		wireProg->setUniformValue("hasAlbedoMap", true);
+		bindTextureUnitCached(GL_TEXTURE0, static_cast<GLuint>(_material.albedoTextureId()));
+	}
+
+	// Skinning — upload joint palette so animated meshes deform correctly in wire mode.
+	// For non-skinned meshes (the common assembly case) this block is skipped entirely.
+	const bool skinned = hasSkinning() && !jointPalette().isEmpty();
+	if (skinned)
+	{
+		const int count = std::min(static_cast<int>(jointPalette().size()), 128);
+		wireProg->setUniformValue("hasSkinning", true);
+		wireProg->setUniformValue("jointCount",  count);
+		// Upload per element: sizeof(QMatrix4x4) = 68 bytes (float m[4][4] + int flagBits),
+		// so a bulk reinterpret_cast of QVector data misaligns every matrix after [0].
+		// OpenGL guarantees consecutive locations for array elements, so baseLoc+i is correct.
+		const int baseLoc = wireProg->uniformLocation("jointMatrices[0]");
+		if (baseLoc >= 0)
+			for (int i = 0; i < count; ++i)
+				glUniformMatrix4fv(baseLoc + i, 1, GL_FALSE, jointPalette()[i].constData());
+	}
+
+	_vertexArrayObject.bind();
+	if (_indices.empty())
+		glDrawArrays(_primitiveMode, 0, _nVerts);
+	else
+		glDrawElements(_primitiveMode, _nVerts, GL_UNSIGNED_INT, nullptr);
+	_vertexArrayObject.release();
+
+	// Restore any non-default uniforms so the next mesh starts clean.
+	if (_hasVertexColors)
+		wireProg->setUniformValue("hasVertexColors", false);
+	if (hasAlbedo)
+		wireProg->setUniformValue("hasAlbedoMap", false);
+	if (skinned)
+	{
+		wireProg->setUniformValue("hasSkinning", false);
+		wireProg->setUniformValue("jointCount",  0);
+	}
+}
+
 quint64 AssImpMesh::uniformStateSignature() const
 {
 	if (!_uniformStateSignatureDirty)

@@ -1163,7 +1163,8 @@ private:
 	QMatrix4x4 _viewportMatrix;
 
 	std::unique_ptr<ShaderProgram> _fgShader;
-	std::unique_ptr<ShaderProgram> _fgFlatShader;   // flat shading: vert + geom (face normals) + frag
+	std::unique_ptr<ShaderProgram> _fgFlatShader;      // flat shading: vert + geom (face normals) + frag
+	std::unique_ptr<ShaderProgram> _wireframeShader;   // lightweight: transform + baseColor + albedo only
 	std::unique_ptr<ShaderProgram> _axisShader;
 	std::unique_ptr<ShaderProgram> _vertexNormalShader;
 	std::unique_ptr<ShaderProgram> _faceNormalShader;

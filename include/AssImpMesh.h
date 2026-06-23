@@ -61,6 +61,7 @@ public:
 	virtual TriangleMesh* clone();
 	void setProg(QOpenGLShaderProgram* prog) override;
 	void render();
+	void renderWireframeFast(QOpenGLShaderProgram* wireProg) override;
 	quint64 getRenderMaterialSortKey() const override;
 	void markUniformsDirty() override;
 	static void resetSharedUniformStateCache();
