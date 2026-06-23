@@ -41,6 +41,7 @@ aiScene* XCAFIGESProcessor::processIGESFile(const std::string& path)
 
     // Read IGES file into XCAF document
     IGESCAFControl_Reader cafReader;
+    cafReader.SetLayerMode(false); // Layer assignments — not consumed by the viewer
     if (cafReader.ReadFile(path.c_str()) != IFSelect_RetDone)
     {
         MainWindow::resetProgressBar();

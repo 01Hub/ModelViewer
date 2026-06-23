@@ -335,10 +335,13 @@ void XCAFSTEPProcessor::readSTEPFile(const std::string & filename, Handle(TDocSt
 	// Disable XCAF sub-systems that are irrelevant for pure 3-D visualization.
 	// Each disabled mode skips a separate traversal/annotation pass during Transfer(),
 	// which can meaningfully reduce load time on large assemblies.
-	reader.SetGDTMode(false);   // Geometric Dimensioning & Tolerancing annotations
-	reader.SetSHUOMode(false);  // Super-imposed Higher-Usage Occurrence relationships
-	reader.SetPropsMode(false); // Validation properties (mass, surface area, etc.)
-	reader.SetViewMode(false);  // Saved camera views embedded in the STEP file
+	reader.SetGDTMode(false);          // Geometric Dimensioning & Tolerancing annotations
+	reader.SetSHUOMode(false);         // Super-imposed Higher-Usage Occurrence relationships
+	reader.SetPropsMode(false);        // Validation properties (mass, surface area, etc.)
+	reader.SetViewMode(false);         // Saved camera views embedded in the STEP file
+	reader.SetLayerMode(false);        // Layer assignments — not consumed by the viewer
+	reader.SetMetaMode(false);         // Metadata attributes — not consumed by the viewer
+	reader.SetProductMetaMode(false);  // Product metadata — not consumed by the viewer
 
 	// Phase D: Tune the OCCT 7.9.x shape-fix pipeline via DE_ShapeFixParameters.
 	// By default OCCT runs FixShellOrientationMode = FixOrNot, meaning it will attempt
@@ -353,6 +356,10 @@ void XCAFSTEPProcessor::readSTEPFile(const std::string & filename, Handle(TDocSt
 		fixParams.FixShellOrientationMode  = FM::NotFix; // skip expensive shell normal reconciliation
 		fixParams.FixSplitFaceMode         = FM::NotFix; // skip topology splitting (viewer does not need it)
 		fixParams.FixSelfIntersectionMode  = FM::NotFix; // skip costly self-intersection detection
+		fixParams.FixIntersectingWiresMode = FM::NotFix; // O(N²) wire intersection test — not needed for visualization
+		fixParams.FixSmallAreaWireMode     = FM::NotFix; // degenerate tiny-wire removal — BRepMesh tolerates these
+		fixParams.FixLoopWiresMode         = FM::NotFix; // loop wire detection — not needed for visualization
+		fixParams.FixNotchedEdgesMode      = FM::NotFix; // rare edge case, not worth the cost for a viewer
 		reader.SetShapeFixParameters(fixParams);
 	}
 
