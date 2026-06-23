@@ -741,6 +741,7 @@ _bgShader(nullptr),
 _bgSplitShader(nullptr),
 _fgShader(nullptr),
 _fgFlatShader(nullptr),
+_wireframeShader(nullptr),
 _axisShader(nullptr),
 _vertexNormalShader(nullptr),
 _faceNormalShader(nullptr),
@@ -5700,6 +5701,10 @@ void GLWidget::createShaderPrograms()
 	_fgFlatShader->loadCompileAndLinkShaderFromFile(path + "shaders/main_scene_flat.vert",
 	    path + "shaders/main_scene.frag",
 	    path + "shaders/main_scene_flat.geom");
+	// Lightweight wireframe/wireshaded wire-pass shader — transform + baseColor + optional albedo only.
+	_wireframeShader = std::make_unique<ShaderProgram>(); _wireframeShader->setObjectName("_wireframeShader");
+	_wireframeShader->loadCompileAndLinkShaderFromFile(path + "shaders/wireframe.vert",
+	    path + "shaders/wireframe.frag");
 	// Axis
 	_axisShader = std::make_unique<ShaderProgram>(); _axisShader->setObjectName("_axisShader");
 	_axisShader->loadCompileAndLinkShaderFromFile(path + "shaders/axis.vert", path + "shaders/axis.frag");
@@ -7685,24 +7690,137 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 	}
 	std::sort(opaque.begin(), opaque.end(),
 		[](const auto& a, const auto& b) { return a.first < b.first; });
-	for (auto& [key, id] : opaque)
+	// Lightweight wire shader requires no active clip plane (it has no gl_ClipDistance).
+	// Skinning and complex-alpha meshes are handled by the per-mesh fallback in renderWireframeFast().
+	const bool useWireShader = _wireframeShader && _wireframeShader->isLinked()
+	    && activeClipPlaneIndex < 0;
+	if (_displayMode == DisplayMode::WIREFRAME)
 	{
-		if (auto* mesh = _meshStore.at(id))
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		glLineWidth(1.25f);
+		glDisable(GL_POLYGON_OFFSET_FILL);
+		if (useWireShader)
 		{
-			QOpenGLShaderProgram* activeProg = prog;
-			int activeSssObjectIdLocation = sssObjectIdLocation;
-			if (flatProg && mesh->getPrimitiveMode() == GL_TRIANGLES)
+			TriangleMesh::bindProgramCached(_wireframeShader.get());
+			_wireframeShader->setUniformValue("viewMatrix",       _viewMatrix);
+			_wireframeShader->setUniformValue("projectionMatrix", _projectionMatrix);
+			_wireframeShader->setUniformValue("isWireframePass",  false);
+			// Pass-level defaults: renderWireframeFast only uploads when non-default.
+			_wireframeShader->setUniformValue("hasVertexColors", false);
+			_wireframeShader->setUniformValue("hasAlbedoMap",    false);
+			_wireframeShader->setUniformValue("hasSkinning",     false);
+			_wireframeShader->setUniformValue("jointCount",      0);
+			for (auto& [key, id] : opaque)
 			{
-				activeProg = flatProg;
-				activeSssObjectIdLocation = flatSssObjectIdLocation;
+				if (auto* mesh = _meshStore.at(id))
+					mesh->renderWireframeFast(_wireframeShader.get());
 			}
-			mesh->setProg(activeProg);
-			TriangleMesh::bindProgramCached(activeProg);
-			activeProg->setUniformValue("hovered",
-				hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
-			if (activeSssObjectIdLocation >= 0)
-				activeProg->setUniformValue(activeSssObjectIdLocation, float(id + 1));
-			renderMeshExploded(mesh, _displayMode);
+		}
+		else
+		{
+			for (auto& [key, id] : opaque)
+			{
+				if (auto* mesh = _meshStore.at(id))
+				{
+					mesh->setProg(prog);
+					TriangleMesh::bindProgramCached(prog);
+					prog->setUniformValue("hovered",
+						hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
+					if (sssObjectIdLocation >= 0)
+						prog->setUniformValue(sssObjectIdLocation, float(id + 1));
+					mesh->render();
+				}
+			}
+		}
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glLineWidth(1.0f);
+	}
+	else if (_displayMode == DisplayMode::WIRESHADED)
+	{
+		// Solid pass — full PBR shader, unchanged
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glLineWidth(1.0f);
+		glDisable(GL_POLYGON_OFFSET_FILL);
+		prog->setUniformValue("isWireframePass", false);
+		for (auto& [key, id] : opaque)
+		{
+			if (auto* mesh = _meshStore.at(id))
+			{
+				mesh->setProg(prog);
+				TriangleMesh::bindProgramCached(prog);
+				prog->setUniformValue("hovered",
+					hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
+				if (sssObjectIdLocation >= 0)
+					prog->setUniformValue(sssObjectIdLocation, float(id + 1));
+				mesh->render();
+			}
+		}
+
+		// Wire pass — lightweight shader, no material/texture machinery
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		glLineWidth(1.5f);
+		glEnable(GL_POLYGON_OFFSET_FILL);
+		glPolygonOffset(-1.0f, -1.0f);
+		if (useWireShader)
+		{
+			TriangleMesh::bindProgramCached(_wireframeShader.get());
+			_wireframeShader->setUniformValue("viewMatrix",       _viewMatrix);
+			_wireframeShader->setUniformValue("projectionMatrix", _projectionMatrix);
+			_wireframeShader->setUniformValue("isWireframePass",  true);
+			// Pass-level defaults: renderWireframeFast only uploads when non-default.
+			_wireframeShader->setUniformValue("hasVertexColors", false);
+			_wireframeShader->setUniformValue("hasAlbedoMap",    false);
+			_wireframeShader->setUniformValue("hasSkinning",     false);
+			_wireframeShader->setUniformValue("jointCount",      0);
+			for (auto& [key, id] : opaque)
+			{
+				if (auto* mesh = _meshStore.at(id))
+					mesh->renderWireframeFast(_wireframeShader.get());
+			}
+		}
+		else
+		{
+			prog->setUniformValue("isWireframePass", true);
+			for (auto& [key, id] : opaque)
+			{
+				if (auto* mesh = _meshStore.at(id))
+				{
+					mesh->setProg(prog);
+					TriangleMesh::bindProgramCached(prog);
+					prog->setUniformValue("hovered",
+						hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
+					if (sssObjectIdLocation >= 0)
+						prog->setUniformValue(sssObjectIdLocation, float(id + 1));
+					mesh->render();
+				}
+			}
+		}
+		glDisable(GL_POLYGON_OFFSET_FILL);
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glLineWidth(1.0f);
+		prog->setUniformValue("isWireframePass", false);
+	}
+	else
+	{
+		for (auto& [key, id] : opaque)
+		{
+			if (auto* mesh = _meshStore.at(id))
+			{
+				QOpenGLShaderProgram* activeProg = prog;
+				int activeSssObjectIdLocation = sssObjectIdLocation;
+				if (flatProg && mesh->getPrimitiveMode() == GL_TRIANGLES)
+				{
+					activeProg = flatProg;
+					activeSssObjectIdLocation = flatSssObjectIdLocation;
+				}
+				mesh->setProg(activeProg);
+				TriangleMesh::bindProgramCached(activeProg);
+				activeProg->setUniformValue("hovered",
+					hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
+				if (activeSssObjectIdLocation >= 0)
+					activeProg->setUniformValue(activeSssObjectIdLocation, float(id + 1));
+				renderMeshExploded(mesh, _displayMode);
+			}
 		}
 	}
 }
@@ -7788,25 +7906,139 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 		flatProg->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));
 		flatSssObjectIdLocation = flatProg->uniformLocation("sssObjectId");
 	}
-	for (auto& it : transparent)
+	const bool useWireShaderT = _wireframeShader && _wireframeShader->isLinked()
+	    && activeClipPlaneIndex < 0;
+	if (_displayMode == DisplayMode::WIREFRAME)
 	{
-		if (auto* mesh = _meshStore.at(it.second))
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		glLineWidth(1.25f);
+		glDisable(GL_POLYGON_OFFSET_FILL);
+		if (useWireShaderT)
 		{
-			const int id = it.second;
-			QOpenGLShaderProgram* activeProg = prog;
-			int activeSssObjectIdLocation = sssObjectIdLocation;
-			if (flatProg && mesh->getPrimitiveMode() == GL_TRIANGLES)
+			TriangleMesh::bindProgramCached(_wireframeShader.get());
+			_wireframeShader->setUniformValue("viewMatrix",       _viewMatrix);
+			_wireframeShader->setUniformValue("projectionMatrix", _projectionMatrix);
+			_wireframeShader->setUniformValue("isWireframePass",  false);
+			// Pass-level defaults: renderWireframeFast only uploads when non-default.
+			_wireframeShader->setUniformValue("hasVertexColors", false);
+			_wireframeShader->setUniformValue("hasAlbedoMap",    false);
+			_wireframeShader->setUniformValue("hasSkinning",     false);
+			_wireframeShader->setUniformValue("jointCount",      0);
+			for (auto& it : transparent)
 			{
-				activeProg = flatProg;
-				activeSssObjectIdLocation = flatSssObjectIdLocation;
+				if (auto* mesh = _meshStore.at(it.second))
+					mesh->renderWireframeFast(_wireframeShader.get());
 			}
-			mesh->setProg(activeProg);
-			TriangleMesh::bindProgramCached(activeProg);
-			activeProg->setUniformValue("hovered",
-				hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
-			if (activeSssObjectIdLocation >= 0)
-				activeProg->setUniformValue(activeSssObjectIdLocation, float(id + 1));
-			renderMeshExploded(mesh, _displayMode);
+		}
+		else
+		{
+			for (auto& it : transparent)
+			{
+				const int id = it.second;
+				if (auto* mesh = _meshStore.at(id))
+				{
+					mesh->setProg(prog);
+					TriangleMesh::bindProgramCached(prog);
+					prog->setUniformValue("hovered",
+						hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
+					if (sssObjectIdLocation >= 0)
+						prog->setUniformValue(sssObjectIdLocation, float(id + 1));
+					mesh->render();
+				}
+			}
+		}
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glLineWidth(1.0f);
+	}
+	else if (_displayMode == DisplayMode::WIRESHADED)
+	{
+		// Solid pass — full PBR shader, unchanged
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glLineWidth(1.0f);
+		glDisable(GL_POLYGON_OFFSET_FILL);
+		prog->setUniformValue("isWireframePass", false);
+		for (auto& it : transparent)
+		{
+			if (auto* mesh = _meshStore.at(it.second))
+			{
+				const int id = it.second;
+				mesh->setProg(prog);
+				TriangleMesh::bindProgramCached(prog);
+				prog->setUniformValue("hovered",
+					hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
+				if (sssObjectIdLocation >= 0)
+					prog->setUniformValue(sssObjectIdLocation, float(id + 1));
+				mesh->render();
+			}
+		}
+
+		// Wire pass — lightweight shader
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		glLineWidth(1.5f);
+		glEnable(GL_POLYGON_OFFSET_FILL);
+		glPolygonOffset(-1.0f, -1.0f);
+		if (useWireShaderT)
+		{
+			TriangleMesh::bindProgramCached(_wireframeShader.get());
+			_wireframeShader->setUniformValue("viewMatrix",       _viewMatrix);
+			_wireframeShader->setUniformValue("projectionMatrix", _projectionMatrix);
+			_wireframeShader->setUniformValue("isWireframePass",  true);
+			// Pass-level defaults: renderWireframeFast only uploads when non-default.
+			_wireframeShader->setUniformValue("hasVertexColors", false);
+			_wireframeShader->setUniformValue("hasAlbedoMap",    false);
+			_wireframeShader->setUniformValue("hasSkinning",     false);
+			_wireframeShader->setUniformValue("jointCount",      0);
+			for (auto& it : transparent)
+			{
+				if (auto* mesh = _meshStore.at(it.second))
+					mesh->renderWireframeFast(_wireframeShader.get());
+			}
+		}
+		else
+		{
+			prog->setUniformValue("isWireframePass", true);
+			for (auto& it : transparent)
+			{
+				const int id = it.second;
+				if (auto* mesh = _meshStore.at(id))
+				{
+					mesh->setProg(prog);
+					TriangleMesh::bindProgramCached(prog);
+					prog->setUniformValue("hovered",
+						hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
+					if (sssObjectIdLocation >= 0)
+						prog->setUniformValue(sssObjectIdLocation, float(id + 1));
+					mesh->render();
+				}
+			}
+		}
+		glDisable(GL_POLYGON_OFFSET_FILL);
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glLineWidth(1.0f);
+		prog->setUniformValue("isWireframePass", false);
+	}
+	else
+	{
+		for (auto& it : transparent)
+		{
+			if (auto* mesh = _meshStore.at(it.second))
+			{
+				const int id = it.second;
+				QOpenGLShaderProgram* activeProg = prog;
+				int activeSssObjectIdLocation = sssObjectIdLocation;
+				if (flatProg && mesh->getPrimitiveMode() == GL_TRIANGLES)
+				{
+					activeProg = flatProg;
+					activeSssObjectIdLocation = flatSssObjectIdLocation;
+				}
+				mesh->setProg(activeProg);
+				TriangleMesh::bindProgramCached(activeProg);
+				activeProg->setUniformValue("hovered",
+					hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
+				if (activeSssObjectIdLocation >= 0)
+					activeProg->setUniformValue(activeSssObjectIdLocation, float(id + 1));
+				renderMeshExploded(mesh, _displayMode);
+			}
 		}
 	}
 

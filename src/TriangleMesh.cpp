@@ -1647,6 +1647,12 @@ void TriangleMesh::setTextureMaps(const GLMaterial& material)
 	markUniformsDirty();
 }
 
+void TriangleMesh::renderWireframeFast(QOpenGLShaderProgram* /*wireProg*/)
+{
+	// Base fallback: full render. AssImpMesh overrides with the lightweight path.
+	render();
+}
+
 void TriangleMesh::render()
 {
 	if (!_vertexArrayObject.isCreated())
