@@ -83,6 +83,7 @@ public:
 	virtual void render();
 	virtual void renderShadow(); // Lightweight render for shadow mapping
 	virtual void renderWireframeFast(QOpenGLShaderProgram* wireProg); // Lightweight render for wireframe/wireshaded passes
+	virtual void renderFeatureEdgesFast(QOpenGLShaderProgram* wireProg) { Q_UNUSED(wireProg) } // Feature-edge render (subclass provides implementation)
 
 	virtual void select()
 	{

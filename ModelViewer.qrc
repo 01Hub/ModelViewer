@@ -83,6 +83,8 @@
         <file>res/item_up.png</file>
         <file>res/camera_y_up.png</file>
         <file>res/camera_z_up.png</file>
+        <file>res/hollow_mesh.png</file>
+        <file>res/mesh_edges.png</file>
     </qresource>
     <qresource prefix="/styles">
         <file>themes/DarkOrange.qss</file>

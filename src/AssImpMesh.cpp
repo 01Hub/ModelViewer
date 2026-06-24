@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <unordered_map>
 #include <meshoptimizer.h>
 #include <utility>
 
@@ -656,6 +657,280 @@ void AssImpMesh::setupMesh()
 
 	initBuffers(&_indices, &points, &normals, &colors, &texCoords, &tangents, &bitangents, &jointIndices, &jointWeights);
 	computeBounds();
+	buildAndUploadFeatureEdges(15.0f);
+}
+
+void AssImpMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
+{
+	// Only valid for indexed triangle meshes.
+	if (_vertices.empty() || _indices.size() % 3 != 0 || _primitiveMode != GL_TRIANGLES)
+		return;
+
+	const uint32_t vertCount = static_cast<uint32_t>(_vertices.size());
+	const uint32_t triCount  = static_cast<uint32_t>(_indices.size() / 3);
+
+	// --- Step 1: Position weld ---
+	// Vertices at UV seams or hard-edge splits share the same 3D position but have
+	// different indices. Quantizing by a small epsilon groups them so adjacency is
+	// correctly detected across the seam.
+	const float eps = 1e-4f;
+	struct QPos { int32_t x, y, z;
+		bool operator==(const QPos& o) const { return x==o.x && y==o.y && z==o.z; } };
+	struct QPosHash {
+		size_t operator()(const QPos& p) const {
+			size_t h = std::hash<int32_t>()(p.x) * 2654435761u;
+			h ^= std::hash<int32_t>()(p.y) * 805459861u;
+			h ^= std::hash<int32_t>()(p.z) * 1234567891u;
+			return h;
+		}
+	};
+	std::unordered_map<QPos, uint32_t, QPosHash> posMap;
+	posMap.reserve(vertCount);
+	std::vector<uint32_t> weld(vertCount);
+	for (uint32_t i = 0; i < vertCount; ++i)
+	{
+		const glm::vec3& p = _vertices[i].Position;
+		QPos q{ static_cast<int32_t>(std::round(p.x / eps)),
+		        static_cast<int32_t>(std::round(p.y / eps)),
+		        static_cast<int32_t>(std::round(p.z / eps)) };
+		auto [it, inserted] = posMap.emplace(q, static_cast<uint32_t>(posMap.size()));
+		weld[i] = it->second;
+	}
+
+	// --- Step 2: Build edge adjacency storing vertex normals at each endpoint ---
+	// Key: packed sorted pair of welded vertex indices.
+	// For each adjacent triangle we store the vertex normal at the min-weld endpoint
+	// and the max-weld endpoint so we can compare them across the two triangles.
+	// When no vertex normals are present we fall back to face normals stored in nAtMin.
+	//
+	// Classifying by vertex-normal discontinuity (not face dihedral angle) eliminates
+	// two common false-positive categories:
+	//   • Fan-triangulation of flat/nearly-flat polygons — shared vertices carry
+	//     identical normals, so fan-diagonal edges are always suppressed.
+	//   • UV-seam splits on smooth surfaces — both sides carry the same shading normal,
+	//     so the seam itself is not shown unless it is also a geometric hard edge.
+	// Genuine hard edges in OBJ are encoded as split vertices with different normals,
+	// and appear in the adjacency map as edges with triCount == 2 whose endpoint normals
+	// differ across the two triangles.
+
+	// Check whether the mesh carries meaningful vertex normals.
+	bool useVertexNormals = false;
+	for (uint32_t i = 0; i < std::min(vertCount, 16u); ++i)
+	{
+		const glm::vec3& vn = _vertices[i].Normal;
+		if (glm::dot(vn, vn) > 1e-6f)
+		{ useVertexNormals = true; break; }
+	}
+
+	struct EdgeData {
+		uint32_t  orig0      = 0;     // original index at min-weld endpoint (first triangle)
+		uint32_t  orig1      = 0;     // original index at max-weld endpoint (first triangle)
+		glm::vec3 vNormMin[2] = {};   // vertex normals at min-weld endpoint per adjacent tri
+		glm::vec3 vNormMax[2] = {};   // vertex normals at max-weld endpoint per adjacent tri
+		glm::vec3 faceN[2]   = {};    // face normals per adjacent tri
+		bool      hasSplit   = false; // true when two tris share this edge via split vertices
+		uint8_t   triCount   = 0;
+	};
+	std::unordered_map<uint64_t, EdgeData> edgeMap;
+	edgeMap.reserve(_indices.size());
+
+	for (uint32_t t = 0; t < triCount; ++t)
+	{
+		const uint32_t oi[3] = { _indices[t*3], _indices[t*3+1], _indices[t*3+2] };
+		const uint32_t wi[3] = { weld[oi[0]], weld[oi[1]], weld[oi[2]] };
+
+		const glm::vec3& p0 = _vertices[oi[0]].Position;
+		const glm::vec3& p1 = _vertices[oi[1]].Position;
+		const glm::vec3& p2 = _vertices[oi[2]].Position;
+		glm::vec3 fn = glm::cross(p1 - p0, p2 - p0);
+		float fnLen = glm::length(fn);
+		const glm::vec3 faceNorm = fnLen > 1e-12f ? fn / fnLen : glm::vec3(0.f, 0.f, 1.f);
+
+		for (int e = 0; e < 3; ++e)
+		{
+			uint32_t oA = oi[e], oB = oi[(e + 1) % 3];
+			uint32_t wA = wi[e], wB = wi[(e + 1) % 3];
+			if (wA == wB) continue; // degenerate
+
+			if (wA > wB) { std::swap(wA, wB); std::swap(oA, oB); }
+			uint64_t key = (uint64_t)wA << 32 | wB;
+
+			auto& ed = edgeMap[key];
+			if (ed.triCount == 0) { ed.orig0 = oA; ed.orig1 = oB; }
+
+			if (ed.triCount < 2)
+			{
+				const uint8_t slot = ed.triCount;
+				ed.faceN[slot] = faceNorm;
+				if (useVertexNormals)
+				{
+					ed.vNormMin[slot] = _vertices[oA].Normal;
+					ed.vNormMax[slot] = _vertices[oB].Normal;
+				}
+			}
+			// When the second triangle arrives, detect split-vertex seams.
+			// A split vertex means two tris share the welded edge via different original
+			// indices — this happens at UV seams, normal seams, or patch boundaries.
+			if (ed.triCount == 1)
+				ed.hasSplit = (oA != ed.orig0) || (oB != ed.orig1);
+
+			++ed.triCount;
+		}
+	}
+
+	// --- Step 3: Classify and collect feature edges ---
+	//
+	//  Split edge (hasSplit) — two triangles reach this welded edge via different original
+	//    vertex indices (UV seam, normal seam, patch boundary).  Two independent tests:
+	//      A) Vertex-normal divergence > 5°: catches OBJ/glTF hard edges whose smooth-group
+	//         boundary gives split vertices with genuinely different averaged normals.
+	//         UV seams within the SAME smooth group produce 0° divergence → suppressed.
+	//      B) Face dihedral > 3°: catches curved-surface seams on smooth groups where vertex
+	//         normals match but the surface has measurable curvature.  3° excludes truly-flat
+	//         tessellation (≈0°) while showing any visible surface curve (≥3°).
+	//
+	//  Shared edge (!hasSplit) — both triangles use the same original vertices.  Feature only
+	//    for sharp creases ≥ max(2×threshold, 30°) to suppress fan-triangulation noise on
+	//    slightly non-planar polygon meshes while keeping sharp manufactured corners.
+	const float pi = 3.14159265358979f;
+	const float cosVtxSplitThresh   = std::cos(5.0f * pi / 180.0f);
+	const float cosCurvedSeamThresh = std::cos(3.0f * pi / 180.0f);
+	const float cosFaceThresh       = std::cos(std::max(thresholdDegrees * 2.0f, 30.0f) * pi / 180.0f);
+
+	std::vector<uint32_t> featureEdges;
+	featureEdges.reserve(edgeMap.size());
+
+	for (auto& [key, ed] : edgeMap)
+	{
+		bool isFeature = false;
+		if (ed.triCount == 1)
+		{
+			isFeature = true; // boundary
+		}
+		else if (ed.triCount == 2)
+		{
+			if (ed.hasSplit)
+			{
+				// Test A: vertex-normal divergence (hard-edge detection).
+				if (useVertexNormals)
+				{
+					const float d0 = glm::dot(ed.vNormMin[0], ed.vNormMin[1]);
+					const float d1 = glm::dot(ed.vNormMax[0], ed.vNormMax[1]);
+					isFeature = (d0 < cosVtxSplitThresh) || (d1 < cosVtxSplitThresh);
+				}
+				// Test B: face dihedral — curved-surface seam on same smooth group.
+				if (!isFeature)
+					isFeature = glm::dot(ed.faceN[0], ed.faceN[1]) < cosCurvedSeamThresh;
+			}
+			else
+			{
+				// Shared vertex: sharp geometric crease only.
+				isFeature = glm::dot(ed.faceN[0], ed.faceN[1]) < cosFaceThresh;
+			}
+		}
+		else
+		{
+			isFeature = true; // non-manifold
+		}
+
+		if (isFeature)
+		{
+			featureEdges.push_back(ed.orig0);
+			featureEdges.push_back(ed.orig1);
+		}
+	}
+
+	_featureEdgeCount = static_cast<GLsizei>(featureEdges.size());
+	if (_featureEdgeCount == 0)
+		return;
+
+	// --- Step 4: Upload index buffer ---
+	if (!_featureEdgeIndexBuffer.isCreated())
+		_featureEdgeIndexBuffer.create();
+	_featureEdgeIndexBuffer.bind();
+	_featureEdgeIndexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+	_featureEdgeIndexBuffer.allocate(featureEdges.data(),
+	                                 static_cast<int>(featureEdges.size() * sizeof(uint32_t)));
+	_featureEdgeIndexBuffer.release();
+
+	// --- Step 5: Create feature edge VAO ---
+	// Reuses the same vertex VBOs as the main VAO; only the index buffer differs.
+	// Attribute locations (0=pos, 1=norm, 2=color, 9=jointIdx, 10=jointWgt) are
+	// fixed by layout(location=N) in wireframe.vert, so _prog's locations match.
+	if (!_featureEdgeVAO.isCreated())
+		_featureEdgeVAO.create();
+	_featureEdgeVAO.bind();
+
+	_featureEdgeIndexBuffer.bind(); // stored in VAO state
+
+	_positionBuffer.bind();
+	_prog->enableAttributeArray("vertexPosition");
+	_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
+
+	_normalBuffer.bind();
+	_prog->enableAttributeArray("vertexNormal");
+	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
+
+	if (_hasVertexColors && _colorBuffer.isCreated())
+	{
+		_colorBuffer.bind();
+		_prog->enableAttributeArray("vertexColor");
+		_prog->setAttributeBuffer("vertexColor", GL_FLOAT, 0, 4);
+	}
+
+	if (!_jointIndices.empty() && _jointIndexBuffer.isCreated())
+	{
+		_jointIndexBuffer.bind();
+		_prog->enableAttributeArray("jointIndices");
+		_prog->setAttributeBuffer("jointIndices", GL_FLOAT, 0, 4);
+
+		_jointWeightBuffer.bind();
+		_prog->enableAttributeArray("jointWeights");
+		_prog->setAttributeBuffer("jointWeights", GL_FLOAT, 0, 4);
+	}
+
+	_featureEdgeVAO.release();
+}
+
+void AssImpMesh::renderFeatureEdgesFast(QOpenGLShaderProgram* wireProg)
+{
+	if (!_featureEdgeVAO.isCreated() || _featureEdgeCount == 0 || !wireProg)
+		return;
+
+	// Same per-mesh uniform pattern as renderWireframeFast — upload only what differs
+	// from the pass-level defaults set by the caller before the mesh loop.
+	const QMatrix4x4 modelMatrix = currentGlobalModelMatrix() * combinedRenderTransform();
+	wireProg->setUniformValue("modelMatrix", modelMatrix);
+	wireProg->setUniformValue("baseColor",   _material.albedoColor());
+
+	// Feature edges never use albedo textures — the edge line colour is the material
+	// base colour, potentially modulated by vertex colour if present.
+	if (_hasVertexColors)
+		wireProg->setUniformValue("hasVertexColors", true);
+
+	const bool skinned = hasSkinning() && !jointPalette().isEmpty();
+	if (skinned)
+	{
+		const int count = std::min(static_cast<int>(jointPalette().size()), 128);
+		wireProg->setUniformValue("hasSkinning", true);
+		wireProg->setUniformValue("jointCount",  count);
+		const int baseLoc = wireProg->uniformLocation("jointMatrices[0]");
+		if (baseLoc >= 0)
+			for (int i = 0; i < count; ++i)
+				glUniformMatrix4fv(baseLoc + i, 1, GL_FALSE, jointPalette()[i].constData());
+	}
+
+	_featureEdgeVAO.bind();
+	glDrawElements(GL_LINES, _featureEdgeCount, GL_UNSIGNED_INT, nullptr);
+	_featureEdgeVAO.release();
+
+	if (_hasVertexColors)
+		wireProg->setUniformValue("hasVertexColors", false);
+	if (skinned)
+	{
+		wireProg->setUniformValue("hasSkinning", false);
+		wireProg->setUniformValue("jointCount",  0);
+	}
 }
 
 void AssImpMesh::cacheTextureBindings()

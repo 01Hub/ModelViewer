@@ -826,8 +826,10 @@ _floorPlane(nullptr),
 	 connect(_viewToolbar, &ViewToolbar::displayModeSelected, this, [this](const QString& type) {
 		 if (type == "Realistic") setDisplayMode(DisplayMode::REALSHADED);
 		 else if (type == "Shaded") setDisplayMode(DisplayMode::SHADED);
+		 else if (type == "HollowMesh") setDisplayMode(DisplayMode::HOLLOW_MESH);
+		 else if (type == "MeshEdges") setDisplayMode(DisplayMode::MESH_EDGES);
 		 else if (type == "Wireframe") setDisplayMode(DisplayMode::WIREFRAME);
-		 else if (type == "WireShaded") setDisplayMode(DisplayMode::WIRESHADED);
+		 else if (type == "ShadedWithEdges") setDisplayMode(DisplayMode::SHADED_WITH_EDGES);
 		 else if (type == "FlatShaded") setDisplayMode(DisplayMode::FLATSHADED);
 		 });
 	 connect(this, &GLWidget::displayModeChanged, _viewer, &ModelViewer::onDisplayModeChanged);
@@ -1538,6 +1540,21 @@ QUuid GLWidget::getUuidByIndex(int index) const
 	return QUuid();  // Invalid
 }
 
+// Map C++ DisplayMode enum to the legacy integer values expected by main_scene.frag.
+// Shader hardcodes: 1=hollow/wireframe, 2=wireshaded, 3=realshaded, 4=flatshaded.
+// Never pass the raw enum int — new modes shifted the values.
+static int displayModeShaderInt(DisplayMode mode)
+{
+	switch (mode)
+	{
+		case DisplayMode::HOLLOW_MESH:       return 1;
+		case DisplayMode::MESH_EDGES:        return 2;
+		case DisplayMode::REALSHADED:        return 3;
+		case DisplayMode::FLATSHADED:        return 4;
+		default:                             return 0; // SHADED, WIREFRAME, SHADED_WITH_EDGES
+	}
+}
+
 void GLWidget::initializeGL()
 {
 	_openGLInitialized = false;
@@ -1722,8 +1739,8 @@ void GLWidget::initializeGL()
 	_fgShader->setUniformValue("transmissionDepthTexture", 33);
 	_fgShader->setUniformValue("sssDiffuseTexture", 37);
 	_fgShader->setUniformValue("sssDepthTexture", 38);
-	_fgShader->setUniformValue("displayMode", static_cast<int>(_displayMode));
-	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));	
+	_fgShader->setUniformValue("displayMode", displayModeShaderInt(_displayMode));
+	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
 	_fgShader->setUniformValue("selectionHighlighting", _selectionHighlighting);
 
 	updateEnvMapRotationMatrix();
@@ -7696,7 +7713,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 	// alpha/transmission behavior.
 	const bool useWireShader = _wireframeShader && _wireframeShader->isLinked()
 	    && activeClipPlaneIndex < 0;
-	if (_displayMode == DisplayMode::WIREFRAME)
+	if (_displayMode == DisplayMode::HOLLOW_MESH)
 	{
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glLineWidth(1.25f);
@@ -7737,7 +7754,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glLineWidth(1.0f);
 	}
-	else if (_displayMode == DisplayMode::WIRESHADED)
+	else if (_displayMode == DisplayMode::MESH_EDGES)
 	{
 		// Solid pass — full PBR shader, unchanged
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -7799,6 +7816,70 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		}
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glLineWidth(1.0f);
+		prog->setUniformValue("isWireframePass", false);
+	}
+	else if (_displayMode == DisplayMode::WIREFRAME && useWireShader)
+	{
+		// True feature-edge wireframe — draw only pre-computed crease/boundary edges via GL_LINES.
+		// No glPolygonMode needed; the feature-edge VAO draws GL_LINES primitives directly.
+		glDisable(GL_POLYGON_OFFSET_FILL);
+		glLineWidth(1.75f);
+		TriangleMesh::bindProgramCached(_wireframeShader.get());
+		_wireframeShader->setUniformValue("viewMatrix",       _viewMatrix);
+		_wireframeShader->setUniformValue("projectionMatrix", _projectionMatrix);
+		_wireframeShader->setUniformValue("isWireframePass",  false);
+		_wireframeShader->setUniformValue("hasVertexColors", false);
+		_wireframeShader->setUniformValue("hasAlbedoMap",    false);
+		_wireframeShader->setUniformValue("hasSkinning",     false);
+		_wireframeShader->setUniformValue("jointCount",      0);
+		for (auto& [key, id] : opaque)
+		{
+			if (auto* mesh = _meshStore.at(id))
+				mesh->renderFeatureEdgesFast(_wireframeShader.get());
+		}
+		glLineWidth(1.0f);
+	}
+	else if (_displayMode == DisplayMode::SHADED_WITH_EDGES && useWireShader)
+	{
+		// Shaded with feature edges — solid PBR pass (offset back), then feature-edge GL_LINES overlay.
+		// GL_POLYGON_OFFSET_FILL on the solid pass pushes polygon depth values slightly away from the
+		// camera, so the GL_LINES overlay at the true surface depth always passes the depth test.
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glLineWidth(1.0f);
+		glEnable(GL_POLYGON_OFFSET_FILL);
+		glPolygonOffset(1.25f, 1.25f);
+		prog->setUniformValue("isWireframePass", false);
+		for (auto& [key, id] : opaque)
+		{
+			if (auto* mesh = _meshStore.at(id))
+			{
+				mesh->setProg(prog);
+				TriangleMesh::bindProgramCached(prog);
+				prog->setUniformValue("hovered",
+					hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
+				if (sssObjectIdLocation >= 0)
+					prog->setUniformValue(sssObjectIdLocation, float(id + 1));
+				mesh->render();
+			}
+		}
+		// Feature-edge overlay — no offset needed; solid was already pushed back.
+		glDisable(GL_POLYGON_OFFSET_FILL);
+		glLineWidth(1.5f);
+		TriangleMesh::bindProgramCached(_wireframeShader.get());
+		_wireframeShader->setUniformValue("viewMatrix",       _viewMatrix);
+		_wireframeShader->setUniformValue("projectionMatrix", _projectionMatrix);
+		_wireframeShader->setUniformValue("isWireframePass",  true);
+		_wireframeShader->setUniformValue("hasVertexColors", false);
+		_wireframeShader->setUniformValue("hasAlbedoMap",    false);
+		_wireframeShader->setUniformValue("hasSkinning",     false);
+		_wireframeShader->setUniformValue("jointCount",      0);
+		for (auto& [key, id] : opaque)
+		{
+			if (auto* mesh = _meshStore.at(id))
+				mesh->renderFeatureEdgesFast(_wireframeShader.get());
+		}
+		glDisable(GL_POLYGON_OFFSET_FILL);
 		glLineWidth(1.0f);
 		prog->setUniformValue("isWireframePass", false);
 	}
@@ -7910,7 +7991,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 	}
 	const bool useWireShaderT = _wireframeShader && _wireframeShader->isLinked()
 	    && activeClipPlaneIndex < 0;
-	if (_displayMode == DisplayMode::WIREFRAME)
+	if (_displayMode == DisplayMode::HOLLOW_MESH)
 	{
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glLineWidth(1.25f);
@@ -7952,7 +8033,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glLineWidth(1.0f);
 	}
-	else if (_displayMode == DisplayMode::WIRESHADED)
+	else if (_displayMode == DisplayMode::MESH_EDGES)
 	{
 		// Solid pass — full PBR shader, unchanged
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -8016,6 +8097,65 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 		}
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glLineWidth(1.0f);
+		prog->setUniformValue("isWireframePass", false);
+	}
+	else if (_displayMode == DisplayMode::WIREFRAME && useWireShaderT)
+	{
+		glDisable(GL_POLYGON_OFFSET_FILL);
+		glLineWidth(1.75f);
+		TriangleMesh::bindProgramCached(_wireframeShader.get());
+		_wireframeShader->setUniformValue("viewMatrix",       _viewMatrix);
+		_wireframeShader->setUniformValue("projectionMatrix", _projectionMatrix);
+		_wireframeShader->setUniformValue("isWireframePass",  false);
+		_wireframeShader->setUniformValue("hasVertexColors", false);
+		_wireframeShader->setUniformValue("hasAlbedoMap",    false);
+		_wireframeShader->setUniformValue("hasSkinning",     false);
+		_wireframeShader->setUniformValue("jointCount",      0);
+		for (auto& it : transparent)
+		{
+			if (auto* mesh = _meshStore.at(it.second))
+				mesh->renderFeatureEdgesFast(_wireframeShader.get());
+		}
+		glLineWidth(1.0f);
+	}
+	else if (_displayMode == DisplayMode::SHADED_WITH_EDGES && useWireShaderT)
+	{
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glLineWidth(1.0f);
+		glEnable(GL_POLYGON_OFFSET_FILL);
+		glPolygonOffset(1.25f, 1.25f);
+		prog->setUniformValue("isWireframePass", false);
+		for (auto& it : transparent)
+		{
+			if (auto* mesh = _meshStore.at(it.second))
+			{
+				const int id = it.second;
+				mesh->setProg(prog);
+				TriangleMesh::bindProgramCached(prog);
+				prog->setUniformValue("hovered",
+					hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
+				if (sssObjectIdLocation >= 0)
+					prog->setUniformValue(sssObjectIdLocation, float(id + 1));
+				mesh->render();
+			}
+		}
+		glDisable(GL_POLYGON_OFFSET_FILL);
+		glLineWidth(1.5f);
+		TriangleMesh::bindProgramCached(_wireframeShader.get());
+		_wireframeShader->setUniformValue("viewMatrix",       _viewMatrix);
+		_wireframeShader->setUniformValue("projectionMatrix", _projectionMatrix);
+		_wireframeShader->setUniformValue("isWireframePass",  true);
+		_wireframeShader->setUniformValue("hasVertexColors", false);
+		_wireframeShader->setUniformValue("hasAlbedoMap",    false);
+		_wireframeShader->setUniformValue("hasSkinning",     false);
+		_wireframeShader->setUniformValue("jointCount",      0);
+		for (auto& it : transparent)
+		{
+			if (auto* mesh = _meshStore.at(it.second))
+				mesh->renderFeatureEdgesFast(_wireframeShader.get());
+		}
+		glDisable(GL_POLYGON_OFFSET_FILL);
 		glLineWidth(1.0f);
 		prog->setUniformValue("isWireframePass", false);
 	}
@@ -8595,8 +8735,8 @@ void GLWidget::drawMeshesWithClipping(QOpenGLShaderProgram* prog,
 {
 	TriangleMesh::resetTextureBindingCacheForCurrentContext();
 
-	//glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::WIREFRAME ? GL_LINE : GL_FILL);
-	//glLineWidth(_displayMode == DisplayMode::WIREFRAME ? 1.25 : 1.0);
+	//glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::HOLLOW_MESH ? GL_LINE : GL_FILL);
+	//glLineWidth(_displayMode == DisplayMode::HOLLOW_MESH ? 1.25 : 1.0);
 
 	// https://stackoverflow.com/questions/16901829/how-to-clip-only-intersection-not-union-of-clipping-planes
 	// If any clipping is active
@@ -11511,9 +11651,9 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 		break;
 
 		// ============================================
-	case DisplayMode::WIREFRAME:
+	case DisplayMode::HOLLOW_MESH:
 		// ============================================
-		// WIREFRAME: Lines only
+		// HOLLOW MESH: All triangle edges via glPolygonMode
 		// ============================================
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glLineWidth(1.25f);
@@ -11522,24 +11662,36 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 		break;
 
 		// ============================================
-	case DisplayMode::WIRESHADED:
+	case DisplayMode::MESH_EDGES:
 		// Pass 1: Solid
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glLineWidth(1.0f);
 		_fgShader->setUniformValue("isWireframePass", false);
 		mesh->render();
-				
-		// Pass 2: Wireframe overlay
+
+		// Pass 2: All triangle edges overlay
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glLineWidth(1.5f);
 		glEnable(GL_POLYGON_OFFSET_FILL);
 		glPolygonOffset(-1.0f, -1.0f);
-
 		_fgShader->setUniformValue("isWireframePass", true);
 		mesh->render();
 
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		_fgShader->setUniformValue("isWireframePass", false);
+		break;
+
+		// ============================================
+	case DisplayMode::WIREFRAME:
+	case DisplayMode::SHADED_WITH_EDGES:
+		// Feature-edge modes are handled at the render-loop level (they need
+		// access to the wireframe shader and the feature-edge VAO via
+		// renderFeatureEdgesFast). renderMeshWithDisplayMode is used for the
+		// exploded-view and per-mesh paths; fall back to solid rendering there.
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glLineWidth(1.0f);
+		glDisable(GL_POLYGON_OFFSET_FILL);
+		mesh->render();
 		break;
 
 	default:
@@ -16430,9 +16582,9 @@ void GLWidget::setDisplayMode(DisplayMode mode)
 
 	if (_viewToolbar)
 		_viewToolbar->setDefaultDisplayModeAction(static_cast<DisplayModeActions>(_displayMode));
-		
+
 	_fgShader->bind();
-	_fgShader->setUniformValue("displayMode", static_cast<int>(_displayMode));
+	_fgShader->setUniformValue("displayMode", displayModeShaderInt(_displayMode));
 	_fgShader->release();
 	emit displayModeChanged(static_cast<int>(_displayMode));
 }

@@ -493,12 +493,16 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _realistic->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_R));
     _shaded = dispModeMenu->addAction(QIcon(":/icons/res/shaded.png"), tr("Shaded"));
     _shaded->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_S));
-    _wireframe = dispModeMenu->addAction(QIcon(":/icons/res/wireframe.png"), tr("Wireframe"));
-    _wireframe->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_W));
-    _wireshaded = dispModeMenu->addAction(QIcon(":/icons/res/wireshaded.png"), tr("Wire Shaded"));
-    _wireshaded->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_E));
     _flatshaded = dispModeMenu->addAction(QIcon(":/icons/res/flat_shaded.png"), tr("Flat Shaded"));
     _flatshaded->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_F));
+    _hollowMesh = dispModeMenu->addAction(QIcon(":/icons/res/hollow_mesh.png"), tr("Hollow Mesh"));
+    _hollowMesh->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_H));
+    _meshEdges = dispModeMenu->addAction(QIcon(":/icons/res/mesh_edges.png"), tr("Mesh Edges"));
+    _meshEdges->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_M));
+    _wireframe = dispModeMenu->addAction(QIcon(":/icons/res/wireframe.png"), tr("Wireframe"));
+    _wireframe->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_W));
+    _shadedWithEdges = dispModeMenu->addAction(QIcon(":/icons/res/wireshaded.png"), tr("Shaded with Edges"));
+    _shadedWithEdges->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_E));
 
     connect(_realistic, &QAction::triggered, this,
         [this]() {
@@ -514,20 +518,6 @@ ViewToolbar::ViewToolbar(QWidget* parent)
         }
     );
 
-    connect(_wireframe, &QAction::triggered, this,
-        [this]() {
-            _toolButtonDisplayModes->setDefaultAction(_wireframe);
-            emit displayModeSelected("Wireframe");
-        }
-    );
-
-    connect(_wireshaded, &QAction::triggered, this,
-        [this]() {
-            _toolButtonDisplayModes->setDefaultAction(_wireshaded);
-            emit displayModeSelected("WireShaded");
-        }
-    );
-
     connect(_flatshaded, &QAction::triggered, this,
         [this]() {
             _toolButtonDisplayModes->setDefaultAction(_flatshaded);
@@ -535,11 +525,41 @@ ViewToolbar::ViewToolbar(QWidget* parent)
         }
     );
 
-    _displayModeActions[DisplayModeActions::REALSHADED] = _realistic;
-    _displayModeActions[DisplayModeActions::WIREFRAME] = _wireframe;
-    _displayModeActions[DisplayModeActions::WIRESHADED] = _wireshaded;
-    _displayModeActions[DisplayModeActions::SHADED] = _shaded;
-    _displayModeActions[DisplayModeActions::FLATSHADED] = _flatshaded;
+    connect(_hollowMesh, &QAction::triggered, this,
+        [this]() {
+            _toolButtonDisplayModes->setDefaultAction(_hollowMesh);
+            emit displayModeSelected("HollowMesh");
+        }
+    );
+
+    connect(_meshEdges, &QAction::triggered, this,
+        [this]() {
+            _toolButtonDisplayModes->setDefaultAction(_meshEdges);
+            emit displayModeSelected("MeshEdges");
+        }
+    );
+
+    connect(_wireframe, &QAction::triggered, this,
+        [this]() {
+            _toolButtonDisplayModes->setDefaultAction(_wireframe);
+            emit displayModeSelected("Wireframe");
+        }
+    );
+
+    connect(_shadedWithEdges, &QAction::triggered, this,
+        [this]() {
+            _toolButtonDisplayModes->setDefaultAction(_shadedWithEdges);
+            emit displayModeSelected("ShadedWithEdges");
+        }
+    );
+
+    _displayModeActions[DisplayModeActions::REALSHADED]       = _realistic;
+    _displayModeActions[DisplayModeActions::SHADED]           = _shaded;
+    _displayModeActions[DisplayModeActions::FLATSHADED]       = _flatshaded;
+    _displayModeActions[DisplayModeActions::HOLLOW_MESH]      = _hollowMesh;
+    _displayModeActions[DisplayModeActions::MESH_EDGES]       = _meshEdges;
+    _displayModeActions[DisplayModeActions::WIREFRAME]        = _wireframe;
+    _displayModeActions[DisplayModeActions::SHADED_WITH_EDGES] = _shadedWithEdges;
 
     _toolButtonDisplayModes->setMenu(dispModeMenu);
     _toolButtonDisplayModes->setDefaultAction(_shaded);
@@ -937,9 +957,11 @@ void ViewToolbar::retranslateUI()
 	_toolButtonDisplayModes->setToolTip(tr("Display Modes"));
 	_realistic->setText(tr("Realistic"));
 	_shaded->setText(tr("Shaded"));
-	_wireframe->setText(tr("Wireframe"));
-	_wireshaded->setText(tr("Wire Shaded"));
 	_flatshaded->setText(tr("Flat Shaded"));
+	_hollowMesh->setText(tr("Hollow Mesh"));
+	_meshEdges->setText(tr("Mesh Edges"));
+	_wireframe->setText(tr("Wireframe"));
+	_shadedWithEdges->setText(tr("Shaded with Edges"));
 
 	// Rendering Mode
 	_toolButtonRenderingMode->setToolTip(tr("Rendering Mode"));

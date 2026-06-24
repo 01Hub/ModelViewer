@@ -62,6 +62,7 @@ public:
 	void setProg(QOpenGLShaderProgram* prog) override;
 	void render();
 	void renderWireframeFast(QOpenGLShaderProgram* wireProg) override;
+	void renderFeatureEdgesFast(QOpenGLShaderProgram* wireProg) override;
 	quint64 getRenderMaterialSortKey() const override;
 	void markUniformsDirty() override;
 	static void resetSharedUniformStateCache();
@@ -143,6 +144,7 @@ private:
 	/*  Functions    */
 	// Initializes all the buffer objects/arrays
 	void setupMesh();
+	void buildAndUploadFeatureEdges(float thresholdDegrees = 15.0f);
 
 	void cacheTextureBindings();
 	void bindTexturesOptimized();
@@ -161,6 +163,11 @@ private:
 	std::vector<Vertex> _baseVertices;
 	std::vector<unsigned int> _indices;
 	std::vector<GLMaterial::Texture> _textures;
+
+	// Feature edge buffers — built by buildAndUploadFeatureEdges(), rendered by renderFeatureEdgesFast()
+	QOpenGLBuffer               _featureEdgeIndexBuffer { QOpenGLBuffer::IndexBuffer };
+	QOpenGLVertexArrayObject    _featureEdgeVAO;
+	GLsizei                     _featureEdgeCount = 0;
 	QVector<MorphTargetData> _morphTargets;
 	QVector<float> _defaultMorphWeights;
 	QVector<float> _currentMorphWeights;

@@ -13,7 +13,7 @@ enum class CameraModeActions { ORBIT, FLY, FIRST_PERSON };
 enum class NavigationActions { ROTATE, PAN, ZOOM };
 enum class StandardViewActions { TOP, FRONT, LEFT, BOTTOM, REAR, RIGHT };
 enum class ViewModeActions { ISOMETRIC, DIMETRIC, TRIMETRIC };
-enum class DisplayModeActions { SHADED, WIREFRAME, WIRESHADED, REALSHADED, FLATSHADED };
+enum class DisplayModeActions { SHADED, HOLLOW_MESH, MESH_EDGES, WIREFRAME, SHADED_WITH_EDGES, REALSHADED, FLATSHADED };
 enum class RenderingModeActions { ADS, PBR };
 
 class ViewToolbar : public QWidget
@@ -133,8 +133,10 @@ private:
     // Display mode actions
     QAction* _realistic;
     QAction* _shaded;
-    QAction* _wireframe;
-    QAction* _wireshaded;
+    QAction* _hollowMesh;       // all triangle edges (no fill)
+    QAction* _meshEdges;        // shaded + all triangle edges
+    QAction* _wireframe;        // true feature edges only
+    QAction* _shadedWithEdges;  // shaded + true feature edges
     QAction* _flatshaded;
 
     // Other buttons
