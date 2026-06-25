@@ -101,7 +101,7 @@ TriangleMesh* AssImpMesh::clone()
 	if (!_currentMorphWeights.isEmpty())
 		mesh->applyMorphWeights(_currentMorphWeights);
 	if (!_occEdgeSegments.empty())
-		mesh->setPrecomputedOccEdges(_occEdgeSegments);
+		mesh->setPrecomputedOccEdges(_occEdgeSegments, _occEdgeBoundaries);
 	return mesh;
 }
 
@@ -894,11 +894,13 @@ void AssImpMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 	_featureEdgeVAO.release();
 }
 
-void AssImpMesh::setPrecomputedOccEdges(const std::vector<float>& edgeVerts)
+void AssImpMesh::setPrecomputedOccEdges(const std::vector<float>& edgeVerts,
+                                        const std::vector<int>& bounds)
 {
 	if (edgeVerts.empty()) return;
 
-	_occEdgeSegments = edgeVerts;
+	_occEdgeSegments  = edgeVerts;
+	_occEdgeBoundaries = bounds;
 	_occEdgeCount = static_cast<GLsizei>(edgeVerts.size() / 3);
 
 	if (!_occEdgeVertexBuffer.isCreated())

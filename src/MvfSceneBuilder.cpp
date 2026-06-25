@@ -1042,9 +1042,12 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
 
         // Serialize OCC B-Rep edge segments into the binary chunk so true analytical
         // wireframe edges are preserved across MVF save/load for STEP/IGES/BREP meshes.
+        // The per-topological-edge boundary table is written as a compact JSON int array
+        // in extras (it's small: one int per topological edge).
         if (const auto* assImpMeshForEdges = dynamic_cast<const AssImpMesh*>(mesh))
         {
-            const std::vector<float>& occEdges = assImpMeshForEdges->getOccEdgeSegments();
+            const std::vector<float>& occEdges  = assImpMeshForEdges->getOccEdgeSegments();
+            const std::vector<int>&   occBounds = assImpMeshForEdges->getOccEdgeBoundaries();
             if (!occEdges.empty())
             {
                 const int edgeOffset = appendBinary(package.geometryChunk, occEdges.data(),
@@ -1059,6 +1062,14 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
                                                        QStringLiteral("VEC3"),
                                                        QStringLiteral("%1_OCC_EDGES").arg(mesh->getName())));
                 primitiveExtras.insert(QStringLiteral("occEdgeAccessor"), edgeAccessor);
+
+                if (!occBounds.empty())
+                {
+                    QJsonArray boundsJson;
+                    for (int b : occBounds)
+                        boundsJson.append(b);
+                    primitiveExtras.insert(QStringLiteral("occEdgeBounds"), boundsJson);
+                }
             }
         }
 

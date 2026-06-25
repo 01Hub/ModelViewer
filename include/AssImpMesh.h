@@ -14,6 +14,7 @@
 #include <assimp/postprocess.h>
 #include "TriangleMesh.h"
 #include "GLMaterial.h"
+#include <QVector2D>
 
 
 struct Vertex
@@ -84,11 +85,14 @@ public:
 		const QVector<float>& defaultWeights);
 
 	// Upload precomputed B-Rep edge segments from OCC (STEP/IGES/BREP).
-	// edgeVerts is a flat {x0,y0,z0, x1,y1,z1, ...} list in model space.
-	// When set, renderFeatureEdgesFast() uses this buffer instead of the
-	// heuristic feature-edge classifier.
-	void setPrecomputedOccEdges(const std::vector<float>& edgeVerts);
-	const std::vector<float>& getOccEdgeSegments() const { return _occEdgeSegments; }
+	// edgeVerts is flat {x0,y0,z0, x1,y1,z1, ...}; bounds[i] = first vec3-index of
+	// topological edge i (bounds.back() = total count, sentinel).
+	// When set, renderFeatureEdgesFast() uses this buffer instead of the heuristic classifier.
+	void setPrecomputedOccEdges(const std::vector<float>& edgeVerts,
+	                            const std::vector<int>& bounds = {});
+	const std::vector<float>& getOccEdgeSegments()    const { return _occEdgeSegments; }
+	const std::vector<int>&   getOccEdgeBoundaries()  const { return _occEdgeBoundaries; }
+
 	bool hasMorphTargets() const override { return !_morphTargets.isEmpty(); }
 	const QVector<MorphTargetData>& getMorphTargets() const { return _morphTargets; }
 	QVector<float> defaultMorphWeights() const override { return _defaultMorphWeights; }
@@ -181,8 +185,10 @@ private:
 	QOpenGLBuffer               _occEdgeVertexBuffer { QOpenGLBuffer::VertexBuffer };
 	QOpenGLVertexArrayObject    _occEdgeVAO;
 	GLsizei                     _occEdgeCount = 0;
-	// CPU copy of the edge segment data retained for clone() and MVF serialization.
+	// CPU copies retained for clone(), MVF serialization, and edge picking.
 	std::vector<float>          _occEdgeSegments;
+	std::vector<int>            _occEdgeBoundaries;
+
 	QVector<MorphTargetData> _morphTargets;
 	QVector<float> _defaultMorphWeights;
 	QVector<float> _currentMorphWeights;

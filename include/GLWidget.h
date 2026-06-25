@@ -493,8 +493,10 @@ public:
 		QVector<MorphTargetData> morphTargets;
 		QVector<float>           defaultMorphWeights;
 
-		// OCC B-Rep edge segments — populated for STEP/IGES/BREP meshes, empty otherwise.
+		// OCC B-Rep edge segments and per-topological-edge boundaries.
+		// Populated for STEP/IGES/BREP meshes, empty otherwise.
 		std::vector<float> occEdgeSegments;
+		std::vector<int>   occEdgeBoundaries;
 
 		// Per-mesh user transform (gizmo TRS).  Non-identity when the user has moved,
 		// rotated, or scaled the mesh via the gizmo.  Applied by uploadPreparedMvfMeshes

@@ -35,8 +35,8 @@
 // Per-document STEP colour map (populated by XCAFSTEPProcessor::buildStepColorMap).
 BRepToAssimpConverter::StepColorMap BRepToAssimpConverter::s_stepColorMap;
 
-// Per-document B-Rep edge segments, keyed by aiMesh* produced during this load.
-std::unordered_map<const aiMesh*, BRepToAssimpConverter::OccEdgeSegments>
+// Per-document B-Rep edge data, keyed by aiMesh* produced during this load.
+std::unordered_map<const aiMesh*, BRepToAssimpConverter::OccEdgeData>
     BRepToAssimpConverter::s_occEdges;
 
 /**
@@ -464,7 +464,7 @@ void BRepToAssimpConverter::clearEdgeCache()
 	s_occEdges.clear();
 }
 
-const BRepToAssimpConverter::OccEdgeSegments*
+const BRepToAssimpConverter::OccEdgeData*
 BRepToAssimpConverter::getPrecomputedEdges(const aiMesh* mesh)
 {
 	auto it = s_occEdges.find(mesh);
@@ -472,12 +472,13 @@ BRepToAssimpConverter::getPrecomputedEdges(const aiMesh* mesh)
 }
 
 // Tessellates all unique non-degenerate B-Rep edges in faceGroup and returns
-// the result as a flat {x0,y0,z0, x1,y1,z1, ...} segment list in model space.
-BRepToAssimpConverter::OccEdgeSegments
+// the result as a flat {x0,y0,z0, x1,y1,z1, ...} segment list plus per-topological-
+// edge boundary table: bounds[i] = first vec3-index of topo-edge i; bounds.back() = total.
+BRepToAssimpConverter::OccEdgeData
 BRepToAssimpConverter::extractEdgesFromFaceGroup(
     const TopTools_IndexedMapOfShape& faceGroup, Standard_Real deflection)
 {
-	OccEdgeSegments result;
+	OccEdgeData result;
 
 	// Collect unique edges across all faces (IndexedMap deduplicates by TShape ptr).
 	TopTools_IndexedMapOfShape edgeMap;
@@ -503,20 +504,27 @@ BRepToAssimpConverter::extractEdgesFromFaceGroup(
 			const int nPts = disc.NbPoints();
 			if (nPts < 2) continue;
 
+			// Record where this topological edge starts in the flat array.
+			result.bounds.push_back(static_cast<int>(result.segments.size() / 3));
+
 			for (int i = 1; i < nPts; ++i)
 			{
 				const gp_Pnt p0 = disc.Value(i);
 				const gp_Pnt p1 = disc.Value(i + 1);
-				result.push_back(static_cast<float>(p0.X()));
-				result.push_back(static_cast<float>(p0.Y()));
-				result.push_back(static_cast<float>(p0.Z()));
-				result.push_back(static_cast<float>(p1.X()));
-				result.push_back(static_cast<float>(p1.Y()));
-				result.push_back(static_cast<float>(p1.Z()));
+				result.segments.push_back(static_cast<float>(p0.X()));
+				result.segments.push_back(static_cast<float>(p0.Y()));
+				result.segments.push_back(static_cast<float>(p0.Z()));
+				result.segments.push_back(static_cast<float>(p1.X()));
+				result.segments.push_back(static_cast<float>(p1.Y()));
+				result.segments.push_back(static_cast<float>(p1.Z()));
 			}
 		}
 		catch (...) { continue; }
 	}
+
+	// Sentinel: bounds.back() == total vec3 count.
+	if (!result.bounds.empty())
+		result.bounds.push_back(static_cast<int>(result.segments.size() / 3));
 
 	return result;
 }
@@ -1155,10 +1163,10 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 
 	aiMesh* result = mesh.release();
 
-	// Extract and cache B-Rep edge segments for this mesh so the renderer can
-	// display exact analytical wireframes instead of heuristic feature edges.
-	OccEdgeSegments edges = extractEdgesFromFaceGroup(faceGroup, deflection);
-	if (!edges.empty())
+	// Extract and cache B-Rep edges for this mesh so the renderer can display
+	// exact analytical wireframes instead of heuristic feature edges.
+	OccEdgeData edges = extractEdgesFromFaceGroup(faceGroup, deflection);
+	if (!edges.segments.empty())
 		s_occEdges[result] = std::move(edges);
 
 	return result;

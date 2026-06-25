@@ -66,9 +66,19 @@ public:
 	// Populated by convertFaceGroupToMesh() for OCC-sourced meshes (STEP/IGES/BREP).
 	using OccEdgeSegments = std::vector<float>;
 
-	// Returns precomputed B-Rep edge segments for the given aiMesh*, or nullptr if
+	// Boundary table: bounds[i] = first vec3-index (into segments) of topological edge i.
+	// bounds.back() == segments.size()/3 (sentinel).  Length == numTopoEdges + 1.
+	using OccEdgeBoundaries = std::vector<int>;
+
+	// Combined payload: flat segment array + per-topological-edge boundary table.
+	struct OccEdgeData {
+		OccEdgeSegments  segments;  // flat {x0,y0,z0, x1,y1,z1, ...}
+		OccEdgeBoundaries bounds;   // bounds[i] = first vec3-index of topo-edge i
+	};
+
+	// Returns precomputed B-Rep edge data for the given aiMesh*, or nullptr if
 	// this mesh was not produced by BRepToAssimpConverter (e.g. OBJ/glTF).
-	static const OccEdgeSegments* getPrecomputedEdges(const aiMesh* mesh);
+	static const OccEdgeData* getPrecomputedEdges(const aiMesh* mesh);
 
 	// Clears the edge segment cache.  Called from clearColorCache() before each load.
 	static void clearEdgeCache();
@@ -108,13 +118,13 @@ private:
 	// bypassing the broken XCAFDoc_ColorTool::SetColor(TopoDS_Shape) → FindShape() path.
 	static StepColorMap s_stepColorMap;
 
-	// Per-document B-Rep edge segments keyed by the aiMesh* they belong to.
+	// Per-document B-Rep edge data keyed by the aiMesh* they belong to.
 	// Cleared by clearEdgeCache() (called via clearColorCache()) before each load.
-	static std::unordered_map<const aiMesh*, OccEdgeSegments> s_occEdges;
+	static std::unordered_map<const aiMesh*, OccEdgeData> s_occEdges;
 
-	// Tessellates all unique non-degenerate edges in faceGroup at the given chord
-	// deflection and returns them as a flat {x0,y0,z0, x1,y1,z1, ...} segment list.
-	static OccEdgeSegments extractEdgesFromFaceGroup(
+	// Tessellates all unique non-degenerate edges in faceGroup and returns them
+	// as a flat segment list plus per-topological-edge boundary table.
+	static OccEdgeData extractEdgesFromFaceGroup(
 		const TopTools_IndexedMapOfShape& faceGroup, Standard_Real deflection);
 
 	static bool isShapeMeshable(const TopoDS_Shape& shape);

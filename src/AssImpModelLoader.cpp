@@ -1795,9 +1795,12 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	}
 
 	// Attach precomputed B-Rep edges if this mesh was produced by BRepToAssimpConverter
-	// (STEP/IGES/BREP). For OBJ/glTF the lookup returns nullptr and the field stays empty.
-	if (const auto* occEdges = BRepToAssimpConverter::getPrecomputedEdges(mesh))
-		meshData.precomputedOccEdges = *occEdges;
+	// (STEP/IGES/BREP). For OBJ/glTF the lookup returns nullptr and the fields stay empty.
+	if (const auto* occData = BRepToAssimpConverter::getPrecomputedEdges(mesh))
+	{
+		meshData.precomputedOccEdges           = occData->segments;
+		meshData.precomputedOccEdgeBoundaries  = occData->bounds;
+	}
 
 	return meshData;
 }

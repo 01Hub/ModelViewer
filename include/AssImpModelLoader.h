@@ -133,6 +133,8 @@ struct AssImpMeshData
 	// Pre-computed B-Rep edge segments from OCC, flat {x0,y0,z0, x1,y1,z1, ...}
 	// in model space.  Empty for OBJ/glTF; populated for STEP/IGES/BREP.
 	std::vector<float> precomputedOccEdges;
+	// Boundary table: bounds[i] = first vec3-index of topological edge i; bounds.back() = total.
+	std::vector<int>   precomputedOccEdgeBoundaries;
 };
 
 using AssImpMeshDataBatch = std::vector<AssImpMeshData>;

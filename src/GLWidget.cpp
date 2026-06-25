@@ -7834,11 +7834,26 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		_wireframeShader->setUniformValue("hasAlbedoMap",    false);
 		_wireframeShader->setUniformValue("hasSkinning",     false);
 		_wireframeShader->setUniformValue("jointCount",      0);
-		for (auto& [key, id] : opaque)
+		_wireframeShader->setUniformValue("hoverColor",    QVector3D(1.0f, 0.84f, 0.0f));
+		_wireframeShader->setUniformValue("hovered",       false);
+		_wireframeShader->setUniformValue("selectedColor", QVector3D(0.25f, 0.55f, 1.0f));
+		_wireframeShader->setUniformValue("selected",      false);
 		{
-			if (auto* mesh = _meshStore.at(id))
-				mesh->renderFeatureEdgesFast(_wireframeShader.get());
+			const QList<int> selIds = _selectionManager->getSelectedIds();
+			for (auto& [key, id] : opaque)
+			{
+				if (auto* mesh = _meshStore.at(id))
+				{
+					const bool isSel = selIds.contains(id);
+					_wireframeShader->setUniformValue("selected", isSel);
+					_wireframeShader->setUniformValue("hovered",
+					    !isSel && hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
+					mesh->renderFeatureEdgesFast(_wireframeShader.get());
+				}
+			}
 		}
+		_wireframeShader->setUniformValue("hovered",  false);
+		_wireframeShader->setUniformValue("selected", false);
 		glLineWidth(1.0f);
 	}
 	else if (_displayMode == DisplayMode::SHADED_WITH_EDGES && useWireShader)
@@ -7875,11 +7890,26 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		_wireframeShader->setUniformValue("hasAlbedoMap",    false);
 		_wireframeShader->setUniformValue("hasSkinning",     false);
 		_wireframeShader->setUniformValue("jointCount",      0);
-		for (auto& [key, id] : opaque)
+		_wireframeShader->setUniformValue("hoverColor",    QVector3D(1.0f, 0.84f, 0.0f));
+		_wireframeShader->setUniformValue("hovered",       false);
+		_wireframeShader->setUniformValue("selectedColor", QVector3D(0.25f, 0.55f, 1.0f));
+		_wireframeShader->setUniformValue("selected",      false);
 		{
-			if (auto* mesh = _meshStore.at(id))
-				mesh->renderFeatureEdgesFast(_wireframeShader.get());
+			const QList<int> selIds = _selectionManager->getSelectedIds();
+			for (auto& [key, id] : opaque)
+			{
+				if (auto* mesh = _meshStore.at(id))
+				{
+					const bool isSel = selIds.contains(id);
+					_wireframeShader->setUniformValue("selected", isSel);
+					_wireframeShader->setUniformValue("hovered",
+					    !isSel && hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
+					mesh->renderFeatureEdgesFast(_wireframeShader.get());
+				}
+			}
 		}
+		_wireframeShader->setUniformValue("hovered",  false);
+		_wireframeShader->setUniformValue("selected", false);
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		glLineWidth(1.0f);
 		TriangleMesh::bindProgramCached(prog);
@@ -8115,11 +8145,27 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 		_wireframeShader->setUniformValue("hasAlbedoMap",    false);
 		_wireframeShader->setUniformValue("hasSkinning",     false);
 		_wireframeShader->setUniformValue("jointCount",      0);
-		for (auto& it : transparent)
+		_wireframeShader->setUniformValue("hoverColor",    QVector3D(1.0f, 0.84f, 0.0f));
+		_wireframeShader->setUniformValue("hovered",       false);
+		_wireframeShader->setUniformValue("selectedColor", QVector3D(0.25f, 0.55f, 1.0f));
+		_wireframeShader->setUniformValue("selected",      false);
 		{
-			if (auto* mesh = _meshStore.at(it.second))
-				mesh->renderFeatureEdgesFast(_wireframeShader.get());
+			const QList<int> selIds = _selectionManager->getSelectedIds();
+			for (auto& it : transparent)
+			{
+				if (auto* mesh = _meshStore.at(it.second))
+				{
+					const int id = it.second;
+					const bool isSel = selIds.contains(id);
+					_wireframeShader->setUniformValue("selected", isSel);
+					_wireframeShader->setUniformValue("hovered",
+					    !isSel && hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
+					mesh->renderFeatureEdgesFast(_wireframeShader.get());
+				}
+			}
 		}
+		_wireframeShader->setUniformValue("hovered",  false);
+		_wireframeShader->setUniformValue("selected", false);
 		glLineWidth(1.0f);
 	}
 	else if (_displayMode == DisplayMode::SHADED_WITH_EDGES && useWireShaderT)
@@ -8153,11 +8199,27 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 		_wireframeShader->setUniformValue("hasAlbedoMap",    false);
 		_wireframeShader->setUniformValue("hasSkinning",     false);
 		_wireframeShader->setUniformValue("jointCount",      0);
-		for (auto& it : transparent)
+		_wireframeShader->setUniformValue("hoverColor",    QVector3D(1.0f, 0.84f, 0.0f));
+		_wireframeShader->setUniformValue("hovered",       false);
+		_wireframeShader->setUniformValue("selectedColor", QVector3D(0.25f, 0.55f, 1.0f));
+		_wireframeShader->setUniformValue("selected",      false);
 		{
-			if (auto* mesh = _meshStore.at(it.second))
-				mesh->renderFeatureEdgesFast(_wireframeShader.get());
+			const QList<int> selIds = _selectionManager->getSelectedIds();
+			for (auto& it : transparent)
+			{
+				if (auto* mesh = _meshStore.at(it.second))
+				{
+					const int id = it.second;
+					const bool isSel = selIds.contains(id);
+					_wireframeShader->setUniformValue("selected", isSel);
+					_wireframeShader->setUniformValue("hovered",
+					    !isSel && hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
+					mesh->renderFeatureEdgesFast(_wireframeShader.get());
+				}
+			}
 		}
+		_wireframeShader->setUniformValue("hovered",  false);
+		_wireframeShader->setUniformValue("selected", false);
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		glLineWidth(1.0f);
 		TriangleMesh::bindProgramCached(prog);
@@ -12054,7 +12116,8 @@ AssImpMesh* GLWidget::createMeshFromData(const AssImpMeshData& meshData)
 	mesh->setSkinJoints(meshData.skinJoints);
 	mesh->setMorphTargets(meshData.morphTargets, meshData.defaultMorphWeights);
 	if (!meshData.precomputedOccEdges.empty())
-		mesh->setPrecomputedOccEdges(meshData.precomputedOccEdges);
+		mesh->setPrecomputedOccEdges(meshData.precomputedOccEdges,
+		                             meshData.precomputedOccEdgeBoundaries);
 	if (!meshData.variantMappings.isEmpty())
 	{
 		mesh->setVariantMappings(meshData.variantMappings);
@@ -17329,6 +17392,10 @@ QVector<GLWidget::PreparedMvfMesh> GLWidget::prepareMvfMeshes(
         prepared.occEdgeSegments = readFloatStream(geometryChunk, document.accessors,
             document.bufferViews, extras[QStringLiteral("occEdgeAccessor")].toInt(-1));
 
+        // Restore per-topological-edge boundary table (compact JSON int array).
+        for (const QJsonValue& bv : extras[QStringLiteral("occEdgeBounds")].toArray())
+            prepared.occEdgeBoundaries.push_back(bv.toInt());
+
         // Restore skin joints saved in primitiveExtras so the re-created mesh can
         // drive skeletal animation after MVF load.
         for (const QJsonValue& jointValue : extras[QStringLiteral("skinJoints")].toArray())
@@ -17515,7 +17582,7 @@ bool GLWidget::uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& meshes)
 
         // Restore OCC B-Rep edge segments so STEP/IGES/BREP true wireframe survives MVF round-trip.
         if (!pm.occEdgeSegments.empty())
-            mesh->setPrecomputedOccEdges(pm.occEdgeSegments);
+            mesh->setPrecomputedOccEdges(pm.occEdgeSegments, pm.occEdgeBoundaries);
 
         const GLMaterial resolved = resolveMaterialTextures(this, pm.material);
         mesh->setMaterial(resolved);
@@ -17613,7 +17680,7 @@ void GLWidget::uploadOneMvfMesh(const PreparedMvfMesh& pm)
 
     // Restore OCC B-Rep edge segments so STEP/IGES/BREP true wireframe survives MVF round-trip.
     if (!pm.occEdgeSegments.empty())
-        mesh->setPrecomputedOccEdges(pm.occEdgeSegments);
+        mesh->setPrecomputedOccEdges(pm.occEdgeSegments, pm.occEdgeBoundaries);
 
     // Resolve textures and set material
     const GLMaterial resolved = resolveMaterialTextures(this, pm.material);

@@ -106,10 +106,11 @@ s_occEdges[resultAiMesh] = move(segments)
 
 ### GPU Upload
 
-`AssImpMesh::setPrecomputedOccEdges(edgeVerts)`:
+`AssImpMesh::setPrecomputedOccEdges(edgeVerts, bounds)`:
 
 ```
-store edgeVerts in _occEdgeSegments  ← CPU copy retained for clone/MVF
+store edgeVerts in _occEdgeSegments    ← CPU copy retained for clone/MVF
+store bounds   in _occEdgeBoundaries   ← CPU copy retained for clone/MVF/future picking
 _occEdgeCount = edgeVerts.size() / 3  (number of vec3 endpoints)
 
 create _occEdgeVertexBuffer (GL_ARRAY_BUFFER, StaticDraw)
@@ -253,7 +254,7 @@ clone():
     new mesh from _baseVertices, _indices, _textures, _material
     copy morph targets
     if _occEdgeSegments not empty:
-        mesh->setPrecomputedOccEdges(_occEdgeSegments)
+        mesh->setPrecomputedOccEdges(_occEdgeSegments, _occEdgeBoundaries)
     return mesh
 ```
 
@@ -292,7 +293,75 @@ if pm.occEdgeSegments not empty:
     mesh->setPrecomputedOccEdges(pm.occEdgeSegments)
 ```
 
-The `PreparedMvfMesh` struct carries `std::vector<float> occEdgeSegments` as a plain-data field — no GL resources, safe to pass across threads.
+The `PreparedMvfMesh` struct carries `std::vector<float> occEdgeSegments` and `std::vector<int> occEdgeBoundaries` as plain-data fields — no GL resources, safe to pass across threads.
+
+---
+
+## Hover & Selection Highlighting
+
+Hover and selection are **mesh-level** in all display modes — edges are purely a visual representation of the containing mesh's state, not independently selectable primitives. Sub-edge selection (individual topological edge pick for measurements, fillets, annotations) is reserved for a future phase; the `_occEdgeBoundaries` boundary table is already in place to support it when needed.
+
+### Detection mechanism
+
+Both hover and selection use the existing `SelectionManager` FBO path, which renders every mesh as a solid colour-coded quad into an offscreen framebuffer regardless of the current display mode. This means `getHoveredId()` and `getSelectedIds()` return correct mesh IDs even when the viewport shows only edges in WIREFRAME mode.
+
+No custom edge-proximity picking loop is needed. The FBO hover update runs during `mouseMoveEvent` via the existing `_selectionManager->hoverSelect(e->pos())` call.
+
+### Wireframe shader uniforms
+
+`wireframe.frag` carries two boolean uniforms that `GLWidget` sets per mesh before each `renderFeatureEdgesFast` call:
+
+| Uniform | Type | Meaning |
+|---|---|---|
+| `hovered` | `bool` | this mesh is the current FBO-hover target |
+| `hoverColor` | `vec3` | edge replacement colour while hovered (gold `{1, 0.84, 0}`) |
+| `selected` | `bool` | this mesh is in `SelectionManager::getSelectedIds()` |
+| `selectedColor` | `vec3` | edge replacement colour while selected (blue `{0.25, 0.55, 1}`) |
+
+`selected` is evaluated first; a selected mesh never shows hover colour (prevents a flickering colour fight when the cursor rests on an already-selected mesh).
+
+### Mode-dependent colour logic
+
+The `isWireframePass` flag (already used to choose between the two normal-colour paths) also gates colour replacement:
+
+```glsl
+// Pure WIREFRAME (isWireframePass = false):
+//   edges are the sole visual signal → replace colour directly
+if (!isWireframePass)
+{
+    if (hovered)  { fragColor = vec4(hoverColor,    1.0); return; }
+    if (selected) { fragColor = vec4(selectedColor, 1.0); return; }
+}
+// SHADED_WITH_EDGES (isWireframePass = true):
+//   solid mesh already carries hover/selection brightening from main_scene.frag
+//   → edge overlay uses normal material colour; colour replacement is suppressed
+```
+
+### GLWidget render loop
+
+For each of the four wireframe loops (opaque WIREFRAME, opaque SHADED_WITH_EDGES, transparent WIREFRAME, transparent SHADED_WITH_EDGES):
+
+```
+selIds = _selectionManager->getSelectedIds()
+for each mesh id:
+    isSel = selIds.contains(id)
+    setUniform("selected", isSel)
+    setUniform("hovered",  !isSel && hoverHighlightingEnabled
+                           && id == _selectionManager->getHoveredId())
+    renderFeatureEdgesFast()
+reset selected = false, hovered = false
+```
+
+### Boundary table (reserved for future sub-edge features)
+
+`BRepToAssimpConverter::extractEdgesFromFaceGroup` records the start of each topological edge in `OccEdgeData::bounds`:
+
+```
+bounds[i]    = first vec3-index of topological edge i in the flat segment array
+bounds.back()= total vec3 count  (sentinel)
+```
+
+Stored in `AssImpMesh::_occEdgeBoundaries` (CPU), propagated through clone and MVF (`"occEdgeBounds"` JSON int array). When sub-edge picking is implemented (fillet, measurement, annotation), this table enables mapping a screen-space hit to the corresponding topological `TopoDS_Edge` without re-querying OCC.
 
 ---
 
@@ -300,12 +369,13 @@ The `PreparedMvfMesh` struct carries `std::vector<float> occEdgeSegments` as a p
 
 | File | Role |
 |---|---|
-| `include/BRepToAssimpConverter.h` | `OccEdgeSegments` type; `getPrecomputedEdges()`, `clearEdgeCache()`, `s_occEdges` static, `extractEdgesFromFaceGroup()` |
-| `src/BRepToAssimpConverter.cpp` | Edge extraction implementation; cache cleared with color cache |
-| `include/AssImpModelLoader.h` | `precomputedOccEdges` field in `AssImpMeshData` |
-| `src/AssImpModelLoader.cpp` | Transfers OCC edges from converter cache into `meshData` |
-| `include/AssImpMesh.h` | `setPrecomputedOccEdges()`, `getOccEdgeSegments()`, GPU buffers, `_occEdgeSegments` CPU copy |
-| `src/AssImpMesh.cpp` | `setPrecomputedOccEdges()` upload; `buildAndUploadFeatureEdges()` heuristic; `renderFeatureEdgesFast()` priority dispatch; `clone()` propagation |
-| `src/GLWidget.cpp` | `createMeshFromMeshData()` handoff; `drawOpaqueMeshes/drawTransparentMeshes` display-mode GL state; `render()` defensive reset; MVF read/upload paths |
-| `include/GLWidget.h` | `PreparedMvfMesh::occEdgeSegments` field |
-| `src/MvfSceneBuilder.cpp` | MVF write path: binary chunk accessor for edge segments |
+| `include/BRepToAssimpConverter.h` | `OccEdgeData` struct (`segments` + `bounds`); `getPrecomputedEdges()`, `clearEdgeCache()`, `extractEdgesFromFaceGroup()` |
+| `src/BRepToAssimpConverter.cpp` | Edge extraction; boundary recording; cache cleared with colour cache |
+| `include/AssImpModelLoader.h` | `precomputedOccEdges` + `precomputedOccEdgeBoundaries` in `AssImpMeshData` |
+| `src/AssImpModelLoader.cpp` | Transfers both fields from converter cache |
+| `include/AssImpMesh.h` | `setPrecomputedOccEdges(segs, bounds)`; `_occEdgeSegments`, `_occEdgeBoundaries` CPU copies; `_occEdgeVAO`/`_occEdgeCount` GPU resources |
+| `src/AssImpMesh.cpp` | `setPrecomputedOccEdges()` — uploads GPU buffer, stores CPU copies; `buildAndUploadFeatureEdges()` — heuristic path; `renderFeatureEdgesFast()` — draws all edges in one call; `clone()` propagation |
+| `shaders/wireframe.frag` | `hovered`/`hoverColor`/`selected`/`selectedColor` uniforms; colour replacement gated on `!isWireframePass` |
+| `src/GLWidget.cpp` | `createMeshFromMeshData()` handoff; wireframe render loops set hover/select uniforms from `SelectionManager`; MVF read/upload; `render()` defensive GL reset |
+| `include/GLWidget.h` | `PreparedMvfMesh::occEdgeSegments` + `occEdgeBoundaries` |
+| `src/MvfSceneBuilder.cpp` | MVF write: binary accessor for segments + JSON int array for bounds (`"occEdgeBounds"`) |
