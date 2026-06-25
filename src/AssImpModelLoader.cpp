@@ -1,5 +1,6 @@
 ﻿#include "AssImpModelLoader.h"
 
+#include "BRepToAssimpConverter.h"
 #include "IXCAFDocProcessor.hxx"
 #include "XCAFDocProcessorFactory.hxx"
 #include "XCAFSTEPProcessor.hxx"
@@ -1792,6 +1793,11 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 		qDebug() << "[VARIANTS] Mesh" << meshName << "has" << meshData.variantMappings.size()
 		         << "variant mappings," << meshData.allVariantMaterials.size() << "prebuilt materials";
 	}
+
+	// Attach precomputed B-Rep edges if this mesh was produced by BRepToAssimpConverter
+	// (STEP/IGES/BREP). For OBJ/glTF the lookup returns nullptr and the field stays empty.
+	if (const auto* occEdges = BRepToAssimpConverter::getPrecomputedEdges(mesh))
+		meshData.precomputedOccEdges = *occEdges;
 
 	return meshData;
 }

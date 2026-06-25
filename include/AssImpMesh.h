@@ -82,6 +82,13 @@ public:
 		const std::vector<unsigned int>* sourceVertexMap = nullptr);
 	void setMorphTargets(const QVector<MorphTargetData>& targets,
 		const QVector<float>& defaultWeights);
+
+	// Upload precomputed B-Rep edge segments from OCC (STEP/IGES/BREP).
+	// edgeVerts is a flat {x0,y0,z0, x1,y1,z1, ...} list in model space.
+	// When set, renderFeatureEdgesFast() uses this buffer instead of the
+	// heuristic feature-edge classifier.
+	void setPrecomputedOccEdges(const std::vector<float>& edgeVerts);
+	const std::vector<float>& getOccEdgeSegments() const { return _occEdgeSegments; }
 	bool hasMorphTargets() const override { return !_morphTargets.isEmpty(); }
 	const QVector<MorphTargetData>& getMorphTargets() const { return _morphTargets; }
 	QVector<float> defaultMorphWeights() const override { return _defaultMorphWeights; }
@@ -168,6 +175,14 @@ private:
 	QOpenGLBuffer               _featureEdgeIndexBuffer { QOpenGLBuffer::IndexBuffer };
 	QOpenGLVertexArrayObject    _featureEdgeVAO;
 	GLsizei                     _featureEdgeCount = 0;
+
+	// OCC B-Rep edge buffers — set by setPrecomputedOccEdges(), take priority over
+	// the heuristic feature edges in renderFeatureEdgesFast().
+	QOpenGLBuffer               _occEdgeVertexBuffer { QOpenGLBuffer::VertexBuffer };
+	QOpenGLVertexArrayObject    _occEdgeVAO;
+	GLsizei                     _occEdgeCount = 0;
+	// CPU copy of the edge segment data retained for clone() and MVF serialization.
+	std::vector<float>          _occEdgeSegments;
 	QVector<MorphTargetData> _morphTargets;
 	QVector<float> _defaultMorphWeights;
 	QVector<float> _currentMorphWeights;

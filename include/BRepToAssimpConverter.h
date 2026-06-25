@@ -7,6 +7,7 @@
 #include <TopTools_IndexedMapOfShape.hxx>
 #include <TopTools_HSequenceOfShape.hxx>
 #include <STEPCAFControl_Reader.hxx>
+#include <assimp/mesh.h>
 #include <assimp/scene.h>
 #include <XCAFDoc_ColorTool.hxx>
 #include <XCAFDoc_ShapeTool.hxx>
@@ -15,6 +16,7 @@
 #include <BRepBndLib.hxx>
 #include <map>
 #include <unordered_map>
+#include <vector>
 
 // Hash by TShape pointer only (orientation-independent).
 // Two TopoDS_Shape objects that share the same underlying TShape but differ only in
@@ -60,6 +62,17 @@ public:
 	// Value: Quantity_Color extracted from the STEP STYLED_ITEM → COLOUR_RGB chain.
 	using StepColorMap = std::unordered_map<TopoDS_Shape, Quantity_Color, ShapeHasher, ShapeEqual>;
 
+	// Flat list of line-segment endpoints {x0,y0,z0, x1,y1,z1, ...} in model space.
+	// Populated by convertFaceGroupToMesh() for OCC-sourced meshes (STEP/IGES/BREP).
+	using OccEdgeSegments = std::vector<float>;
+
+	// Returns precomputed B-Rep edge segments for the given aiMesh*, or nullptr if
+	// this mesh was not produced by BRepToAssimpConverter (e.g. OBJ/glTF).
+	static const OccEdgeSegments* getPrecomputedEdges(const aiMesh* mesh);
+
+	// Clears the edge segment cache.  Called from clearColorCache() before each load.
+	static void clearEdgeCache();
+
 	static aiScene* convert(const std::vector<ShapeWithNameAndTrsf>& shapeTuples);
 	static aiScene* convert(const TopoDS_Shape& shape, const Quantity_Color& color, int& index, const std::string& name = "");
 	static aiScene* convert(
@@ -94,6 +107,15 @@ private:
 	// Per-document STEP colour map: populated from raw STEP StyledItem entities,
 	// bypassing the broken XCAFDoc_ColorTool::SetColor(TopoDS_Shape) → FindShape() path.
 	static StepColorMap s_stepColorMap;
+
+	// Per-document B-Rep edge segments keyed by the aiMesh* they belong to.
+	// Cleared by clearEdgeCache() (called via clearColorCache()) before each load.
+	static std::unordered_map<const aiMesh*, OccEdgeSegments> s_occEdges;
+
+	// Tessellates all unique non-degenerate edges in faceGroup at the given chord
+	// deflection and returns them as a flat {x0,y0,z0, x1,y1,z1, ...} segment list.
+	static OccEdgeSegments extractEdgesFromFaceGroup(
+		const TopTools_IndexedMapOfShape& faceGroup, Standard_Real deflection);
 
 	static bool isShapeMeshable(const TopoDS_Shape& shape);
 

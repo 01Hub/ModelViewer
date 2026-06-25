@@ -5,6 +5,8 @@
 #include <QSettings>
 #include <BRep_Builder.hxx>
 #include <BRep_Tool.hxx>
+#include <BRepAdaptor_Curve.hxx>
+#include <GCPnts_TangentialDeflection.hxx>
 #include <BRepBndLib.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
 #include <BRepCheck_Analyzer.hxx>
@@ -32,6 +34,10 @@
 
 // Per-document STEP colour map (populated by XCAFSTEPProcessor::buildStepColorMap).
 BRepToAssimpConverter::StepColorMap BRepToAssimpConverter::s_stepColorMap;
+
+// Per-document B-Rep edge segments, keyed by aiMesh* produced during this load.
+std::unordered_map<const aiMesh*, BRepToAssimpConverter::OccEdgeSegments>
+    BRepToAssimpConverter::s_occEdges;
 
 /**
  * Returns the deflection fraction to use for STEP/XCAF tessellation.
@@ -450,6 +456,69 @@ aiScene* BRepToAssimpConverter::convert(
 void BRepToAssimpConverter::clearColorCache()
 {
 	s_stepColorMap.clear();
+	clearEdgeCache();
+}
+
+void BRepToAssimpConverter::clearEdgeCache()
+{
+	s_occEdges.clear();
+}
+
+const BRepToAssimpConverter::OccEdgeSegments*
+BRepToAssimpConverter::getPrecomputedEdges(const aiMesh* mesh)
+{
+	auto it = s_occEdges.find(mesh);
+	return (it != s_occEdges.end()) ? &it->second : nullptr;
+}
+
+// Tessellates all unique non-degenerate B-Rep edges in faceGroup and returns
+// the result as a flat {x0,y0,z0, x1,y1,z1, ...} segment list in model space.
+BRepToAssimpConverter::OccEdgeSegments
+BRepToAssimpConverter::extractEdgesFromFaceGroup(
+    const TopTools_IndexedMapOfShape& faceGroup, Standard_Real deflection)
+{
+	OccEdgeSegments result;
+
+	// Collect unique edges across all faces (IndexedMap deduplicates by TShape ptr).
+	TopTools_IndexedMapOfShape edgeMap;
+	for (int f = 1; f <= faceGroup.Extent(); ++f)
+	{
+		const TopoDS_Face& face = TopoDS::Face(faceGroup(f));
+		if (face.IsNull()) continue;
+		for (TopExp_Explorer exp(face, TopAbs_EDGE); exp.More(); exp.Next())
+			edgeMap.Add(exp.Current());
+	}
+
+	const Standard_Real angDefl = 0.1; // fine angular step in radians
+
+	for (int e = 1; e <= edgeMap.Extent(); ++e)
+	{
+		const TopoDS_Edge& edge = TopoDS::Edge(edgeMap(e));
+		if (edge.IsNull() || BRep_Tool::Degenerated(edge)) continue;
+
+		try
+		{
+			BRepAdaptor_Curve adaptor(edge);
+			GCPnts_TangentialDeflection disc(adaptor, deflection, angDefl, 2, 1.0e-9);
+			const int nPts = disc.NbPoints();
+			if (nPts < 2) continue;
+
+			for (int i = 1; i < nPts; ++i)
+			{
+				const gp_Pnt p0 = disc.Value(i);
+				const gp_Pnt p1 = disc.Value(i + 1);
+				result.push_back(static_cast<float>(p0.X()));
+				result.push_back(static_cast<float>(p0.Y()));
+				result.push_back(static_cast<float>(p0.Z()));
+				result.push_back(static_cast<float>(p1.X()));
+				result.push_back(static_cast<float>(p1.Y()));
+				result.push_back(static_cast<float>(p1.Z()));
+			}
+		}
+		catch (...) { continue; }
+	}
+
+	return result;
 }
 
 // Stores the shape→colour map built by XCAFSTEPProcessor::buildStepColorMap().
@@ -1084,7 +1153,15 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 		return nullptr;
 	}
 
-	return mesh.release();
+	aiMesh* result = mesh.release();
+
+	// Extract and cache B-Rep edge segments for this mesh so the renderer can
+	// display exact analytical wireframes instead of heuristic feature edges.
+	OccEdgeSegments edges = extractEdgesFromFaceGroup(faceGroup, deflection);
+	if (!edges.empty())
+		s_occEdges[result] = std::move(edges);
+
+	return result;
 }
 
 

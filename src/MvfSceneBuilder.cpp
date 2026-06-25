@@ -1040,6 +1040,28 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
             }
         }
 
+        // Serialize OCC B-Rep edge segments into the binary chunk so true analytical
+        // wireframe edges are preserved across MVF save/load for STEP/IGES/BREP meshes.
+        if (const auto* assImpMeshForEdges = dynamic_cast<const AssImpMesh*>(mesh))
+        {
+            const std::vector<float>& occEdges = assImpMeshForEdges->getOccEdgeSegments();
+            if (!occEdges.empty())
+            {
+                const int edgeOffset = appendBinary(package.geometryChunk, occEdges.data(),
+                                                    static_cast<int>(occEdges.size()));
+                const int edgeView = document.bufferViews.size();
+                document.bufferViews.append(makeBufferView(0, edgeOffset,
+                                                           occEdges.size() * sizeof(float), 0,
+                                                           QStringLiteral("%1_OCC_EDGES").arg(mesh->getName())));
+                const int edgeAccessor = document.accessors.size();
+                document.accessors.append(makeAccessor(edgeView, 0, ComponentTypeFloat,
+                                                       static_cast<int>(occEdges.size() / 3),
+                                                       QStringLiteral("VEC3"),
+                                                       QStringLiteral("%1_OCC_EDGES").arg(mesh->getName())));
+                primitiveExtras.insert(QStringLiteral("occEdgeAccessor"), edgeAccessor);
+            }
+        }
+
         primitive.insert(QStringLiteral("extras"), primitiveExtras);
 
         QJsonArray primitives;

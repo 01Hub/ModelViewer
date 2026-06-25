@@ -100,6 +100,8 @@ TriangleMesh* AssImpMesh::clone()
 	mesh->setMorphTargets(_morphTargets, _defaultMorphWeights);
 	if (!_currentMorphWeights.isEmpty())
 		mesh->applyMorphWeights(_currentMorphWeights);
+	if (!_occEdgeSegments.empty())
+		mesh->setPrecomputedOccEdges(_occEdgeSegments);
 	return mesh;
 }
 
@@ -892,16 +894,51 @@ void AssImpMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 	_featureEdgeVAO.release();
 }
 
+void AssImpMesh::setPrecomputedOccEdges(const std::vector<float>& edgeVerts)
+{
+	if (edgeVerts.empty()) return;
+
+	_occEdgeSegments = edgeVerts;
+	_occEdgeCount = static_cast<GLsizei>(edgeVerts.size() / 3);
+
+	if (!_occEdgeVertexBuffer.isCreated())
+		_occEdgeVertexBuffer.create();
+	_occEdgeVertexBuffer.bind();
+	_occEdgeVertexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+	_occEdgeVertexBuffer.allocate(edgeVerts.data(),
+	                              static_cast<int>(edgeVerts.size() * sizeof(float)));
+	_occEdgeVertexBuffer.release();
+
+	if (!_occEdgeVAO.isCreated())
+		_occEdgeVAO.create();
+	_occEdgeVAO.bind();
+	_occEdgeVertexBuffer.bind();
+	_prog->enableAttributeArray("vertexPosition");
+	_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3, 3 * sizeof(float));
+	_occEdgeVAO.release();
+	_occEdgeVertexBuffer.release();
+}
+
 void AssImpMesh::renderFeatureEdgesFast(QOpenGLShaderProgram* wireProg)
 {
-	if (!_featureEdgeVAO.isCreated() || _featureEdgeCount == 0 || !wireProg)
-		return;
+	if (!wireProg) return;
 
-	// Same per-mesh uniform pattern as renderWireframeFast — upload only what differs
-	// from the pass-level defaults set by the caller before the mesh loop.
+	// Common per-mesh uniforms for both OCC and heuristic paths.
 	const QMatrix4x4 modelMatrix = currentGlobalModelMatrix() * combinedRenderTransform();
 	wireProg->setUniformValue("modelMatrix", modelMatrix);
 	wireProg->setUniformValue("baseColor",   _material.albedoColor());
+
+	// OCC B-Rep edges take priority — exact analytical wireframe from STEP/IGES/BREP.
+	if (_occEdgeVAO.isCreated() && _occEdgeCount > 0)
+	{
+		_occEdgeVAO.bind();
+		glDrawArrays(GL_LINES, 0, _occEdgeCount);
+		_occEdgeVAO.release();
+		return;
+	}
+
+	if (!_featureEdgeVAO.isCreated() || _featureEdgeCount == 0)
+		return;
 
 	// Feature edges never use albedo textures — the edge line colour is the material
 	// base colour, potentially modulated by vertex colour if present.

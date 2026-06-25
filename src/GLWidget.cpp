@@ -7778,7 +7778,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		// Wire pass — lightweight shader, no material/texture machinery
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glLineWidth(1.5f);
-		glEnable(GL_POLYGON_OFFSET_FILL);
+		glEnable(GL_POLYGON_OFFSET_LINE);
 		glPolygonOffset(-1.0f, -1.0f);
 		if (useWireShader)
 		{
@@ -7814,9 +7814,10 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 				}
 			}
 		}
-		glDisable(GL_POLYGON_OFFSET_FILL);
+		glDisable(GL_POLYGON_OFFSET_LINE);
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glLineWidth(1.0f);
+		TriangleMesh::bindProgramCached(prog);
 		prog->setUniformValue("isWireframePass", false);
 	}
 	else if (_displayMode == DisplayMode::WIREFRAME && useWireShader)
@@ -7881,6 +7882,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		}
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		glLineWidth(1.0f);
+		TriangleMesh::bindProgramCached(prog);
 		prog->setUniformValue("isWireframePass", false);
 	}
 	else
@@ -8058,7 +8060,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 		// Wire pass — lightweight shader
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glLineWidth(1.5f);
-		glEnable(GL_POLYGON_OFFSET_FILL);
+		glEnable(GL_POLYGON_OFFSET_LINE);
 		glPolygonOffset(-1.0f, -1.0f);
 		if (useWireShaderT)
 		{
@@ -8095,9 +8097,10 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 				}
 			}
 		}
-		glDisable(GL_POLYGON_OFFSET_FILL);
+		glDisable(GL_POLYGON_OFFSET_LINE);
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glLineWidth(1.0f);
+		TriangleMesh::bindProgramCached(prog);
 		prog->setUniformValue("isWireframePass", false);
 	}
 	else if (_displayMode == DisplayMode::WIREFRAME && useWireShaderT)
@@ -8157,6 +8160,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 		}
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		glLineWidth(1.0f);
+		TriangleMesh::bindProgramCached(prog);
 		prog->setUniformValue("isWireframePass", false);
 	}
 	else
@@ -11078,10 +11082,13 @@ void GLWidget::render(GLCamera* camera)
 	glDisable(GL_CULL_FACE);
 	glFrontFace(GL_CCW);
 	glDisable(GL_POLYGON_OFFSET_FILL);
+	glDisable(GL_POLYGON_OFFSET_LINE);
 	glDepthMask(GL_TRUE);
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 	glStencilMask(0xFF);
 	glDisable(GL_STENCIL_TEST);
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	glLineWidth(1.0f);
 
 	_viewMatrix.setToIdentity();
 	_viewMatrix = camera->getViewMatrix();
@@ -12046,6 +12053,8 @@ AssImpMesh* GLWidget::createMeshFromData(const AssImpMeshData& meshData)
 	mesh->setSourceNodeName(meshData.sourceNodeName);
 	mesh->setSkinJoints(meshData.skinJoints);
 	mesh->setMorphTargets(meshData.morphTargets, meshData.defaultMorphWeights);
+	if (!meshData.precomputedOccEdges.empty())
+		mesh->setPrecomputedOccEdges(meshData.precomputedOccEdges);
 	if (!meshData.variantMappings.isEmpty())
 	{
 		mesh->setVariantMappings(meshData.variantMappings);
@@ -17316,6 +17325,10 @@ QVector<GLWidget::PreparedMvfMesh> GLWidget::prepareMvfMeshes(
         prepared.indices       = std::move(indices);
         prepared.material      = std::move(material);
 
+        // Restore OCC B-Rep edge segments saved by MvfSceneBuilder for STEP/IGES/BREP meshes.
+        prepared.occEdgeSegments = readFloatStream(geometryChunk, document.accessors,
+            document.bufferViews, extras[QStringLiteral("occEdgeAccessor")].toInt(-1));
+
         // Restore skin joints saved in primitiveExtras so the re-created mesh can
         // drive skeletal animation after MVF load.
         for (const QJsonValue& jointValue : extras[QStringLiteral("skinJoints")].toArray())
@@ -17500,6 +17513,10 @@ bool GLWidget::uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& meshes)
         if (!pm.morphTargets.isEmpty())
             mesh->setMorphTargets(pm.morphTargets, pm.defaultMorphWeights);
 
+        // Restore OCC B-Rep edge segments so STEP/IGES/BREP true wireframe survives MVF round-trip.
+        if (!pm.occEdgeSegments.empty())
+            mesh->setPrecomputedOccEdges(pm.occEdgeSegments);
+
         const GLMaterial resolved = resolveMaterialTextures(this, pm.material);
         mesh->setMaterial(resolved);
         mesh->setTextureMaps(resolved);
@@ -17593,6 +17610,10 @@ void GLWidget::uploadOneMvfMesh(const PreparedMvfMesh& pm)
     // Restore morph target geometry so blend-shape animations work after MVF reload.
     if (!pm.morphTargets.isEmpty())
         mesh->setMorphTargets(pm.morphTargets, pm.defaultMorphWeights);
+
+    // Restore OCC B-Rep edge segments so STEP/IGES/BREP true wireframe survives MVF round-trip.
+    if (!pm.occEdgeSegments.empty())
+        mesh->setPrecomputedOccEdges(pm.occEdgeSegments);
 
     // Resolve textures and set material
     const GLMaterial resolved = resolveMaterialTextures(this, pm.material);
