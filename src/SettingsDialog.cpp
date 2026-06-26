@@ -282,6 +282,8 @@ void SettingsDialog::applySettings()
     settings.setValue("showViewCubeCheckBox", display_showViewCube);
     settings.setValue("comboBoxCornerTrihedronPosition", display_cornerTrihedronPosition);
     settings.setValue("showGridCheckBox", display_showGrid);
+    settings.setValue("showVertexNormalsCheckBox", display_showVertexNormals);
+    settings.setValue("showFaceNormalsCheckBox", display_showFaceNormals);
     settings.setValue("showWireframeCheckBox", display_showWireframe);
     settings.setValue("fieldOfViewSpinBox", display_fieldOfView);
     settings.setValue("nearPlaneSpinBox", display_nearPlane);
@@ -438,14 +440,16 @@ void SettingsDialog::setDefaultValues()
     // pushButtonTopColor and pushButtonBottomColor do not store actual color values - handled elsewhere.
 
     // Display tab
-    ui->showBoundingBoxCheckBox->setChecked(false);    // No 'checked' property found
+    ui->showBoundingBoxCheckBox->setChecked(true);     // Explicitly set to true
     ui->showCornerTrihedronCheckBox->setChecked(true); // Explicitly set to true
     ui->showViewCubeCheckBox->setChecked(true);        // Explicitly set to true
 	ui->showCenterTrihedronCheckBox->setChecked(true); // Explicitly set to true
     setCornerTrihedronPositionSelection(ui->comboBoxCornerTrihedronPosition, kCornerTrihedronTopRight);
     refreshViewCubeAvailability();
     ui->showGridCheckBox->setChecked(true);            // Explicitly set to true
-    ui->showWireframeCheckBox->setChecked(false);      // No 'checked' property found
+    ui->showVertexNormalsCheckBox->setChecked(true);   // Explicitly set to true
+    ui->showFaceNormalsCheckBox->setChecked(true);     // Explicitly set to true
+    ui->showWireframeCheckBox->setChecked(true);       // Explicitly set to true
     ui->fieldOfViewSpinBox->setValue(45);              // Explicitly set
     ui->nearPlaneSpinBox->setValue(0.1);               // Explicitly set
     ui->farPlaneSpinBox->setValue(1000.0);             // Explicitly set
@@ -647,6 +651,8 @@ void SettingsDialog::syncStateFromUi()
     display_showViewCube = isViewCubeAvailableForCornerPosition(display_cornerTrihedronPosition)
         && ui->showViewCubeCheckBox->isChecked();
     display_showGrid = ui->showGridCheckBox->isChecked();
+    display_showVertexNormals = ui->showVertexNormalsCheckBox->isChecked();
+    display_showFaceNormals = ui->showFaceNormalsCheckBox->isChecked();
     display_showWireframe = ui->showWireframeCheckBox->isChecked();
     display_fieldOfView = ui->fieldOfViewSpinBox->value();
     display_nearPlane = ui->nearPlaneSpinBox->value();
@@ -790,6 +796,10 @@ void SettingsDialog::loadSettings()
     ui->comboBoxGradientStyle->setCurrentIndex(iVal);
     bVal = settings.value("showBoundingBoxCheckBox", ui->showBoundingBoxCheckBox->isChecked()).toBool();
     ui->showBoundingBoxCheckBox->setChecked(bVal);
+    bVal = settings.value("showVertexNormalsCheckBox", ui->showVertexNormalsCheckBox->isChecked()).toBool();
+    ui->showVertexNormalsCheckBox->setChecked(bVal);
+    bVal = settings.value("showFaceNormalsCheckBox", ui->showFaceNormalsCheckBox->isChecked()).toBool();
+    ui->showFaceNormalsCheckBox->setChecked(bVal);
     bVal = settings.value("showCornerTrihedronCheckBox", ui->showCornerTrihedronCheckBox->isChecked()).toBool();
     ui->showCornerTrihedronCheckBox->setChecked(bVal);
     bVal = settings.value("showViewCubeCheckBox", ui->showViewCubeCheckBox->isChecked()).toBool();
@@ -1024,7 +1034,8 @@ void SettingsDialog::restoreDefaults()
         ui->comboCameraUpAxis,
         ui->checkTrackball, ui->checkInvertZoom, ui->spinZoomFactor,
         ui->comboBoxBackgroundStyle, ui->pushButtonTopColor, ui->pushButtonBottomColor,
-        ui->comboBoxGradientStyle, ui->showBoundingBoxCheckBox, ui->showCornerTrihedronCheckBox,
+        ui->comboBoxGradientStyle, ui->showBoundingBoxCheckBox, ui->showVertexNormalsCheckBox,
+        ui->showFaceNormalsCheckBox, ui->showCornerTrihedronCheckBox,
         ui->showViewCubeCheckBox,
         ui->comboBoxCornerTrihedronPosition, ui->farPlaneSpinBox, ui->fieldOfViewSpinBox, ui->showGridCheckBox,
         ui->nearPlaneSpinBox, ui->showWireframeCheckBox, ui->showCenterTrihedronCheckBox,
@@ -1207,6 +1218,16 @@ void SettingsDialog::on_fieldOfViewSpinBox_valueChanged()
 void SettingsDialog::on_showGridCheckBox_stateChanged()
 {
     display_showGrid = ui->showGridCheckBox->isChecked();
+}
+
+void SettingsDialog::on_showVertexNormalsCheckBox_stateChanged()
+{
+    display_showVertexNormals = ui->showVertexNormalsCheckBox->isChecked();
+}
+
+void SettingsDialog::on_showFaceNormalsCheckBox_stateChanged()
+{
+    display_showFaceNormals = ui->showFaceNormalsCheckBox->isChecked();
 }
 
 void SettingsDialog::on_nearPlaneSpinBox_valueChanged()

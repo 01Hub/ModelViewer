@@ -38,6 +38,8 @@ class TextRenderer;
 class ClippingPlanesEditor;
 class ExplodedViewPanel;
 class ExplodedViewManager;
+
+enum class DebugOverlayMode { BoundingBox, VertexNormals, FaceNormals };
 class AssImpModelLoader;
 class Cube;
 class Cone;
@@ -363,6 +365,13 @@ public:
 
 	bool isVertexNormalsShown() const;
 	void setShowVertexNormals(bool showVertexNormals);
+	bool isBoundingBoxShown() const;
+	void setShowBoundingBox(bool showBoundingBox);
+	DebugOverlayMode debugOverlayMode() const;
+	void setDebugOverlayMode(DebugOverlayMode mode);
+	bool isDebugOverlayEnabled() const;
+	void setDebugOverlayEnabled(bool enabled);
+	void setDebugOverlayAvailability(bool boundingBox, bool vertexNormals, bool faceNormals);
 
 	bool isFaceNormalsShown() const;
 	void setShowFaceNormals(bool showFaceNormals);
@@ -824,6 +833,8 @@ private:
 	void drawSkyBox();
 	void drawVertexNormals();
 	void drawFaceNormals();
+	void drawBoundingBoxOverlay();
+	void drawDebugOverlay(GLCamera* camera);
 	void drawAxis(GLCamera* camera);
 	void drawCornerAxis(CornerAxisPosition position);
 	void drawTransformGizmo(GLCamera* camera);
@@ -1117,6 +1128,12 @@ private:
 
 	bool _showVertexNormals;
 	bool _showFaceNormals;
+	bool _showBoundingBox = false;
+	bool _debugOverlayEnabled = false;
+	DebugOverlayMode _debugOverlayMode = DebugOverlayMode::BoundingBox;
+	bool _debugBoundingBoxAvailable = true;
+	bool _debugVertexNormalsAvailable = true;
+	bool _debugFaceNormalsAvailable = true;
 
 	bool _envMapEnabled;
 	bool _shadowsEnabled;
@@ -1189,6 +1206,9 @@ private:
 	std::unique_ptr<ShaderProgram> _equirectToCubeShader;
 	std::unique_ptr<ShaderProgram> _equirectToCubeQuadShader;
 	std::unique_ptr<ShaderProgram> _downsampleShader;
+
+	unsigned int _debugOverlayBoxVAO = 0;
+	unsigned int _debugOverlayBoxVBO = 0;
 
 	unsigned int             _environmentMap  = 0;
 	unsigned int             _shadowMap       = 0;

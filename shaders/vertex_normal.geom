@@ -6,10 +6,12 @@ layout (triangles) in;
 layout (line_strip, max_vertices = 6) out;
 
 in VS_OUT {
-    vec3 normal;
+    vec3 positionView;
+    vec3 normalView;
 } gs_in[];
 
-const float MAGNITUDE = 0.05;
+uniform mat4 projectionMatrix;
+uniform float normalMagnitude;
 
 out vec3 g_normal;
 out vec3 g_position;
@@ -27,7 +29,7 @@ out float g_clipDist;
 
 void GenerateLine(int index)
 {
-    gl_Position = gl_in[index].gl_Position;
+    gl_Position = projectionMatrix * vec4(gs_in[index].positionView, 1.0);
     g_clipDistX = clipDistX[index];
     g_clipDistY = clipDistY[index];
     g_clipDistZ = clipDistZ[index];
@@ -39,7 +41,8 @@ void GenerateLine(int index)
     gl_ClipDistance[3] = g_clipDist;
     EmitVertex();
 
-    gl_Position = gl_in[index].gl_Position + vec4(gs_in[index].normal, 0.0) * MAGNITUDE;
+    vec3 lineEndView = gs_in[index].positionView + gs_in[index].normalView * normalMagnitude;
+    gl_Position = projectionMatrix * vec4(lineEndView, 1.0);
     g_clipDistX = clipDistX[index];
     g_clipDistY = clipDistY[index];
     g_clipDistZ = clipDistZ[index];

@@ -85,6 +85,8 @@
         <file>res/camera_z_up.png</file>
         <file>res/hollow_mesh.png</file>
         <file>res/mesh_edges.png</file>
+        <file>res/show_bounding_box.png</file>
+        <file>res/hide_bounding_box.png</file>
     </qresource>
     <qresource prefix="/styles">
         <file>themes/DarkOrange.qss</file>

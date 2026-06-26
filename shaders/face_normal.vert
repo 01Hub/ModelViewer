@@ -4,7 +4,8 @@ layout (location = 0) in vec3 vertexPosition;
 layout (location = 1) in vec3 vertexNormal;
 
 out VS_OUT {
-    vec3 normal;
+    vec3 positionView;
+    vec3 normalView;
 } vs_out;
 
 uniform mat4 modelViewMatrix;
@@ -23,11 +24,13 @@ out float clipDist;
 void main()
 {
     mat3 normalMatrix = mat3(transpose(inverse(modelViewMatrix)));
-    vs_out.normal = normalize(vec3(projectionMatrix * vec4(normalMatrix * vertexNormal, 0.0)));
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(vertexPosition, 1.0);
+    vec4 positionView = modelViewMatrix * vec4(vertexPosition, 1.0);
+    vs_out.positionView = positionView.xyz;
+    vs_out.normalView = normalize(normalMatrix * vertexNormal);
+    gl_Position = projectionMatrix * positionView;
 
-    clipDistX = dot(clipPlaneX, modelViewMatrix* vec4(vertexPosition, 1));
-    clipDistY = dot(clipPlaneY, modelViewMatrix* vec4(vertexPosition, 1));
-    clipDistZ = dot(clipPlaneZ, modelViewMatrix* vec4(vertexPosition, 1));
-    clipDist = dot(clipPlane, modelViewMatrix* vec4(vertexPosition, 1));
+    clipDistX = dot(clipPlaneX, positionView);
+    clipDistY = dot(clipPlaneY, positionView);
+    clipDistZ = dot(clipPlaneZ, positionView);
+    clipDist = dot(clipPlane, positionView);
 }

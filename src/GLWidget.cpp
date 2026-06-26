@@ -868,7 +868,40 @@ _floorPlane(nullptr),
 		 showAxis(enabled);
 		 });
 
-	 connect(this, &GLWidget::visibleSwapped, _viewToolbar, &ViewToolbar::setSwapVisibleChecked);
+     connect(_viewToolbar, &ViewToolbar::debugOverlaySelected, this, [this](const QString& overlayType) {
+         if (overlayType == "BoundingBox")
+             setDebugOverlayMode(DebugOverlayMode::BoundingBox);
+         else if (overlayType == "VertexNormals")
+             setDebugOverlayMode(DebugOverlayMode::VertexNormals);
+         else if (overlayType == "FaceNormals")
+             setDebugOverlayMode(DebugOverlayMode::FaceNormals);
+     });
+
+     connect(_viewToolbar, &ViewToolbar::debugOverlayToggled, this, [this](bool enabled) {
+         setDebugOverlayEnabled(enabled);
+     });
+
+	connect(this, &GLWidget::visibleSwapped, _viewToolbar, &ViewToolbar::setSwapVisibleChecked);
+
+    const QSettings displaySettings(QCoreApplication::organizationName(),
+                                    QCoreApplication::applicationName());
+	const bool wireframeFeaturesEnabled =
+		displaySettings.value("showWireframeCheckBox", true).toBool();
+    const bool boundingBoxOverlayEnabled =
+        displaySettings.value("showBoundingBoxCheckBox", true).toBool();
+    const bool vertexNormalsOverlayEnabled =
+        displaySettings.value("showVertexNormalsCheckBox", true).toBool();
+    const bool faceNormalsOverlayEnabled =
+        displaySettings.value("showFaceNormalsCheckBox", true).toBool();
+	_viewToolbar->setFeatureEdgeModesVisible(wireframeFeaturesEnabled);
+    _viewToolbar->setDebugOverlayModesAvailable(
+        boundingBoxOverlayEnabled,
+        vertexNormalsOverlayEnabled,
+        faceNormalsOverlayEnabled);
+    setDebugOverlayAvailability(
+        boundingBoxOverlayEnabled,
+        vertexNormalsOverlayEnabled,
+        faceNormalsOverlayEnabled);
 
 	loadBgColorSettings();
 
@@ -1305,6 +1338,13 @@ GLWidget::~GLWidget()
 			_viewCubeLabelVAO = 0;
 			_viewCubeLabelVBO = 0;
 		}
+        if (_debugOverlayBoxVAO != 0)
+        {
+            glDeleteBuffers(1, &_debugOverlayBoxVBO);
+            glDeleteVertexArrays(1, &_debugOverlayBoxVAO);
+            _debugOverlayBoxVAO = 0;
+            _debugOverlayBoxVBO = 0;
+        }
 
 		// Delete scene objects
 		if (_clippingPlaneXY)
@@ -7756,10 +7796,11 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 	}
 	else if (_displayMode == DisplayMode::MESH_EDGES)
 	{
-		// Solid pass — full PBR shader, unchanged
+		// Solid pass — bias fill depth slightly back so the line overlay can sit on top stably.
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glLineWidth(1.0f);
-		glDisable(GL_POLYGON_OFFSET_FILL);
+		glEnable(GL_POLYGON_OFFSET_FILL);
+		glPolygonOffset(1.25f, 1.25f);
 		prog->setUniformValue("isWireframePass", false);
 		for (auto& [key, id] : opaque)
 		{
@@ -7774,12 +7815,11 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 				mesh->render();
 			}
 		}
+		glDisable(GL_POLYGON_OFFSET_FILL);
 
-		// Wire pass — lightweight shader, no material/texture machinery
+		// Wire pass — draw edges at true depth; no line offset needed.
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glLineWidth(1.5f);
-		glEnable(GL_POLYGON_OFFSET_LINE);
-		glPolygonOffset(-1.0f, -1.0f);
 		if (useWireShader)
 		{
 			TriangleMesh::bindProgramCached(_wireframeShader.get());
@@ -7814,7 +7854,6 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 				}
 			}
 		}
-		glDisable(GL_POLYGON_OFFSET_LINE);
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glLineWidth(1.0f);
 		TriangleMesh::bindProgramCached(prog);
@@ -8067,10 +8106,11 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 	}
 	else if (_displayMode == DisplayMode::MESH_EDGES)
 	{
-		// Solid pass — full PBR shader, unchanged
+		// Solid pass — bias fill depth slightly back so the line overlay can sit on top stably.
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glLineWidth(1.0f);
-		glDisable(GL_POLYGON_OFFSET_FILL);
+		glEnable(GL_POLYGON_OFFSET_FILL);
+		glPolygonOffset(1.25f, 1.25f);
 		prog->setUniformValue("isWireframePass", false);
 		for (auto& it : transparent)
 		{
@@ -8086,12 +8126,11 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 				mesh->render();
 			}
 		}
+		glDisable(GL_POLYGON_OFFSET_FILL);
 
-		// Wire pass — lightweight shader
+		// Wire pass — draw edges at true depth; no line offset needed.
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glLineWidth(1.5f);
-		glEnable(GL_POLYGON_OFFSET_LINE);
-		glPolygonOffset(-1.0f, -1.0f);
 		if (useWireShaderT)
 		{
 			TriangleMesh::bindProgramCached(_wireframeShader.get());
@@ -8127,7 +8166,6 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 				}
 			}
 		}
-		glDisable(GL_POLYGON_OFFSET_LINE);
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glLineWidth(1.0f);
 		TriangleMesh::bindProgramCached(prog);
@@ -9216,44 +9254,159 @@ void GLWidget::drawSectionCapping()
 
 void GLWidget::drawVertexNormals()
 {
+    if (!isVertexNormalsShown())
+        return;
+
+    TriangleMesh::setCurrentRenderContext(_modelMatrix, _viewMatrix);
+
 	QVector3D pos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(_vertexNormalShader.get(), pos);
+    const float normalMagnitude =
+        std::max(std::max(_boundingSphere.getRadius() * 0.02f, _viewRange * 0.01f), 0.001f);
+    _vertexNormalShader->setUniformValue("normalMagnitude", normalMagnitude);
 
 	if (_meshStore.size() != 0)
 	{
 		for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
 		{
-			if (_showVertexNormals)
-			{
-				TriangleMesh* mesh = _meshStore.at(i);
-				mesh->setProg(_vertexNormalShader.get());
-				mesh->getVAO().bind();
-				glDrawElements(GL_TRIANGLES, static_cast<int>(mesh->getPoints().size()), GL_UNSIGNED_INT, 0);
-				mesh->getVAO().release();
-			}
+			TriangleMesh* mesh = _meshStore.at(i);
+			mesh->setProg(_vertexNormalShader.get());
+            mesh->render();
 		}
 	}
 }
 
 void GLWidget::drawFaceNormals()
 {
+    if (!isFaceNormalsShown())
+        return;
+
+    TriangleMesh::setCurrentRenderContext(_modelMatrix, _viewMatrix);
+
 	QVector3D pos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(_faceNormalShader.get(), pos);
+    const float normalMagnitude =
+        std::max(std::max(_boundingSphere.getRadius() * 0.02f, _viewRange * 0.01f), 0.001f);
+    _faceNormalShader->setUniformValue("normalMagnitude", normalMagnitude);
 
 	if (_meshStore.size() != 0)
 	{
 		for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
 		{
-			if (_showFaceNormals)
-			{
-				TriangleMesh* mesh = _meshStore.at(i);
-				mesh->setProg(_faceNormalShader.get());
-				mesh->getVAO().bind();
-				glDrawElements(GL_TRIANGLES, static_cast<int>(mesh->getPoints().size()), GL_UNSIGNED_INT, 0);
-				mesh->getVAO().release();
-			}
+			TriangleMesh* mesh = _meshStore.at(i);
+			mesh->setProg(_faceNormalShader.get());
+            mesh->render();
 		}
 	}
+}
+
+void GLWidget::drawBoundingBoxOverlay()
+{
+    if (!isBoundingBoxShown() || !_axisShader)
+        return;
+
+    BoundingBox bounds;
+    bool hasBounds = false;
+
+    auto accumulateBounds = [this, &bounds, &hasBounds](int meshId) {
+        if (meshId < 0 || meshId >= static_cast<int>(_meshStore.size()))
+            return;
+
+        TriangleMesh* mesh = _meshStore.at(meshId);
+        if (!mesh)
+            return;
+
+        if (!hasBounds)
+        {
+            bounds = mesh->getBoundingBox();
+            hasBounds = true;
+        }
+        else
+        {
+            bounds.addBox(mesh->getBoundingBox());
+        }
+    };
+
+    const QList<int> selectedIds = _selectionManager ? _selectionManager->getSelectedIds() : QList<int>{};
+    if (!selectedIds.isEmpty())
+    {
+        for (int meshId : selectedIds)
+            accumulateBounds(meshId);
+    }
+    else
+    {
+        for (int meshId : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
+            accumulateBounds(meshId);
+    }
+
+    if (!hasBounds)
+        return;
+
+    const std::vector<QVector3D> corners = bounds.getCorners();
+    static const int edgeIndices[][2] = {
+        {0, 1}, {0, 2}, {0, 4}, {1, 3}, {1, 5}, {2, 3},
+        {2, 6}, {3, 7}, {4, 5}, {4, 6}, {5, 7}, {6, 7}
+    };
+
+    std::vector<float> vertices;
+    vertices.reserve(24 * 6);
+    const QVector3D color(0.98f, 0.78f, 0.14f);
+
+    for (const auto& edge : edgeIndices)
+    {
+        const QVector3D& a = corners[edge[0]];
+        const QVector3D& b = corners[edge[1]];
+
+        vertices.insert(vertices.end(), { a.x(), a.y(), a.z(), color.x(), color.y(), color.z() });
+        vertices.insert(vertices.end(), { b.x(), b.y(), b.z(), color.x(), color.y(), color.z() });
+    }
+
+    if (_debugOverlayBoxVAO == 0)
+        glGenVertexArrays(1, &_debugOverlayBoxVAO);
+    if (_debugOverlayBoxVBO == 0)
+        glGenBuffers(1, &_debugOverlayBoxVBO);
+
+    glBindVertexArray(_debugOverlayBoxVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, _debugOverlayBoxVBO);
+    glBufferData(GL_ARRAY_BUFFER,
+                 static_cast<GLsizeiptr>(vertices.size() * sizeof(float)),
+                 vertices.data(),
+                 GL_DYNAMIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<const void*>(0));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<const void*>(3 * sizeof(float)));
+
+    _axisShader->bind();
+    _axisShader->setUniformValue("modelViewMatrix", _viewMatrix);
+    _axisShader->setUniformValue("projectionMatrix", _projectionMatrix);
+    _axisShader->setUniformValue("renderCone", false);
+    glLineWidth(2.0f);
+    glDrawArrays(GL_LINES, 0, 24);
+    glLineWidth(1.0f);
+    _axisShader->release();
+
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
+    glBindVertexArray(0);
+}
+
+void GLWidget::drawDebugOverlay(GLCamera* camera)
+{
+    if (!camera || !_debugOverlayEnabled)
+        return;
+
+    switch (_debugOverlayMode)
+    {
+    case DebugOverlayMode::BoundingBox:
+        drawBoundingBoxOverlay();
+        break;
+    case DebugOverlayMode::VertexNormals:
+        drawVertexNormals();
+        break;
+    case DebugOverlayMode::FaceNormals:
+        drawFaceNormals();
+        break;
+    }
 }
 
 void GLWidget::drawAxis(GLCamera* camera)
@@ -11259,6 +11412,7 @@ void GLWidget::render(GLCamera* camera)
 	_fgShader->release();
 
 	// --- 5) Overlays ---
+    drawDebugOverlay(camera);
 	if (_showAxis && _userShowAxisOverride) drawAxis(camera);
 	if (_showLights) drawLights();
 	if (profileRendering)
@@ -11732,21 +11886,21 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 
 		// ============================================
 	case DisplayMode::MESH_EDGES:
-		// Pass 1: Solid
+		// Pass 1: Bias fill depth slightly back so the line overlay can sit on top stably.
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glLineWidth(1.0f);
+		glEnable(GL_POLYGON_OFFSET_FILL);
+		glPolygonOffset(1.25f, 1.25f);
 		_fgShader->setUniformValue("isWireframePass", false);
 		mesh->render();
+		glDisable(GL_POLYGON_OFFSET_FILL);
 
-		// Pass 2: All triangle edges overlay
+		// Pass 2: All triangle edges overlay at true depth.
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glLineWidth(1.5f);
-		glEnable(GL_POLYGON_OFFSET_FILL);
-		glPolygonOffset(-1.0f, -1.0f);
 		_fgShader->setUniformValue("isWireframePass", true);
 		mesh->render();
 
-		glDisable(GL_POLYGON_OFFSET_FILL);
 		_fgShader->setUniformValue("isWireframePass", false);
 		break;
 
@@ -16620,22 +16774,197 @@ bool GLWidget::isVisibleSwapped() const
 
 void GLWidget::setShowFaceNormals(bool showFaceNormals)
 {
-	_showFaceNormals = showFaceNormals;
+    if (showFaceNormals)
+    {
+        setDebugOverlayMode(DebugOverlayMode::FaceNormals);
+        setDebugOverlayEnabled(true);
+    }
+    else if (_debugOverlayMode == DebugOverlayMode::FaceNormals)
+    {
+        setDebugOverlayEnabled(false);
+    }
 }
 
 bool GLWidget::isFaceNormalsShown() const
 {
-	return _showFaceNormals;
+    return _debugOverlayEnabled && _debugOverlayMode == DebugOverlayMode::FaceNormals;
 }
 
 bool GLWidget::isVertexNormalsShown() const
 {
-	return _showVertexNormals;
+    return _debugOverlayEnabled && _debugOverlayMode == DebugOverlayMode::VertexNormals;
 }
 
 void GLWidget::setShowVertexNormals(bool showVertexNormals)
 {
-	_showVertexNormals = showVertexNormals;
+    if (showVertexNormals)
+    {
+        setDebugOverlayMode(DebugOverlayMode::VertexNormals);
+        setDebugOverlayEnabled(true);
+    }
+    else if (_debugOverlayMode == DebugOverlayMode::VertexNormals)
+    {
+        setDebugOverlayEnabled(false);
+    }
+}
+
+bool GLWidget::isBoundingBoxShown() const
+{
+    return _debugOverlayEnabled && _debugOverlayMode == DebugOverlayMode::BoundingBox;
+}
+
+void GLWidget::setShowBoundingBox(bool showBoundingBox)
+{
+    if (showBoundingBox)
+    {
+        setDebugOverlayMode(DebugOverlayMode::BoundingBox);
+        setDebugOverlayEnabled(true);
+    }
+    else if (_debugOverlayMode == DebugOverlayMode::BoundingBox)
+    {
+        setDebugOverlayEnabled(false);
+    }
+}
+
+DebugOverlayMode GLWidget::debugOverlayMode() const
+{
+    return _debugOverlayMode;
+}
+
+void GLWidget::setDebugOverlayMode(DebugOverlayMode mode)
+{
+    _debugOverlayMode = mode;
+
+    const bool requestedModeAvailable =
+        (_debugOverlayMode == DebugOverlayMode::BoundingBox && _debugBoundingBoxAvailable) ||
+        (_debugOverlayMode == DebugOverlayMode::VertexNormals && _debugVertexNormalsAvailable) ||
+        (_debugOverlayMode == DebugOverlayMode::FaceNormals && _debugFaceNormalsAvailable);
+
+    if (!requestedModeAvailable)
+    {
+        if (_debugBoundingBoxAvailable)
+            _debugOverlayMode = DebugOverlayMode::BoundingBox;
+        else if (_debugVertexNormalsAvailable)
+            _debugOverlayMode = DebugOverlayMode::VertexNormals;
+        else if (_debugFaceNormalsAvailable)
+            _debugOverlayMode = DebugOverlayMode::FaceNormals;
+    }
+
+    _showBoundingBox = _debugOverlayEnabled && _debugOverlayMode == DebugOverlayMode::BoundingBox;
+    _showVertexNormals = _debugOverlayEnabled && _debugOverlayMode == DebugOverlayMode::VertexNormals;
+    _showFaceNormals = _debugOverlayEnabled && _debugOverlayMode == DebugOverlayMode::FaceNormals;
+
+    if (_viewToolbar)
+    {
+        DebugOverlayActions action = DebugOverlayActions::BOUNDING_BOX;
+        if (_debugOverlayMode == DebugOverlayMode::VertexNormals)
+            action = DebugOverlayActions::VERTEX_NORMALS;
+        else if (_debugOverlayMode == DebugOverlayMode::FaceNormals)
+            action = DebugOverlayActions::FACE_NORMALS;
+
+        _viewToolbar->setDebugOverlayState(action, _debugOverlayEnabled);
+    }
+
+    update();
+}
+
+bool GLWidget::isDebugOverlayEnabled() const
+{
+    return _debugOverlayEnabled;
+}
+
+void GLWidget::setDebugOverlayEnabled(bool enabled)
+{
+    const bool hasAnyOverlay =
+        _debugBoundingBoxAvailable || _debugVertexNormalsAvailable || _debugFaceNormalsAvailable;
+
+    if (!hasAnyOverlay)
+        enabled = false;
+
+    if (enabled)
+    {
+        const bool currentModeAvailable =
+            (_debugOverlayMode == DebugOverlayMode::BoundingBox && _debugBoundingBoxAvailable) ||
+            (_debugOverlayMode == DebugOverlayMode::VertexNormals && _debugVertexNormalsAvailable) ||
+            (_debugOverlayMode == DebugOverlayMode::FaceNormals && _debugFaceNormalsAvailable);
+
+        if (!currentModeAvailable)
+        {
+            if (_debugBoundingBoxAvailable)
+                _debugOverlayMode = DebugOverlayMode::BoundingBox;
+            else if (_debugVertexNormalsAvailable)
+                _debugOverlayMode = DebugOverlayMode::VertexNormals;
+            else
+                _debugOverlayMode = DebugOverlayMode::FaceNormals;
+        }
+    }
+
+    _debugOverlayEnabled = enabled;
+    _showBoundingBox = _debugOverlayEnabled && _debugOverlayMode == DebugOverlayMode::BoundingBox;
+    _showVertexNormals = _debugOverlayEnabled && _debugOverlayMode == DebugOverlayMode::VertexNormals;
+    _showFaceNormals = _debugOverlayEnabled && _debugOverlayMode == DebugOverlayMode::FaceNormals;
+
+    if (_viewToolbar)
+    {
+        DebugOverlayActions action = DebugOverlayActions::BOUNDING_BOX;
+        if (_debugOverlayMode == DebugOverlayMode::VertexNormals)
+            action = DebugOverlayActions::VERTEX_NORMALS;
+        else if (_debugOverlayMode == DebugOverlayMode::FaceNormals)
+            action = DebugOverlayActions::FACE_NORMALS;
+
+        _viewToolbar->setDebugOverlayState(action, _debugOverlayEnabled);
+    }
+
+    update();
+}
+
+void GLWidget::setDebugOverlayAvailability(bool boundingBox, bool vertexNormals, bool faceNormals)
+{
+    _debugBoundingBoxAvailable = boundingBox;
+    _debugVertexNormalsAvailable = vertexNormals;
+    _debugFaceNormalsAvailable = faceNormals;
+
+    const bool hasAnyOverlay = boundingBox || vertexNormals || faceNormals;
+    if (!hasAnyOverlay)
+    {
+        _debugOverlayEnabled = false;
+    }
+    else
+    {
+        const bool currentModeAvailable =
+            (_debugOverlayMode == DebugOverlayMode::BoundingBox && _debugBoundingBoxAvailable) ||
+            (_debugOverlayMode == DebugOverlayMode::VertexNormals && _debugVertexNormalsAvailable) ||
+            (_debugOverlayMode == DebugOverlayMode::FaceNormals && _debugFaceNormalsAvailable);
+
+        if (!currentModeAvailable)
+        {
+            if (_debugBoundingBoxAvailable)
+                _debugOverlayMode = DebugOverlayMode::BoundingBox;
+            else if (_debugVertexNormalsAvailable)
+                _debugOverlayMode = DebugOverlayMode::VertexNormals;
+            else
+                _debugOverlayMode = DebugOverlayMode::FaceNormals;
+        }
+    }
+
+    _showBoundingBox = _debugOverlayEnabled && _debugOverlayMode == DebugOverlayMode::BoundingBox;
+    _showVertexNormals = _debugOverlayEnabled && _debugOverlayMode == DebugOverlayMode::VertexNormals;
+    _showFaceNormals = _debugOverlayEnabled && _debugOverlayMode == DebugOverlayMode::FaceNormals;
+
+    if (_viewToolbar)
+    {
+        _viewToolbar->setDebugOverlayModesAvailable(boundingBox, vertexNormals, faceNormals);
+
+        DebugOverlayActions action = DebugOverlayActions::BOUNDING_BOX;
+        if (_debugOverlayMode == DebugOverlayMode::VertexNormals)
+            action = DebugOverlayActions::VERTEX_NORMALS;
+        else if (_debugOverlayMode == DebugOverlayMode::FaceNormals)
+            action = DebugOverlayActions::FACE_NORMALS;
+
+        _viewToolbar->setDebugOverlayState(action, _debugOverlayEnabled);
+    }
+
+    update();
 }
 
 bool GLWidget::isShaded() const

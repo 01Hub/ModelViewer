@@ -6,6 +6,8 @@
 #include <QElapsedTimer>
 #include <QVariantMap>
 #include <QDebug>
+#include <QSettings>
+#include <QCoreApplication>
 
 #include <algorithm>
 #include <cmath>
@@ -50,6 +52,14 @@ inline void mixVec3(quint64& hash, const QVector3D& value)
 	mixFloat(hash, value.x());
 	mixFloat(hash, value.y());
 	mixFloat(hash, value.z());
+}
+
+inline bool wireframeFeaturesEnabled()
+{
+	return QSettings(QCoreApplication::organizationName(),
+	                 QCoreApplication::applicationName())
+	    .value("showWireframeCheckBox", true)
+	    .toBool();
 }
 
 }
@@ -659,7 +669,8 @@ void AssImpMesh::setupMesh()
 
 	initBuffers(&_indices, &points, &normals, &colors, &texCoords, &tangents, &bitangents, &jointIndices, &jointWeights);
 	computeBounds();
-	buildAndUploadFeatureEdges(15.0f);
+	if (wireframeFeaturesEnabled())
+		buildAndUploadFeatureEdges(15.0f);
 }
 
 void AssImpMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
@@ -897,6 +908,8 @@ void AssImpMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 void AssImpMesh::setPrecomputedOccEdges(const std::vector<float>& edgeVerts,
                                         const std::vector<int>& bounds)
 {
+	if (!wireframeFeaturesEnabled())
+		return;
 	if (edgeVerts.empty()) return;
 
 	_occEdgeSegments  = edgeVerts;

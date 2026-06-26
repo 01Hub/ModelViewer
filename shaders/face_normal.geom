@@ -6,10 +6,12 @@ layout (triangles) in;
 layout (line_strip, max_vertices = 6) out;
 
 in VS_OUT {
-    vec3 normal;
+    vec3 positionView;
+    vec3 normalView;
 } gs_in[];
 
-const float MAGNITUDE = 0.05;
+uniform mat4 projectionMatrix;
+uniform float normalMagnitude;
 
 out vec3 g_normal;
 out vec3 g_position;
@@ -27,9 +29,9 @@ out float g_clipDist;
 
 void main()
 {
-    vec3 P0 = gl_in[0].gl_Position.xyz;
-    vec3 P1 = gl_in[1].gl_Position.xyz;
-    vec3 P2 = gl_in[2].gl_Position.xyz;
+    vec3 P0 = gs_in[0].positionView;
+    vec3 P1 = gs_in[1].positionView;
+    vec3 P2 = gs_in[2].positionView;
 
     vec3 V0 = P0 - P1;
     vec3 V1 = P2 - P1;
@@ -40,7 +42,7 @@ void main()
     // Center of the triangle
     vec3 P = (P0+P1+P2) / 3.0;
 
-    gl_Position = vec4(P, 1.0);
+    gl_Position = projectionMatrix * vec4(P, 1.0);
     g_clipDistX = clipDistX[0];
     g_clipDistY = clipDistY[0];
     g_clipDistZ = clipDistZ[0];
@@ -52,7 +54,8 @@ void main()
     gl_ClipDistance[3] = g_clipDist;
     EmitVertex();
 
-    gl_Position = vec4(P + gs_in[0].normal * MAGNITUDE, 1.0);
+    vec3 lineEndView = P + N * normalMagnitude;
+    gl_Position = projectionMatrix * vec4(lineEndView, 1.0);
     g_clipDistX = clipDistX[1];
     g_clipDistY = clipDistY[1];
     g_clipDistZ = clipDistZ[1];

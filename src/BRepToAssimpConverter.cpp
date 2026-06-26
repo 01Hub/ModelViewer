@@ -39,6 +39,16 @@ BRepToAssimpConverter::StepColorMap BRepToAssimpConverter::s_stepColorMap;
 std::unordered_map<const aiMesh*, BRepToAssimpConverter::OccEdgeData>
     BRepToAssimpConverter::s_occEdges;
 
+namespace {
+bool wireframeFeaturesEnabled()
+{
+	return QSettings(QCoreApplication::organizationName(),
+	                 QCoreApplication::applicationName())
+	    .value("showWireframeCheckBox", true)
+	    .toBool();
+}
+}
+
 /**
  * Returns the deflection fraction to use for STEP/XCAF tessellation.
  *
@@ -1165,9 +1175,12 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 
 	// Extract and cache B-Rep edges for this mesh so the renderer can display
 	// exact analytical wireframes instead of heuristic feature edges.
-	OccEdgeData edges = extractEdgesFromFaceGroup(faceGroup, deflection);
-	if (!edges.segments.empty())
-		s_occEdges[result] = std::move(edges);
+	if (wireframeFeaturesEnabled())
+	{
+		OccEdgeData edges = extractEdgesFromFaceGroup(faceGroup, deflection);
+		if (!edges.segments.empty())
+			s_occEdges[result] = std::move(edges);
+	}
 
 	return result;
 }

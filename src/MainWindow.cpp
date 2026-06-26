@@ -826,6 +826,11 @@ void MainWindow::on_actionSettings_triggered()
 				viewer->getGLView()->setCornerAxisPosition(static_cast<CornerAxisPosition>(settingsDialog->displayCornerTrihedronPosition()));
 				viewer->getGLView()->getSelectionManager()->setHoverHighlightMode(settingsDialog->displayHoverHighlightMode());
 				viewer->getGLView()->setPerspFOV(settingsDialog->displayFieldOfView());
+				viewer->getGLView()->getViewToolbar()->setFeatureEdgeModesVisible(settingsDialog->displayShowWireframe());
+                viewer->getGLView()->setDebugOverlayAvailability(
+                    settingsDialog->displayShowBoundingBox(),
+                    settingsDialog->displayShowVertexNormals(),
+                    settingsDialog->displayShowFaceNormals());
 			}
 		}
 		// Re-read QSettings now that they have been committed (OK / Apply).

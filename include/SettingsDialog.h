@@ -55,6 +55,8 @@ public:
     bool displayShowViewCube() const { return display_showViewCube; }
     int  displayCornerTrihedronPosition() const { return display_cornerTrihedronPosition; }
     bool displayShowGrid() const { return display_showGrid; }
+    bool displayShowVertexNormals() const { return display_showVertexNormals; }
+    bool displayShowFaceNormals() const { return display_showFaceNormals; }
     bool displayShowWireframe() const { return display_showWireframe; }
     int displayFieldOfView() const { return display_fieldOfView; }
     double displayNearPlane() const { return display_nearPlane; }
@@ -193,6 +195,8 @@ private slots:
     void on_farPlaneSpinBox_valueChanged();
     void on_fieldOfViewSpinBox_valueChanged();
     void on_showGridCheckBox_stateChanged();
+    void on_showVertexNormalsCheckBox_stateChanged();
+    void on_showFaceNormalsCheckBox_stateChanged();
     void on_nearPlaneSpinBox_valueChanged();
     void on_showWireframeCheckBox_stateChanged();
     void on_showCenterTrihedronCheckBox_stateChanged();
@@ -312,12 +316,14 @@ private:
     QColor background_bottomColor = Qt::white;
 
     // Display tab
-    bool display_showBoundingBox = false;
+    bool display_showBoundingBox = true;
     bool display_showCornerTrihedron = true;
     bool display_showViewCube = true;
     int display_cornerTrihedronPosition = 1;
     bool display_showGrid = true;
-    bool display_showWireframe = false;
+    bool display_showVertexNormals = true;
+    bool display_showFaceNormals = true;
+    bool display_showWireframe = true;
     int display_fieldOfView = 60;
     double display_nearPlane = 0.1;
     double display_farPlane = 1000.0;

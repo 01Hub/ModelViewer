@@ -15,6 +15,7 @@ enum class StandardViewActions { TOP, FRONT, LEFT, BOTTOM, REAR, RIGHT };
 enum class ViewModeActions { ISOMETRIC, DIMETRIC, TRIMETRIC };
 enum class DisplayModeActions { SHADED, HOLLOW_MESH, MESH_EDGES, WIREFRAME, SHADED_WITH_EDGES, REALSHADED, FLATSHADED };
 enum class RenderingModeActions { ADS, PBR };
+enum class DebugOverlayActions { BOUNDING_BOX, VERTEX_NORMALS, FACE_NORMALS };
 
 class ViewToolbar : public QWidget
 {
@@ -35,6 +36,9 @@ public:
     void setDefaultViewModeAction(ViewModeActions mode);
     void setDefaultDisplayModeAction(DisplayModeActions mode);
     void setDefaultRenderingModeAction(RenderingModeActions mode);
+    void setFeatureEdgeModesVisible(bool visible);
+    void setDebugOverlayModesAvailable(bool boundingBox, bool vertexNormals, bool faceNormals);
+    void setDebugOverlayState(DebugOverlayActions mode, bool enabled);
     void updateRenderingModeButton(const QString& mode);
     void deactivateAllNavigationModes();
 
@@ -62,6 +66,8 @@ signals:
     void explodedViewToggled(bool enabled);
     void swapVisibleToggled(bool enabled);
     void axisDisplayToggled(bool enabled);
+    void debugOverlaySelected(const QString& overlayType);
+    void debugOverlayToggled(bool enabled);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -139,6 +145,11 @@ private:
     QAction* _shadedWithEdges;  // shaded + true feature edges
     QAction* _flatshaded;
 
+    // Debug overlay actions
+    QAction* _boundingBoxOverlay;
+    QAction* _vertexNormalsOverlay;
+    QAction* _faceNormalsOverlay;
+
     // Other buttons
     QToolButton* _sectionBtn;
     QToolButton* _explodedBtn;
@@ -164,6 +175,9 @@ private:
 
     FlyOutViewButton* _toolButtonDisplayModes;
     QMap<DisplayModeActions, QAction*> _displayModeActions;
+    FlyOutViewButton* _toolButtonDebugOverlays;
+    QMap<DebugOverlayActions, QAction*> _debugOverlayActions;
+    DebugOverlayActions _currentDebugOverlayAction = DebugOverlayActions::BOUNDING_BOX;
 
     // Animation
     QPropertyAnimation* _toolbarAnimation;

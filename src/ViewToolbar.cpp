@@ -13,6 +13,27 @@
 #include <QScrollBar>
 #include <QTimer>
 
+namespace
+{
+QString debugOverlayIconPath(DebugOverlayActions action, bool enabled)
+{
+    switch (action)
+    {
+    case DebugOverlayActions::BOUNDING_BOX:
+        return enabled ? QStringLiteral(":/icons/res/show_bounding_box.png")
+                       : QStringLiteral(":/icons/res/hide_bounding_box.png");
+    case DebugOverlayActions::VERTEX_NORMALS:
+        return enabled ? QStringLiteral(":/icons/res/showVertexNormal.png")
+                       : QStringLiteral(":/icons/res/hideVertexNormal.png");
+    case DebugOverlayActions::FACE_NORMALS:
+        return enabled ? QStringLiteral(":/icons/res/showFaceNormal.png")
+                       : QStringLiteral(":/icons/res/hideFaceNormal.png");
+    }
+
+    return QStringLiteral(":/icons/res/hide_bounding_box.png");
+}
+}
+
 ViewToolbar::ViewToolbar(QWidget* parent)
     : QWidget(parent)
     , _isRepositioning(false)
@@ -100,6 +121,33 @@ ViewToolbar::ViewToolbar(QWidget* parent)
         "    height: 1px;"
         "    background-color: #c0c0c0;"
         "    margin: 4px 8px;"
+        "}"
+    );
+
+    QString flyoutToggleButtonStyleSheet(
+        "QToolButton {"
+        "    border: none;"
+        "    background: transparent;"
+        "    padding: 5px;"
+        "    border-radius: 4px;"
+        "}"
+        "QToolButton:hover {"
+        "    background-color: rgba(0, 120, 215, 50);"
+        "    border: 1px solid #0078D7;"
+        "}"
+        "QToolButton:pressed {"
+        "    background-color: rgba(0, 120, 215, 100);"
+        "    border: 1px solid #005A9E;"
+        "}"
+        "QToolButton:checked {"
+        "    background-color: rgba(0, 150, 100, 100);"
+        "    border: 1px solid #008000;"
+        "    color: white;"
+        "}"
+        "QToolButton::menu-indicator {"
+        "    image: none;"
+        "    width: 0px;"
+        "    height: 0px;"
         "}"
     );
 
@@ -655,6 +703,56 @@ ViewToolbar::ViewToolbar(QWidget* parent)
         emit axisDisplayToggled(checked);
         });
 
+    // Debug Overlays
+    _toolButtonDebugOverlays = new FlyOutViewButton(this);
+    _toolButtonDebugOverlays->setStyleSheet(flyoutToggleButtonStyleSheet);
+    _toolButtonDebugOverlays->setCheckable(true);
+    _toolButtonDebugOverlays->setChecked(false);
+    _toolButtonDebugOverlays->setIcon(QIcon(debugOverlayIconPath(_currentDebugOverlayAction, false)));
+    _toolButtonDebugOverlays->setIconSize(QSize(48, 48));
+    _toolButtonDebugOverlays->setToolTip(tr("Debug Overlays"));
+    _toolButtonDebugOverlays->setPopupMode(QToolButton::DelayedPopup);
+    _toolButtonDebugOverlays->setAutoRaise(true);
+    _mainLayout->addWidget(_toolButtonDebugOverlays);
+
+    QMenu* debugOverlayMenu = new QMenu;
+    debugOverlayMenu->setStyleSheet(flyoutStyleSheet);
+    _boundingBoxOverlay = debugOverlayMenu->addAction(QIcon(":/icons/res/show_bounding_box.png"), tr("Bounding Box"));
+    _boundingBoxOverlay->setCheckable(true);
+    _vertexNormalsOverlay = debugOverlayMenu->addAction(QIcon(":/icons/res/showVertexNormal.png"), tr("Vertex Normals"));
+    _vertexNormalsOverlay->setCheckable(true);
+    _faceNormalsOverlay = debugOverlayMenu->addAction(QIcon(":/icons/res/showFaceNormal.png"), tr("Face Normals"));
+    _faceNormalsOverlay->setCheckable(true);
+
+    _debugOverlayActions[DebugOverlayActions::BOUNDING_BOX] = _boundingBoxOverlay;
+    _debugOverlayActions[DebugOverlayActions::VERTEX_NORMALS] = _vertexNormalsOverlay;
+    _debugOverlayActions[DebugOverlayActions::FACE_NORMALS] = _faceNormalsOverlay;
+
+    auto selectDebugOverlay = [this](DebugOverlayActions action, const QString& type) {
+        _currentDebugOverlayAction = action;
+        for (auto it = _debugOverlayActions.begin(); it != _debugOverlayActions.end(); ++it)
+        {
+            if (it.value())
+                it.value()->setChecked(it.key() == action);
+        }
+        _toolButtonDebugOverlays->setIcon(QIcon(debugOverlayIconPath(action, _toolButtonDebugOverlays->isChecked())));
+        emit debugOverlaySelected(type);
+    };
+
+    connect(_boundingBoxOverlay, &QAction::triggered, this,
+        [selectDebugOverlay]() { selectDebugOverlay(DebugOverlayActions::BOUNDING_BOX, QStringLiteral("BoundingBox")); });
+    connect(_vertexNormalsOverlay, &QAction::triggered, this,
+        [selectDebugOverlay]() { selectDebugOverlay(DebugOverlayActions::VERTEX_NORMALS, QStringLiteral("VertexNormals")); });
+    connect(_faceNormalsOverlay, &QAction::triggered, this,
+        [selectDebugOverlay]() { selectDebugOverlay(DebugOverlayActions::FACE_NORMALS, QStringLiteral("FaceNormals")); });
+
+    _toolButtonDebugOverlays->setMenu(debugOverlayMenu);
+    connect(_toolButtonDebugOverlays, &QToolButton::toggled, this, [this](bool checked) {
+        _toolButtonDebugOverlays->setIcon(QIcon(debugOverlayIconPath(_currentDebugOverlayAction, checked)));
+        emit debugOverlayToggled(checked);
+    });
+    setDebugOverlayState(DebugOverlayActions::BOUNDING_BOX, false);
+
     // Toolbar animations
     _toolbarAnimation = new QPropertyAnimation(this, "geometry", this);
     _toolbarAnimation->setDuration(300);
@@ -778,6 +876,9 @@ bool ViewToolbar::isFlyoutMenuVisible() const
 		(_toolButtonCameraModes &&
 			_toolButtonCameraModes->menu() &&
 			_toolButtonCameraModes->menu()->isVisible()) ||
+        (_toolButtonDebugOverlays &&
+            _toolButtonDebugOverlays->menu() &&
+            _toolButtonDebugOverlays->menu()->isVisible()) ||
 		(_toolButtonDisplayModes &&
 			_toolButtonDisplayModes->menu() &&
 			_toolButtonDisplayModes->menu()->isVisible());
@@ -805,6 +906,81 @@ void ViewToolbar::setDefaultDisplayModeAction(DisplayModeActions mode)
 {
 	if (_displayModeActions.contains(mode))
 		_toolButtonDisplayModes->setDefaultAction(_displayModeActions[mode]);
+}
+
+void ViewToolbar::setFeatureEdgeModesVisible(bool visible)
+{
+	if (_wireframe)
+		_wireframe->setVisible(visible);
+	if (_shadedWithEdges)
+		_shadedWithEdges->setVisible(visible);
+	if (!visible && _toolButtonDisplayModes)
+	{
+		const QAction* current = _toolButtonDisplayModes->defaultAction();
+		if (current == _wireframe || current == _shadedWithEdges)
+			_toolButtonDisplayModes->setDefaultAction(_shaded);
+	}
+}
+
+void ViewToolbar::setDebugOverlayModesAvailable(bool boundingBox, bool vertexNormals, bool faceNormals)
+{
+    if (_boundingBoxOverlay)
+        _boundingBoxOverlay->setVisible(boundingBox);
+    if (_vertexNormalsOverlay)
+        _vertexNormalsOverlay->setVisible(vertexNormals);
+    if (_faceNormalsOverlay)
+        _faceNormalsOverlay->setVisible(faceNormals);
+
+    const bool hasAnyOverlay = boundingBox || vertexNormals || faceNormals;
+    if (_toolButtonDebugOverlays)
+        _toolButtonDebugOverlays->setVisible(hasAnyOverlay);
+
+    if (!hasAnyOverlay)
+    {
+        setDebugOverlayState(_currentDebugOverlayAction, false);
+    }
+    else
+    {
+        const bool currentAvailable =
+            (_currentDebugOverlayAction == DebugOverlayActions::BOUNDING_BOX && boundingBox) ||
+            (_currentDebugOverlayAction == DebugOverlayActions::VERTEX_NORMALS && vertexNormals) ||
+            (_currentDebugOverlayAction == DebugOverlayActions::FACE_NORMALS && faceNormals);
+
+        if (!currentAvailable)
+        {
+            if (boundingBox)
+                _currentDebugOverlayAction = DebugOverlayActions::BOUNDING_BOX;
+            else if (vertexNormals)
+                _currentDebugOverlayAction = DebugOverlayActions::VERTEX_NORMALS;
+            else
+                _currentDebugOverlayAction = DebugOverlayActions::FACE_NORMALS;
+        }
+
+        setDebugOverlayState(_currentDebugOverlayAction,
+                             _toolButtonDebugOverlays ? _toolButtonDebugOverlays->isChecked() : false);
+    }
+
+    if (parentWidget())
+        reposition(parentWidget()->width(), parentWidget()->height());
+}
+
+void ViewToolbar::setDebugOverlayState(DebugOverlayActions mode, bool enabled)
+{
+    _currentDebugOverlayAction = mode;
+
+    for (auto it = _debugOverlayActions.begin(); it != _debugOverlayActions.end(); ++it)
+    {
+        if (it.value())
+            it.value()->setChecked(it.key() == mode);
+    }
+
+    if (_toolButtonDebugOverlays)
+    {
+        const bool oldState = _toolButtonDebugOverlays->blockSignals(true);
+        _toolButtonDebugOverlays->setChecked(enabled);
+        _toolButtonDebugOverlays->setIcon(QIcon(debugOverlayIconPath(mode, enabled)));
+        _toolButtonDebugOverlays->blockSignals(oldState);
+    }
 }
 
 void ViewToolbar::setSwapVisibleChecked(bool checked)
@@ -962,6 +1138,16 @@ void ViewToolbar::retranslateUI()
 	_meshEdges->setText(tr("Mesh Edges"));
 	_wireframe->setText(tr("Wireframe"));
 	_shadedWithEdges->setText(tr("Shaded with Edges"));
+
+    // Debug overlays
+    if (_toolButtonDebugOverlays)
+        _toolButtonDebugOverlays->setToolTip(tr("Debug Overlays"));
+    if (_boundingBoxOverlay)
+        _boundingBoxOverlay->setText(tr("Bounding Box"));
+    if (_vertexNormalsOverlay)
+        _vertexNormalsOverlay->setText(tr("Vertex Normals"));
+    if (_faceNormalsOverlay)
+        _faceNormalsOverlay->setText(tr("Face Normals"));
 
 	// Rendering Mode
 	_toolButtonRenderingMode->setToolTip(tr("Rendering Mode"));
