@@ -405,8 +405,8 @@ quint64 AssImpMesh::uniformStateSignature() const
 
 	mixInt(hash, static_cast<int>(_primitiveMode));
 	mixBool(hash, _hasVertexColors);
-	mixBool(hash, _hasNegativeScale);
-	mixBool(hash, _selected);
+	mixBool(hash, hasNegativeScale());
+	mixBool(hash, isSelected());
 
 	mixVec3(hash, _material.ambient());
 	mixVec3(hash, _material.diffuse());
@@ -1243,7 +1243,8 @@ void AssImpMesh::setRenderStateOptimized()
 
 	// Front face correction
 	GLenum frontFace = GL_CCW;
-	const int neg = (_scaleX < 0) + (_scaleY < 0) + (_scaleZ < 0);
+	const QVector3D scale = getScaling();
+	const int neg = (scale.x() < 0) + (scale.y() < 0) + (scale.z() < 0);
 	if (neg == 1 || neg == 3) frontFace = GL_CW;
 	if (frontFace != _currentFrontFace)
 	{

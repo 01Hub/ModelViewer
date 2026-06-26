@@ -180,9 +180,10 @@ void ViewCubeMesh::setParameters(float size, float chamferRatio)
 
 	initBuffers(&indices, &points, &normals, nullptr, nullptr, nullptr, nullptr);
 
-	_boundingSphere.setCenter(0.0f, 0.0f, 0.0f);
-	_boundingSphere.setRadius(std::sqrt(3.0f) * halfExtent);
-	_boundingBox.setLimits(-halfExtent, halfExtent, -halfExtent, halfExtent, -halfExtent, halfExtent);
+	BoundingSphere bs; bs.setCenter(0.0f, 0.0f, 0.0f); bs.setRadius(std::sqrt(3.0f) * halfExtent);
+	_instanceState.setBoundingSphere(bs);
+	BoundingBox bb; bb.setLimits(-halfExtent, halfExtent, -halfExtent, halfExtent, -halfExtent, halfExtent);
+	_instanceState.setBoundingBox(bb);
 }
 
 void ViewCubeMesh::renderRegion(int regionId)

@@ -134,7 +134,8 @@ void Cube::setSize(const float& size)
 
 	initBuffers(&el, &p, &n, nullptr, &tex, &t, &bt);
 
-	_boundingSphere.setCenter(0, 0, 0);
-	_boundingSphere.setRadius(sqrt(3) * (size / 2));
-	_boundingBox.setLimits(-side, side, -side, side, -side, side);
+	BoundingSphere bs; bs.setCenter(0, 0, 0); bs.setRadius(sqrt(3) * (size / 2));
+	_instanceState.setBoundingSphere(bs);
+	BoundingBox bb; bb.setLimits(-side, side, -side, side, -side, side);
+	_instanceState.setBoundingBox(bb);
 }

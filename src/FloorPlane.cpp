@@ -49,17 +49,7 @@ void FloorPlane::render()
 		glDisable(GL_BLEND);
 	}
 
-	if ((_scaleX < 0 && _scaleY > 0 && _scaleZ > 0) ||
-		(_scaleX > 0 && _scaleY < 0 && _scaleZ > 0) ||
-		(_scaleX > 0 && _scaleY > 0 && _scaleZ < 0) ||
-		(_scaleX < 0 && _scaleY < 0 && _scaleZ < 0))
-	{
-		glFrontFace(GL_CW);
-	}
-	else
-	{
-		glFrontFace(GL_CCW);
-	}
+	glFrontFace(hasNegativeScale() ? GL_CW : GL_CCW);
 
 	_vertexArrayObject.bind();
 	glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, 0);
@@ -113,7 +103,7 @@ void FloorPlane::setupUniforms()
 
 	_prog->setUniformValue("primitiveMode", modeValue);
 	_prog->setUniformValue("hasVertexColors", _hasVertexColors);
-	_prog->setUniformValue("hasNegativeScale", _hasNegativeScale);
+	_prog->setUniformValue("hasNegativeScale", hasNegativeScale());
 
 	_prog->setUniformValue("material.ambient", _material.ambient());
 	_prog->setUniformValue("material.diffuse", adsDiffuse);
@@ -147,7 +137,7 @@ void FloorPlane::setupUniforms()
 	_prog->setUniformValue("diffuseTextureTransform.scale", _material.albedoTexScale());
 	_prog->setUniformValue("diffuseTextureTransform.rotation", _material.albedoTexRotation());
 
-	_prog->setUniformValue("selected", _selected);
+	_prog->setUniformValue("selected", isSelected());
 
 	_uniformsDirty = false;
 }

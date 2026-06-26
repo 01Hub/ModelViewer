@@ -8,6 +8,7 @@
 #include "GLMaterial.h"
 #include "GltfAnimationData.h"
 #include "GltfVariantData.h"
+#include "MeshInstanceState.h"
 
 #include <QHash>
 #include <QMatrix4x4>
@@ -88,23 +89,18 @@ public:
 	virtual void select()
 	{
 		_selected = true;
+		_instanceState.setSelected(true);
 		markUniformsDirty();
 	}
 	virtual void deselect()
 	{
 		_selected = false;
+		_instanceState.setSelected(false);
 		markUniformsDirty();
 	}
 
-	virtual BoundingSphere getBoundingSphere() const
-	{
-		if (_explosionOffset.isNull())
-			return _boundingSphere;
-		BoundingSphere s = _boundingSphere;
-		s.setCenter(_boundingSphere.getCenter() + _explosionOffset);
-		return s;
-	}
-	virtual BoundingBox getBoundingBox() const { return _boundingBox; }
+	virtual BoundingSphere getBoundingSphere() const { return _instanceState.getBoundingSphere(); }
+	virtual BoundingBox getBoundingBox() const { return _instanceState.getBoundingBox(); }
 	QVector3D getStableTransformCenter() const;
 	float getStableTransformRadius() const;
 
@@ -193,12 +189,8 @@ public:
 	// Explosion offset — world-space translation added by ExplodedViewManager.
 	// Baked into combinedRenderTransform() so every render path (main + selection)
 	// automatically draws and picks the mesh at the correct exploded position.
-	void setExplosionOffset(const QVector3D& offset)
-	{
-		_explosionOffset = offset;
-		invalidateCombinedRenderTransformCache();
-	}
-	QVector3D explosionOffset() const { return _explosionOffset; }
+	void setExplosionOffset(const QVector3D& offset) { _instanceState.setExplosionOffset(offset); }
+	QVector3D explosionOffset() const { return _instanceState.explosionOffset(); }
 
 	std::vector<unsigned int> getIndices() const;
 	std::vector<float> getPoints() const;
@@ -208,9 +200,6 @@ public:
 
 	void resetTransformations();
 	void resetExplodedViewTransformations();
-
-	void setHasNegativeScale(bool hasNegativeScale) { _hasNegativeScale = hasNegativeScale; };
-	bool hasNegativeScale() const { return _hasNegativeScale; }
 
 	void setSceneIndex(int index) { _sceneIndex = index; }
 	int getSceneIndex() const { return _sceneIndex; }
@@ -262,6 +251,12 @@ public:
 	virtual QVector<float> defaultMorphWeights() const { return {}; }
 	virtual void applyMorphWeights(const QVector<float>&) { }
 	virtual void resetMorphTargets() { }
+
+	void setHasNegativeScale(bool hasNegativeScale)
+	{
+		_instanceState.setHasNegativeScale(hasNegativeScale);
+	}
+	bool hasNegativeScale() const { return _instanceState.hasNegativeScale(); }
 
 	// Returns a sort key based on primary texture IDs to minimise GPU texture
 	// state changes when opaque meshes are sorted before drawing.
@@ -476,6 +471,10 @@ protected: // methods
 
 protected:
 
+	// Per-instance scene state: all transform layers, bounds, picking geometry.
+	// Public API on TriangleMesh forwards to this object.
+	MeshInstanceState _instanceState;
+
 	QOpenGLBuffer _indexBuffer;
 	QOpenGLBuffer _positionBuffer;
 	QOpenGLBuffer _normalBuffer;
@@ -497,16 +496,6 @@ protected:
 	// Vertex buffers
 	std::vector<QOpenGLBuffer> _buffers;
 
-	BoundingSphere _boundingSphere;
-	BoundingBox    _boundingBox;
-	// Local-space bounding box of _points (no transform applied).
-	// Computed once in updateRuntimeBounds() and used by setSceneRenderTransformFast()
-	// to cheaply recompute _boundingBox each animation frame without iterating
-	// every vertex.  This keeps frustum culling correct for animated meshes.
-	BoundingBox    _localBoundingBox;
-
-	std::vector<Triangle*> _triangles;
-
 	GLMaterial _material;
 	float _baseThicknessFactor;
 	float _baseAttenuationDistance;
@@ -517,7 +506,7 @@ protected:
 	QImage _fallbackTextureImage, _fallbackTextureBuffer;
 	unsigned int _fallbackTexture;
 	bool _hasTextureAlpha;
-	
+
 	float _sMax;
 	float _tMax;
 
@@ -528,7 +517,6 @@ protected:
 	QOpenGLShaderProgram* _vaoConfiguredProgram = nullptr;
 	static QMatrix4x4 _currentGlobalModelMatrix;
 	static QMatrix4x4 _currentViewMatrix;
-	static std::atomic<quint64> _runtimeBoundsRevision;
 
 	// Debug texture overrides set by TextureDebugPanel.
 	// Maps GL texture unit index → replacement texture ID.
@@ -549,16 +537,10 @@ protected:
 	std::vector<float> _tangents;
 	std::vector<float> _bitangents;
 	std::vector<float> _texCoords;
-	std::vector<float> _trsfPoints;
-	std::vector<float> _trsfNormals;
-	std::vector<float> _trsfTangents;
-	std::vector<float> _trsfBitangents;
 	std::vector<float> _jointIndices;
 	std::vector<float> _jointWeights;
 
 	bool _hasVertexColors;
-
-	bool _hasNegativeScale = false;
 
 	// Primitive mode from glTF (GL_POINTS=0, GL_LINES=1, GL_LINE_STRIP=3, GL_TRIANGLE_STRIP=5, GL_TRIANGLES=4)
 	GLenum _primitiveMode = GL_TRIANGLES;  // Default to triangles for backward compatibility
@@ -578,7 +560,6 @@ protected:
 	// Absolute path of the file this mesh was loaded from (empty for parametric shapes).
 	QString _sourceFile;
 	QString _sourceNodeName;
-	QMatrix4x4 _sceneRenderTransform;
 
 	// KHR_materials_variants: per-primitive variant->material mappings.
 	QVector<GltfVariantMapping> _variantMappings;
@@ -590,36 +571,6 @@ protected:
 	int _activeVariantIndex = -1;
 	QVector<GltfSkinJoint> _skinJoints;
 	QVector<QMatrix4x4> _jointPalette;
-
-	// Individual transformation components
-	float _transX;
-	float _transY;
-	float _transZ;
-
-	float _rotateX;
-	float _rotateY;
-	float _rotateZ;
-	QQuaternion _rotationQuat;
-
-	float _scaleX;
-	float _scaleY;
-	float _scaleZ;
-
-	QMatrix4x4 _transformation;
-	float _explodedViewTransX;
-	float _explodedViewTransY;
-	float _explodedViewTransZ;
-	float _explodedViewRotateX;
-	float _explodedViewRotateY;
-	float _explodedViewRotateZ;
-	QQuaternion _explodedViewRotationQuat;
-	float _explodedViewScaleX;
-	float _explodedViewScaleY;
-	float _explodedViewScaleZ;
-	QMatrix4x4 _explodedViewTransformation;
-	QVector3D  _explosionOffset;
-	mutable QMatrix4x4 _cachedCombinedRenderTransform;
-	mutable bool _combinedRenderTransformDirty = true;
 
 	unsigned long long _memorySize;
 };

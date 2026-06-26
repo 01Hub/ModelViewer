@@ -76,7 +76,6 @@ QQuaternion meshEulerToQuaternion(const QVector3D& rotation)
 
 QMatrix4x4 TriangleMesh::_currentGlobalModelMatrix;
 QMatrix4x4 TriangleMesh::_currentViewMatrix;
-std::atomic<quint64> TriangleMesh::_runtimeBoundsRevision{1};
 
 void TriangleMesh::setCurrentRenderContext(const QMatrix4x4& globalModelMatrix,
                                            const QMatrix4x4& viewMatrix)
@@ -419,12 +418,12 @@ void TriangleMesh::flushRenderDiagnostics()
 
 quint64 TriangleMesh::currentRuntimeBoundsRevision()
 {
-	return _runtimeBoundsRevision.load(std::memory_order_relaxed);
+	return MeshInstanceState::currentRuntimeBoundsRevision();
 }
 
 void TriangleMesh::markRuntimeBoundsChanged()
 {
-	_runtimeBoundsRevision.fetch_add(1, std::memory_order_relaxed);
+	MeshInstanceState::markRuntimeBoundsChanged();
 }
 
 TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Drawable(prog),
@@ -439,17 +438,8 @@ _baseAttenuationDistance(std::numeric_limits<float>::infinity())
 {
 	setAutoIncrName(name);
 	_memorySize = 0;
-	_transX = _transY = _transZ = 0.0f;
-	_rotateX = _rotateY = _rotateZ = 0.0f;
-	_scaleX = _scaleY = _scaleZ = 1.0f;
-	_rotationQuat = QQuaternion();
-	_transformation.setToIdentity();
-	_explodedViewTransX = _explodedViewTransY = _explodedViewTransZ = 0.0f;
-	_explodedViewRotateX = _explodedViewRotateY = _explodedViewRotateZ = 0.0f;
-	_explodedViewScaleX = _explodedViewScaleY = _explodedViewScaleZ = 1.0f;
-	_explodedViewRotationQuat = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
-	_explodedViewTransformation.setToIdentity();
-	_sceneRenderTransform.setToIdentity();
+	// Transform / bounds state now lives in _instanceState (MeshInstanceState).
+	// Its default constructor already zeros TRS and sets identity matrices.
 
 	_indexBuffer = QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
 	_positionBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
@@ -526,40 +516,7 @@ void TriangleMesh::initBuffers(
 
 	_indices = *indices;
 	_points = *points;
-	_trsfPoints = _points;
 	_normals = *normals;
-	_trsfNormals = _normals;
-	_trsfTangents.clear();
-	_trsfBitangents.clear();
-
-	// Compute the local-space bounding box from the raw (untransformed) points.
-	// This is used by setSceneRenderTransformFast() to cheaply keep _boundingBox
-	// correct for animated meshes without re-transforming every vertex.
-	if (!_points.empty())
-	{
-		float lxMin =  std::numeric_limits<float>::max();
-		float lyMin =  std::numeric_limits<float>::max();
-		float lzMin =  std::numeric_limits<float>::max();
-		float lxMax = -std::numeric_limits<float>::max();
-		float lyMax = -std::numeric_limits<float>::max();
-		float lzMax = -std::numeric_limits<float>::max();
-		for (size_t i = 0; i < _points.size(); i += 3)
-		{
-			lxMin = std::min(lxMin, _points[i]);
-			lyMin = std::min(lyMin, _points[i + 1]);
-			lzMin = std::min(lzMin, _points[i + 2]);
-			lxMax = std::max(lxMax, _points[i]);
-			lyMax = std::max(lyMax, _points[i + 1]);
-			lzMax = std::max(lzMax, _points[i + 2]);
-		}
-		_localBoundingBox.setLimits(
-			static_cast<double>(lxMin), static_cast<double>(lxMax),
-			static_cast<double>(lyMin), static_cast<double>(lyMax),
-			static_cast<double>(lzMin), static_cast<double>(lzMax));
-	}
-
-	// build the triangles for selection
-	buildTriangles();
 
 	if (colors)
 	{
@@ -570,15 +527,9 @@ void TriangleMesh::initBuffers(
 	if (texCoords)
 		_texCoords = *texCoords;
 	if (tangents)
-	{
 		_tangents = *tangents;
-		_trsfTangents = _tangents;
-	}
 	if (bitangents)
-	{
 		_bitangents = *bitangents;
-		_trsfBitangents = _bitangents;
-	}
 	if (jointIndices)
 		_jointIndices = *jointIndices;
 	if (jointWeights)
@@ -782,48 +733,16 @@ void TriangleMesh::initBuffers(
 	}
 
 	_vertexArrayObject.release();
+
+	// Initialize picking triangles and bounds for the newly loaded geometry.
+	_instanceState.updateRuntimeBounds(_points, _normals, _tangents, _bitangents, _indices);
 }
 
 void TriangleMesh::buildTriangles()
 {
-	if (_triangles.size())
-	{
-		for (Triangle* t : _triangles)
-			delete t;
-		_memorySize -= _triangles.size() * sizeof(Triangle);
-		_triangles.clear();
-	}
-	try
-	{
-		size_t offset = 3; // each index points to 3 floats
-		for (size_t i = 0; i < _indices.size();)
-		{
-			// Vertex 1
-			QVector3D v1(_trsfPoints.at(offset * _indices.at(i) + 0), // x coordinate
-				_trsfPoints.at(offset * _indices.at(i) + 1),          // y coordinate
-				_trsfPoints.at(offset * _indices.at(i) + 2));         // z coordinate
-			i++;
-
-			// Vertex 2
-			QVector3D v2(_trsfPoints.at(offset * _indices.at(i) + 0), // x coordinate
-				_trsfPoints.at(offset * _indices.at(i) + 1),          // y coordinate
-				_trsfPoints.at(offset * _indices.at(i) + 2));         // z coordinate
-			i++;
-
-			// Vertex 3
-			QVector3D v3(_trsfPoints[offset * _indices.at(i) + 0], // x coordinate
-				_trsfPoints.at(offset * _indices.at(i) + 1),          // y coordinate
-				_trsfPoints.at(offset * _indices.at(i) + 2));         // z coordinate
-			i++;
-
-			_triangles.push_back(new TriangleMollerTrumbore(v1, v2, v3, this));
-		}
-		_memorySize += _triangles.size() * sizeof(Triangle);
-	}
-	catch (const std::exception& ex)
-	{
-		std::cout << "Exception raised in TriangleMesh::buildTriangles\n" << ex.what() << std::endl;
-	}
+	// Picking triangles now live in _instanceState; this shim is kept for
+	// any subclass that still calls it directly during updateRuntimeBounds.
+	// The real work happens inside MeshInstanceState::updateRuntimeBounds().
 }
 
 void TriangleMesh::setProg(QOpenGLShaderProgram* prog)
@@ -1059,7 +978,7 @@ void TriangleMesh::setupUniforms()
 	}
 	_prog->setUniformValue("primitiveMode", modeValue);
 	_prog->setUniformValue("hasVertexColors", _hasVertexColors);
-	_prog->setUniformValue("hasNegativeScale", _hasNegativeScale);
+	_prog->setUniformValue("hasNegativeScale", hasNegativeScale());
 	_prog->setUniformValue("material.ambient", _material.ambient());
 	// For specular-glossiness materials the authoritative diffuse colour is
 	// diffuseColorFactor (stored in _diffuseColor / diffuseColor()), not the
@@ -1532,7 +1451,7 @@ void TriangleMesh::setupUniforms()
 	sendPackingUniform("ao", "ao");
 	sendPackingUniform("opacity", "opacity");
 
-	_prog->setUniformValue("selected", _selected);
+	_prog->setUniformValue("selected", isSelected());
 	_uniformsDirty = false;
 }
 
@@ -1708,17 +1627,7 @@ void TriangleMesh::render()
 	}
 
 	// Handle lighting normal for negative scaling
-	if ((_scaleX < 0 && _scaleY > 0 && _scaleZ > 0) ||
-		(_scaleX > 0 && _scaleY < 0 && _scaleZ > 0) ||
-		(_scaleX > 0 && _scaleY > 0 && _scaleZ < 0) ||
-		(_scaleX < 0 && _scaleY < 0 && _scaleZ < 0))
-	{
-		glFrontFace(GL_CW);
-	}
-	else
-	{
-		glFrontFace(GL_CCW);
-	}
+	glFrontFace(hasNegativeScale() ? GL_CW : GL_CCW);
 	_vertexArrayObject.bind();
 	glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, 0);
 	_vertexArrayObject.release();	
@@ -1753,17 +1662,7 @@ void TriangleMesh::renderShadow()
 	}
 
 	// Handle negative scaling (important for shadow mapping!)
-	if ((_scaleX < 0 && _scaleY > 0 && _scaleZ > 0) ||
-		(_scaleX > 0 && _scaleY < 0 && _scaleZ > 0) ||
-		(_scaleX > 0 && _scaleY > 0 && _scaleZ < 0) ||
-		(_scaleX < 0 && _scaleY < 0 && _scaleZ < 0))
-	{
-		glFrontFace(GL_CW);
-	}
-	else
-	{
-		glFrontFace(GL_CCW);
-	}
+	glFrontFace(hasNegativeScale() ? GL_CW : GL_CCW);
 
 	_vertexArrayObject.bind();
 	glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, 0);
@@ -1787,8 +1686,6 @@ TriangleMesh::~TriangleMesh()
 {
 	deleteBuffers();
 	deleteTextures();
-	for (Triangle* t : _triangles)
-		delete t;
 }
 
 void TriangleMesh::deleteBuffers()
@@ -1810,113 +1707,20 @@ void TriangleMesh::deleteBuffers()
 
 void TriangleMesh::computeBounds()
 {
-	// Ritter's algorithm
-	std::vector<QVector3D> aPoints;
-	for (size_t i = 0; i < _trsfPoints.size(); i += 3)
-	{
-		aPoints.push_back(QVector3D(_trsfPoints[i], _trsfPoints[i + 1], _trsfPoints[i + 2]));
-	}
-	QVector3D xmin, xmax, ymin, ymax, zmin, zmax;
-	xmin = ymin = zmin = QVector3D(1, 1, 1) * INFINITY;
-	xmax = ymax = zmax = QVector3D(1, 1, 1) * -INFINITY;
-	for (auto p : aPoints)
-	{
-		if (p.x() < xmin.x())
-			xmin = p;
-		if (p.x() > xmax.x())
-			xmax = p;
-		if (p.y() < ymin.y())
-			ymin = p;
-		if (p.y() > ymax.y())
-			ymax = p;
-		if (p.z() < zmin.z())
-			zmin = p;
-		if (p.z() > zmax.z())
-			zmax = p;
-	}
-	// Stable bounding sphere: center at the bounding box midpoint, radius = max vertex
-	// distance from that center.  This avoids the instability of Ritter's algorithm,
-	// whose initial-pair vertex selection can flip on sub-epsilon position differences
-	// (e.g. after an export/import world-transform round-trip), cascading into a
-	// significantly different sphere.  The stable properties are:
-	//   - center is derived from min/max coordinate VALUES, not vertex selection
-	//   - radius is max() over all vertices, which varies by at most ε under perturbation
-	// For sphere-shaped meshes the result is as tight as Ritter's (all vertices are
-	// equidistant from the centroid).  For cubes it gives the circumscribed sphere
-	// (half-diagonal from center to corner) — correct and minimal for box geometry.
-	const QVector3D center(
-		(xmin.x() + xmax.x()) * 0.5f,
-		(ymin.y() + ymax.y()) * 0.5f,
-		(zmin.z() + zmax.z()) * 0.5f
-	);
-	float sqRad = 0.0f;
-	for (const auto& p : aPoints)
-	{
-		const float d = (p - center).lengthSquared();
-		if (d > sqRad) sqRad = d;
-	}
-
-	_boundingSphere.setCenter(center);
-	_boundingSphere.setRadius(std::sqrt(sqRad));
-
-	_boundingBox.setLimits(
-		xmin.x(), xmax.x(),
-		ymin.y(), ymax.y(),
-		zmin.z(), zmax.z()
-	);
-	Point cen = _boundingBox.center();
+	// Bounds now computed inside MeshInstanceState::updateRuntimeBounds().
 }
 
-float TriangleMesh::getHighestXValue() const
+float TriangleMesh::getHighestXValue() const { return _instanceState.getHighestXValue(); }
+float TriangleMesh::getLowestXValue()  const { return _instanceState.getLowestXValue();  }
+float TriangleMesh::getHighestYValue() const { return _instanceState.getHighestYValue(); }
+float TriangleMesh::getLowestYValue()  const { return _instanceState.getLowestYValue();  }
+float TriangleMesh::getHighestZValue() const { return _instanceState.getHighestZValue(); }
+float TriangleMesh::getLowestZValue()  const { return _instanceState.getLowestZValue();  }
+
+QRect TriangleMesh::projectedRect(const QMatrix4x4& modelView, const QMatrix4x4& projection,
+	const QRect& viewport, const QRect& window) const
 {
-	return _boundingBox.xMax();
-}
-
-float TriangleMesh::getLowestXValue() const
-{
-	return _boundingBox.xMin();
-}
-
-float TriangleMesh::getHighestYValue() const
-{
-	return _boundingBox.yMax();
-}
-
-float TriangleMesh::getLowestYValue() const
-{
-	return _boundingBox.yMin();
-}
-
-float TriangleMesh::getHighestZValue() const
-{
-	return _boundingBox.zMax();
-}
-
-float TriangleMesh::getLowestZValue() const
-{
-	return _boundingBox.zMin();
-}
-
-QRect TriangleMesh::projectedRect(const QMatrix4x4& modelView, const QMatrix4x4& projection, const QRect& viewport, const QRect& window) const
-{
-	float xMin = std::numeric_limits<float>::max();
-	float xMax = std::numeric_limits<float>::lowest();
-	float yMin = std::numeric_limits<float>::max();
-	float yMax = std::numeric_limits<float>::lowest();
-
-	for (size_t i = 0; i < _trsfPoints.size(); i += 3)
-	{
-		QVector3D point(_trsfPoints.at(i + 0), _trsfPoints.at(i + 1), _trsfPoints.at(i + 2));
-		QVector3D projPoint = point.project(modelView, projection, viewport);
-
-		xMin = std::min(xMin, projPoint.x());
-		xMax = std::max(xMax, projPoint.x());
-		yMin = std::min(yMin, projPoint.y());
-		yMax = std::max(yMax, projPoint.y());
-	}
-	QRect rect(xMin, (window.height() - yMax), (xMax - xMin), (yMax - yMin));
-
-	return rect;
+	return _instanceState.projectedRect(modelView, projection, viewport, window);
 }
 
 std::vector<float> TriangleMesh::getNormals() const
@@ -1931,40 +1735,18 @@ std::vector<float> TriangleMesh::getTexCoords() const
 
 const std::vector<float>& TriangleMesh::getTrsfPoints() const
 {
-	return _trsfPoints;
+	return _instanceState.getTrsfPoints();
 }
 
 void TriangleMesh::resetTransformations()
 {
-	_transX = _transY = _transZ = 0.0f;
-	_rotateX = _rotateY = _rotateZ = 0.0f;
-	_scaleX = _scaleY = _scaleZ = 1.0f;
-	_rotationQuat = QQuaternion();
-
-	rebuildAbsoluteTransformation();
-
-	_trsfPoints.clear();
-	_trsfNormals.clear();
-	_trsfTangents.clear();  
-	_trsfBitangents.clear();
-
-	_trsfPoints = _points;
-	_trsfNormals = _normals;
-	_trsfTangents = _tangents;     
-	_trsfBitangents = _bitangents; 
-
+	_instanceState.resetTransformations(_points, _normals, _tangents, _bitangents, _indices);
 	applyScaledVolumeProperties();
-	updateRuntimeBounds();
 }
 
 void TriangleMesh::resetExplodedViewTransformations()
 {
-	_explodedViewTransX = _explodedViewTransY = _explodedViewTransZ = 0.0f;
-	_explodedViewRotateX = _explodedViewRotateY = _explodedViewRotateZ = 0.0f;
-	_explodedViewScaleX = _explodedViewScaleY = _explodedViewScaleZ = 1.0f;
-	_explodedViewRotationQuat = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
-	rebuildExplodedViewTransformation();
-	updateRuntimeBounds();
+	_instanceState.resetExplodedViewTransformations(_points, _normals, _tangents, _bitangents, _indices);
 }
 
 std::vector<unsigned int> TriangleMesh::getIndices() const
@@ -1977,256 +1759,96 @@ std::vector<float> TriangleMesh::getPoints() const
 	return _points;
 }
 
-QVector3D TriangleMesh::getTranslation() const
-{
-	return QVector3D(_transX, _transY, _transZ);
-}
+QVector3D TriangleMesh::getTranslation() const { return _instanceState.getTranslation(); }
 
 void TriangleMesh::setTranslation(const QVector3D& trans)
 {
-	_transX = trans.x();
-	_transY = trans.y();
-	_transZ = trans.z();
-	rebuildAbsoluteTransformation();
-	setupTransformation();
+	_instanceState.setTranslation(trans, _points, _normals, _tangents, _bitangents, _indices);
 }
 
-QVector3D TriangleMesh::getRotation() const
-{
-	return QVector3D(_rotateX, _rotateY, _rotateZ);
-}
+QVector3D TriangleMesh::getRotation() const { return _instanceState.getRotation(); }
 
 void TriangleMesh::setRotation(const QVector3D& rota)
 {
-	_rotateX = rota.x();
-	_rotateY = rota.y();
-	_rotateZ = rota.z();
-	_rotationQuat = meshEulerToQuaternion(rota);
-	rebuildAbsoluteTransformation();
-	setupTransformation();
+	_instanceState.setRotation(rota, _points, _normals, _tangents, _bitangents, _indices);
 }
 
-QQuaternion TriangleMesh::getRotationQuaternion() const
-{
-	return _rotationQuat;
-}
+QQuaternion TriangleMesh::getRotationQuaternion() const { return _instanceState.getRotationQuaternion(); }
 
 void TriangleMesh::setRotationQuaternion(const QQuaternion& quat, const QVector3D& displayEuler)
 {
-	_rotationQuat = quat.normalized();
-	_rotateX = displayEuler.x();
-	_rotateY = displayEuler.y();
-	_rotateZ = displayEuler.z();
-	rebuildAbsoluteTransformation();
-	setupTransformation();
+	_instanceState.setRotationQuaternion(quat, displayEuler, _points, _normals, _tangents, _bitangents, _indices);
 }
 
-QVector3D TriangleMesh::getScaling() const
-{
-	return QVector3D(_scaleX, _scaleY, _scaleZ);
-}
+QVector3D TriangleMesh::getScaling() const { return _instanceState.getScaling(); }
 
 void TriangleMesh::setScaling(const QVector3D& scale)
 {
-	_scaleX = scale.x();
-	_scaleY = scale.y();
-	_scaleZ = scale.z();
-	rebuildAbsoluteTransformation();
-	setupTransformation();
-	
+	_instanceState.setScaling(scale, _points, _normals, _tangents, _bitangents, _indices);
 	applyScaledVolumeProperties();
 }
 
-QVector3D TriangleMesh::getExplodedViewTranslation() const
-{
-	return QVector3D(_explodedViewTransX, _explodedViewTransY, _explodedViewTransZ);
-}
+QVector3D TriangleMesh::getExplodedViewTranslation() const { return _instanceState.getExplodedViewTranslation(); }
 
 void TriangleMesh::setExplodedViewTranslation(const QVector3D& trans)
 {
-	_explodedViewTransX = trans.x();
-	_explodedViewTransY = trans.y();
-	_explodedViewTransZ = trans.z();
-	rebuildExplodedViewTransformation();
-	setupTransformation();
+	_instanceState.setExplodedViewTranslation(trans, _points, _normals, _tangents, _bitangents, _indices);
 }
 
-QVector3D TriangleMesh::getExplodedViewRotation() const
-{
-	return QVector3D(_explodedViewRotateX, _explodedViewRotateY, _explodedViewRotateZ);
-}
+QVector3D TriangleMesh::getExplodedViewRotation() const { return _instanceState.getExplodedViewRotation(); }
 
 void TriangleMesh::setExplodedViewRotation(const QVector3D& rota)
 {
-	_explodedViewRotateX = rota.x();
-	_explodedViewRotateY = rota.y();
-	_explodedViewRotateZ = rota.z();
-	_explodedViewRotationQuat = meshEulerToQuaternion(rota);
-	rebuildExplodedViewTransformation();
-	setupTransformation();
+	_instanceState.setExplodedViewRotation(rota, _points, _normals, _tangents, _bitangents, _indices);
 }
 
-QQuaternion TriangleMesh::getExplodedViewRotationQuaternion() const
-{
-	return _explodedViewRotationQuat;
-}
+QQuaternion TriangleMesh::getExplodedViewRotationQuaternion() const { return _instanceState.getExplodedViewRotationQuaternion(); }
 
 void TriangleMesh::setExplodedViewRotationQuaternion(const QQuaternion& quat, const QVector3D& displayEuler)
 {
-	_explodedViewRotationQuat = quat.normalized();
-	_explodedViewRotateX = displayEuler.x();
-	_explodedViewRotateY = displayEuler.y();
-	_explodedViewRotateZ = displayEuler.z();
-	rebuildExplodedViewTransformation();
-	setupTransformation();
+	_instanceState.setExplodedViewRotationQuaternion(quat, displayEuler, _points, _normals, _tangents, _bitangents, _indices);
 }
 
-QVector3D TriangleMesh::getExplodedViewScaling() const
-{
-	return QVector3D(_explodedViewScaleX, _explodedViewScaleY, _explodedViewScaleZ);
-}
+QVector3D TriangleMesh::getExplodedViewScaling() const { return _instanceState.getExplodedViewScaling(); }
 
 void TriangleMesh::setExplodedViewScaling(const QVector3D& scale)
 {
-	_explodedViewScaleX = scale.x();
-	_explodedViewScaleY = scale.y();
-	_explodedViewScaleZ = scale.z();
-	rebuildExplodedViewTransformation();
-	setupTransformation();
+	_instanceState.setExplodedViewScaling(scale, _points, _normals, _tangents, _bitangents, _indices);
 }
 
 void TriangleMesh::rebuildAbsoluteTransformation()
 {
-	_transformation.setToIdentity();
-	_transformation.translate(_transX, _transY, _transZ);
-	_transformation.rotate(_rotationQuat);
-	_transformation.scale(_scaleX, _scaleY, _scaleZ);
-	invalidateCombinedRenderTransformCache();
+	// Kept for any legacy call sites; real work is in MeshInstanceState.
 }
 
 void TriangleMesh::rebuildExplodedViewTransformation()
 {
-	_explodedViewTransformation.setToIdentity();
-	_explodedViewTransformation.translate(
-		_explodedViewTransX, _explodedViewTransY, _explodedViewTransZ);
-	_explodedViewTransformation.rotate(_explodedViewRotationQuat);
-	_explodedViewTransformation.scale(
-		_explodedViewScaleX, _explodedViewScaleY, _explodedViewScaleZ);
-	invalidateCombinedRenderTransformCache();
+	// Kept for any legacy call sites; real work is in MeshInstanceState.
 }
 
-QMatrix4x4 TriangleMesh::getTransformation() const
-{
-	return _transformation;
-}
+QMatrix4x4 TriangleMesh::getTransformation() const { return _instanceState.getTransformation(); }
+QMatrix4x4 TriangleMesh::getExplodedViewTransformation() const { return _instanceState.getExplodedViewTransformation(); }
 
-QMatrix4x4 TriangleMesh::getExplodedViewTransformation() const
-{
-	return _explodedViewTransformation;
-}
+QVector3D TriangleMesh::getStableTransformCenter() const { return _instanceState.getStableTransformCenter(); }
+float TriangleMesh::getStableTransformRadius() const { return _instanceState.getStableTransformRadius(_points); }
 
-QVector3D TriangleMesh::getStableTransformCenter() const
-{
-	const Point localCenter = _localBoundingBox.center();
-	const QVector3D center(
-		static_cast<float>(localCenter.getX()),
-		static_cast<float>(localCenter.getY()),
-		static_cast<float>(localCenter.getZ()));
-	return combinedRenderTransform().map(center);
-}
+QMatrix4x4 TriangleMesh::getSceneRenderTransform() const { return _instanceState.getSceneRenderTransform(); }
 
-float TriangleMesh::getStableTransformRadius() const
-{
-	const Point localCenterPoint = _localBoundingBox.center();
-	const QVector3D localCenter(
-		static_cast<float>(localCenterPoint.getX()),
-		static_cast<float>(localCenterPoint.getY()),
-		static_cast<float>(localCenterPoint.getZ()));
-
-	float localRadius = 0.0f;
-	for (size_t i = 0; i < _points.size(); i += 3)
-	{
-		const QVector3D point(_points[i], _points[i + 1], _points[i + 2]);
-		localRadius = (std::max)(localRadius, (point - localCenter).length());
-	}
-
-	const QMatrix4x4 combined = combinedRenderTransform();
-	const QVector3D col0(combined(0, 0), combined(1, 0), combined(2, 0));
-	const QVector3D col1(combined(0, 1), combined(1, 1), combined(2, 1));
-	const QVector3D col2(combined(0, 2), combined(1, 2), combined(2, 2));
-	const float maxScale = (std::max)(col0.length(), (std::max)(col1.length(), col2.length()));
-
-	return localRadius * maxScale;
-}
-
-QMatrix4x4 TriangleMesh::getSceneRenderTransform() const
-{
-	return _sceneRenderTransform;
-}
-
-QMatrix4x4 TriangleMesh::combinedRenderTransform() const
-{
-	if (_combinedRenderTransformDirty)
-	{
-		_cachedCombinedRenderTransform =
-			_explodedViewTransformation * _transformation * _sceneRenderTransform;
-		if (!_explosionOffset.isNull())
-		{
-			QMatrix4x4 t;
-			t.translate(_explosionOffset);
-			_cachedCombinedRenderTransform = t * _cachedCombinedRenderTransform;
-		}
-		_combinedRenderTransformDirty = false;
-	}
-	return _cachedCombinedRenderTransform;
-}
+QMatrix4x4 TriangleMesh::combinedRenderTransform() const { return _instanceState.combinedRenderTransform(); }
 
 void TriangleMesh::invalidateCombinedRenderTransformCache() const
 {
-	_combinedRenderTransformDirty = true;
+	_instanceState.invalidateCombinedRenderTransformCache();
 }
 
 void TriangleMesh::setSceneRenderTransform(const QMatrix4x4& trsf)
 {
-	_sceneRenderTransform = trsf;
-	invalidateCombinedRenderTransformCache();
-	updateRuntimeBounds();
+	_instanceState.setSceneRenderTransform(trsf, _points, _normals, _tangents, _bitangents, _indices);
 }
 
 void TriangleMesh::setSceneRenderTransformFast(const QMatrix4x4& trsf)
 {
-	_sceneRenderTransform = trsf;
-	invalidateCombinedRenderTransformCache();
-
-	// Update the world-space bounding box cheaply by transforming the 8 corners of the
-	// local-space bounding box (from _points, no transform) through the current combined
-	// render transform.  This keeps isMeshOutsideFrustum() correct for animated meshes
-	// without the cost of re-transforming every vertex (as updateRuntimeBounds() would).
-	if (!_points.empty())
-	{
-		const QMatrix4x4 combined = combinedRenderTransform();
-		float xMin =  std::numeric_limits<float>::max();
-		float yMin =  std::numeric_limits<float>::max();
-		float zMin =  std::numeric_limits<float>::max();
-		float xMax = -std::numeric_limits<float>::max();
-		float yMax = -std::numeric_limits<float>::max();
-		float zMax = -std::numeric_limits<float>::max();
-		for (const QVector3D& corner : _localBoundingBox.getCorners())
-		{
-			const QVector3D tc = combined.map(corner);
-			xMin = std::min(xMin, tc.x());
-			yMin = std::min(yMin, tc.y());
-			zMin = std::min(zMin, tc.z());
-			xMax = std::max(xMax, tc.x());
-			yMax = std::max(yMax, tc.y());
-			zMax = std::max(zMax, tc.z());
-		}
-		_boundingBox.setLimits(
-			static_cast<double>(xMin), static_cast<double>(xMax),
-			static_cast<double>(yMin), static_cast<double>(yMax),
-			static_cast<double>(zMin), static_cast<double>(zMax));
-		markRuntimeBoundsChanged();
-	}
+	_instanceState.setSceneRenderTransformFast(trsf);
 }
 
 void TriangleMesh::setupTransformation()
@@ -2234,248 +1856,34 @@ void TriangleMesh::setupTransformation()
 	updateRuntimeBounds();
 }
 
-// ---------------------------------------------------------------------------
-// Fast TRS setters — for interactive gizmo drag
-// ---------------------------------------------------------------------------
-// These update _transformation and recompute the world-space bounding box from
-// the 8 local AABB corners only (O(1)), skipping the full O(N) vertex transform.
-// Call fullUpdateRuntimeBounds() once when the drag ends to resync _trsfPoints.
-
-// Helper: update _boundingBox from _localBoundingBox corners via combinedRenderTransform.
 void TriangleMesh::fastUpdateWorldBounds()
 {
-	const QMatrix4x4 combined = combinedRenderTransform();
-	float xMin =  std::numeric_limits<float>::max();
-	float yMin =  std::numeric_limits<float>::max();
-	float zMin =  std::numeric_limits<float>::max();
-	float xMax = -std::numeric_limits<float>::max();
-	float yMax = -std::numeric_limits<float>::max();
-	float zMax = -std::numeric_limits<float>::max();
-	for (const QVector3D& corner : _localBoundingBox.getCorners())
-	{
-		const QVector3D tc = combined.map(corner);
-		xMin = std::min(xMin, tc.x());
-		yMin = std::min(yMin, tc.y());
-		zMin = std::min(zMin, tc.z());
-		xMax = std::max(xMax, tc.x());
-		yMax = std::max(yMax, tc.y());
-		zMax = std::max(zMax, tc.z());
-	}
-	_boundingBox.setLimits(
-		static_cast<double>(xMin), static_cast<double>(xMax),
-		static_cast<double>(yMin), static_cast<double>(yMax),
-		static_cast<double>(zMin), static_cast<double>(zMax));
-	markRuntimeBoundsChanged();
+	// Real work in MeshInstanceState; kept for legacy call site compatibility.
 }
 
-void TriangleMesh::setTranslationFast(const QVector3D& trans)
-{
-	_transX = trans.x();
-	_transY = trans.y();
-	_transZ = trans.z();
-	rebuildAbsoluteTransformation();
-	fastUpdateWorldBounds();
-}
-
-void TriangleMesh::setRotationFast(const QVector3D& rota)
-{
-	_rotateX = rota.x();
-	_rotateY = rota.y();
-	_rotateZ = rota.z();
-	_rotationQuat = meshEulerToQuaternion(rota);
-	rebuildAbsoluteTransformation();
-	fastUpdateWorldBounds();
-}
-
+void TriangleMesh::setTranslationFast(const QVector3D& trans)    { _instanceState.setTranslationFast(trans); }
+void TriangleMesh::setRotationFast(const QVector3D& rota)        { _instanceState.setRotationFast(rota); }
 void TriangleMesh::setRotationQuaternionFast(const QQuaternion& quat, const QVector3D& displayEuler)
-{
-	_rotationQuat = quat.normalized();
-	_rotateX = displayEuler.x();
-	_rotateY = displayEuler.y();
-	_rotateZ = displayEuler.z();
-	rebuildAbsoluteTransformation();
-	fastUpdateWorldBounds();
-}
-
-void TriangleMesh::setScalingFast(const QVector3D& scale)
-{
-	_scaleX = scale.x();
-	_scaleY = scale.y();
-	_scaleZ = scale.z();
-	rebuildAbsoluteTransformation();
-	fastUpdateWorldBounds();
-}
+    { _instanceState.setRotationQuaternionFast(quat, displayEuler); }
+void TriangleMesh::setScalingFast(const QVector3D& scale)        { _instanceState.setScalingFast(scale); }
 
 void TriangleMesh::setExplodedViewTranslationFast(const QVector3D& trans)
-{
-	_explodedViewTransX = trans.x();
-	_explodedViewTransY = trans.y();
-	_explodedViewTransZ = trans.z();
-	rebuildExplodedViewTransformation();
-	fastUpdateWorldBounds();
-}
-
+    { _instanceState.setExplodedViewTranslationFast(trans); }
 void TriangleMesh::setExplodedViewRotationFast(const QVector3D& rota)
-{
-	_explodedViewRotateX = rota.x();
-	_explodedViewRotateY = rota.y();
-	_explodedViewRotateZ = rota.z();
-	_explodedViewRotationQuat = meshEulerToQuaternion(rota);
-	rebuildExplodedViewTransformation();
-	fastUpdateWorldBounds();
-}
-
+    { _instanceState.setExplodedViewRotationFast(rota); }
 void TriangleMesh::setExplodedViewRotationQuaternionFast(const QQuaternion& quat, const QVector3D& displayEuler)
-{
-	_explodedViewRotationQuat = quat.normalized();
-	_explodedViewRotateX = displayEuler.x();
-	_explodedViewRotateY = displayEuler.y();
-	_explodedViewRotateZ = displayEuler.z();
-	rebuildExplodedViewTransformation();
-	fastUpdateWorldBounds();
-}
-
+    { _instanceState.setExplodedViewRotationQuaternionFast(quat, displayEuler); }
 void TriangleMesh::setExplodedViewScalingFast(const QVector3D& scale)
-{
-	_explodedViewScaleX = scale.x();
-	_explodedViewScaleY = scale.y();
-	_explodedViewScaleZ = scale.z();
-	rebuildExplodedViewTransformation();
-	fastUpdateWorldBounds();
-}
+    { _instanceState.setExplodedViewScalingFast(scale); }
 
 void TriangleMesh::fullUpdateRuntimeBounds()
 {
-	updateRuntimeBounds();
+	_instanceState.fullUpdateRuntimeBounds(_points, _normals, _tangents, _bitangents, _indices);
 }
 
 void TriangleMesh::updateRuntimeBounds()
 {
-	// Compute the local-space bounding box from _points (before any transform).
-	// This is used by setSceneRenderTransformFast() to cheaply derive the
-	// world-space bounding box each animation frame without re-transforming every vertex.
-	if (!_points.empty())
-	{
-		float lxMin =  std::numeric_limits<float>::max();
-		float lyMin =  std::numeric_limits<float>::max();
-		float lzMin =  std::numeric_limits<float>::max();
-		float lxMax = -std::numeric_limits<float>::max();
-		float lyMax = -std::numeric_limits<float>::max();
-		float lzMax = -std::numeric_limits<float>::max();
-		for (size_t i = 0; i < _points.size(); i += 3)
-		{
-			lxMin = std::min(lxMin, _points[i]);
-			lyMin = std::min(lyMin, _points[i + 1]);
-			lzMin = std::min(lzMin, _points[i + 2]);
-			lxMax = std::max(lxMax, _points[i]);
-			lyMax = std::max(lyMax, _points[i + 1]);
-			lzMax = std::max(lzMax, _points[i + 2]);
-		}
-		_localBoundingBox.setLimits(
-			static_cast<double>(lxMin), static_cast<double>(lxMax),
-			static_cast<double>(lyMin), static_cast<double>(lyMax),
-			static_cast<double>(lzMin), static_cast<double>(lzMax));
-	}
-
-	_trsfPoints.clear();
-	_trsfNormals.clear();
-	_trsfTangents.clear();
-	_trsfBitangents.clear();
-	const QMatrix4x4 combined = combinedRenderTransform();
-
-	// ============================================================================
-	// TRANSFORM POSITIONS
-	// ============================================================================
-	for (size_t i = 0; i < _points.size(); i += 3)
-	{
-		QVector3D p(_points[i + 0], _points[i + 1], _points[i + 2]);
-		QVector3D tp = combined.map(p);
-		_trsfPoints.push_back(tp.x());
-		_trsfPoints.push_back(tp.y());
-		_trsfPoints.push_back(tp.z());
-	}
-
-	// ============================================================================
-	// TRANSFORM NORMALS
-	// ============================================================================
-	// Use inverse-transpose for proper normal transformation (handles non-uniform scaling)
-	for (size_t i = 0; i < _normals.size(); i += 3)
-	{
-		QVector3D n(_normals[i + 0], _normals[i + 1], _normals[i + 2]);
-		QMatrix4x4 rotMat = combined;
-		// Extract rotation/scale part only (zero out translation)
-		rotMat.setColumn(3, QVector4D(0, 0, 0, 1));
-		QVector3D tn = rotMat.map(n);
-		_trsfNormals.push_back(tn.x());
-		_trsfNormals.push_back(tn.y());
-		_trsfNormals.push_back(tn.z());
-	}
-
-	// ============================================================================
-	// TRANSFORM TANGENTS using inverse-transpose
-	// This is critical for normal mapping and anisotropy to work correctly
-	// ============================================================================
-	if (!_tangents.empty())
-	{
-		QMatrix4x4 rotMat = combined;
-		rotMat.setColumn(3, QVector4D(0, 0, 0, 1));
-
-		for (size_t i = 0; i < _tangents.size(); i += 3)
-		{
-			QVector3D t(_tangents[i + 0], _tangents[i + 1], _tangents[i + 2]);
-			QVector3D tt = rotMat.map(t);
-
-			// Renormalize after transformation to maintain unit length
-			// This is especially important for non-uniform scaling
-			float len = tt.length();
-			if (len > 0.001f)
-			{
-				tt.normalize();
-			}
-			else
-			{
-				tt = QVector3D(1.0f, 0.0f, 0.0f); // Fallback to default if degenerate
-			}
-
-			_trsfTangents.push_back(tt.x());
-			_trsfTangents.push_back(tt.y());
-			_trsfTangents.push_back(tt.z());
-		}
-	}
-
-	// ============================================================================
-	// TRANSFORM BITANGENTS using inverse-transpose
-	// ============================================================================
-	if (!_bitangents.empty())
-	{
-		QMatrix4x4 rotMat = combined;
-		rotMat.setColumn(3, QVector4D(0, 0, 0, 1));
-
-		for (size_t i = 0; i < _bitangents.size(); i += 3)
-		{
-			QVector3D b(_bitangents[i + 0], _bitangents[i + 1], _bitangents[i + 2]);
-			QVector3D tb = rotMat.map(b);
-
-			// Renormalize after transformation
-			float len = tb.length();
-			if (len > 0.001f)
-			{
-				tb.normalize();
-			}
-			else
-			{
-				tb = QVector3D(0.0f, 1.0f, 0.0f); // Fallback to default if degenerate
-			}
-
-			_trsfBitangents.push_back(tb.x());
-			_trsfBitangents.push_back(tb.y());
-			_trsfBitangents.push_back(tb.z());
-		}
-	}
-
-	buildTriangles();
-	computeBounds();
-	markRuntimeBoundsChanged();
+	_instanceState.updateRuntimeBounds(_points, _normals, _tangents, _bitangents, _indices);
 }
 
 float TriangleMesh::shininess() const
@@ -2591,48 +1999,7 @@ unsigned long long TriangleMesh::memorySize() const
 
 bool TriangleMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint)
 {
-	// If the mesh is exploded, bring the ray into the non-exploded (base) space so
-	// the triangle data in _triangles (which are at base world positions) can be
-	// tested directly.  The hit point is then translated back to world space.
-	const QVector3D adjustedRayPos = _explosionOffset.isNull()
-		? rayPos : rayPos - _explosionOffset;
-
-	float closestDistance = std::numeric_limits<float>::max();
-	bool found = false;
-	QVector3D bestIntersection;
-
-
-	float localMinDist = std::numeric_limits<float>::max();
-	QVector3D localIntersection;
-	bool localFound = false;
-
-	for (int i = 0; i < _triangles.size(); ++i)
-	{
-		QVector3D hitPoint;
-		if (_triangles[i]->intersectsWithRay(adjustedRayPos, rayDir, hitPoint))
-		{
-			float dist = (hitPoint - adjustedRayPos).length();
-			if (dist < localMinDist)
-			{
-				localMinDist = dist;
-				localIntersection = hitPoint;
-				localFound = true;
-			}
-		}
-	}
-
-	if (localFound && localMinDist < closestDistance)
-	{
-		closestDistance = localMinDist;
-		bestIntersection = localIntersection + _explosionOffset;
-		found = true;
-	}
-
-	if (found)
-	{
-		outIntersectionPoint = bestIntersection;
-	}
-	return found;
+	return _instanceState.intersectsWithRay(rayPos, rayDir, outIntersectionPoint);
 }
 
 

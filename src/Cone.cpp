@@ -169,21 +169,28 @@ TriangleMesh* Cone::clone()
 
 void Cone::computeBounds()
 {
+	const std::vector<float>& pts = _instanceState.getTrsfPoints();
 	QList<float> xVals, yVals, zVals;
-	for (size_t i = 0; i < _trsfPoints.size(); i += 3)
+	for (size_t i = 0; i < pts.size(); i += 3)
 	{
-		xVals.push_back(_trsfPoints.at(i));
-		yVals.push_back(_trsfPoints.at(i + 1));
-		zVals.push_back(_trsfPoints.at(i + 2));
+		xVals.push_back(pts.at(i));
+		yVals.push_back(pts.at(i + 1));
+		zVals.push_back(pts.at(i + 2));
 	}
 	std::sort(xVals.begin(), xVals.end(), std::less<float>());
 	std::sort(yVals.begin(), yVals.end(), std::less<float>());
 	std::sort(zVals.begin(), zVals.end(), std::less<float>());
-	_boundingBox.setLimits(xVals.first(), xVals.last(),
+
+	BoundingBox bb;
+	bb.setLimits(xVals.first(), xVals.last(),
 		yVals.first(), yVals.last(),
 		zVals.first(), zVals.last());
-	Point cen = _boundingBox.center();
+	Point cen = bb.center();
 
-	_boundingSphere.setCenter(cen.getX(), cen.getY(), cen.getZ());
-	_boundingSphere.setRadius(sqrt(_radius * _radius + _height / 2.0f * _height / 2.0f));
+	BoundingSphere bs;
+	bs.setCenter(cen.getX(), cen.getY(), cen.getZ());
+	bs.setRadius(sqrt(_radius * _radius + _height / 2.0f * _height / 2.0f));
+
+	_instanceState.setBoundingBox(bb);
+	_instanceState.setBoundingSphere(bs);
 }
