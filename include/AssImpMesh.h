@@ -4,10 +4,10 @@
 #include <vector>
 #include <initializer_list>
 
-#include "TriangleMesh.h"
-// GLMaterial, Vertex, MorphTargetData — transitive via TriangleMesh.h
+#include "DeformableMesh.h"
+// GLMaterial, Vertex, MorphTargetData — transitive via DeformableMesh.h → TriangleMesh.h
 
-class AssImpMesh : public TriangleMesh
+class AssImpMesh : public DeformableMesh
 {
 public:
 
@@ -124,8 +124,8 @@ private:
 
 private:
 	/*  Mesh Data  */
-	// _vertices, _baseVertices → TriangleMesh (protected, Phase 4)
-	// _morphTargets, _defaultMorphWeights → TriangleMesh (protected, Phase 4)
+	// _vertices, _baseVertices → DeformableMesh (protected, Phase 12a)
+	// _morphTargets, _defaultMorphWeights → DeformableMesh (protected, Phase 12a)
 	// _indices → TriangleMesh (protected, Phase 4b) — AssImpMesh uses the inherited field directly
 	// Reference alias into _materialState.textures() — same zero-churn pattern
 	// as GLMaterial& _material in TriangleMesh. Initialised in the constructor

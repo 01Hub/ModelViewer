@@ -77,7 +77,7 @@ bool AssImpMesh::_currentUniformStateHadDebugOverrides = false;
 /*  Functions  */
 // Constructor
 AssImpMesh::AssImpMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<GLMaterial::Texture> textures, GLMaterial material, bool skipOptimization)
-    : TriangleMesh(shader, "AssImpMesh")
+    : DeformableMesh(shader, "AssImpMesh")
     , _textures(_materialState.textures())
     , _currentMorphWeights(_animState.currentMorphWeights())
 {
