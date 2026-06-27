@@ -800,7 +800,26 @@ _floorPlane(nullptr),
 	_progressiveLoadingEnabled(_sceneRuntime._progressiveLoadingEnabled),
 	_cancelRequested(_sceneRuntime._cancelRequested),
 	_loadCancelled(_sceneRuntime._loadCancelled),
-	_pendingLightData(_sceneRuntime._pendingLightData)
+	_pendingLightData(_sceneRuntime._pendingLightData),
+	// AnimationRuntimeController reference aliases (Phase 8) — _animCtrl must be
+	// declared before these in GLWidget.h so it is constructed first.
+	_runtimeAnimationsByFile(_animCtrl._runtimeAnimationsByFile),
+	_activeAnimationFile(_animCtrl._activeAnimationFile),
+	_activeAnimationClip(_animCtrl._activeAnimationClip),
+	_animationCurrentTimeSeconds(_animCtrl._animationCurrentTimeSeconds),
+	_animationPlaying(_animCtrl._animationPlaying),
+	_animationLooping(_animCtrl._animationLooping),
+	_animationPlaybackSpeed(_animCtrl._animationPlaybackSpeed),
+	_animationTimer(_animCtrl._animationTimer),
+	_animationElapsed(_animCtrl._animationElapsed),
+	_activeGltfCameraFile(_animCtrl._activeGltfCameraFile),
+	_activeGltfCameraIndex(_animCtrl._activeGltfCameraIndex),
+	_animatedLightTransformSourceFile(_animCtrl._animatedLightTransformSourceFile),
+	_animatedParsedLights(_animCtrl._animatedParsedLights),
+	_animatedLightVisibilitySourceFile(_animCtrl._animatedLightVisibilitySourceFile),
+	_animatedLightVisibilityMask(_animCtrl._animatedLightVisibilityMask),
+	_animatedMeshVisibilitySourceFile(_animCtrl._animatedMeshVisibilitySourceFile),
+	_animatedHiddenMeshUuids(_animCtrl._animatedHiddenMeshUuids)
 {
     setFocusPolicy(Qt::StrongFocus);
     setMouseTracking(true);  // Enable mouseMoveEvent for hover highlighting

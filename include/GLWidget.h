@@ -2,6 +2,7 @@
 #define GLWIDGET_H
 
 #include "AdaptiveShadowMapper.h"
+#include "AnimationRuntimeController.h"
 #include "BoundingSphere.h"
 #include "GLCamera.h"
 #include "Plane.h"
@@ -530,29 +531,9 @@ public:
 
 	void setSectionCapsDynamicEnabled(bool enabled);
 
-	struct RuntimeNodeTransform
-	{
-		QVector3D translation = QVector3D(0.0f, 0.0f, 0.0f);
-		QQuaternion rotation;
-		QVector3D scale = QVector3D(1.0f, 1.0f, 1.0f);
-	};
-
-	struct RuntimeAnimationFileState
-	{
-		GltfAnimationData data;
-		// Stable runtime state keyed by SceneNode identity rather than imported
-		// node names. This is the authoritative glTF runtime transform contract.
-		QHash<QUuid, RuntimeNodeTransform> defaultNodeTransformsByUuid;
-		QHash<QUuid, QVector<float>> defaultNodeMorphWeightsByUuid;
-		QHash<QUuid, GLMaterial> defaultMeshMaterials;
-		QMultiHash<int, QUuid> meshUuidsByMaterialIndex;
-
-		// Transitional lookup tables from imported glTF animation/light/camera
-		// references into stable SceneNode UUIDs for the currently loaded file.
-		QHash<QString, QUuid> nodeUuidByName;
-		QHash<int, QUuid> nodeUuidByIndex;
-		QHash<QUuid, int> nodeIndexByUuid;
-	};
+	// Moved to AnimationRuntimeController (Phase 8); aliases preserve external access.
+	using RuntimeNodeTransform       = AnimationRuntimeController::RuntimeNodeTransform;
+	using RuntimeAnimationFileState  = AnimationRuntimeController::RuntimeAnimationFileState;
 
 signals:
 	void windowZoomEnded();
@@ -1023,6 +1004,30 @@ private:
 	bool&                                                    _loadCancelled;
 	GltfLightData&                                           _pendingLightData;
 
+	// Animation runtime state — owned here; GLWidget aliases every field by
+	// reference so all existing call sites in GLWidget.cpp remain unchanged.
+	// Declaration order: _animCtrl must come before all its reference aliases.
+	AnimationRuntimeController _animCtrl;
+
+	// Reference aliases into _animCtrl (initialized in constructor init-list)
+	QHash<QString, RuntimeAnimationFileState>&      _runtimeAnimationsByFile;
+	QString&                                        _activeAnimationFile;
+	int&                                            _activeAnimationClip;
+	double&                                         _animationCurrentTimeSeconds;
+	bool&                                           _animationPlaying;
+	bool&                                           _animationLooping;
+	double&                                         _animationPlaybackSpeed;
+	QTimer*&                                        _animationTimer;
+	QElapsedTimer&                                  _animationElapsed;
+	QString&                                        _activeGltfCameraFile;
+	int&                                            _activeGltfCameraIndex;
+	QString&                                        _animatedLightTransformSourceFile;
+	std::vector<GPULight>&                          _animatedParsedLights;
+	QString&                                        _animatedLightVisibilitySourceFile;
+	QVector<bool>&                                  _animatedLightVisibilityMask;
+	QString&                                        _animatedMeshVisibilitySourceFile;
+	QSet<QUuid>&                                    _animatedHiddenMeshUuids;
+
 	ViewToolbar* _viewToolbar;
 
 	QSet<int> _keys;
@@ -1337,9 +1342,7 @@ private:
 	GLCamera* _primaryCamera;
 	GLCamera* _orthoViewsCamera;
 
-	// Active glTF camera (-1 / empty = none active, system camera is in use)
-	QString _activeGltfCameraFile;
-	int     _activeGltfCameraIndex = -1;
+	// Active glTF camera → AnimationRuntimeController (Phase 8)
 
 	// Saved system camera state, captured when a glTF camera is first activated
 	// so the user can switch back to exactly where they were.
@@ -1478,12 +1481,7 @@ private:
 	// re-uploading ALL lights and discarding the user's checkbox state.
 	QVector<LightOrigin> _lightFileIndexMap;
 	float _originalBoundingRadius = 1.0f;
-	QString _animatedLightTransformSourceFile;
-	std::vector<GPULight> _animatedParsedLights;
-	QString _animatedLightVisibilitySourceFile;
-	QVector<bool> _animatedLightVisibilityMask;
-	QString _animatedMeshVisibilitySourceFile;
-	QSet<QUuid> _animatedHiddenMeshUuids;
+	// _animatedLight* / _animatedMesh* → AnimationRuntimeController (Phase 8)
 
 	// Derive the user model transform for one file directly from its meshes'
 	// TRS state.  Returns true (and fills outTransform) only when every mesh
@@ -1495,16 +1493,7 @@ private:
 
 	void applyGltfCameraEntryTransform(const GltfCameraEntry& cam);
 
-	// RecycleBinEntry struct + _recycleBin → SceneRuntime (Phase 5)
-	QHash<QString, RuntimeAnimationFileState> _runtimeAnimationsByFile;
-	QString _activeAnimationFile;
-	int _activeAnimationClip = -1;
-	double _animationCurrentTimeSeconds = 0.0;
-	bool _animationPlaying = false;
-	bool _animationLooping = true;
-	double _animationPlaybackSpeed = 1.0;
-	QTimer* _animationTimer = nullptr;
-	QElapsedTimer _animationElapsed;
+	// Animation playback fields → AnimationRuntimeController (Phase 8)
 };
 
 #endif
