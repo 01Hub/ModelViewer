@@ -12,7 +12,8 @@
 
 class SceneGraph;
 class SceneNode;
-class TriangleMesh;
+class RenderableMesh;
+using TriangleMesh = RenderableMesh;
 
 class SceneGraphExporter
 {

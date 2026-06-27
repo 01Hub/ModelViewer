@@ -13,7 +13,8 @@
 #include "TexturePackingUtils.h"
 
 class GLMaterial;
-class TriangleMesh;
+class RenderableMesh;
+using TriangleMesh = RenderableMesh;
 struct Vertex;
 
 /**

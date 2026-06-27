@@ -1,7 +1,7 @@
 #include "SelectionManager.h"
 #include "GLWidget.h"
 #include "GLCamera.h"
-#include "TriangleMesh.h"
+#include "RenderableMesh.h"
 #include <QColor>
 #include <QOpenGLFunctions_4_5_Core>
 #include <QOpenGLContext>

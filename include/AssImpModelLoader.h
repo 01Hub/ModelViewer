@@ -7,11 +7,11 @@
 #include <string>
 #include <vector>
 
-#include "AssImpMesh.h"
+#include "SceneMesh.h"
 #include "BoundingBox.h"
 #include "MaterialProcessor.h"
 #include "MeshAnalyzer.h"
-#include "TriangleMesh.h"
+#include "RenderableMesh.h"
 #include "UVGenerator.h"
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
@@ -167,7 +167,7 @@ public:
 	void setUVGenerationMethod(const UVMethod& uvMethod) { _selectedUVMethod = uvMethod; }
 	UVMethod getUVGenerationMethod() const { return _selectedUVMethod; }
 
-	bool regenerateUVs(AssImpMesh* mesh, UVMethod method, const UVConfig& config);
+	bool regenerateUVs(SceneMesh* mesh, UVMethod method, const UVConfig& config);
 
 	// Auto scale and orient the model to fit the scene's coordinate system
 	void setAutoScaleActive(bool autoScale) { _autoScale = autoScale; }

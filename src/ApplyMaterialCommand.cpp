@@ -1,7 +1,7 @@
 #include "ApplyMaterialCommand.h"
 #include "ModelViewer.h"
 #include "GLWidget.h"
-#include "TriangleMesh.h"
+#include "RenderableMesh.h"
 
 ApplyMaterialCommand::ApplyMaterialCommand(ModelViewer* viewer,
     GLWidget* glWidget,

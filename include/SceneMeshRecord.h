@@ -2,7 +2,8 @@
 
 #include <QUuid>
 
-class TriangleMesh;
+class RenderableMesh;
+using TriangleMesh = RenderableMesh;
 
 // ---------------------------------------------------------------------------
 // SceneMeshRecord

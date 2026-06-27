@@ -1,5 +1,5 @@
 #include "MeshProperties.h"
-#include "TriangleMesh.h"
+#include "RenderableMesh.h"
 #include <iostream>
 
 MeshProperties::MeshProperties(TriangleMesh* mesh, QObject* parent) : QObject(parent), _mesh(mesh), _density(1000.0f)

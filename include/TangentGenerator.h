@@ -5,7 +5,7 @@
 #include <glm/gtc/constants.hpp>
 #include <vector>
 #include <cmath>
-#include "AssImpMesh.h"
+#include "SceneMesh.h"
 
 class TangentGenerator
 {

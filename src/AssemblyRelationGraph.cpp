@@ -3,7 +3,7 @@
 #include "GLWidget.h"
 #include "SceneGraph.h"
 #include "SceneNode.h"
-#include "TriangleMesh.h"
+#include "RenderableMesh.h"
 
 #include <QJsonArray>
 #include <QRegularExpression>

@@ -1,7 +1,7 @@
 #include "TransformCommand.h"
 #include "ModelViewer.h"
 #include "GLWidget.h"
-#include "TriangleMesh.h"
+#include "RenderableMesh.h"
 
 TransformCommand::TransformCommand(ModelViewer* viewer,
     GLWidget* glWidget,

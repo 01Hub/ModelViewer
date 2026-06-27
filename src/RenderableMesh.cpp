@@ -1,7 +1,7 @@
 ﻿#include "config.h"
 #include "Point.h"
 #include "TriangleBaldwinWeber.h"
-#include "TriangleMesh.h"
+#include "RenderableMesh.h"
 #include "TriangleMollerTrumbore.h"
 #include "Utils.h"
 #include "Logger.h"
@@ -74,33 +74,33 @@ QQuaternion meshEulerToQuaternion(const QVector3D& rotation)
 }
 }
 
-QMatrix4x4 TriangleMesh::_currentGlobalModelMatrix;
-QMatrix4x4 TriangleMesh::_currentViewMatrix;
+QMatrix4x4 RenderableMesh::_currentGlobalModelMatrix;
+QMatrix4x4 RenderableMesh::_currentViewMatrix;
 
-void TriangleMesh::setCurrentRenderContext(const QMatrix4x4& globalModelMatrix,
+void RenderableMesh::setCurrentRenderContext(const QMatrix4x4& globalModelMatrix,
                                            const QMatrix4x4& viewMatrix)
 {
 	_currentGlobalModelMatrix = globalModelMatrix;
 	_currentViewMatrix = viewMatrix;
 }
 
-void TriangleMesh::clearCurrentRenderContext()
+void RenderableMesh::clearCurrentRenderContext()
 {
 	_currentGlobalModelMatrix.setToIdentity();
 	_currentViewMatrix.setToIdentity();
 }
 
-const QMatrix4x4& TriangleMesh::currentGlobalModelMatrix()
+const QMatrix4x4& RenderableMesh::currentGlobalModelMatrix()
 {
 	return _currentGlobalModelMatrix;
 }
 
-const QMatrix4x4& TriangleMesh::currentViewMatrix()
+const QMatrix4x4& RenderableMesh::currentViewMatrix()
 {
 	return _currentViewMatrix;
 }
 
-void TriangleMesh::bindTextureUnitCached(GLenum textureUnit, GLuint textureId)
+void RenderableMesh::bindTextureUnitCached(GLenum textureUnit, GLuint textureId)
 {
 	QOpenGLContext* context = QOpenGLContext::currentContext();
 	if (!context)
@@ -139,13 +139,13 @@ void TriangleMesh::bindTextureUnitCached(GLenum textureUnit, GLuint textureId)
 	}
 }
 
-void TriangleMesh::resetTextureBindingCacheForCurrentContext()
+void RenderableMesh::resetTextureBindingCacheForCurrentContext()
 {
 	if (QOpenGLContext* context = QOpenGLContext::currentContext())
 		s_textureBindingsByContext.remove(context);
 }
 
-void TriangleMesh::bindProgramCached(QOpenGLShaderProgram* prog)
+void RenderableMesh::bindProgramCached(QOpenGLShaderProgram* prog)
 {
 	QOpenGLContext* ctx = QOpenGLContext::currentContext();
 	if (!ctx)
@@ -167,24 +167,24 @@ void TriangleMesh::bindProgramCached(QOpenGLShaderProgram* prog)
 	}
 }
 
-void TriangleMesh::notifyProgramBound(QOpenGLShaderProgram* prog)
+void RenderableMesh::notifyProgramBound(QOpenGLShaderProgram* prog)
 {
 	if (QOpenGLContext* ctx = QOpenGLContext::currentContext())
 		s_currentBoundPrograms[ctx] = prog;
 }
 
-void TriangleMesh::resetBoundProgramCacheForCurrentContext()
+void RenderableMesh::resetBoundProgramCacheForCurrentContext()
 {
 	if (QOpenGLContext* ctx = QOpenGLContext::currentContext())
 		s_currentBoundPrograms.remove(ctx);
 }
 
-bool TriangleMesh::renderDiagnosticsEnabled()
+bool RenderableMesh::renderDiagnosticsEnabled()
 {
 	return s_renderDiagnostics.enabled;
 }
 
-void TriangleMesh::beginRenderDiagnosticsFrame(bool enabled)
+void RenderableMesh::beginRenderDiagnosticsFrame(bool enabled)
 {
 	if (!enabled)
 	{
@@ -202,43 +202,43 @@ void TriangleMesh::beginRenderDiagnosticsFrame(bool enabled)
 	++s_renderDiagnostics.frames;
 }
 
-void TriangleMesh::recordFrameCpuMs(double ms)
+void RenderableMesh::recordFrameCpuMs(double ms)
 {
 	if (s_renderDiagnostics.enabled)
 		s_renderDiagnostics.frameCpuMs += ms;
 }
 
-void TriangleMesh::recordOpaquePassCpuMs(double ms)
+void RenderableMesh::recordOpaquePassCpuMs(double ms)
 {
 	if (s_renderDiagnostics.enabled)
 		s_renderDiagnostics.opaquePassCpuMs += ms;
 }
 
-void TriangleMesh::recordTransparentPassCpuMs(double ms)
+void RenderableMesh::recordTransparentPassCpuMs(double ms)
 {
 	if (s_renderDiagnostics.enabled)
 		s_renderDiagnostics.transparentPassCpuMs += ms;
 }
 
-void TriangleMesh::recordFloorPassCpuMs(double ms)
+void RenderableMesh::recordFloorPassCpuMs(double ms)
 {
 	if (s_renderDiagnostics.enabled)
 		s_renderDiagnostics.floorPassCpuMs += ms;
 }
 
-void TriangleMesh::recordRenderMeshWithDisplayModeCpuMs(double ms)
+void RenderableMesh::recordRenderMeshWithDisplayModeCpuMs(double ms)
 {
 	if (s_renderDiagnostics.enabled)
 		s_renderDiagnostics.renderMeshWithDisplayModeCpuMs += ms;
 }
 
-void TriangleMesh::recordAssImpRenderCpuMs(double ms)
+void RenderableMesh::recordAssImpRenderCpuMs(double ms)
 {
 	if (s_renderDiagnostics.enabled)
 		s_renderDiagnostics.assImpRenderCpuMs += ms;
 }
 
-void TriangleMesh::recordProgramBindCall(bool actualBind)
+void RenderableMesh::recordProgramBindCall(bool actualBind)
 {
 	if (!s_renderDiagnostics.enabled)
 		return;
@@ -249,7 +249,7 @@ void TriangleMesh::recordProgramBindCall(bool actualBind)
 		++s_renderDiagnostics.cachedProgramBindHits;
 }
 
-void TriangleMesh::recordTextureBindCall(bool actualBind)
+void RenderableMesh::recordTextureBindCall(bool actualBind)
 {
 	if (!s_renderDiagnostics.enabled)
 		return;
@@ -260,13 +260,13 @@ void TriangleMesh::recordTextureBindCall(bool actualBind)
 		++s_renderDiagnostics.cachedTextureBindHits;
 }
 
-void TriangleMesh::recordVaoProgramReconfigure()
+void RenderableMesh::recordVaoProgramReconfigure()
 {
 	if (s_renderDiagnostics.enabled)
 		++s_renderDiagnostics.vaoProgramReconfigures;
 }
 
-void TriangleMesh::recordMaterialUniformRefresh(bool explicitDirty)
+void RenderableMesh::recordMaterialUniformRefresh(bool explicitDirty)
 {
 	if (!s_renderDiagnostics.enabled)
 		return;
@@ -275,13 +275,13 @@ void TriangleMesh::recordMaterialUniformRefresh(bool explicitDirty)
 		++s_renderDiagnostics.materialUniformExplicitDirtyRefreshes;
 }
 
-void TriangleMesh::recordMaterialUniformReuse()
+void RenderableMesh::recordMaterialUniformReuse()
 {
 	if (s_renderDiagnostics.enabled)
 		++s_renderDiagnostics.materialUniformReuses;
 }
 
-void TriangleMesh::recordMaterialRefreshReason(bool explicitDirty,
+void RenderableMesh::recordMaterialRefreshReason(bool explicitDirty,
 	bool shaderSwitch,
 	bool signatureMismatch,
 	bool debugOverridesBlockedReuse)
@@ -298,25 +298,25 @@ void TriangleMesh::recordMaterialRefreshReason(bool explicitDirty,
 		++s_renderDiagnostics.materialUniformDebugOverrideRefreshes;
 }
 
-void TriangleMesh::recordMaterialDirtyBySetProg()
+void RenderableMesh::recordMaterialDirtyBySetProg()
 {
 	if (s_renderDiagnostics.enabled)
 		++s_renderDiagnostics.materialDirtyBySetProg;
 }
 
-void TriangleMesh::recordTransformUniformUploads(int count)
+void RenderableMesh::recordTransformUniformUploads(int count)
 {
 	if (s_renderDiagnostics.enabled)
 		s_renderDiagnostics.transformUniformUploads += count;
 }
 
-void TriangleMesh::recordJointUniformUploads(int count)
+void RenderableMesh::recordJointUniformUploads(int count)
 {
 	if (s_renderDiagnostics.enabled)
 		s_renderDiagnostics.jointUniformUploads += count;
 }
 
-void TriangleMesh::recordDrawCall(bool indexed, bool transparent)
+void RenderableMesh::recordDrawCall(bool indexed, bool transparent)
 {
 	if (!s_renderDiagnostics.enabled)
 		return;
@@ -329,43 +329,43 @@ void TriangleMesh::recordDrawCall(bool indexed, bool transparent)
 		++s_renderDiagnostics.transparentDrawCalls;
 }
 
-void TriangleMesh::recordTextureCacheCpuMs(double ms)
+void RenderableMesh::recordTextureCacheCpuMs(double ms)
 {
 	if (s_renderDiagnostics.enabled)
 		s_renderDiagnostics.textureCacheCpuMs += ms;
 }
 
-void TriangleMesh::recordTransformUniformCpuMs(double ms)
+void RenderableMesh::recordTransformUniformCpuMs(double ms)
 {
 	if (s_renderDiagnostics.enabled)
 		s_renderDiagnostics.transformUniformCpuMs += ms;
 }
 
-void TriangleMesh::recordMaterialUniformCpuMs(double ms)
+void RenderableMesh::recordMaterialUniformCpuMs(double ms)
 {
 	if (s_renderDiagnostics.enabled)
 		s_renderDiagnostics.materialUniformCpuMs += ms;
 }
 
-void TriangleMesh::recordTextureBindCpuMs(double ms)
+void RenderableMesh::recordTextureBindCpuMs(double ms)
 {
 	if (s_renderDiagnostics.enabled)
 		s_renderDiagnostics.textureBindCpuMs += ms;
 }
 
-void TriangleMesh::recordRenderStateCpuMs(double ms)
+void RenderableMesh::recordRenderStateCpuMs(double ms)
 {
 	if (s_renderDiagnostics.enabled)
 		s_renderDiagnostics.renderStateCpuMs += ms;
 }
 
-void TriangleMesh::recordDrawCpuMs(double ms)
+void RenderableMesh::recordDrawCpuMs(double ms)
 {
 	if (s_renderDiagnostics.enabled)
 		s_renderDiagnostics.drawCpuMs += ms;
 }
 
-void TriangleMesh::flushRenderDiagnostics()
+void RenderableMesh::flushRenderDiagnostics()
 {
 	if (!s_renderDiagnostics.enabled || !s_renderDiagnostics.timerStarted)
 		return;
@@ -416,45 +416,18 @@ void TriangleMesh::flushRenderDiagnostics()
 	s_renderDiagnostics = RenderDiagnostics{};
 }
 
-quint64 TriangleMesh::currentRuntimeBoundsRevision()
+quint64 RenderableMesh::currentRuntimeBoundsRevision()
 {
 	return MeshInstanceState::currentRuntimeBoundsRevision();
 }
 
-void TriangleMesh::markRuntimeBoundsChanged()
+void RenderableMesh::markRuntimeBoundsChanged()
 {
 	MeshInstanceState::markRuntimeBoundsChanged();
 }
 
-TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Drawable(prog),
-_indexBuffer(_vizState.indexBuffer()),
-_positionBuffer(_vizState.positionBuffer()),
-_normalBuffer(_vizState.normalBuffer()),
-_colorBuffer(_vizState.colorBuffer()),
-_texCoord0Buffer(_vizState.texCoord0Buffer()),
-_texCoord1Buffer(_vizState.texCoord1Buffer()),
-_texCoord2Buffer(_vizState.texCoord2Buffer()),
-_texCoord3Buffer(_vizState.texCoord3Buffer()),
-_tangentBuf(_vizState.tangentBuffer()),
-_bitangentBuf(_vizState.bitangentBuffer()),
-_jointIndexBuffer(_vizState.jointIndexBuffer()),
-_jointWeightBuffer(_vizState.jointWeightBuffer()),
-_coordBuf(_vizState.coordBuffer()),
-_nVerts(_vizState.nVerts()),
-_vertexArrayObject(_vizState.vao()),
-_buffers(_vizState.buffers()),
+RenderableMesh::RenderableMesh(QOpenGLShaderProgram* prog, const QString name) : Drawable(prog),
 _material(_materialState.material()),
-_fallbackTextureImage(_vizState.fallbackTextureImage()),
-_fallbackTextureBuffer(_vizState.fallbackTextureBuffer()),
-_fallbackTexture(_vizState.fallbackTexture()),
-_sMax(1),
-_tMax(1),
-_textureBindingsDirty(_vizState.textureBindingsDirty()),
-_uniformsDirty(_vizState.uniformsDirty()),
-_uniformLocationCache(_vizState.uniformLocationCache()),
-_vaoConfiguredProgram(_vizState.vaoConfiguredProgram()),
-_debugTextureOverrides(_vizState.debugTextureOverrides()),
-_debugUniformOverrides(_vizState.debugUniformOverrides()),
 _hasVertexColors(false)
 {
 	setAutoIncrName(name);
@@ -504,17 +477,17 @@ _hasVertexColors(false)
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 }
 
-void TriangleMesh::cacheBaseVolumeProperties()
+void RenderableMesh::cacheBaseVolumeProperties()
 {
 	_materialState.cacheBaseVolumeProperties();
 }
 
-void TriangleMesh::applyScaledVolumeProperties()
+void RenderableMesh::applyScaledVolumeProperties()
 {
 	_materialState.applyScaledVolumeProperties();
 }
 
-void TriangleMesh::initBuffers(
+void RenderableMesh::initBuffers(
 	std::vector<unsigned int>* indices,
 	std::vector<float>* points,
 	std::vector<float>* normals,
@@ -753,14 +726,14 @@ void TriangleMesh::initBuffers(
 	_instanceState.updateRuntimeBounds(_points, _normals, _tangents, _bitangents, _indices);
 }
 
-void TriangleMesh::buildTriangles()
+void RenderableMesh::buildTriangles()
 {
 	// Picking triangles now live in _instanceState; this shim is kept for
 	// any subclass that still calls it directly during updateRuntimeBounds.
 	// The real work happens inside MeshInstanceState::updateRuntimeBounds().
 }
 
-void TriangleMesh::setProg(QOpenGLShaderProgram* prog)
+void RenderableMesh::setProg(QOpenGLShaderProgram* prog)
 {
 	const bool progChanged = (_prog != prog);
 	_prog = prog;
@@ -854,12 +827,12 @@ void TriangleMesh::setProg(QOpenGLShaderProgram* prog)
 		markUniformsDirty();
 }
 
-int TriangleMesh::uniformLocationCached(const char* name) const
+int RenderableMesh::uniformLocationCached(const char* name) const
 {
 	return uniformLocationCached(QByteArray(name));
 }
 
-int TriangleMesh::uniformLocationCached(const QByteArray& name) const
+int RenderableMesh::uniformLocationCached(const QByteArray& name) const
 {
 	if (!_prog)
 		return -1;
@@ -873,17 +846,17 @@ int TriangleMesh::uniformLocationCached(const QByteArray& name) const
 	return location;
 }
 
-int TriangleMesh::uniformLocationCached(const QString& name) const
+int RenderableMesh::uniformLocationCached(const QString& name) const
 {
 	return uniformLocationCached(name.toUtf8());
 }
 
-void TriangleMesh::clearUniformLocationCache()
+void RenderableMesh::clearUniformLocationCache()
 {
 	_uniformLocationCache.clear();
 }
 
-void TriangleMesh::setupTextures()
+void RenderableMesh::setupTextures()
 {
 	const bool hasClearcoatColorTex = _material.hasClearcoatColorMap() || _material.clearcoatColorTextureId() != 0;
 	const bool hasClearcoatRoughnessTex = _material.hasClearcoatRoughnessMap() || _material.clearcoatRoughnessTextureId() != 0;
@@ -960,7 +933,7 @@ void TriangleMesh::setupTextures()
 	}
 }
 
-void TriangleMesh::setupUniforms()
+void RenderableMesh::setupUniforms()
 {
 	if (!_uniformsDirty) return;
 	_prog->bind();
@@ -1470,97 +1443,97 @@ void TriangleMesh::setupUniforms()
 	_uniformsDirty = false;
 }
 
-void TriangleMesh::invertOpacityADSMap(bool invert)
+void RenderableMesh::invertOpacityADSMap(bool invert)
 {
 	_material.setInvertOpacityMap(invert);
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
-void TriangleMesh::setOpacityADSMap(unsigned int opacityTex)
+void RenderableMesh::setOpacityADSMap(unsigned int opacityTex)
 {
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
-void TriangleMesh::setHeightADSMap(unsigned int heightTex)
+void RenderableMesh::setHeightADSMap(unsigned int heightTex)
 {
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
-void TriangleMesh::setNormalADSMap(unsigned int normalTex)
+void RenderableMesh::setNormalADSMap(unsigned int normalTex)
 {
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
-void TriangleMesh::setSpecularADSMap(unsigned int specularTex)
+void RenderableMesh::setSpecularADSMap(unsigned int specularTex)
 {
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
-void TriangleMesh::setEmissiveADSMap(unsigned int emissiveTex)
+void RenderableMesh::setEmissiveADSMap(unsigned int emissiveTex)
 {
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
-void TriangleMesh::setDiffuseADSMap(unsigned int diffuseTex)
+void RenderableMesh::setDiffuseADSMap(unsigned int diffuseTex)
 {
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
-void TriangleMesh::clearDiffuseADSMap()
+void RenderableMesh::clearDiffuseADSMap()
 {
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
-void TriangleMesh::clearSpecularADSMap()
+void RenderableMesh::clearSpecularADSMap()
 {
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
-void TriangleMesh::clearEmissiveADSMap()
+void RenderableMesh::clearEmissiveADSMap()
 {
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
-void TriangleMesh::clearNormalADSMap()
+void RenderableMesh::clearNormalADSMap()
 {
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
-void TriangleMesh::clearHeightADSMap()
+void RenderableMesh::clearHeightADSMap()
 {
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
-void TriangleMesh::clearOpacityADSMap()
+void RenderableMesh::clearOpacityADSMap()
 {
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
-void TriangleMesh::clearAllADSMaps()
+void RenderableMesh::clearAllADSMaps()
 {
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
-GLMaterial TriangleMesh::getMaterial() const
+GLMaterial RenderableMesh::getMaterial() const
 {
 	return _material;
 }
 
-void TriangleMesh::setMaterial(const GLMaterial& material)
+void RenderableMesh::setMaterial(const GLMaterial& material)
 {
 	_material = material;
 	cacheBaseVolumeProperties();
@@ -1568,7 +1541,7 @@ void TriangleMesh::setMaterial(const GLMaterial& material)
 	markUniformsDirty();
 }
 
-void TriangleMesh::setTextureMaps(const GLMaterial& material)
+void RenderableMesh::setTextureMaps(const GLMaterial& material)
 {
 	// Resolved GLMaterial instances can carry shared texture ids from GLWidget's
 	// cache. Treat this call as a state sync only; deleting/recreating ids here
@@ -1581,13 +1554,13 @@ void TriangleMesh::setTextureMaps(const GLMaterial& material)
 	markUniformsDirty();
 }
 
-void TriangleMesh::renderWireframeFast(QOpenGLShaderProgram* /*wireProg*/)
+void RenderableMesh::renderWireframeFast(QOpenGLShaderProgram* /*wireProg*/)
 {
 	// Base fallback: full render. AssImpMesh overrides with the lightweight path.
 	render();
 }
 
-void TriangleMesh::render()
+void RenderableMesh::render()
 {
 	if (!_vertexArrayObject.isCreated())
 		return;
@@ -1652,7 +1625,7 @@ void TriangleMesh::render()
 }
 
 // Render the mesh for shadow mapping
-void TriangleMesh::renderShadow()
+void RenderableMesh::renderShadow()
 {
 	if (!_vertexArrayObject.isCreated())
 		return;
@@ -1684,7 +1657,7 @@ void TriangleMesh::renderShadow()
 	_vertexArrayObject.release();
 }
 
-void TriangleMesh::deleteTextures()
+void RenderableMesh::deleteTextures()
 {
 	if (_fallbackTexture != 0)
 	{
@@ -1697,13 +1670,13 @@ void TriangleMesh::deleteTextures()
 	// lets one mesh teardown invalidate another mesh's live bindings.
 }
 
-TriangleMesh::~TriangleMesh()
+RenderableMesh::~RenderableMesh()
 {
 	deleteBuffers();
 	deleteTextures();
 }
 
-void TriangleMesh::deleteBuffers()
+void RenderableMesh::deleteBuffers()
 {
 	if (_buffers.size() > 0)
 	{
@@ -1720,204 +1693,204 @@ void TriangleMesh::deleteBuffers()
 	}
 }
 
-void TriangleMesh::computeBounds()
+void RenderableMesh::computeBounds()
 {
 	// Bounds now computed inside MeshInstanceState::updateRuntimeBounds().
 }
 
-float TriangleMesh::getHighestXValue() const { return _instanceState.getHighestXValue(); }
-float TriangleMesh::getLowestXValue()  const { return _instanceState.getLowestXValue();  }
-float TriangleMesh::getHighestYValue() const { return _instanceState.getHighestYValue(); }
-float TriangleMesh::getLowestYValue()  const { return _instanceState.getLowestYValue();  }
-float TriangleMesh::getHighestZValue() const { return _instanceState.getHighestZValue(); }
-float TriangleMesh::getLowestZValue()  const { return _instanceState.getLowestZValue();  }
+float RenderableMesh::getHighestXValue() const { return _instanceState.getHighestXValue(); }
+float RenderableMesh::getLowestXValue()  const { return _instanceState.getLowestXValue();  }
+float RenderableMesh::getHighestYValue() const { return _instanceState.getHighestYValue(); }
+float RenderableMesh::getLowestYValue()  const { return _instanceState.getLowestYValue();  }
+float RenderableMesh::getHighestZValue() const { return _instanceState.getHighestZValue(); }
+float RenderableMesh::getLowestZValue()  const { return _instanceState.getLowestZValue();  }
 
-QRect TriangleMesh::projectedRect(const QMatrix4x4& modelView, const QMatrix4x4& projection,
+QRect RenderableMesh::projectedRect(const QMatrix4x4& modelView, const QMatrix4x4& projection,
 	const QRect& viewport, const QRect& window) const
 {
 	return _instanceState.projectedRect(modelView, projection, viewport, window);
 }
 
-std::vector<float> TriangleMesh::getNormals() const
+std::vector<float> RenderableMesh::getNormals() const
 {
 	return _normals;
 }
 
-std::vector<float> TriangleMesh::getTexCoords() const
+std::vector<float> RenderableMesh::getTexCoords() const
 {
 	return _texCoords;
 }
 
-const std::vector<float>& TriangleMesh::getTrsfPoints() const
+const std::vector<float>& RenderableMesh::getTrsfPoints() const
 {
 	return _instanceState.getTrsfPoints();
 }
 
-void TriangleMesh::resetTransformations()
+void RenderableMesh::resetTransformations()
 {
 	_instanceState.resetTransformations(_points, _normals, _tangents, _bitangents, _indices);
 	applyScaledVolumeProperties();
 }
 
-void TriangleMesh::resetExplodedViewTransformations()
+void RenderableMesh::resetExplodedViewTransformations()
 {
 	_instanceState.resetExplodedViewTransformations(_points, _normals, _tangents, _bitangents, _indices);
 }
 
-std::vector<unsigned int> TriangleMesh::getIndices() const
+std::vector<unsigned int> RenderableMesh::getIndices() const
 {
 	return _indices;
 }
 
-std::vector<float> TriangleMesh::getPoints() const
+std::vector<float> RenderableMesh::getPoints() const
 {
 	return _points;
 }
 
-QVector3D TriangleMesh::getTranslation() const { return _instanceState.getTranslation(); }
+QVector3D RenderableMesh::getTranslation() const { return _instanceState.getTranslation(); }
 
-void TriangleMesh::setTranslation(const QVector3D& trans)
+void RenderableMesh::setTranslation(const QVector3D& trans)
 {
 	_instanceState.setTranslation(trans, _points, _normals, _tangents, _bitangents, _indices);
 }
 
-QVector3D TriangleMesh::getRotation() const { return _instanceState.getRotation(); }
+QVector3D RenderableMesh::getRotation() const { return _instanceState.getRotation(); }
 
-void TriangleMesh::setRotation(const QVector3D& rota)
+void RenderableMesh::setRotation(const QVector3D& rota)
 {
 	_instanceState.setRotation(rota, _points, _normals, _tangents, _bitangents, _indices);
 }
 
-QQuaternion TriangleMesh::getRotationQuaternion() const { return _instanceState.getRotationQuaternion(); }
+QQuaternion RenderableMesh::getRotationQuaternion() const { return _instanceState.getRotationQuaternion(); }
 
-void TriangleMesh::setRotationQuaternion(const QQuaternion& quat, const QVector3D& displayEuler)
+void RenderableMesh::setRotationQuaternion(const QQuaternion& quat, const QVector3D& displayEuler)
 {
 	_instanceState.setRotationQuaternion(quat, displayEuler, _points, _normals, _tangents, _bitangents, _indices);
 }
 
-QVector3D TriangleMesh::getScaling() const { return _instanceState.getScaling(); }
+QVector3D RenderableMesh::getScaling() const { return _instanceState.getScaling(); }
 
-void TriangleMesh::setScaling(const QVector3D& scale)
+void RenderableMesh::setScaling(const QVector3D& scale)
 {
 	_instanceState.setScaling(scale, _points, _normals, _tangents, _bitangents, _indices);
 	applyScaledVolumeProperties();
 }
 
-QVector3D TriangleMesh::getExplodedViewTranslation() const { return _instanceState.getExplodedViewTranslation(); }
+QVector3D RenderableMesh::getExplodedViewTranslation() const { return _instanceState.getExplodedViewTranslation(); }
 
-void TriangleMesh::setExplodedViewTranslation(const QVector3D& trans)
+void RenderableMesh::setExplodedViewTranslation(const QVector3D& trans)
 {
 	_instanceState.setExplodedViewTranslation(trans, _points, _normals, _tangents, _bitangents, _indices);
 }
 
-QVector3D TriangleMesh::getExplodedViewRotation() const { return _instanceState.getExplodedViewRotation(); }
+QVector3D RenderableMesh::getExplodedViewRotation() const { return _instanceState.getExplodedViewRotation(); }
 
-void TriangleMesh::setExplodedViewRotation(const QVector3D& rota)
+void RenderableMesh::setExplodedViewRotation(const QVector3D& rota)
 {
 	_instanceState.setExplodedViewRotation(rota, _points, _normals, _tangents, _bitangents, _indices);
 }
 
-QQuaternion TriangleMesh::getExplodedViewRotationQuaternion() const { return _instanceState.getExplodedViewRotationQuaternion(); }
+QQuaternion RenderableMesh::getExplodedViewRotationQuaternion() const { return _instanceState.getExplodedViewRotationQuaternion(); }
 
-void TriangleMesh::setExplodedViewRotationQuaternion(const QQuaternion& quat, const QVector3D& displayEuler)
+void RenderableMesh::setExplodedViewRotationQuaternion(const QQuaternion& quat, const QVector3D& displayEuler)
 {
 	_instanceState.setExplodedViewRotationQuaternion(quat, displayEuler, _points, _normals, _tangents, _bitangents, _indices);
 }
 
-QVector3D TriangleMesh::getExplodedViewScaling() const { return _instanceState.getExplodedViewScaling(); }
+QVector3D RenderableMesh::getExplodedViewScaling() const { return _instanceState.getExplodedViewScaling(); }
 
-void TriangleMesh::setExplodedViewScaling(const QVector3D& scale)
+void RenderableMesh::setExplodedViewScaling(const QVector3D& scale)
 {
 	_instanceState.setExplodedViewScaling(scale, _points, _normals, _tangents, _bitangents, _indices);
 }
 
-void TriangleMesh::rebuildAbsoluteTransformation()
+void RenderableMesh::rebuildAbsoluteTransformation()
 {
 	// Kept for any legacy call sites; real work is in MeshInstanceState.
 }
 
-void TriangleMesh::rebuildExplodedViewTransformation()
+void RenderableMesh::rebuildExplodedViewTransformation()
 {
 	// Kept for any legacy call sites; real work is in MeshInstanceState.
 }
 
-QMatrix4x4 TriangleMesh::getTransformation() const { return _instanceState.getTransformation(); }
-QMatrix4x4 TriangleMesh::getExplodedViewTransformation() const { return _instanceState.getExplodedViewTransformation(); }
+QMatrix4x4 RenderableMesh::getTransformation() const { return _instanceState.getTransformation(); }
+QMatrix4x4 RenderableMesh::getExplodedViewTransformation() const { return _instanceState.getExplodedViewTransformation(); }
 
-QVector3D TriangleMesh::getStableTransformCenter() const { return _instanceState.getStableTransformCenter(); }
-float TriangleMesh::getStableTransformRadius() const { return _instanceState.getStableTransformRadius(_points); }
+QVector3D RenderableMesh::getStableTransformCenter() const { return _instanceState.getStableTransformCenter(); }
+float RenderableMesh::getStableTransformRadius() const { return _instanceState.getStableTransformRadius(_points); }
 
-QMatrix4x4 TriangleMesh::getSceneRenderTransform() const { return _instanceState.getSceneRenderTransform(); }
+QMatrix4x4 RenderableMesh::getSceneRenderTransform() const { return _instanceState.getSceneRenderTransform(); }
 
-QMatrix4x4 TriangleMesh::combinedRenderTransform() const { return _instanceState.combinedRenderTransform(); }
+QMatrix4x4 RenderableMesh::combinedRenderTransform() const { return _instanceState.combinedRenderTransform(); }
 
-void TriangleMesh::invalidateCombinedRenderTransformCache() const
+void RenderableMesh::invalidateCombinedRenderTransformCache() const
 {
 	_instanceState.invalidateCombinedRenderTransformCache();
 }
 
-void TriangleMesh::setSceneRenderTransform(const QMatrix4x4& trsf)
+void RenderableMesh::setSceneRenderTransform(const QMatrix4x4& trsf)
 {
 	_instanceState.setSceneRenderTransform(trsf, _points, _normals, _tangents, _bitangents, _indices);
 }
 
-void TriangleMesh::setSceneRenderTransformFast(const QMatrix4x4& trsf)
+void RenderableMesh::setSceneRenderTransformFast(const QMatrix4x4& trsf)
 {
 	_instanceState.setSceneRenderTransformFast(trsf);
 }
 
-void TriangleMesh::setupTransformation()
+void RenderableMesh::setupTransformation()
 {
 	updateRuntimeBounds();
 }
 
-void TriangleMesh::fastUpdateWorldBounds()
+void RenderableMesh::fastUpdateWorldBounds()
 {
 	// Real work in MeshInstanceState; kept for legacy call site compatibility.
 }
 
-void TriangleMesh::setTranslationFast(const QVector3D& trans)    { _instanceState.setTranslationFast(trans); }
-void TriangleMesh::setRotationFast(const QVector3D& rota)        { _instanceState.setRotationFast(rota); }
-void TriangleMesh::setRotationQuaternionFast(const QQuaternion& quat, const QVector3D& displayEuler)
+void RenderableMesh::setTranslationFast(const QVector3D& trans)    { _instanceState.setTranslationFast(trans); }
+void RenderableMesh::setRotationFast(const QVector3D& rota)        { _instanceState.setRotationFast(rota); }
+void RenderableMesh::setRotationQuaternionFast(const QQuaternion& quat, const QVector3D& displayEuler)
     { _instanceState.setRotationQuaternionFast(quat, displayEuler); }
-void TriangleMesh::setScalingFast(const QVector3D& scale)        { _instanceState.setScalingFast(scale); }
+void RenderableMesh::setScalingFast(const QVector3D& scale)        { _instanceState.setScalingFast(scale); }
 
-void TriangleMesh::setExplodedViewTranslationFast(const QVector3D& trans)
+void RenderableMesh::setExplodedViewTranslationFast(const QVector3D& trans)
     { _instanceState.setExplodedViewTranslationFast(trans); }
-void TriangleMesh::setExplodedViewRotationFast(const QVector3D& rota)
+void RenderableMesh::setExplodedViewRotationFast(const QVector3D& rota)
     { _instanceState.setExplodedViewRotationFast(rota); }
-void TriangleMesh::setExplodedViewRotationQuaternionFast(const QQuaternion& quat, const QVector3D& displayEuler)
+void RenderableMesh::setExplodedViewRotationQuaternionFast(const QQuaternion& quat, const QVector3D& displayEuler)
     { _instanceState.setExplodedViewRotationQuaternionFast(quat, displayEuler); }
-void TriangleMesh::setExplodedViewScalingFast(const QVector3D& scale)
+void RenderableMesh::setExplodedViewScalingFast(const QVector3D& scale)
     { _instanceState.setExplodedViewScalingFast(scale); }
 
-void TriangleMesh::fullUpdateRuntimeBounds()
+void RenderableMesh::fullUpdateRuntimeBounds()
 {
 	_instanceState.fullUpdateRuntimeBounds(_points, _normals, _tangents, _bitangents, _indices);
 }
 
-void TriangleMesh::updateRuntimeBounds()
+void RenderableMesh::updateRuntimeBounds()
 {
 	_instanceState.updateRuntimeBounds(_points, _normals, _tangents, _bitangents, _indices);
 }
 
-float TriangleMesh::shininess() const
+float RenderableMesh::shininess() const
 {
 	return _material.shininess();
 }
 
-void TriangleMesh::setShininess(const float& shine)
+void RenderableMesh::setShininess(const float& shine)
 {
 	_material.setShininess(shine);
 	markUniformsDirty();
 }
 
-float TriangleMesh::opacity() const
+float RenderableMesh::opacity() const
 {
 	return _material.opacity();
 }
 
-void TriangleMesh::setOpacity(const float& opacity)
+void RenderableMesh::setOpacity(const float& opacity)
 {
 	_material.setOpacity(opacity);	
 	if (opacity < 1.0f)
@@ -1927,207 +1900,207 @@ void TriangleMesh::setOpacity(const float& opacity)
 	markUniformsDirty();
 }
 
-QVector3D TriangleMesh::emmissiveMaterial() const
+QVector3D RenderableMesh::emmissiveMaterial() const
 {
 	return _material.emissive();
 }
 
-void TriangleMesh::setEmmissiveMaterial(const QVector3D& emissive)
+void RenderableMesh::setEmmissiveMaterial(const QVector3D& emissive)
 {
 	_material.setEmissive(emissive);
 	markUniformsDirty();
 }
 
-QVector3D TriangleMesh::specularMaterial() const
+QVector3D RenderableMesh::specularMaterial() const
 {
 	return _material.specular();
 }
 
-void TriangleMesh::setSpecularMaterial(const QVector3D& specular)
+void RenderableMesh::setSpecularMaterial(const QVector3D& specular)
 {
 	_material.setSpecular(specular);
 	markUniformsDirty();
 }
 
-QVector3D TriangleMesh::diffuseMaterial() const
+QVector3D RenderableMesh::diffuseMaterial() const
 {
 	return _material.diffuse();
 }
 
-void TriangleMesh::setDiffuseMaterial(const QVector3D& diffuse)
+void RenderableMesh::setDiffuseMaterial(const QVector3D& diffuse)
 {
 	_material.setDiffuse(diffuse);
 	markUniformsDirty();
 }
 
-QVector3D TriangleMesh::ambientMaterial() const
+QVector3D RenderableMesh::ambientMaterial() const
 {
 	return _material.ambient();
 }
 
-void TriangleMesh::setAmbientMaterial(const QVector3D& ambient)
+void RenderableMesh::setAmbientMaterial(const QVector3D& ambient)
 {
 	_material.setAmbient(ambient);
 	markUniformsDirty();
 }
 
-bool TriangleMesh::isMetallic() const
+bool RenderableMesh::isMetallic() const
 {
 	return _material.metallic();
 }
 
-void TriangleMesh::setMetallic(bool metallic)
+void RenderableMesh::setMetallic(bool metallic)
 {
 	_material.setMetallic(metallic);
 	_material.setMetalness(metallic ? 1.0f : 0.0f);
 	markUniformsDirty();
 }
 
-void TriangleMesh::setPBRAlbedoColor(const float& r, const float& g, const float& b)
+void RenderableMesh::setPBRAlbedoColor(const float& r, const float& g, const float& b)
 {
 	_material.setAlbedoColor(QVector3D(r, g, b));
 	markUniformsDirty();
 }
 
-void TriangleMesh::setPBRMetallic(const float& val)
+void RenderableMesh::setPBRMetallic(const float& val)
 {
 	_material.setMetalness(val);
 	markUniformsDirty();
 }
 
-void TriangleMesh::setPBRRoughness(const float& val)
+void RenderableMesh::setPBRRoughness(const float& val)
 {
 	_material.setRoughness(val);
 	markUniformsDirty();
 }
 
-QOpenGLVertexArrayObject& TriangleMesh::getVAO()
+QOpenGLVertexArrayObject& RenderableMesh::getVAO()
 {
 	return _vertexArrayObject;
 }
 
-unsigned long long TriangleMesh::memorySize() const
+unsigned long long RenderableMesh::memorySize() const
 {
 	return _memorySize + sizeof(TriangleMesh);
 }
 
 
-bool TriangleMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint)
+bool RenderableMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint)
 {
 	return _instanceState.intersectsWithRay(rayPos, rayDir, outIntersectionPoint);
 }
 
 
 
-bool TriangleMesh::hasAlbedoPBRMap() const
+bool RenderableMesh::hasAlbedoPBRMap() const
 {
 	return _material.hasAlbedoMap();
 }
 
-void TriangleMesh::enableAlbedoPBRMap(bool hasAlbedoMap)
+void RenderableMesh::enableAlbedoPBRMap(bool hasAlbedoMap)
 {
 	if (!hasAlbedoMap)
 		_material.setAlbedoTextureId(0);
 	markUniformsDirty();
 }
 
-bool TriangleMesh::hasMetallicPBRMap() const
+bool RenderableMesh::hasMetallicPBRMap() const
 {
 	return _material.hasMetallicMap();
 }
 
-void TriangleMesh::enableMetallicPBRMap(bool hasMetallicMap)
+void RenderableMesh::enableMetallicPBRMap(bool hasMetallicMap)
 {
 	if (!hasMetallicMap)
 		_material.setMetallicTextureId(0);
 	markUniformsDirty();
 }
 
-bool TriangleMesh::hasEmissivePBRMap() const
+bool RenderableMesh::hasEmissivePBRMap() const
 {
 	return _material.hasEmissiveMap();
 }
 
-void TriangleMesh::enableEmissivePBRMap(bool hasEmissiveMap)
+void RenderableMesh::enableEmissivePBRMap(bool hasEmissiveMap)
 {
 	if (!hasEmissiveMap)
 		_material.setEmissiveTextureId(0);
 	markUniformsDirty();
 }
 
-bool TriangleMesh::hasRoughnessPBRMap() const
+bool RenderableMesh::hasRoughnessPBRMap() const
 {
 	return _material.hasRoughnessMap();
 }
 
-void TriangleMesh::enableRoughnessPBRMap(bool hasRoughnessMap)
+void RenderableMesh::enableRoughnessPBRMap(bool hasRoughnessMap)
 {
 	if (!hasRoughnessMap)
 		_material.setRoughnessTextureId(0);
 	markUniformsDirty();
 }
 
-bool TriangleMesh::hasHeightPBRMap() const
+bool RenderableMesh::hasHeightPBRMap() const
 {
 	return _material.hasHeightMap();
 }
 
-void TriangleMesh::enableHeightPBRMap(bool hasHeightMap)
+void RenderableMesh::enableHeightPBRMap(bool hasHeightMap)
 {
 	if (!hasHeightMap)
 		_material.setHeightTextureId(0);
 	markUniformsDirty();
 }
 
-bool TriangleMesh::hasAOPBRMap() const
+bool RenderableMesh::hasAOPBRMap() const
 {
 	return _material.hasAOMap();
 }
 
-void TriangleMesh::enableAOPBRMap(bool hasAOMap)
+void RenderableMesh::enableAOPBRMap(bool hasAOMap)
 {
 	if (!hasAOMap)
 		_material.setOcclusionTextureId(0);
 	markUniformsDirty();
 }
 
-bool TriangleMesh::hasNormalPBRMap() const
+bool RenderableMesh::hasNormalPBRMap() const
 {
 	return _material.hasNormalMap();
 }
 
-void TriangleMesh::enableNormalPBRMap(bool hasNormalMap)
+void RenderableMesh::enableNormalPBRMap(bool hasNormalMap)
 {
 	if (!hasNormalMap)
 		_material.setNormalTextureId(0);
 	markUniformsDirty();
 }
 
-bool TriangleMesh::hasOpacityPBRMap() const
+bool RenderableMesh::hasOpacityPBRMap() const
 {
 	return _material.hasOpacityMap();
 }
 
-void TriangleMesh::enableOpacityPBRMap(bool hasOpacityMap)
+void RenderableMesh::enableOpacityPBRMap(bool hasOpacityMap)
 {
 	if (!hasOpacityMap)
 		_material.setOpacityTextureId(0);
 	markUniformsDirty();
 }
 
-bool TriangleMesh::hasTransmissionPBRMap() const
+bool RenderableMesh::hasTransmissionPBRMap() const
 {
 	return _material.hasTransmissionMap();
 }
 
-void TriangleMesh::enableTransmissionPBRMap(bool hasTransmissionMap)
+void RenderableMesh::enableTransmissionPBRMap(bool hasTransmissionMap)
 {
 	if (!hasTransmissionMap)
 		_material.setTransmissionTextureId(0);
 	markUniformsDirty();
 }
 
-void TriangleMesh::setTransmissionPBRMap(unsigned int transmissionMap)
+void RenderableMesh::setTransmissionPBRMap(unsigned int transmissionMap)
 {
 	GLuint existing = static_cast<GLuint>(_material.transmissionTextureId());
 	if (existing != 0)
@@ -2137,19 +2110,19 @@ void TriangleMesh::setTransmissionPBRMap(unsigned int transmissionMap)
 	markUniformsDirty();
 }
 
-bool TriangleMesh::hasIORPBRMap() const
+bool RenderableMesh::hasIORPBRMap() const
 {
 	return _material.hasIORMap();
 }
 
-void TriangleMesh::enableIORPBRMap(bool hasIORMap)
+void RenderableMesh::enableIORPBRMap(bool hasIORMap)
 {
 	if (!hasIORMap)
 		_material.setIORTextureId(0);
 	markUniformsDirty();
 }
 
-void TriangleMesh::setIORPBRMap(unsigned int iorMap)
+void RenderableMesh::setIORPBRMap(unsigned int iorMap)
 {
 	GLuint existing = static_cast<GLuint>(_material.iorTextureId());
 	if (existing != 0)
@@ -2159,19 +2132,19 @@ void TriangleMesh::setIORPBRMap(unsigned int iorMap)
 	markUniformsDirty();
 }
 
-bool TriangleMesh::hasSheenColorPBRMap() const
+bool RenderableMesh::hasSheenColorPBRMap() const
 {
 	return _material.hasSheenColorMap();
 }
 
-void TriangleMesh::enableSheenColorPBRMap(bool hasSheenColorMap)
+void RenderableMesh::enableSheenColorPBRMap(bool hasSheenColorMap)
 {
 	if (!hasSheenColorMap)
 		_material.setSheenColorTextureId(0);
 	markUniformsDirty();
 }
 
-void TriangleMesh::setSheenColorPBRMap(unsigned int sheenColorMap)
+void RenderableMesh::setSheenColorPBRMap(unsigned int sheenColorMap)
 {
 	GLuint existing = static_cast<GLuint>(_material.sheenColorTextureId());
 	if (existing != 0)
@@ -2181,19 +2154,19 @@ void TriangleMesh::setSheenColorPBRMap(unsigned int sheenColorMap)
 	markUniformsDirty();
 }
 
-bool TriangleMesh::hasSheenRoughnessPBRMap() const
+bool RenderableMesh::hasSheenRoughnessPBRMap() const
 {
 	return _material.hasSheenRoughnessMap();
 }
 
-void TriangleMesh::enableSheenRoughnessPBRMap(bool hasSheenRoughnessMap)
+void RenderableMesh::enableSheenRoughnessPBRMap(bool hasSheenRoughnessMap)
 {
 	if (!hasSheenRoughnessMap)
 		_material.setSheenRoughnessTextureId(0);
 	markUniformsDirty();
 }
 
-void TriangleMesh::setSheenRoughnessPBRMap(unsigned int sheenRoughnessMap)
+void RenderableMesh::setSheenRoughnessPBRMap(unsigned int sheenRoughnessMap)
 {
 	GLuint existing = static_cast<GLuint>(_material.sheenRoughnessTextureId());
 	if (existing != 0)
@@ -2203,19 +2176,19 @@ void TriangleMesh::setSheenRoughnessPBRMap(unsigned int sheenRoughnessMap)
 	markUniformsDirty();
 }
 
-bool TriangleMesh::hasClearcoatPBRMap() const
+bool RenderableMesh::hasClearcoatPBRMap() const
 {
 	return _material.hasClearcoatColorMap();
 }
 
-void TriangleMesh::enableClearcoatPBRMap(bool hasClearcoatMap)
+void RenderableMesh::enableClearcoatPBRMap(bool hasClearcoatMap)
 {
 	if (!hasClearcoatMap)
 		_material.setClearcoatColorTextureId(0);
 	markUniformsDirty();
 }
 
-void TriangleMesh::setClearcoatPBRMap(unsigned int clearcoatColorMap)
+void RenderableMesh::setClearcoatPBRMap(unsigned int clearcoatColorMap)
 {
 	GLuint existing = static_cast<GLuint>(_material.clearcoatColorTextureId());
 	if (existing != 0)
@@ -2225,19 +2198,19 @@ void TriangleMesh::setClearcoatPBRMap(unsigned int clearcoatColorMap)
 	markUniformsDirty();
 }
 
-bool TriangleMesh::hasClearcoatRoughnessPBRMap() const
+bool RenderableMesh::hasClearcoatRoughnessPBRMap() const
 {
 	return _material.hasClearcoatRoughnessMap();
 }
 
-void TriangleMesh::enableClearcoatRoughnessPBRMap(bool hasClearcoatRoughnessMap)
+void RenderableMesh::enableClearcoatRoughnessPBRMap(bool hasClearcoatRoughnessMap)
 {
 	if (!hasClearcoatRoughnessMap)
 		_material.setClearcoatRoughnessTextureId(0);
 	markUniformsDirty();
 }
 
-void TriangleMesh::setClearcoatRoughnessPBRMap(unsigned int clearcoatRoughnessMap)
+void RenderableMesh::setClearcoatRoughnessPBRMap(unsigned int clearcoatRoughnessMap)
 {
 	GLuint existing = static_cast<GLuint>(_material.clearcoatRoughnessTextureId());
 	if (existing != 0)
@@ -2247,19 +2220,19 @@ void TriangleMesh::setClearcoatRoughnessPBRMap(unsigned int clearcoatRoughnessMa
 	markUniformsDirty();
 }
 
-bool TriangleMesh::hasClearcoatNormalPBRMap() const
+bool RenderableMesh::hasClearcoatNormalPBRMap() const
 {
 	return _material.hasClearcoatNormalMap();
 }
 
-void TriangleMesh::enableClearcoatNormalPBRMap(bool hasClearcoatNormalMap)
+void RenderableMesh::enableClearcoatNormalPBRMap(bool hasClearcoatNormalMap)
 {
 	if (!hasClearcoatNormalMap)
 		_material.setClearcoatNormalTextureId(0);
 	markUniformsDirty();
 }
 
-void TriangleMesh::setClearcoatNormalPBRMap(unsigned int clearcoatNormalMap)
+void RenderableMesh::setClearcoatNormalPBRMap(unsigned int clearcoatNormalMap)
 {
 	GLuint existing = static_cast<GLuint>(_material.clearcoatNormalTextureId());
 	if (existing != 0)
@@ -2269,7 +2242,7 @@ void TriangleMesh::setClearcoatNormalPBRMap(unsigned int clearcoatNormalMap)
 	markUniformsDirty();
 }
 
-void TriangleMesh::setAlbedoPBRMap(unsigned int albedoMap)
+void RenderableMesh::setAlbedoPBRMap(unsigned int albedoMap)
 {
 	GLuint existing = static_cast<GLuint>(_material.albedoTextureId());
 	if (existing != 0)
@@ -2279,7 +2252,7 @@ void TriangleMesh::setAlbedoPBRMap(unsigned int albedoMap)
 	markUniformsDirty();
 }
 
-void TriangleMesh::setMetallicPBRMap(unsigned int metallicMap)
+void RenderableMesh::setMetallicPBRMap(unsigned int metallicMap)
 {
 	GLuint existing = static_cast<GLuint>(_material.metallicTextureId());
 	if (existing != 0)
@@ -2289,7 +2262,7 @@ void TriangleMesh::setMetallicPBRMap(unsigned int metallicMap)
 	markUniformsDirty();
 }
 
-void TriangleMesh::setEmissivePBRMap(unsigned int emissiveMap)
+void RenderableMesh::setEmissivePBRMap(unsigned int emissiveMap)
 {
 	GLuint existing = static_cast<GLuint>(_material.emissiveTextureId());
 	if (existing != 0)
@@ -2299,7 +2272,7 @@ void TriangleMesh::setEmissivePBRMap(unsigned int emissiveMap)
 	markUniformsDirty();
 }
 
-void TriangleMesh::setRoughnessPBRMap(unsigned int roughnessMap)
+void RenderableMesh::setRoughnessPBRMap(unsigned int roughnessMap)
 {
 	GLuint existing = static_cast<GLuint>(_material.roughnessTextureId());
 	if (existing != 0)
@@ -2309,7 +2282,7 @@ void TriangleMesh::setRoughnessPBRMap(unsigned int roughnessMap)
 	markUniformsDirty();
 }
 
-void TriangleMesh::setNormalPBRMap(unsigned int normalMap)
+void RenderableMesh::setNormalPBRMap(unsigned int normalMap)
 {
 	GLuint existing = static_cast<GLuint>(_material.normalTextureId());
 	if (existing != 0)
@@ -2319,7 +2292,7 @@ void TriangleMesh::setNormalPBRMap(unsigned int normalMap)
 	markUniformsDirty();
 }
 
-void TriangleMesh::setAOPBRMap(unsigned int aoMap)
+void RenderableMesh::setAOPBRMap(unsigned int aoMap)
 {
 	GLuint existing = static_cast<GLuint>(_material.occlusionTextureId());
 	if (existing != 0)
@@ -2329,7 +2302,7 @@ void TriangleMesh::setAOPBRMap(unsigned int aoMap)
 	markUniformsDirty();
 }
 
-void TriangleMesh::setHeightPBRMap(unsigned int heightMap)
+void RenderableMesh::setHeightPBRMap(unsigned int heightMap)
 {
 	GLuint existing = static_cast<GLuint>(_material.heightTextureId());
 	if (existing != 0)
@@ -2339,19 +2312,19 @@ void TriangleMesh::setHeightPBRMap(unsigned int heightMap)
 	markUniformsDirty();
 }
 
-float TriangleMesh::getHeightPBRMapScale() const
+float RenderableMesh::getHeightPBRMapScale() const
 {
 	return _material.heightScale();
 }
 
-void TriangleMesh::setHeightPBRMapScale(float heightScale)
+void RenderableMesh::setHeightPBRMapScale(float heightScale)
 {
 	_material.setHeightScale(heightScale);
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
-void TriangleMesh::setOpacityPBRMap(unsigned int opacityMap)
+void RenderableMesh::setOpacityPBRMap(unsigned int opacityMap)
 {
 	GLuint existing = static_cast<GLuint>(_material.opacityTextureId());
 	if (existing != 0)
@@ -2361,7 +2334,7 @@ void TriangleMesh::setOpacityPBRMap(unsigned int opacityMap)
 	markUniformsDirty();
 }
 
-void TriangleMesh::invertOpacityPBRMap(bool invert)
+void RenderableMesh::invertOpacityPBRMap(bool invert)
 {
 	_material.setInvertOpacityMap(invert);
 	markTexturesDirty();
@@ -2369,7 +2342,7 @@ void TriangleMesh::invertOpacityPBRMap(bool invert)
 }
 
 // KHR_materials_pbrSpecularGlossiness
-void TriangleMesh::setSpecularGlossinessMap(unsigned int sgMap)
+void RenderableMesh::setSpecularGlossinessMap(unsigned int sgMap)
 {
 	GLuint existing = static_cast<GLuint>(_material.specularGlossinessTextureId());
 	if (existing != 0)
@@ -2379,7 +2352,7 @@ void TriangleMesh::setSpecularGlossinessMap(unsigned int sgMap)
 	markUniformsDirty();
 }
 
-bool TriangleMesh::isTransparent() const
+bool RenderableMesh::isTransparent() const
 {	
 	// If it has transmission, it's ALWAYS transparent (exclude from FBO)
 	if (_material.transmission() > 0.0f)
@@ -2399,13 +2372,13 @@ bool TriangleMesh::isTransparent() const
 		_material.hasTransmissionMap() || _material.transmission() > 0.0f;
 }
 
-bool TriangleMesh::needsDepthMaskOff() const
+bool RenderableMesh::needsDepthMaskOff() const
 {
 	return (_material.opacity() < 0.999f);  // uniform-only transparency
 }
 
 
-void TriangleMesh::clearAlbedoPBRMap()
+void RenderableMesh::clearAlbedoPBRMap()
 {
 	GLuint existing = static_cast<GLuint>(_material.albedoTextureId());
 	if (existing != 0)
@@ -2415,7 +2388,7 @@ void TriangleMesh::clearAlbedoPBRMap()
 	markUniformsDirty();
 }
 
-void TriangleMesh::clearMetallicPBRMap()
+void RenderableMesh::clearMetallicPBRMap()
 {
 	GLuint existing = static_cast<GLuint>(_material.metallicTextureId());
 	if (existing != 0)
@@ -2425,7 +2398,7 @@ void TriangleMesh::clearMetallicPBRMap()
 	markUniformsDirty();
 }
 
-void TriangleMesh::clearRoughnessPBRMap()
+void RenderableMesh::clearRoughnessPBRMap()
 {
 	GLuint existing = static_cast<GLuint>(_material.roughnessTextureId());
 	if (existing != 0)
@@ -2435,7 +2408,7 @@ void TriangleMesh::clearRoughnessPBRMap()
 	markUniformsDirty();
 }
 
-void TriangleMesh::clearNormalPBRMap()
+void RenderableMesh::clearNormalPBRMap()
 {
 	GLuint existing = static_cast<GLuint>(_material.normalTextureId());
 	if (existing != 0)
@@ -2445,7 +2418,7 @@ void TriangleMesh::clearNormalPBRMap()
 	markUniformsDirty();
 }
 
-void TriangleMesh::clearAOPBRMap()
+void RenderableMesh::clearAOPBRMap()
 {
 	GLuint existing = static_cast<GLuint>(_material.occlusionTextureId());
 	if (existing != 0)
@@ -2455,7 +2428,7 @@ void TriangleMesh::clearAOPBRMap()
 	markUniformsDirty();
 }
 
-void TriangleMesh::clearHeightPBRMap()
+void RenderableMesh::clearHeightPBRMap()
 {
 	GLuint existing = static_cast<GLuint>(_material.heightTextureId());
 	if (existing != 0)
@@ -2465,7 +2438,7 @@ void TriangleMesh::clearHeightPBRMap()
 	markUniformsDirty();
 }
 
-void TriangleMesh::clearOpacityPBRMap()
+void RenderableMesh::clearOpacityPBRMap()
 {
 	GLuint existing = static_cast<GLuint>(_material.opacityTextureId());
 	if (existing != 0)
@@ -2475,7 +2448,7 @@ void TriangleMesh::clearOpacityPBRMap()
 	markUniformsDirty();
 }
 
-void TriangleMesh::clearTransmissionPBRMap()
+void RenderableMesh::clearTransmissionPBRMap()
 {
 	GLuint existing = static_cast<GLuint>(_material.transmissionTextureId());
 	if (existing != 0)
@@ -2485,7 +2458,7 @@ void TriangleMesh::clearTransmissionPBRMap()
 	markUniformsDirty();
 }
 
-void TriangleMesh::clearIORPBRMap()
+void RenderableMesh::clearIORPBRMap()
 {
 	GLuint existing = static_cast<GLuint>(_material.iorTextureId());
 	if (existing != 0)
@@ -2495,7 +2468,7 @@ void TriangleMesh::clearIORPBRMap()
 	markUniformsDirty();
 }
 
-void TriangleMesh::clearSheenColorPBRMap()
+void RenderableMesh::clearSheenColorPBRMap()
 {
 	GLuint existing = static_cast<GLuint>(_material.sheenColorTextureId());
 	if (existing != 0)
@@ -2505,7 +2478,7 @@ void TriangleMesh::clearSheenColorPBRMap()
 	markUniformsDirty();
 }
 
-void TriangleMesh::clearSheenRoughnessPBRMap()
+void RenderableMesh::clearSheenRoughnessPBRMap()
 {
 	GLuint existing = static_cast<GLuint>(_material.sheenRoughnessTextureId());
 	if (existing != 0)
@@ -2515,7 +2488,7 @@ void TriangleMesh::clearSheenRoughnessPBRMap()
 	markUniformsDirty();
 }
 
-void TriangleMesh::clearClearcoatPBRMap()
+void RenderableMesh::clearClearcoatPBRMap()
 {
 	GLuint existing = static_cast<GLuint>(_material.clearcoatColorTextureId());
 	if (existing != 0)
@@ -2525,7 +2498,7 @@ void TriangleMesh::clearClearcoatPBRMap()
 	markUniformsDirty();
 }
 
-void TriangleMesh::clearClearcoatRoughnessPBRMap()
+void RenderableMesh::clearClearcoatRoughnessPBRMap()
 {
 	GLuint existing = static_cast<GLuint>(_material.clearcoatRoughnessTextureId());
 	if (existing != 0)
@@ -2535,7 +2508,7 @@ void TriangleMesh::clearClearcoatRoughnessPBRMap()
 	markUniformsDirty();
 }
 
-void TriangleMesh::clearClearcoatNormalPBRMap()
+void RenderableMesh::clearClearcoatNormalPBRMap()
 {
 	GLuint existing = static_cast<GLuint>(_material.clearcoatNormalTextureId());
 	if (existing != 0)
@@ -2545,7 +2518,7 @@ void TriangleMesh::clearClearcoatNormalPBRMap()
 	markUniformsDirty();
 }
 
-void TriangleMesh::clearSpecularGlossinessMap()
+void RenderableMesh::clearSpecularGlossinessMap()
 {
 	GLuint existing = static_cast<GLuint>(_material.specularGlossinessTextureId());
 	if (existing != 0)
@@ -2556,7 +2529,7 @@ void TriangleMesh::clearSpecularGlossinessMap()
 }
 
 
-void TriangleMesh::clearAllPBRMaps()
+void RenderableMesh::clearAllPBRMaps()
 {
 	GLuint pbrIds[] = {
 		static_cast<GLuint>(_material.albedoTextureId()),
@@ -2600,7 +2573,7 @@ void TriangleMesh::clearAllPBRMaps()
 	markUniformsDirty();
 }
 
-const GLMaterial* TriangleMesh::materialForVariant(int variantIndex) const
+const GLMaterial* RenderableMesh::materialForVariant(int variantIndex) const
 {
 	return _materialState.materialForVariant(variantIndex, _importState.originalMaterialIndex());
 }
@@ -2608,22 +2581,22 @@ const GLMaterial* TriangleMesh::materialForVariant(int variantIndex) const
 // ---------------------------------------------------------------------------
 // Debug texture overrides (TextureDebugPanel)
 // ---------------------------------------------------------------------------
-void TriangleMesh::setDebugTextureOverride(int unit, GLuint replaceTex)
+void RenderableMesh::setDebugTextureOverride(int unit, GLuint replaceTex)
 {
 	_debugTextureOverrides[unit] = replaceTex;
 }
 
-void TriangleMesh::clearDebugTextureOverride(int unit)
+void RenderableMesh::clearDebugTextureOverride(int unit)
 {
 	_debugTextureOverrides.remove(unit);
 }
 
-void TriangleMesh::clearAllDebugTextureOverrides()
+void RenderableMesh::clearAllDebugTextureOverrides()
 {
 	_debugTextureOverrides.clear();
 }
 
-void TriangleMesh::applyDebugTextureOverrides()
+void RenderableMesh::applyDebugTextureOverrides()
 {
 	if (_debugTextureOverrides.isEmpty())
 		return;
@@ -2637,22 +2610,22 @@ void TriangleMesh::applyDebugTextureOverrides()
 	glActiveTexture(GL_TEXTURE0);
 }
 
-void TriangleMesh::setDebugUniformOverride(const QString& name, const QVariant& value)
+void RenderableMesh::setDebugUniformOverride(const QString& name, const QVariant& value)
 {
 	_debugUniformOverrides[name] = value;
 }
 
-void TriangleMesh::clearDebugUniformOverride(const QString& name)
+void RenderableMesh::clearDebugUniformOverride(const QString& name)
 {
 	_debugUniformOverrides.remove(name);
 }
 
-void TriangleMesh::clearAllDebugUniformOverrides()
+void RenderableMesh::clearAllDebugUniformOverrides()
 {
 	_debugUniformOverrides.clear();
 }
 
-void TriangleMesh::applyDebugUniformOverrides()
+void RenderableMesh::applyDebugUniformOverrides()
 {
 	if (_debugUniformOverrides.isEmpty() || !_prog)
 		return;

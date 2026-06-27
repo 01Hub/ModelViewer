@@ -5231,7 +5231,7 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 			{
 				for (const AssImpMeshData& meshData : meshes)
 				{
-					AssImpMesh* mesh = createMeshFromData(meshData);
+					SceneMesh* mesh = createMeshFromData(meshData);
 					addToDisplay(mesh);
 					_pendingSceneUuids.append(mesh->uuid());
 				}
@@ -5406,7 +5406,7 @@ bool GLWidget::generateUVsForMeshes(const std::vector<int>& ids, const UVMethod&
 	{
 		try
 		{
-			AssImpMesh* mesh = dynamic_cast<AssImpMesh*>(_meshStore.at(id).mesh);
+			SceneMesh* mesh = dynamic_cast<SceneMesh*>(_meshStore.at(id).mesh);
 			if (mesh)
 			{								
 				success = _assimpModelLoader->regenerateUVs(mesh, uvMethod, uvConfig);
@@ -7732,9 +7732,9 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	_floorPlane->setOpacity(0.1f);
 	_floorPlane->render();
 	// FloorPlane writes mesh-like material uniforms through _fgShader without
-	// participating in AssImpMesh's shared material-uniform cache. Invalidate
+	// participating in SceneMesh's shared material-uniform cache. Invalidate
 	// that cache so subsequent scene meshes always republish their own state.
-	AssImpMesh::resetSharedUniformStateCache();
+	SceneMesh::resetSharedUniformStateCache();
 	glDisable(GL_BLEND);
 	glDisable(GL_CULL_FACE);
 
@@ -7784,7 +7784,7 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	_floorPlane->render();
 	// The final visible floor pass also mutates _fgShader material uniforms,
 	// so clear the shared cache before later transparent scene draws.
-	AssImpMesh::resetSharedUniformStateCache();
+	SceneMesh::resetSharedUniformStateCache();
 	glDisable(GL_CULL_FACE);
 	_fgShader->bind();
 	_fgShader->setUniformValue("floorRendering", false);
@@ -12372,7 +12372,7 @@ void GLWidget::setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos)
 }
 
 
-AssImpMesh* GLWidget::createMeshFromData(const AssImpMeshData& meshData)
+SceneMesh* GLWidget::createMeshFromData(const AssImpMeshData& meshData)
 {
 	std::vector<GLMaterial::Texture> textures = meshData.textures;
 	for (GLMaterial::Texture& texture : textures)
@@ -12543,7 +12543,7 @@ AssImpMesh* GLWidget::createMeshFromData(const AssImpMeshData& meshData)
 	// (copy assignment operator at line 6506 doesn't call updateConsistency)
 	resolvedMaterial.updateConsistency();
 
-	auto* mesh = new AssImpMesh(_fgShader.get(),
+	auto* mesh = new SceneMesh(_fgShader.get(),
 		meshData.name,
 		meshData.vertices,
 		meshData.indices,
@@ -13700,7 +13700,7 @@ void GLWidget::onMeshBatchReady(const std::vector<AssImpMeshData>& batch)
 	makeCurrent();
 	for (const AssImpMeshData& meshData : batch)
 	{
-		AssImpMesh* mesh = createMeshFromData(meshData);
+		SceneMesh* mesh = createMeshFromData(meshData);
 		addToDisplay(mesh);
 		_pendingSceneUuids.append(mesh->uuid());
 	}
@@ -18177,7 +18177,7 @@ bool GLWidget::uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& meshes)
     {
         const PreparedMvfMesh& pm = meshes[i];
 
-        AssImpMesh* mesh = new AssImpMesh(_fgShader.get(), pm.name,
+        SceneMesh* mesh = new SceneMesh(_fgShader.get(), pm.name,
                                           {}, {}, {}, pm.material);
         mesh->setUuid(pm.uuid);
         mesh->setPrimitiveMode(pm.primitiveMode);
@@ -18273,7 +18273,7 @@ void GLWidget::uploadOneMvfMesh(const PreparedMvfMesh& pm)
     makeCurrent();
 
     // Create mesh on main thread (GL context required)
-    AssImpMesh* mesh = new AssImpMesh(_fgShader.get(), pm.name,
+    SceneMesh* mesh = new SceneMesh(_fgShader.get(), pm.name,
                                       {}, {}, {}, pm.material);
     mesh->setUuid(pm.uuid);
     mesh->setPrimitiveMode(pm.primitiveMode);

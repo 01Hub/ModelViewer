@@ -7,14 +7,14 @@
 #include "DeformableMesh.h"
 // GLMaterial, Vertex, MorphTargetData — transitive via DeformableMesh.h → TriangleMesh.h
 
-class AssImpMesh : public DeformableMesh
+class SceneMesh : public DeformableMesh
 {
 public:
 
 	/*  Functions  */
 	// Constructor
-	AssImpMesh(QOpenGLShaderProgram* shader, QString name, std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<GLMaterial::Texture> textures, GLMaterial material, bool skipOptimization = false);
-	~AssImpMesh();
+	SceneMesh(QOpenGLShaderProgram* shader, QString name, std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<GLMaterial::Texture> textures, GLMaterial material, bool skipOptimization = false);
+	~SceneMesh();
 	virtual TriangleMesh* clone();
 	void setProg(QOpenGLShaderProgram* prog) override;
 	void render();

@@ -9,7 +9,8 @@
 #include <QUuid>
 
 class SceneGraph;
-class TriangleMesh;
+class RenderableMesh;
+using TriangleMesh = RenderableMesh;
 struct GltfCameraData;
 
 namespace Mvf

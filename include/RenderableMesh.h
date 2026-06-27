@@ -12,30 +12,44 @@
 #include "MaterialVizState.h"
 #include "MeshImportAdaptor.h"
 #include "MeshAnimationState.h"
-#include "MeshVizAdaptor.h"
 #include "MeshVertex.h"
 
+#include <QByteArray>
 #include <QHash>
+#include <QImage>
 #include <QMatrix4x4>
 #include <QMap>
+#include <QOpenGLBuffer>
 #include <QOpenGLContext>
+#include <QOpenGLVertexArrayObject>
 #include <QQuaternion>
 #include <QVariant>
 #include <QVector3D>
 
 class Triangle;
 
-class TriangleMesh : public Drawable
+// Precomputed texture binding entry — built once per material change by
+// AssImpMesh::cacheTextureBindings(), consumed every frame by
+// bindTexturesOptimized() without re-scanning the texture list.
+struct PrecomputedTexture
+{
+    unsigned int textureId;
+    unsigned int textureUnit;
+    int          uniformLocation;
+    bool         isValid;
+};
+
+class RenderableMesh : public Drawable
 {
 	Q_OBJECT
 public:
-	TriangleMesh(QOpenGLShaderProgram* prog, const QString name);
+	RenderableMesh(QOpenGLShaderProgram* prog, const QString name);
 
-	virtual ~TriangleMesh();
+	virtual ~RenderableMesh();
 
 	virtual void setProg(QOpenGLShaderProgram* prog);
 
-	virtual TriangleMesh* clone() = 0;
+	virtual RenderableMesh* clone() = 0;
 
 	static void setCurrentRenderContext(const QMatrix4x4& globalModelMatrix,
 	                                   const QMatrix4x4& viewMatrix);
@@ -123,9 +137,6 @@ public:
 	// These are the building blocks for SceneMeshRecord (Phase 7).
 	MeshInstanceState&        instanceState()        { return _instanceState; }
 	const MeshInstanceState&  instanceState()  const { return _instanceState; }
-
-	MeshVizAdaptor&           vizState()             { return _vizState; }
-	const MeshVizAdaptor&     vizState()       const { return _vizState; }
 
 	MaterialVizState&         materialState()        { return _materialState; }
 	const MaterialVizState&   materialState()  const { return _materialState; }
@@ -510,56 +521,65 @@ protected:
 	// by reference so existing call sites in AssImpMesh.cpp compile unchanged.
 	MeshAnimationState _animState;
 
-	// GL resource container — owns all vertex/index buffers, VAO, fallback
-	// texture, dirty flags, uniform-location cache, and debug override maps.
-	// Every field below up to _sMax/_tMax is a reference alias into _vizState
-	// so that all existing call sites in .cpp files compile unchanged.
-	// Initialised in the constructor init-list (must come before the aliases).
-	MeshVizAdaptor _vizState;
+	// ---- GL buffer objects (direct members, MeshVizAdaptor dissolved) -------
+	QOpenGLBuffer _indexBuffer;
+	QOpenGLBuffer _positionBuffer;
+	QOpenGLBuffer _normalBuffer;
+	QOpenGLBuffer _colorBuffer;
+	QOpenGLBuffer _texCoord0Buffer;
+	QOpenGLBuffer _texCoord1Buffer;
+	QOpenGLBuffer _texCoord2Buffer;
+	QOpenGLBuffer _texCoord3Buffer;
+	QOpenGLBuffer _tangentBuf;
+	QOpenGLBuffer _bitangentBuf;
+	QOpenGLBuffer _jointIndexBuffer;
+	QOpenGLBuffer _jointWeightBuffer;
+	QOpenGLBuffer _coordBuf;
 
-	// ---- Reference aliases into _vizState — do NOT access these directly
-	//      from outside TriangleMesh; they are an implementation detail. ------
-	QOpenGLBuffer& _indexBuffer;
-	QOpenGLBuffer& _positionBuffer;
-	QOpenGLBuffer& _normalBuffer;
-	QOpenGLBuffer& _colorBuffer;
-	QOpenGLBuffer& _texCoord0Buffer;
-	QOpenGLBuffer& _texCoord1Buffer;
-	QOpenGLBuffer& _texCoord2Buffer;
-	QOpenGLBuffer& _texCoord3Buffer;
-	QOpenGLBuffer& _tangentBuf;
-	QOpenGLBuffer& _bitangentBuf;
-	QOpenGLBuffer& _jointIndexBuffer;
-	QOpenGLBuffer& _jointWeightBuffer;
-	QOpenGLBuffer& _coordBuf;
-
-	unsigned int&                _nVerts;
-	QOpenGLVertexArrayObject&    _vertexArrayObject;
-	std::vector<QOpenGLBuffer>&  _buffers;
+	unsigned int               _nVerts = 0;
+	QOpenGLVertexArrayObject   _vertexArrayObject;
+	std::vector<QOpenGLBuffer> _buffers;
 
 	MaterialVizState _materialState;
-	GLMaterial& _material;   // reference alias into _materialState — do not access _material directly from outside TriangleMesh
+	GLMaterial& _material;   // reference alias into _materialState
 
-	// fallback texture aliases (owned by _vizState)
-	QImage&       _fallbackTextureImage;
-	QImage&       _fallbackTextureBuffer;
-	unsigned int& _fallbackTexture;
+	// ---- Fallback texture --------------------------------------------------
+	QImage       _fallbackTextureImage;
+	QImage       _fallbackTextureBuffer;
+	unsigned int _fallbackTexture = 0;
 
-	float _sMax;
-	float _tMax;
+	float _sMax = 1.0f;
+	float _tMax = 1.0f;
 
-	// References are transparent to const so no mutable annotation is needed.
-	bool&                    _textureBindingsDirty;
-	bool&                    _uniformsDirty;
-	QHash<QByteArray, int>&  _uniformLocationCache;
-	QOpenGLShaderProgram*&   _vaoConfiguredProgram;
+	// ---- Per-frame dirty flags + uniform cache ----------------------------
+	bool                           _textureBindingsDirty = true;
+	bool                           _uniformsDirty        = true;
+	mutable QHash<QByteArray, int> _uniformLocationCache;
+	mutable QOpenGLShaderProgram*  _vaoConfiguredProgram = nullptr;
 
 	static QMatrix4x4 _currentGlobalModelMatrix;
 	static QMatrix4x4 _currentViewMatrix;
 
-	// Debug override aliases (owned by _vizState)
-	QMap<int, GLuint>&       _debugTextureOverrides;
-	QMap<QString, QVariant>& _debugUniformOverrides;
+	// ---- Debug override maps -----------------------------------------------
+	QMap<int, GLuint>       _debugTextureOverrides;
+	QMap<QString, QVariant> _debugUniformOverrides;
+
+	// ---- Feature-edge VAO/VBO (heuristic silhouette edges) ----------------
+	QOpenGLBuffer            _featureEdgeIndexBuffer { QOpenGLBuffer::IndexBuffer };
+	QOpenGLVertexArrayObject _featureEdgeVAO;
+	int                      _featureEdgeCount = 0;
+
+	// ---- OCC B-Rep edge VAO/VBO (STEP/IGES/BREP exact topology) -----------
+	QOpenGLBuffer            _occEdgeVertexBuffer { QOpenGLBuffer::VertexBuffer };
+	QOpenGLVertexArrayObject _occEdgeVAO;
+	int                      _occEdgeCount = 0;
+
+	// ---- Precomputed texture binding table --------------------------------
+	std::vector<PrecomputedTexture> _textureBindings;
+
+	// ---- Uniform-state signature cache ------------------------------------
+	mutable bool    _uniformStateSignatureDirty  = true;
+	mutable quint64 _cachedUniformStateSignature = 0;
 
 	std::vector<unsigned int> _indices;
 	std::vector<float> _points;
@@ -580,3 +600,8 @@ protected:
 
 	unsigned long long _memorySize;
 };
+
+// Backward-compatibility alias — allows all existing code that uses the name
+// "TriangleMesh" to compile unchanged while the rename propagates.
+// Removed in Phase 8 cleanup once all sites have been updated.
+using TriangleMesh = RenderableMesh;

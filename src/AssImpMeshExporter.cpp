@@ -1,6 +1,6 @@
 #include "AssImpMeshExporter.h"
-#include "TriangleMesh.h"
-#include "AssImpMesh.h"
+#include "RenderableMesh.h"
+#include "SceneMesh.h"
 #include "GLMaterial.h"
 #include "GltfPostProcessor.h"
 
@@ -398,15 +398,15 @@ aiReturn AssImpMeshExporter::exportMeshes(
         std::vector<Vertex> vertices;
         std::vector<unsigned int> indices;
 
-        // Try to cast to AssImpMesh for direct access
-        if (auto assimpMesh = dynamic_cast<const AssImpMesh*>(mesh))
+        // Try to cast to SceneMesh for direct access
+        if (auto assimpMesh = dynamic_cast<const SceneMesh*>(mesh))
         {
             vertices = assimpMesh->vertices();
             indices = assimpMesh->indices();
         }
         else
         {
-            logWarning(QString("Non-AssImpMesh encountered: %1 - limited support")
+            logWarning(QString("Non-SceneMesh encountered: %1 - limited support")
                 .arg(mesh->getName()));
             // Could implement fallback here if needed
             continue;
@@ -1686,7 +1686,7 @@ void AssImpMeshExporter::logError(const QString& msg)
 
 #include "AssImpMeshExporter.h"
 #include "GLMaterial.h"
-#include "TriangleMesh.h"
+#include "RenderableMesh.h"
 
 #include <QMatrix4x4>
 #include <QDebug>

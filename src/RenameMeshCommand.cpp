@@ -1,7 +1,7 @@
 #include "RenameMeshCommand.h"
 #include "GLWidget.h"
 #include "SceneTreeWidget.h"
-#include "TriangleMesh.h"
+#include "RenderableMesh.h"
 
 // ---------------------------------------------------------------------------
 

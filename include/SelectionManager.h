@@ -11,7 +11,8 @@
 
 class GLWidget;
 class GLCamera;
-class TriangleMesh;
+class RenderableMesh;
+using TriangleMesh = RenderableMesh;
 
 // Hover highlighting mode enumeration
 enum class HoverHighlightMode

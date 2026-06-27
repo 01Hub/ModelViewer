@@ -1953,7 +1953,7 @@ QString AssImpModelLoader::getErrorMessage() const
 	return _errorMessage;
 }
 
-bool AssImpModelLoader::regenerateUVs(AssImpMesh* mesh,
+bool AssImpModelLoader::regenerateUVs(SceneMesh* mesh,
 	UVMethod method,
 	const UVConfig& config)
 {

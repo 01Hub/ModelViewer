@@ -1,12 +1,12 @@
 #include "MvfSceneBuilder.h"
 
-#include "AssImpMesh.h"
+#include "SceneMesh.h"
 #include "GLMaterial.h"
 #include "SceneGraph.h"
 #include "SceneNode.h"
 #include "TextureLocationManager.h"
 #include "GltfCameraData.h"
-#include "TriangleMesh.h"
+#include "RenderableMesh.h"
 
 #include <QCryptographicHash>
 #include <QFile>
@@ -703,7 +703,7 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
             primitiveExtras.insert(QStringLiteral("variantMaterials"), variantMaterialsArray);
         }
 
-        if (const auto* assImpMesh = dynamic_cast<const AssImpMesh*>(mesh))
+        if (const auto* assImpMesh = dynamic_cast<const SceneMesh*>(mesh))
         {
             const std::vector<Vertex> vertices = assImpMesh->vertices();
             const std::vector<unsigned int> indices = assImpMesh->indices();
@@ -1044,7 +1044,7 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
         // wireframe edges are preserved across MVF save/load for STEP/IGES/BREP meshes.
         // The per-topological-edge boundary table is written as a compact JSON int array
         // in extras (it's small: one int per topological edge).
-        if (const auto* assImpMeshForEdges = dynamic_cast<const AssImpMesh*>(mesh))
+        if (const auto* assImpMeshForEdges = dynamic_cast<const SceneMesh*>(mesh))
         {
             const std::vector<float>& occEdges  = assImpMeshForEdges->getOccEdgeSegments();
             const std::vector<int>&   occBounds = assImpMeshForEdges->getOccEdgeBoundaries();

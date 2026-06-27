@@ -8,7 +8,7 @@
 #include "SceneGraph.h"
 #include "SceneNode.h"
 #include "SelectionManager.h"
-#include "TriangleMesh.h"
+#include "RenderableMesh.h"
 
 #include <QAbstractItemModel>
 #include <QInputDialog>

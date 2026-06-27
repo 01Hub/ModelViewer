@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vector>
-#include "TriangleMesh.h"
+#include "RenderableMesh.h"
 
 class GridMesh : public TriangleMesh
 {

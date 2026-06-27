@@ -1,5 +1,5 @@
 #include "TextureLocationManager.h"
-#include "TriangleMesh.h"
+#include "RenderableMesh.h"
 #include "GLMaterial.h"
 
 #include <QFile>

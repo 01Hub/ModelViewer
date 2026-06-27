@@ -17,7 +17,8 @@
 
 #include "GLMaterial.h"
 
-class TriangleMesh; // Forward declaration
+class RenderableMesh;
+using TriangleMesh = RenderableMesh;
 
 /**
  * Post-process exported glTF JSON to add missing optional properties
@@ -246,7 +247,7 @@ private:
 
     static MaterialSignature buildSignatureForMesh(
         int meshIdx,
-        const class TriangleMesh* mesh,
+        const TriangleMesh* mesh,
         std::function<void(const QString&)> logCallback);
 
     // Find material signature index for a JSON material. Returns -1 if not found.

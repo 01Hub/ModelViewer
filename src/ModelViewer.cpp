@@ -24,7 +24,7 @@
 #include "PathUtils.h"
 #include "SelectionCommand.h"
 #include "TransformCommand.h"
-#include "TriangleMesh.h"
+#include "RenderableMesh.h"
 #include "VisibilityCommand.h"
 #include <assimp/Importer.hpp>
 #include <algorithm>
@@ -3664,7 +3664,7 @@ void ModelViewer::importFiles(QStringList& fileNames)
 
 
 #include "AssImpMeshExporter.h"
-#include <AssImpMesh.h>
+#include "SceneMesh.h"
 #include "SceneUtils.h"
 #include "SceneGraphExporter.h"
 #include <QDialog>

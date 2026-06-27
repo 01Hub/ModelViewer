@@ -4,7 +4,8 @@
 #include <QObject>
 #include "BoundingBox.h"
 
-class TriangleMesh;
+class RenderableMesh;
+using TriangleMesh = RenderableMesh;
 class MeshProperties : public QObject
 {
 	Q_OBJECT

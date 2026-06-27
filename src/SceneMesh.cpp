@@ -1,4 +1,4 @@
-#include "AssImpMesh.h"
+#include "SceneMesh.h"
 #include "TextureLocationManager.h"
 
 #include <assimp/Importer.hpp>
@@ -68,16 +68,16 @@ inline bool wireframeFeaturesEnabled()
 
 }
 
-bool AssImpMesh::_currentBlendEnabled;
-GLenum AssImpMesh::_currentFrontFace;
-QOpenGLShaderProgram* AssImpMesh::_currentUniformStateShader = nullptr;
-quint64 AssImpMesh::_currentUniformStateSignature = 0;
-bool AssImpMesh::_currentUniformStateHadDebugOverrides = false;
+bool SceneMesh::_currentBlendEnabled;
+GLenum SceneMesh::_currentFrontFace;
+QOpenGLShaderProgram* SceneMesh::_currentUniformStateShader = nullptr;
+quint64 SceneMesh::_currentUniformStateSignature = 0;
+bool SceneMesh::_currentUniformStateHadDebugOverrides = false;
 
 /*  Functions  */
 // Constructor
-AssImpMesh::AssImpMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<GLMaterial::Texture> textures, GLMaterial material, bool skipOptimization)
-    : DeformableMesh(shader, "AssImpMesh")
+SceneMesh::SceneMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<GLMaterial::Texture> textures, GLMaterial material, bool skipOptimization)
+    : DeformableMesh(shader, "SceneMesh")
     , _textures(_materialState.textures())
     , _currentMorphWeights(_animState.currentMorphWeights())
 {
@@ -100,7 +100,7 @@ AssImpMesh::AssImpMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex
 	setupMesh();
 }
 
-AssImpMesh::~AssImpMesh()
+SceneMesh::~SceneMesh()
 {
 	/*if (_textures.size())
 	{
@@ -111,9 +111,9 @@ AssImpMesh::~AssImpMesh()
 	}*/
 }
 
-TriangleMesh* AssImpMesh::clone()
+TriangleMesh* SceneMesh::clone()
 {
-	AssImpMesh* mesh = new AssImpMesh(_prog, _name, _baseVertices, _indices, _textures, _material, _importState.skipOptimization());
+	SceneMesh* mesh = new SceneMesh(_prog, _name, _baseVertices, _indices, _textures, _material, _importState.skipOptimization());
 	mesh->setMorphTargets(_morphTargets, _defaultMorphWeights);
 	if (!_currentMorphWeights.isEmpty())
 		mesh->applyMorphWeights(_currentMorphWeights);
@@ -135,25 +135,25 @@ TriangleMesh* AssImpMesh::clone()
 	return mesh;
 }
 
-quint64 AssImpMesh::getRenderMaterialSortKey() const
+quint64 SceneMesh::getRenderMaterialSortKey() const
 {
 	return uniformStateSignature();
 }
 
-void AssImpMesh::markUniformsDirty()
+void SceneMesh::markUniformsDirty()
 {
-	_vizState.uniformStateSignatureDirty() = true;
+	_uniformStateSignatureDirty = true;
 	TriangleMesh::markUniformsDirty();
 }
 
-void AssImpMesh::resetSharedUniformStateCache()
+void SceneMesh::resetSharedUniformStateCache()
 {
 	_currentUniformStateShader = nullptr;
 	_currentUniformStateSignature = 0;
 	_currentUniformStateHadDebugOverrides = false;
 }
 
-void AssImpMesh::setProg(QOpenGLShaderProgram* prog)
+void SceneMesh::setProg(QOpenGLShaderProgram* prog)
 {
 	const bool progChanged = (_prog != prog);
 	TriangleMesh::setProg(prog);
@@ -164,7 +164,7 @@ void AssImpMesh::setProg(QOpenGLShaderProgram* prog)
 	}
 }
 
-void AssImpMesh::render()
+void SceneMesh::render()
 {
 	if (!_vertexArrayObject.isCreated())
 		return;
@@ -346,7 +346,7 @@ void AssImpMesh::render()
 		recordAssImpRenderCpuMs(static_cast<double>(renderTimer.nsecsElapsed()) / 1000000.0);
 }
 
-void AssImpMesh::renderWireframeFast(QOpenGLShaderProgram* wireProg)
+void SceneMesh::renderWireframeFast(QOpenGLShaderProgram* wireProg)
 {
 	if (!_vertexArrayObject.isCreated() || !wireProg)
 		return;
@@ -416,10 +416,10 @@ void AssImpMesh::renderWireframeFast(QOpenGLShaderProgram* wireProg)
 	}
 }
 
-quint64 AssImpMesh::uniformStateSignature() const
+quint64 SceneMesh::uniformStateSignature() const
 {
-	if (!_vizState.uniformStateSignatureDirty())
-		return _vizState.cachedUniformStateSignature();
+	if (!_uniformStateSignatureDirty)
+		return _cachedUniformStateSignature;
 
 	quint64 hash = kFnvOffset;
 
@@ -566,12 +566,12 @@ quint64 AssImpMesh::uniformStateSignature() const
 	mixFloat(hash, opacityPacking.scale);
 	mixFloat(hash, opacityPacking.bias);
 
-	_vizState.cachedUniformStateSignature() = hash;
-	_vizState.uniformStateSignatureDirty() = false;
-	return _vizState.cachedUniformStateSignature();
+	_cachedUniformStateSignature = hash;
+	_uniformStateSignatureDirty = false;
+	return _cachedUniformStateSignature;
 }
 
-void AssImpMesh::optimizeMesh()
+void SceneMesh::optimizeMesh()
 {
 	// ============================================
 	// MESH OPTIMIZATION (before splitting arrays)
@@ -636,7 +636,7 @@ void AssImpMesh::optimizeMesh()
 
 /*  Functions    */
 // Initializes all the buffer objects/arrays
-void AssImpMesh::setupMesh()
+void SceneMesh::setupMesh()
 {
 	// ============================================
 	// Extract to separate arrays
@@ -698,7 +698,7 @@ void AssImpMesh::setupMesh()
 		buildAndUploadFeatureEdges(15.0f);
 }
 
-void AssImpMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
+void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 {
 	// Only valid for indexed triangle meshes.
 	if (_vertices.empty() || _indices.size() % 3 != 0 || _primitiveMode != GL_TRIANGLES)
@@ -878,28 +878,28 @@ void AssImpMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 		}
 	}
 
-	_vizState.featureEdgeCount() = static_cast<GLsizei>(featureEdges.size());
-	if (_vizState.featureEdgeCount() == 0)
+	_featureEdgeCount = static_cast<GLsizei>(featureEdges.size());
+	if (_featureEdgeCount == 0)
 		return;
 
 	// --- Step 4: Upload index buffer ---
-	if (!_vizState.featureEdgeIndexBuffer().isCreated())
-		_vizState.featureEdgeIndexBuffer().create();
-	_vizState.featureEdgeIndexBuffer().bind();
-	_vizState.featureEdgeIndexBuffer().setUsagePattern(QOpenGLBuffer::StaticDraw);
-	_vizState.featureEdgeIndexBuffer().allocate(featureEdges.data(),
+	if (!_featureEdgeIndexBuffer.isCreated())
+		_featureEdgeIndexBuffer.create();
+	_featureEdgeIndexBuffer.bind();
+	_featureEdgeIndexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+	_featureEdgeIndexBuffer.allocate(featureEdges.data(),
 	                                 static_cast<int>(featureEdges.size() * sizeof(uint32_t)));
-	_vizState.featureEdgeIndexBuffer().release();
+	_featureEdgeIndexBuffer.release();
 
 	// --- Step 5: Create feature edge VAO ---
 	// Reuses the same vertex VBOs as the main VAO; only the index buffer differs.
 	// Attribute locations (0=pos, 1=norm, 2=color, 9=jointIdx, 10=jointWgt) are
 	// fixed by layout(location=N) in wireframe.vert, so _prog's locations match.
-	if (!_vizState.featureEdgeVAO().isCreated())
-		_vizState.featureEdgeVAO().create();
-	_vizState.featureEdgeVAO().bind();
+	if (!_featureEdgeVAO.isCreated())
+		_featureEdgeVAO.create();
+	_featureEdgeVAO.bind();
 
-	_vizState.featureEdgeIndexBuffer().bind(); // stored in VAO state
+	_featureEdgeIndexBuffer.bind(); // stored in VAO state
 
 	_positionBuffer.bind();
 	_prog->enableAttributeArray("vertexPosition");
@@ -927,10 +927,10 @@ void AssImpMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 		_prog->setAttributeBuffer("jointWeights", GL_FLOAT, 0, 4);
 	}
 
-	_vizState.featureEdgeVAO().release();
+	_featureEdgeVAO.release();
 }
 
-void AssImpMesh::setPrecomputedOccEdges(const std::vector<float>& edgeVerts,
+void SceneMesh::setPrecomputedOccEdges(const std::vector<float>& edgeVerts,
                                         const std::vector<int>& bounds)
 {
 	if (!wireframeFeaturesEnabled())
@@ -938,27 +938,27 @@ void AssImpMesh::setPrecomputedOccEdges(const std::vector<float>& edgeVerts,
 	if (edgeVerts.empty()) return;
 
 	_importState.setOccEdgeData(edgeVerts, bounds);
-	_vizState.occEdgeCount() = static_cast<GLsizei>(edgeVerts.size() / 3);
+	_occEdgeCount = static_cast<GLsizei>(edgeVerts.size() / 3);
 
-	if (!_vizState.occEdgeVertexBuffer().isCreated())
-		_vizState.occEdgeVertexBuffer().create();
-	_vizState.occEdgeVertexBuffer().bind();
-	_vizState.occEdgeVertexBuffer().setUsagePattern(QOpenGLBuffer::StaticDraw);
-	_vizState.occEdgeVertexBuffer().allocate(edgeVerts.data(),
+	if (!_occEdgeVertexBuffer.isCreated())
+		_occEdgeVertexBuffer.create();
+	_occEdgeVertexBuffer.bind();
+	_occEdgeVertexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+	_occEdgeVertexBuffer.allocate(edgeVerts.data(),
 	                              static_cast<int>(edgeVerts.size() * sizeof(float)));
-	_vizState.occEdgeVertexBuffer().release();
+	_occEdgeVertexBuffer.release();
 
-	if (!_vizState.occEdgeVAO().isCreated())
-		_vizState.occEdgeVAO().create();
-	_vizState.occEdgeVAO().bind();
-	_vizState.occEdgeVertexBuffer().bind();
+	if (!_occEdgeVAO.isCreated())
+		_occEdgeVAO.create();
+	_occEdgeVAO.bind();
+	_occEdgeVertexBuffer.bind();
 	_prog->enableAttributeArray("vertexPosition");
 	_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3, 3 * sizeof(float));
-	_vizState.occEdgeVAO().release();
-	_vizState.occEdgeVertexBuffer().release();
+	_occEdgeVAO.release();
+	_occEdgeVertexBuffer.release();
 }
 
-void AssImpMesh::renderFeatureEdgesFast(QOpenGLShaderProgram* wireProg)
+void SceneMesh::renderFeatureEdgesFast(QOpenGLShaderProgram* wireProg)
 {
 	if (!wireProg) return;
 
@@ -968,15 +968,15 @@ void AssImpMesh::renderFeatureEdgesFast(QOpenGLShaderProgram* wireProg)
 	wireProg->setUniformValue("baseColor",   _material.albedoColor());
 
 	// OCC B-Rep edges take priority — exact analytical wireframe from STEP/IGES/BREP.
-	if (_vizState.occEdgeVAO().isCreated() && _vizState.occEdgeCount() > 0)
+	if (_occEdgeVAO.isCreated() && _occEdgeCount > 0)
 	{
-		_vizState.occEdgeVAO().bind();
-		glDrawArrays(GL_LINES, 0, _vizState.occEdgeCount());
-		_vizState.occEdgeVAO().release();
+		_occEdgeVAO.bind();
+		glDrawArrays(GL_LINES, 0, _occEdgeCount);
+		_occEdgeVAO.release();
 		return;
 	}
 
-	if (!_vizState.featureEdgeVAO().isCreated() || _vizState.featureEdgeCount() == 0)
+	if (!_featureEdgeVAO.isCreated() || _featureEdgeCount == 0)
 		return;
 
 	// Feature edges never use albedo textures — the edge line colour is the material
@@ -996,9 +996,9 @@ void AssImpMesh::renderFeatureEdgesFast(QOpenGLShaderProgram* wireProg)
 				glUniformMatrix4fv(baseLoc + i, 1, GL_FALSE, jointPalette()[i].constData());
 	}
 
-	_vizState.featureEdgeVAO().bind();
-	glDrawElements(GL_LINES, _vizState.featureEdgeCount(), GL_UNSIGNED_INT, nullptr);
-	_vizState.featureEdgeVAO().release();
+	_featureEdgeVAO.bind();
+	glDrawElements(GL_LINES, _featureEdgeCount, GL_UNSIGNED_INT, nullptr);
+	_featureEdgeVAO.release();
 
 	if (_hasVertexColors)
 		wireProg->setUniformValue("hasVertexColors", false);
@@ -1009,12 +1009,12 @@ void AssImpMesh::renderFeatureEdgesFast(QOpenGLShaderProgram* wireProg)
 	}
 }
 
-void AssImpMesh::cacheTextureBindings()
+void SceneMesh::cacheTextureBindings()
 {
 	if (!_textureBindingsDirty) return;
 
-	_vizState.textureBindings().clear();
-	_vizState.textureBindings().reserve(_textures.size() * 2); // Account for duplicates
+	_textureBindings.clear();
+	_textureBindings.reserve(_textures.size() * 2); // Account for duplicates
 
 	// Counters for numbering
 	int diffuseNr = 1, specularNr = 1, emissiveNr = 1, normalNr = 1;
@@ -1043,7 +1043,7 @@ void AssImpMesh::cacheTextureBindings()
 			binding.isValid = (binding.uniformLocation != -1);
 			if (binding.isValid)
 			{
-				_vizState.textureBindings().push_back(binding);
+				_textureBindings.push_back(binding);
 			}
 			};
 
@@ -1224,9 +1224,9 @@ void AssImpMesh::cacheTextureBindings()
 }
 
 
-void AssImpMesh::bindTexturesOptimized()
+void SceneMesh::bindTexturesOptimized()
 {
-	for (const auto& binding : _vizState.textureBindings())
+	for (const auto& binding : _textureBindings)
 	{
 		if (binding.isValid)
 		{
@@ -1236,7 +1236,7 @@ void AssImpMesh::bindTexturesOptimized()
 	}
 }
 
-void AssImpMesh::setRenderStateOptimized()
+void SceneMesh::setRenderStateOptimized()
 {
 	const bool shouldBlend =
 		_material.opacity() < 1.0f ||
@@ -1278,7 +1278,7 @@ void AssImpMesh::setRenderStateOptimized()
 }
 
 
-void AssImpMesh::setupUniformsOptimized()
+void SceneMesh::setupUniformsOptimized()
 {
 	if (!_uniformsDirty) return;
 
@@ -1295,7 +1295,7 @@ static aiString qstrToAiString(const QString& s)
 	return aiString(s.toUtf8().constData());
 }
 
-void AssImpMesh::syncTexturesFromMaterialIfNeeded()
+void SceneMesh::syncTexturesFromMaterialIfNeeded()
 {
 	// If mesh already has explicit paths for textures, do nothing
 	bool hasAnyPath = false;
@@ -1346,7 +1346,7 @@ void AssImpMesh::syncTexturesFromMaterialIfNeeded()
 		_textures.push_back(t);
 		};
 
-	// Map GLMaterial variant keys -> mesh texture type strings used throughout AssImpMesh
+	// Map GLMaterial variant keys -> mesh texture type strings used throughout SceneMesh
 	// (these type strings match the checks in setupMesh()/cacheTextureBindings)
 	pushIfPresent("albedoMapPath", "albedoMap");        // PBR albedo
 	pushIfPresent("normalMapPath", "normalMap");        // normal
@@ -1396,7 +1396,7 @@ void AssImpMesh::syncTexturesFromMaterialIfNeeded()
 }
 
 
-GLuint AssImpMesh::createGLTextureFromFile(const QString& fullPath, bool& outHasAlpha)
+GLuint SceneMesh::createGLTextureFromFile(const QString& fullPath, bool& outHasAlpha)
 {
 	outHasAlpha = false;
 	if (fullPath.isEmpty()) return 0;
@@ -1464,22 +1464,22 @@ GLuint AssImpMesh::createGLTextureFromFile(const QString& fullPath, bool& outHas
 }
 
 
-vector<Vertex> AssImpMesh::vertices() const
+vector<Vertex> SceneMesh::vertices() const
 {
     return _vertices;
 }
 
-vector<unsigned int> AssImpMesh::indices() const
+vector<unsigned int> SceneMesh::indices() const
 {
     return _indices;
 }
 
-vector<GLMaterial::Texture> AssImpMesh::textures() const
+vector<GLMaterial::Texture> SceneMesh::textures() const
 {
     return _textures;
 }
 
-void AssImpMesh::getMeshData(std::vector<Vertex>& vertices,
+void SceneMesh::getMeshData(std::vector<Vertex>& vertices,
 	std::vector<unsigned int>& indices) const
 {
 	vertices = _vertices;
@@ -1487,7 +1487,7 @@ void AssImpMesh::getMeshData(std::vector<Vertex>& vertices,
 }
 
 // Set new mesh data and upload to GPU (no optimization)
-void AssImpMesh::setMeshData(const std::vector<Vertex>& vertices,
+void SceneMesh::setMeshData(const std::vector<Vertex>& vertices,
 	const std::vector<unsigned int>& indices,
 	const std::vector<unsigned int>* sourceVertexMap)
 {
@@ -1549,7 +1549,7 @@ void AssImpMesh::setMeshData(const std::vector<Vertex>& vertices,
 	}
 }
 
-void AssImpMesh::setMorphTargets(const QVector<MorphTargetData>& targets,
+void SceneMesh::setMorphTargets(const QVector<MorphTargetData>& targets,
 	const QVector<float>& defaultWeights)
 {
 	_morphTargets = targets;
@@ -1574,7 +1574,7 @@ void AssImpMesh::setMorphTargets(const QVector<MorphTargetData>& targets,
 		_currentMorphWeights = _defaultMorphWeights;
 }
 
-void AssImpMesh::applyMorphWeights(const QVector<float>& weights)
+void SceneMesh::applyMorphWeights(const QVector<float>& weights)
 {
 	if (_morphTargets.isEmpty() || _baseVertices.empty())
 		return;
@@ -1641,7 +1641,7 @@ void AssImpMesh::applyMorphWeights(const QVector<float>& weights)
 	setupTransformation();
 }
 
-void AssImpMesh::resetMorphTargets()
+void SceneMesh::resetMorphTargets()
 {
 	if (_morphTargets.isEmpty())
 		return;
@@ -1649,7 +1649,7 @@ void AssImpMesh::resetMorphTargets()
 	applyMorphWeights(_defaultMorphWeights);
 }
 
-void AssImpMesh::setAlbedoPBRMap(unsigned int albedoMap)
+void SceneMesh::setAlbedoPBRMap(unsigned int albedoMap)
 {
 	_material.setAlbedoTextureId(albedoMap);
 	replaceOrAppendTexture("albedoMap", albedoMap, false);
@@ -1657,7 +1657,7 @@ void AssImpMesh::setAlbedoPBRMap(unsigned int albedoMap)
 	markUniformsDirty();
 }
 
-void AssImpMesh::setMetallicPBRMap(unsigned int metallicMap)
+void SceneMesh::setMetallicPBRMap(unsigned int metallicMap)
 {
 	_material.setMetallicTextureId(metallicMap);
 	replaceOrAppendTexture("metallicMap", metallicMap, false);
@@ -1665,7 +1665,7 @@ void AssImpMesh::setMetallicPBRMap(unsigned int metallicMap)
 	markUniformsDirty();
 }
 
-void AssImpMesh::setEmissivePBRMap(unsigned int emissiveMap)
+void SceneMesh::setEmissivePBRMap(unsigned int emissiveMap)
 {
 	_material.setEmissiveTextureId(emissiveMap);
 	replaceOrAppendTexture("emissiveMap", emissiveMap, false);
@@ -1673,7 +1673,7 @@ void AssImpMesh::setEmissivePBRMap(unsigned int emissiveMap)
 	markUniformsDirty();
 }
 
-void AssImpMesh::setRoughnessPBRMap(unsigned int roughnessMap)
+void SceneMesh::setRoughnessPBRMap(unsigned int roughnessMap)
 {
 	_material.setRoughnessTextureId(roughnessMap);
 	replaceOrAppendTexture("roughnessMap", roughnessMap, false);
@@ -1681,7 +1681,7 @@ void AssImpMesh::setRoughnessPBRMap(unsigned int roughnessMap)
 	markUniformsDirty();
 }
 
-void AssImpMesh::setNormalPBRMap(unsigned int normalMap)
+void SceneMesh::setNormalPBRMap(unsigned int normalMap)
 {
 	_material.setNormalTextureId(normalMap);
 	replaceOrAppendTexture("normalMap", normalMap, false);
@@ -1689,7 +1689,7 @@ void AssImpMesh::setNormalPBRMap(unsigned int normalMap)
 	markUniformsDirty();
 }
 
-void AssImpMesh::setAOPBRMap(unsigned int aoMap)
+void SceneMesh::setAOPBRMap(unsigned int aoMap)
 {
 	_material.setOcclusionTextureId(aoMap);
 	replaceOrAppendTexture("aoMap", aoMap, false);
@@ -1697,7 +1697,7 @@ void AssImpMesh::setAOPBRMap(unsigned int aoMap)
 	markUniformsDirty();
 }
 
-void AssImpMesh::setHeightPBRMap(unsigned int heightMap)
+void SceneMesh::setHeightPBRMap(unsigned int heightMap)
 {
 	_material.setHeightTextureId(heightMap);
 	replaceOrAppendTexture("heightMap", heightMap, false);
@@ -1705,7 +1705,7 @@ void AssImpMesh::setHeightPBRMap(unsigned int heightMap)
 	markUniformsDirty();
 }
 
-void AssImpMesh::setOpacityPBRMap(unsigned int opacityMap)
+void SceneMesh::setOpacityPBRMap(unsigned int opacityMap)
 {
 	_material.setOpacityTextureId(opacityMap);
 	_material.setBlendMode(GLMaterial::BlendMode::Alpha);
@@ -1714,7 +1714,7 @@ void AssImpMesh::setOpacityPBRMap(unsigned int opacityMap)
 	markUniformsDirty();
 }
 
-void AssImpMesh::setIORPBRMap(unsigned int iorMap)
+void SceneMesh::setIORPBRMap(unsigned int iorMap)
 {
 	_material.setIORTextureId(iorMap);
 	replaceOrAppendTexture("iorMap", iorMap, false);
@@ -1722,7 +1722,7 @@ void AssImpMesh::setIORPBRMap(unsigned int iorMap)
 	markUniformsDirty();
 }
 
-void AssImpMesh::setClearcoatPBRMap(unsigned int clearcoatColorMap)
+void SceneMesh::setClearcoatPBRMap(unsigned int clearcoatColorMap)
 {
 	_material.setClearcoatColorTextureId(clearcoatColorMap);
 	replaceOrAppendTexture("clearcoatColorMap", clearcoatColorMap, false);
@@ -1730,7 +1730,7 @@ void AssImpMesh::setClearcoatPBRMap(unsigned int clearcoatColorMap)
 	markUniformsDirty();
 }
 
-void AssImpMesh::setClearcoatRoughnessPBRMap(unsigned int clearcoatRoughnessMap)
+void SceneMesh::setClearcoatRoughnessPBRMap(unsigned int clearcoatRoughnessMap)
 {
 	_material.setClearcoatRoughnessTextureId(clearcoatRoughnessMap);
 	replaceOrAppendTexture("clearcoatRoughnessMap", clearcoatRoughnessMap, false);
@@ -1738,7 +1738,7 @@ void AssImpMesh::setClearcoatRoughnessPBRMap(unsigned int clearcoatRoughnessMap)
 	markUniformsDirty();
 }
 
-void AssImpMesh::setClearcoatNormalPBRMap(unsigned int clearcoatNormalMap)
+void SceneMesh::setClearcoatNormalPBRMap(unsigned int clearcoatNormalMap)
 {
 	_material.setClearcoatNormalTextureId(clearcoatNormalMap);
 	replaceOrAppendTexture("clearcoatNormalMap", clearcoatNormalMap, false);
@@ -1746,7 +1746,7 @@ void AssImpMesh::setClearcoatNormalPBRMap(unsigned int clearcoatNormalMap)
 	markUniformsDirty();
 }
 
-void AssImpMesh::setSheenColorPBRMap(unsigned int sheenMap)
+void SceneMesh::setSheenColorPBRMap(unsigned int sheenMap)
 {
 	_material.setSheenColorTextureId(sheenMap);
 	replaceOrAppendTexture("sheenColorMap", sheenMap, false);
@@ -1754,7 +1754,7 @@ void AssImpMesh::setSheenColorPBRMap(unsigned int sheenMap)
 	markUniformsDirty();
 }
 
-void AssImpMesh::setSheenRoughnessPBRMap(unsigned int sheenRoughnessMap)
+void SceneMesh::setSheenRoughnessPBRMap(unsigned int sheenRoughnessMap)
 {
 	_material.setSheenRoughnessTextureId(sheenRoughnessMap);
 	replaceOrAppendTexture("sheenRoughnessMap", sheenRoughnessMap, false);
@@ -1762,7 +1762,7 @@ void AssImpMesh::setSheenRoughnessPBRMap(unsigned int sheenRoughnessMap)
 	markUniformsDirty();
 }
 
-void AssImpMesh::setTransmissionPBRMap(unsigned int transmissionMap)
+void SceneMesh::setTransmissionPBRMap(unsigned int transmissionMap)
 {
 	_material.setTransmissionTextureId(transmissionMap);
 	replaceOrAppendTexture("transmissionMap", transmissionMap, false);
@@ -1770,7 +1770,7 @@ void AssImpMesh::setTransmissionPBRMap(unsigned int transmissionMap)
 	markUniformsDirty();
 }
 
-void AssImpMesh::clearAlbedoPBRMap()
+void SceneMesh::clearAlbedoPBRMap()
 {
 	_material.setAlbedoTextureId(0);
 	removeTexturesByType({ "albedoMap" });
@@ -1778,7 +1778,7 @@ void AssImpMesh::clearAlbedoPBRMap()
 	markUniformsDirty();
 }
 
-void AssImpMesh::clearMetallicPBRMap()
+void SceneMesh::clearMetallicPBRMap()
 {
 	_material.setMetallicTextureId(0);
 	removeTexturesByType({ "metallicMap" });
@@ -1786,7 +1786,7 @@ void AssImpMesh::clearMetallicPBRMap()
 	markUniformsDirty();
 }
 
-void AssImpMesh::clearRoughnessPBRMap()
+void SceneMesh::clearRoughnessPBRMap()
 {
 	_material.setRoughnessTextureId(0);
 	removeTexturesByType({ "roughnessMap" });
@@ -1794,7 +1794,7 @@ void AssImpMesh::clearRoughnessPBRMap()
 	markUniformsDirty();
 }
 
-void AssImpMesh::clearNormalPBRMap()
+void SceneMesh::clearNormalPBRMap()
 {
 	_material.setNormalTextureId(0);
 	removeTexturesByType({ "normalMap" });
@@ -1802,7 +1802,7 @@ void AssImpMesh::clearNormalPBRMap()
 	markUniformsDirty();
 }
 
-void AssImpMesh::clearAOPBRMap()
+void SceneMesh::clearAOPBRMap()
 {
 	_material.setOcclusionTextureId(0);
 	removeTexturesByType({ "aoMap", "occlusionMap" });
@@ -1810,7 +1810,7 @@ void AssImpMesh::clearAOPBRMap()
 	markUniformsDirty();
 }
 
-void AssImpMesh::clearHeightPBRMap()
+void SceneMesh::clearHeightPBRMap()
 {
 	_material.setHeightTextureId(0);
 	removeTexturesByType({ "heightMap" });
@@ -1818,7 +1818,7 @@ void AssImpMesh::clearHeightPBRMap()
 	markUniformsDirty();
 }
 
-void AssImpMesh::clearOpacityPBRMap()
+void SceneMesh::clearOpacityPBRMap()
 {
 	_material.setOpacityTextureId(0);
 	removeTexturesByType({ "opacityMap" });
@@ -1826,7 +1826,7 @@ void AssImpMesh::clearOpacityPBRMap()
 	markUniformsDirty();
 }
 
-void AssImpMesh::clearTransmissionPBRMap()
+void SceneMesh::clearTransmissionPBRMap()
 {
 	_material.setTransmissionTextureId(0);
 	removeTexturesByType({ "transmissionMap" });
@@ -1834,7 +1834,7 @@ void AssImpMesh::clearTransmissionPBRMap()
 	markUniformsDirty();
 }
 
-void AssImpMesh::clearIORPBRMap()
+void SceneMesh::clearIORPBRMap()
 {
 	_material.setIORTextureId(0);
 	removeTexturesByType({ "iorMap" });
@@ -1842,7 +1842,7 @@ void AssImpMesh::clearIORPBRMap()
 	markUniformsDirty();
 }
 
-void AssImpMesh::clearSheenColorPBRMap()
+void SceneMesh::clearSheenColorPBRMap()
 {
 	_material.setSheenColorTextureId(0);
 	removeTexturesByType({ "sheenColorMap" });
@@ -1850,7 +1850,7 @@ void AssImpMesh::clearSheenColorPBRMap()
 	markUniformsDirty();
 }
 
-void AssImpMesh::clearSheenRoughnessPBRMap()
+void SceneMesh::clearSheenRoughnessPBRMap()
 {
 	_material.setSheenRoughnessTextureId(0);
 	removeTexturesByType({ "sheenRoughnessMap" });
@@ -1858,7 +1858,7 @@ void AssImpMesh::clearSheenRoughnessPBRMap()
 	markUniformsDirty();
 }
 
-void AssImpMesh::clearClearcoatPBRMap()
+void SceneMesh::clearClearcoatPBRMap()
 {
 	_material.setClearcoatColorTextureId(0);
 	removeTexturesByType({ "clearcoatColorMap" });
@@ -1866,7 +1866,7 @@ void AssImpMesh::clearClearcoatPBRMap()
 	markUniformsDirty();
 }
 
-void AssImpMesh::clearClearcoatRoughnessPBRMap()
+void SceneMesh::clearClearcoatRoughnessPBRMap()
 {
 	_material.setClearcoatRoughnessTextureId(0);
 	removeTexturesByType({ "clearcoatRoughnessMap" });
@@ -1874,7 +1874,7 @@ void AssImpMesh::clearClearcoatRoughnessPBRMap()
 	markUniformsDirty();
 }
 
-void AssImpMesh::clearClearcoatNormalPBRMap()
+void SceneMesh::clearClearcoatNormalPBRMap()
 {
 	_material.setClearcoatNormalTextureId(0);
 	removeTexturesByType({ "clearcoatNormalMap" });
@@ -1882,7 +1882,7 @@ void AssImpMesh::clearClearcoatNormalPBRMap()
 	markUniformsDirty();
 }
 
-void AssImpMesh::clearAllPBRMaps()
+void SceneMesh::clearAllPBRMaps()
 {
 	_material.setAlbedoTextureId(0);
 	_material.setMetallicTextureId(0);
@@ -1924,7 +1924,7 @@ void AssImpMesh::clearAllPBRMaps()
 	markUniformsDirty();
 }
 
-void AssImpMesh::setDiffuseADSMap(unsigned int diffuseTex)
+void SceneMesh::setDiffuseADSMap(unsigned int diffuseTex)
 {
 	_materialState.diffuseADSMap() = diffuseTex;
 	replaceOrAppendTexture("texture_diffuse", diffuseTex, false);
@@ -1932,7 +1932,7 @@ void AssImpMesh::setDiffuseADSMap(unsigned int diffuseTex)
 	markUniformsDirty();
 }
 
-void AssImpMesh::setSpecularADSMap(unsigned int specularTex)
+void SceneMesh::setSpecularADSMap(unsigned int specularTex)
 {
 	_materialState.specularADSMap() = specularTex;
 	replaceOrAppendTexture("texture_specular", specularTex, false);
@@ -1940,7 +1940,7 @@ void AssImpMesh::setSpecularADSMap(unsigned int specularTex)
 	markUniformsDirty();
 }
 
-void AssImpMesh::setEmissiveADSMap(unsigned int emissiveTex)
+void SceneMesh::setEmissiveADSMap(unsigned int emissiveTex)
 {
 	_materialState.emissiveADSMap() = emissiveTex;
 	replaceOrAppendTexture("texture_emissive", emissiveTex, false);
@@ -1948,7 +1948,7 @@ void AssImpMesh::setEmissiveADSMap(unsigned int emissiveTex)
 	markUniformsDirty();
 }
 
-void AssImpMesh::setNormalADSMap(unsigned int normalTex)
+void SceneMesh::setNormalADSMap(unsigned int normalTex)
 {
 	_materialState.normalADSMap() = normalTex;
 	replaceOrAppendTexture("texture_normal", normalTex, false);
@@ -1956,7 +1956,7 @@ void AssImpMesh::setNormalADSMap(unsigned int normalTex)
 	markUniformsDirty();
 }
 
-void AssImpMesh::setHeightADSMap(unsigned int heightTex)
+void SceneMesh::setHeightADSMap(unsigned int heightTex)
 {
 	_materialState.heightADSMap() = heightTex;
 	replaceOrAppendTexture("texture_height", heightTex, false);
@@ -1964,7 +1964,7 @@ void AssImpMesh::setHeightADSMap(unsigned int heightTex)
 	markUniformsDirty();
 }
 
-void AssImpMesh::setOpacityADSMap(unsigned int opacityTex)
+void SceneMesh::setOpacityADSMap(unsigned int opacityTex)
 {
 	_materialState.opacityADSMap() = opacityTex;
 	replaceOrAppendTexture("texture_opacity", opacityTex, true);
@@ -1973,7 +1973,7 @@ void AssImpMesh::setOpacityADSMap(unsigned int opacityTex)
 	markUniformsDirty();
 }
 
-void AssImpMesh::clearDiffuseADSMap()
+void SceneMesh::clearDiffuseADSMap()
 {
 	_materialState.diffuseADSMap() = 0;
 	removeTexturesByType({ "texture_diffuse" });
@@ -1981,7 +1981,7 @@ void AssImpMesh::clearDiffuseADSMap()
 	markUniformsDirty();
 }
 
-void AssImpMesh::clearSpecularADSMap()
+void SceneMesh::clearSpecularADSMap()
 {
 	_materialState.specularADSMap() = 0;
 	removeTexturesByType({ "texture_specular" });
@@ -1989,7 +1989,7 @@ void AssImpMesh::clearSpecularADSMap()
 	markUniformsDirty();
 }
 
-void AssImpMesh::clearEmissiveADSMap()
+void SceneMesh::clearEmissiveADSMap()
 {
 	_materialState.emissiveADSMap() = 0;
 	removeTexturesByType({ "texture_emissive" });
@@ -1997,7 +1997,7 @@ void AssImpMesh::clearEmissiveADSMap()
 	markUniformsDirty();
 }
 
-void AssImpMesh::clearNormalADSMap()
+void SceneMesh::clearNormalADSMap()
 {
 	_materialState.normalADSMap() = 0;
 	removeTexturesByType({ "texture_normal" });
@@ -2005,7 +2005,7 @@ void AssImpMesh::clearNormalADSMap()
 	markUniformsDirty();
 }
 
-void AssImpMesh::clearHeightADSMap()
+void SceneMesh::clearHeightADSMap()
 {
 	_materialState.heightADSMap() = 0;
 	removeTexturesByType({ "texture_height" });
@@ -2013,7 +2013,7 @@ void AssImpMesh::clearHeightADSMap()
 	markUniformsDirty();
 }
 
-void AssImpMesh::clearOpacityADSMap()
+void SceneMesh::clearOpacityADSMap()
 {
 	_materialState.opacityADSMap() = 0;
 	removeTexturesByType({ "texture_opacity" });
@@ -2021,7 +2021,7 @@ void AssImpMesh::clearOpacityADSMap()
 	markUniformsDirty();
 }
 
-void AssImpMesh::clearAllADSMaps()
+void SceneMesh::clearAllADSMaps()
 {
 	clearDiffuseADSMap();
 	clearSpecularADSMap();
@@ -2031,7 +2031,7 @@ void AssImpMesh::clearAllADSMaps()
 	clearOpacityADSMap();
 }
 
-void AssImpMesh::setTextureMaps(const GLMaterial& material)
+void SceneMesh::setTextureMaps(const GLMaterial& material)
 {
 	// Runtime-resolved GLMaterial instances can point at shared textures from
 	// GLWidget's cache. Sync to those ids without deleting or recreating them.
@@ -2093,7 +2093,7 @@ void AssImpMesh::setTextureMaps(const GLMaterial& material)
 	markUniformsDirty();
 }
 
-void AssImpMesh::replaceOrAppendTexture(const std::string& type, GLuint id, bool hasAlpha)
+void SceneMesh::replaceOrAppendTexture(const std::string& type, GLuint id, bool hasAlpha)
 {
 	for (auto& t : _textures)
 	{
@@ -2108,7 +2108,7 @@ void AssImpMesh::replaceOrAppendTexture(const std::string& type, GLuint id, bool
 	_textures.push_back(t);
 }
 
-void AssImpMesh::removeTexturesByType(std::initializer_list<std::string> types)
+void SceneMesh::removeTexturesByType(std::initializer_list<std::string> types)
 {
 	_textures.erase(
 		std::remove_if(_textures.begin(), _textures.end(),
@@ -2119,7 +2119,7 @@ void AssImpMesh::removeTexturesByType(std::initializer_list<std::string> types)
 		_textures.end());
 }
 
-void AssImpMesh::deleteTextures()
+void SceneMesh::deleteTextures()
 {
 	glDeleteTextures(1, &_materialState.diffuseADSMap());
 	glDeleteTextures(1, &_materialState.specularADSMap());

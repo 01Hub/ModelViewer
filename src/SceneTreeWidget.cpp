@@ -2,7 +2,7 @@
 #include "SceneGraph.h"
 #include "SceneNode.h"
 #include "GLWidget.h"
-#include "TriangleMesh.h"
+#include "RenderableMesh.h"
 
 #include <QApplication>
 #include <QElapsedTimer>

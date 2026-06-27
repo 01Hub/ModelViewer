@@ -3,7 +3,7 @@
 #include "BoundingBox.h"
 #include "GltfLightData.h"
 #include "SceneMeshRecord.h"
-#include "TriangleMesh.h"
+#include "RenderableMesh.h"
 
 #include <QDateTime>
 #include <QList>
@@ -17,7 +17,6 @@
 #include <assimp/scene.h>
 
 struct SceneNode;
-class TriangleMesh;
 
 // ---------------------------------------------------------------------------
 // TextureSamplerSettings

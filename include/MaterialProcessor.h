@@ -6,7 +6,7 @@
 #include <assimp/scene.h>
 #include <functional>
 #include "GLMaterial.h"
-#include "AssImpMesh.h"
+#include "SceneMesh.h"
 #include "GLLights.h"
 #include "GltfLightData.h"
 #include <QByteArray>

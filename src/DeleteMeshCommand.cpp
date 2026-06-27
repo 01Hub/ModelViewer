@@ -2,7 +2,7 @@
 #include "GLWidget.h"
 #include "ModelViewer.h"
 #include "SceneGraph.h"
-#include "TriangleMesh.h"
+#include "RenderableMesh.h"
 
 #include <algorithm>
 #include <climits>

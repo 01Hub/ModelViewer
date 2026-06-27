@@ -10,7 +10,7 @@
 #include "GLCamera.h"
 #include "Plane.h"
 #include "SceneRuntime.h"
-#include "TriangleMesh.h"
+#include "RenderableMesh.h"
 #include "TransformCommand.h"
 #include "ShaderProgram.h"
 #include "AssImpModelLoader.h"
@@ -511,7 +511,7 @@ public:
 	/// Called once per mesh from the main thread while worker waits.
 	void uploadOneMvfMesh(const PreparedMvfMesh& pm);
 
-	/// GL-only upload: creates AssImpMesh objects, uploads VBOs and
+	/// GL-only upload: creates SceneMesh objects, uploads VBOs and
 	/// textures, and populates the display list.  Must run on the main
 	/// (GL) thread.  Updates the progress bar between meshes.
 	bool uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& meshes);
@@ -926,7 +926,7 @@ private:
 	void setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos);
 
 	void onMeshBatchReady(const std::vector<AssImpMeshData>& batch);
-	AssImpMesh* createMeshFromData(const AssImpMeshData& meshData);
+	SceneMesh* createMeshFromData(const AssImpMeshData& meshData);
 	void syncFileNodeTransforms(const QString& sourceFile);
 	void applyAnimationPose(const QString& sourceFile, int clipIndex, double timeSeconds);
 	void resetAnimationPose(const QString& sourceFile);

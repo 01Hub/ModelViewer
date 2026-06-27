@@ -1,6 +1,6 @@
 ﻿#include "GltfPostProcessor.h"
 #include "GLMaterial.h"
-#include "TriangleMesh.h"
+#include "RenderableMesh.h"
 #include <QDebug>
 #include <QBuffer>
 #include <QDir>

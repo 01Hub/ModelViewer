@@ -2,8 +2,8 @@
 
 #include "SceneGraph.h"
 #include "SceneNode.h"
-#include "TriangleMesh.h"
-#include "AssImpMesh.h"
+#include "RenderableMesh.h"
+#include "SceneMesh.h"
 #include "GLLights.h"
 
 #include "GltfAnimationData.h"
@@ -1373,7 +1373,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
                                                     ? (correctedMeshTrs * worldTransform)
                                                     : worldTransform;
 
-        // Vertex positions in AssImpMesh are stored in mesh-LOCAL space.
+        // Vertex positions in SceneMesh are stored in mesh-LOCAL space.
         // processMesh() copies Assimp vertex positions verbatim with no world transform
         // applied; the world transform is only used at GPU render time via
         // setSceneRenderTransform().
@@ -1530,7 +1530,7 @@ aiMesh* SceneGraphExporter::buildMeshFromTriangleMesh(const TriangleMesh* mesh, 
 
     // We only export AssImp-backed runtime meshes in this first pass,
     // because those expose CPU-side vertices()/indices().
-    const AssImpMesh* assimpMesh = dynamic_cast<const AssImpMesh*>(mesh);
+    const SceneMesh* assimpMesh = dynamic_cast<const SceneMesh*>(mesh);
     if (!assimpMesh)
         return nullptr;
 
@@ -1672,7 +1672,7 @@ aiMesh* SceneGraphExporter::buildMeshFromTriangleMesh(const TriangleMesh* mesh, 
     // --- Morph targets (blend shapes) ---
     // Populate aiAnimMesh entries from stored MorphTargetData so the output
     // glTF / FBX carries blend-shape geometry for weight-animation round-trips.
-    if (const AssImpMesh* assimpMesh = dynamic_cast<const AssImpMesh*>(mesh))
+    if (const SceneMesh* assimpMesh = dynamic_cast<const SceneMesh*>(mesh))
     {
         const QVector<MorphTargetData>& morphTargets = assimpMesh->getMorphTargets();
         if (!morphTargets.isEmpty())

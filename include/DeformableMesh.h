@@ -1,6 +1,6 @@
 #pragma once
 
-#include "TriangleMesh.h"
+#include "RenderableMesh.h"
 
 // ---------------------------------------------------------------------------
 // DeformableMesh

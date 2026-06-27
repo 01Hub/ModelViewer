@@ -4,6 +4,9 @@
 #include <QMap>
 #include <vector>
 
+class RenderableMesh;
+using TriangleMesh = RenderableMesh;
+
 /**
  * @class TextureMetadata
  * @brief Tracks metadata for a single texture through the packaging process
@@ -76,7 +79,7 @@ public:
      * @param outputDirectory Base directory for texture output
      * @return TexturePackage with all metadata and path mappings
      */
-    TexturePackage packageTextures(const std::vector<class TriangleMesh*>& meshes,
+    TexturePackage packageTextures(const std::vector<TriangleMesh*>& meshes,
         const QString& outputDirectory,
         const QString& textureSubfolder);
 
