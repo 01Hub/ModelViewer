@@ -132,7 +132,9 @@ private:
 	// init-list; all existing _textures.xxx call sites remain unchanged.
 	std::vector<GLMaterial::Texture>& _textures;
 
-	QVector<float> _currentMorphWeights;
+	// Reference alias into _animState.currentMorphWeights() (Phase 6).
+	// All existing _currentMorphWeights call sites in AssImpMesh.cpp compile unchanged.
+	QVector<float>& _currentMorphWeights;
 
 	// State caching
 	static QOpenGLShaderProgram* _currentUniformStateShader;

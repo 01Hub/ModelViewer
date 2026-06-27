@@ -11,6 +11,7 @@
 #include "MeshInstanceState.h"
 #include "MaterialVizState.h"
 #include "MeshImportAdaptor.h"
+#include "MeshAnimationState.h"
 #include "MeshVizAdaptor.h"
 #include "MeshVertex.h"
 
@@ -120,17 +121,20 @@ public:
 	// Provide direct access to the component sub-objects so callers that need
 	// more than the forwarding methods can reach the component without casting.
 	// These are the building blocks for SceneMeshRecord (Phase 7).
-	MeshInstanceState&       instanceState()       { return _instanceState; }
-	const MeshInstanceState& instanceState() const { return _instanceState; }
+	MeshInstanceState&        instanceState()        { return _instanceState; }
+	const MeshInstanceState&  instanceState()  const { return _instanceState; }
 
-	MeshVizAdaptor&          vizState()            { return _vizState; }
-	const MeshVizAdaptor&    vizState()      const { return _vizState; }
+	MeshVizAdaptor&           vizState()             { return _vizState; }
+	const MeshVizAdaptor&     vizState()       const { return _vizState; }
 
-	MaterialVizState&        materialState()       { return _materialState; }
-	const MaterialVizState&  materialState() const { return _materialState; }
+	MaterialVizState&         materialState()        { return _materialState; }
+	const MaterialVizState&   materialState()  const { return _materialState; }
 
-	MeshImportAdaptor&       importState()         { return _importState; }
-	const MeshImportAdaptor& importState()   const { return _importState; }
+	MeshImportAdaptor&        importState()          { return _importState; }
+	const MeshImportAdaptor&  importState()    const { return _importState; }
+
+	MeshAnimationState&       animationState()       { return _animState; }
+	const MeshAnimationState& animationState() const { return _animState; }
 	// -------------------------------------------------------------------------
 
 	QVector3D ambientMaterial() const;
@@ -266,8 +270,8 @@ public:
 	void setSkinJoints(const QVector<GltfSkinJoint>& joints) { _importState.setSkinJoints(joints); }
 	const QVector<GltfSkinJoint>& skinJoints() const { return _importState.skinJoints(); }
 	bool hasSkinning() const { return _importState.hasSkinning(); }
-	void setJointPalette(const QVector<QMatrix4x4>& palette) { _importState.setJointPalette(palette); }
-	const QVector<QMatrix4x4>& jointPalette() const { return _importState.jointPalette(); }
+	void setJointPalette(const QVector<QMatrix4x4>& palette) { _animState.setJointPalette(palette); }
+	const QVector<QMatrix4x4>& jointPalette() const          { return _animState.jointPalette(); }
 	virtual bool hasMorphTargets() const { return !_morphTargets.isEmpty(); }
 	virtual QVector<float> defaultMorphWeights() const { return _defaultMorphWeights; }
 	const QVector<MorphTargetData>& getMorphTargets() const { return _morphTargets; }
@@ -496,6 +500,12 @@ protected:
 	// Per-instance scene state: all transform layers, bounds, picking geometry.
 	// Public API on TriangleMesh forwards to this object.
 	MeshInstanceState _instanceState;
+
+	// Runtime animation state: joint palette (skinning) + current morph weights.
+	// Moved here from MeshImportAdaptor (_jointPalette) and AssImpMesh
+	// (_currentMorphWeights) in Phase 6.  AssImpMesh aliases _currentMorphWeights
+	// by reference so existing call sites in AssImpMesh.cpp compile unchanged.
+	MeshAnimationState _animState;
 
 	// GL resource container — owns all vertex/index buffers, VAO, fallback
 	// texture, dirty flags, uniform-location cache, and debug override maps.

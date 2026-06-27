@@ -79,6 +79,7 @@ bool AssImpMesh::_currentUniformStateHadDebugOverrides = false;
 AssImpMesh::AssImpMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<GLMaterial::Texture> textures, GLMaterial material, bool skipOptimization)
     : TriangleMesh(shader, "AssImpMesh")
     , _textures(_materialState.textures())
+    , _currentMorphWeights(_animState.currentMorphWeights())
 {
 	_currentBlendEnabled = false;
 	_currentFrontFace = GL_CCW;

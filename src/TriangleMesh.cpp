@@ -1606,16 +1606,16 @@ void TriangleMesh::render()
 	if (uniformLocationCached("hasSkinning") >= 0)
 		_prog->setUniformValue("hasSkinning", hasSkinning());
 	if (uniformLocationCached("jointCount") >= 0)
-		_prog->setUniformValue("jointCount", static_cast<int>(_importState.jointPalette().size()));
-	if (hasSkinning() && !_importState.jointPalette().isEmpty())
+		_prog->setUniformValue("jointCount", static_cast<int>(_animState.jointPalette().size()));
+	if (hasSkinning() && !_animState.jointPalette().isEmpty())
 	{
-		const int maxJoints = std::min(static_cast<int>(_importState.jointPalette().size()), 128);
+		const int maxJoints = std::min(static_cast<int>(_animState.jointPalette().size()), 128);
 		for (int i = 0; i < maxJoints; ++i)
 		{
 			const QString uniformName = QStringLiteral("jointMatrices[%1]").arg(i);
 			const int jointLocation = uniformLocationCached(uniformName);
 			if (jointLocation >= 0)
-				_prog->setUniformValue(jointLocation, _importState.jointPalette()[i]);
+				_prog->setUniformValue(jointLocation, _animState.jointPalette()[i]);
 		}
 	}
 
@@ -1663,16 +1663,16 @@ void TriangleMesh::renderShadow()
 	if (uniformLocationCached("hasSkinning") >= 0)
 		_prog->setUniformValue("hasSkinning", hasSkinning());
 	if (uniformLocationCached("jointCount") >= 0)
-		_prog->setUniformValue("jointCount", static_cast<int>(_importState.jointPalette().size()));
-	if (hasSkinning() && !_importState.jointPalette().isEmpty())
+		_prog->setUniformValue("jointCount", static_cast<int>(_animState.jointPalette().size()));
+	if (hasSkinning() && !_animState.jointPalette().isEmpty())
 	{
-		const int maxJoints = std::min(static_cast<int>(_importState.jointPalette().size()), 128);
+		const int maxJoints = std::min(static_cast<int>(_animState.jointPalette().size()), 128);
 		for (int i = 0; i < maxJoints; ++i)
 		{
 			const QString uniformName = QStringLiteral("jointMatrices[%1]").arg(i);
 			const int jointLocation = uniformLocationCached(uniformName);
 			if (jointLocation >= 0)
-				_prog->setUniformValue(jointLocation, _importState.jointPalette()[i]);
+				_prog->setUniformValue(jointLocation, _animState.jointPalette()[i]);
 		}
 	}
 

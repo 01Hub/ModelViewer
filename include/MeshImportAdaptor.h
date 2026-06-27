@@ -4,7 +4,6 @@
 
 #include <QString>
 #include <QVector>
-#include <QMatrix4x4>
 #include <vector>
 
 // Import provenance for a mesh — source file, scene/material indices, skin joint
@@ -43,11 +42,6 @@ public:
     const QVector<GltfSkinJoint>& skinJoints() const         { return _skinJoints; }
     bool hasSkinning() const                                 { return !_skinJoints.isEmpty(); }
 
-    // Joint palette is the runtime-updated per-frame joint transform array.
-    // Kept here temporarily until MeshAnimationState is introduced (Phase 6).
-    void setJointPalette(const QVector<QMatrix4x4>& palette) { _jointPalette = palette; }
-    const QVector<QMatrix4x4>& jointPalette() const          { return _jointPalette; }
-
     // ---- Mesh optimization flag ---------------------------------------------
     // When true, meshopt vertex-cache / overdraw / vertex-fetch passes are
     // skipped.  Set for meshes that arrive pre-optimized (e.g. clones).
@@ -72,7 +66,7 @@ private:
     QString _sourceFile;
     QString _sourceNodeName;
     QVector<GltfSkinJoint>  _skinJoints;
-    QVector<QMatrix4x4>     _jointPalette;
+    // _jointPalette → MeshAnimationState (Phase 6)
     std::vector<float>      _occEdgeSegments;
     std::vector<int>        _occEdgeBoundaries;
 };
