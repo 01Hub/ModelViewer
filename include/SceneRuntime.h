@@ -2,6 +2,7 @@
 
 #include "BoundingBox.h"
 #include "GltfLightData.h"
+#include "SceneMeshRecord.h"
 #include "TriangleMesh.h"
 
 #include <QDateTime>
@@ -85,7 +86,7 @@ class SceneRuntime
 {
 public:
 	// ---- Mesh store ----
-	std::vector<TriangleMesh*> _meshStore;
+	std::vector<SceneMeshRecord> _meshStore;
 	std::vector<int>           _displayedObjectsIds;
 	std::vector<int>           _hiddenObjectsIds;
 

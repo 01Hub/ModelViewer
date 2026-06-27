@@ -1255,9 +1255,9 @@ GLWidget::~GLWidget()
 	if (_axisTextRenderer)
 		delete _axisTextRenderer;
 
-	for (auto a : _meshStore)
+	for (auto& a : _meshStore)
 	{
-		delete a;
+		delete a.mesh;
 	}
 	if (_primaryCamera)
 		delete _primaryCamera;
@@ -1518,7 +1518,7 @@ bool GLWidget::restoreFromRecycleBin(const QUuid& uuid)
 	int insertIndex = entry.originalIndex;
 	if (insertIndex < 0 || insertIndex > static_cast<int>(_meshStore.size()))
 		insertIndex = static_cast<int>(_meshStore.size());
-	_meshStore.insert(_meshStore.begin() + insertIndex, mesh);
+	_meshStore.insert(_meshStore.begin() + insertIndex, {mesh, mesh->uuid()});
 
 	// Shift existing display/hidden ids at or above the insertion point,
 	// then add the restored mesh to the displayed set (kept sorted —
@@ -4723,7 +4723,7 @@ void GLWidget::addToDisplay(TriangleMesh* mesh)
 		qDebug() << "Error: Attempted to add a null mesh to display.";
 		return;
 	}
-	_meshStore.push_back(mesh);
+	_meshStore.push_back({mesh, mesh->uuid()});
 	_displayedObjectsIds.push_back(static_cast<int>(_meshStore.size() - 1));
 
 	//if(_progressiveLoadingEnabled)
@@ -5144,7 +5144,7 @@ bool GLWidget::generateUVsForMeshes(const std::vector<int>& ids, const UVMethod&
 	{
 		try
 		{
-			AssImpMesh* mesh = dynamic_cast<AssImpMesh*>(_meshStore.at(id));
+			AssImpMesh* mesh = dynamic_cast<AssImpMesh*>(_meshStore.at(id).mesh);
 			if (mesh)
 			{								
 				success = _assimpModelLoader->regenerateUVs(mesh, uvMethod, uvConfig);
@@ -7641,7 +7641,7 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 
 	for (int id : objectIds)
 	{
-		if (auto* mesh = _meshStore.at(id))
+		if (TriangleMesh* mesh = _meshStore.at(id))
 		{
 			// Capping stencil pass: skip meshes outside frustum or that don't
 			// intersect the active cap plane — they contribute nothing to stencil.
@@ -7677,7 +7677,7 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 
 	for (int id : opaqueIds)
 	{
-		if (auto* mesh = _meshStore.at(id))
+		if (TriangleMesh* mesh = _meshStore.at(id))
 		{
 			mesh->setProg(prog);
 			//mesh->render();             // render must NOT disable depth writes here
@@ -7696,7 +7696,7 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 
 	for (auto& it : transparent)
 	{
-		if (auto* mesh = _meshStore.at(it.second))
+		if (TriangleMesh* mesh = _meshStore.at(it.second))
 		{
 			mesh->setProg(prog);
 			//mesh->render();             // render must preserve writes-off for this pass
@@ -7757,7 +7757,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		opaque.reserve(candidateIds.size());
 		for (int id : candidateIds)
 		{
-			if (auto* mesh = _meshStore.at(id))
+			if (TriangleMesh* mesh = _meshStore.at(id))
 				opaque.emplace_back(mesh->getRenderMaterialSortKey(), id);
 		}
 	}
@@ -7767,7 +7767,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		opaque.reserve(objectIds.size());
 		for (int id : objectIds)
 		{
-			if (auto* mesh = _meshStore.at(id))
+			if (TriangleMesh* mesh = _meshStore.at(id))
 				if (!mesh->isTransparent() && isMeshVisible(mesh, activeClipPlaneIndex))
 					opaque.emplace_back(mesh->getRenderMaterialSortKey(), id);
 		}
@@ -7798,7 +7798,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 			_wireframeShader->setUniformValue("jointCount",      0);
 			for (auto& [key, id] : opaque)
 			{
-				if (auto* mesh = _meshStore.at(id))
+				if (TriangleMesh* mesh = _meshStore.at(id))
 					mesh->renderWireframeFast(_wireframeShader.get());
 			}
 		}
@@ -7806,7 +7806,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		{
 			for (auto& [key, id] : opaque)
 			{
-				if (auto* mesh = _meshStore.at(id))
+				if (TriangleMesh* mesh = _meshStore.at(id))
 				{
 					mesh->setProg(prog);
 					TriangleMesh::bindProgramCached(prog);
@@ -7831,7 +7831,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		prog->setUniformValue("isWireframePass", false);
 		for (auto& [key, id] : opaque)
 		{
-			if (auto* mesh = _meshStore.at(id))
+			if (TriangleMesh* mesh = _meshStore.at(id))
 			{
 				mesh->setProg(prog);
 				TriangleMesh::bindProgramCached(prog);
@@ -7860,7 +7860,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 			_wireframeShader->setUniformValue("jointCount",      0);
 			for (auto& [key, id] : opaque)
 			{
-				if (auto* mesh = _meshStore.at(id))
+				if (TriangleMesh* mesh = _meshStore.at(id))
 					mesh->renderWireframeFast(_wireframeShader.get());
 			}
 		}
@@ -7869,7 +7869,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 			prog->setUniformValue("isWireframePass", true);
 			for (auto& [key, id] : opaque)
 			{
-				if (auto* mesh = _meshStore.at(id))
+				if (TriangleMesh* mesh = _meshStore.at(id))
 				{
 					mesh->setProg(prog);
 					TriangleMesh::bindProgramCached(prog);
@@ -7908,7 +7908,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 			const QList<int> selIds = _selectionManager->getSelectedIds();
 			for (auto& [key, id] : opaque)
 			{
-				if (auto* mesh = _meshStore.at(id))
+				if (TriangleMesh* mesh = _meshStore.at(id))
 				{
 					const bool isSel = selIds.contains(id);
 					_wireframeShader->setUniformValue("selected", isSel);
@@ -7934,7 +7934,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		prog->setUniformValue("isWireframePass", false);
 		for (auto& [key, id] : opaque)
 		{
-			if (auto* mesh = _meshStore.at(id))
+			if (TriangleMesh* mesh = _meshStore.at(id))
 			{
 				mesh->setProg(prog);
 				TriangleMesh::bindProgramCached(prog);
@@ -7964,7 +7964,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 			const QList<int> selIds = _selectionManager->getSelectedIds();
 			for (auto& [key, id] : opaque)
 			{
-				if (auto* mesh = _meshStore.at(id))
+				if (TriangleMesh* mesh = _meshStore.at(id))
 				{
 					const bool isSel = selIds.contains(id);
 					_wireframeShader->setUniformValue("selected", isSel);
@@ -7985,7 +7985,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 	{
 		for (auto& [key, id] : opaque)
 		{
-			if (auto* mesh = _meshStore.at(id))
+			if (TriangleMesh* mesh = _meshStore.at(id))
 			{
 				QOpenGLShaderProgram* activeProg = prog;
 				int activeSssObjectIdLocation = sssObjectIdLocation;
@@ -8026,7 +8026,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 		transparent.reserve(candidateIds.size());
 		for (int id : candidateIds)
 		{
-			if (auto* mesh = _meshStore.at(id))
+			if (TriangleMesh* mesh = _meshStore.at(id))
 			{
 				const QVector3D c = mesh->getBoundingSphere().getCenter();
 				const float R = mesh->getBoundingSphere().getRadius();
@@ -8043,7 +8043,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 
 		for (int id : objectIds)
 		{
-			if (auto* mesh = _meshStore.at(id))
+			if (TriangleMesh* mesh = _meshStore.at(id))
 			{
 				if (mesh->isTransparent())
 				{
@@ -8107,7 +8107,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 			_wireframeShader->setUniformValue("jointCount",      0);
 			for (auto& it : transparent)
 			{
-				if (auto* mesh = _meshStore.at(it.second))
+				if (TriangleMesh* mesh = _meshStore.at(it.second))
 					mesh->renderWireframeFast(_wireframeShader.get());
 			}
 		}
@@ -8116,7 +8116,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 			for (auto& it : transparent)
 			{
 				const int id = it.second;
-				if (auto* mesh = _meshStore.at(id))
+				if (TriangleMesh* mesh = _meshStore.at(id))
 				{
 					mesh->setProg(prog);
 					TriangleMesh::bindProgramCached(prog);
@@ -8141,7 +8141,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 		prog->setUniformValue("isWireframePass", false);
 		for (auto& it : transparent)
 		{
-			if (auto* mesh = _meshStore.at(it.second))
+			if (TriangleMesh* mesh = _meshStore.at(it.second))
 			{
 				const int id = it.second;
 				mesh->setProg(prog);
@@ -8171,7 +8171,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 			_wireframeShader->setUniformValue("jointCount",      0);
 			for (auto& it : transparent)
 			{
-				if (auto* mesh = _meshStore.at(it.second))
+				if (TriangleMesh* mesh = _meshStore.at(it.second))
 					mesh->renderWireframeFast(_wireframeShader.get());
 			}
 		}
@@ -8181,7 +8181,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 			for (auto& it : transparent)
 			{
 				const int id = it.second;
-				if (auto* mesh = _meshStore.at(id))
+				if (TriangleMesh* mesh = _meshStore.at(id))
 				{
 					mesh->setProg(prog);
 					TriangleMesh::bindProgramCached(prog);
@@ -8218,7 +8218,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 			const QList<int> selIds = _selectionManager->getSelectedIds();
 			for (auto& it : transparent)
 			{
-				if (auto* mesh = _meshStore.at(it.second))
+				if (TriangleMesh* mesh = _meshStore.at(it.second))
 				{
 					const int id = it.second;
 					const bool isSel = selIds.contains(id);
@@ -8242,7 +8242,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 		prog->setUniformValue("isWireframePass", false);
 		for (auto& it : transparent)
 		{
-			if (auto* mesh = _meshStore.at(it.second))
+			if (TriangleMesh* mesh = _meshStore.at(it.second))
 			{
 				const int id = it.second;
 				mesh->setProg(prog);
@@ -8272,7 +8272,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 			const QList<int> selIds = _selectionManager->getSelectedIds();
 			for (auto& it : transparent)
 			{
-				if (auto* mesh = _meshStore.at(it.second))
+				if (TriangleMesh* mesh = _meshStore.at(it.second))
 				{
 					const int id = it.second;
 					const bool isSel = selIds.contains(id);
@@ -8294,7 +8294,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 	{
 		for (auto& it : transparent)
 		{
-			if (auto* mesh = _meshStore.at(it.second))
+			if (TriangleMesh* mesh = _meshStore.at(it.second))
 			{
 				const int id = it.second;
 				QOpenGLShaderProgram* activeProg = prog;

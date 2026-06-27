@@ -17,7 +17,7 @@
 SelectionManager::SelectionManager(
     GLWidget* glWidget,
     GLCamera* primaryCamera,
-    std::vector<TriangleMesh*>& meshStore,
+    std::vector<SceneMeshRecord>& meshStore,
     const std::vector<int>& displayedObjectsIds,
     const std::vector<int>& hiddenObjectsIds,
     bool& visibleSwapped,

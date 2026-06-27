@@ -182,7 +182,13 @@ public:
 	void showFloorTexture(bool show);
 	void setFloorTexture(QImage img);
 
-	std::vector<TriangleMesh*> getMeshStore() const { return _meshStore; }
+	std::vector<TriangleMesh*> getMeshStore() const
+	{
+		std::vector<TriangleMesh*> result;
+		result.reserve(_meshStore.size());
+		for (const auto& r : _meshStore) result.push_back(r.mesh);
+		return result;
+	}
 
 	void addToDisplay(TriangleMesh*);
 	void removeFromDisplay(int index);
@@ -991,7 +997,7 @@ private:
 	SceneRuntime _sceneRuntime;
 
 	// Reference aliases into _sceneRuntime (initialized in constructor init-list)
-	std::vector<TriangleMesh*>&                              _meshStore;
+	std::vector<SceneMeshRecord>&                            _meshStore;
 	std::vector<int>&                                        _displayedObjectsIds;
 	std::vector<int>&                                        _hiddenObjectsIds;
 	QMap<QUuid, SceneRuntime::RecycleBinEntry>&              _recycleBin;

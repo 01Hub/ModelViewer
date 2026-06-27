@@ -1,6 +1,8 @@
 #ifndef SELECTIONMANAGER_H
 #define SELECTIONMANAGER_H
 
+#include "SceneMeshRecord.h"
+
 #include <QObject>
 #include <QPoint>
 #include <QList>
@@ -48,7 +50,7 @@ public:
     explicit SelectionManager(
         GLWidget* glWidget,
         GLCamera* primaryCamera,
-        std::vector<TriangleMesh*>& meshStore,
+        std::vector<SceneMeshRecord>& meshStore,
         const std::vector<int>& displayedObjectsIds,
         const std::vector<int>& hiddenObjectsIds,
         bool& visibleSwapped,
@@ -123,7 +125,7 @@ private:
     // References to GLWidget data (don't own these)
     GLWidget* _glWidget;
     GLCamera* _primaryCamera;
-    std::vector<TriangleMesh*>& _meshStore;
+    std::vector<SceneMeshRecord>& _meshStore;
     const std::vector<int>& _displayedObjectsIds;
     const std::vector<int>& _hiddenObjectsIds;
     bool& _visibleSwapped;
