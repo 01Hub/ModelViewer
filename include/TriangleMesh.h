@@ -116,6 +116,23 @@ public:
 
 	virtual unsigned long long memorySize() const;
 
+	// ---- Sub-object accessors (Phase 5b) ------------------------------------
+	// Provide direct access to the component sub-objects so callers that need
+	// more than the forwarding methods can reach the component without casting.
+	// These are the building blocks for SceneMeshRecord (Phase 7).
+	MeshInstanceState&       instanceState()       { return _instanceState; }
+	const MeshInstanceState& instanceState() const { return _instanceState; }
+
+	MeshVizAdaptor&          vizState()            { return _vizState; }
+	const MeshVizAdaptor&    vizState()      const { return _vizState; }
+
+	MaterialVizState&        materialState()       { return _materialState; }
+	const MaterialVizState&  materialState() const { return _materialState; }
+
+	MeshImportAdaptor&       importState()         { return _importState; }
+	const MeshImportAdaptor& importState()   const { return _importState; }
+	// -------------------------------------------------------------------------
+
 	QVector3D ambientMaterial() const;
 	void setAmbientMaterial(const QVector3D& ambient);
 

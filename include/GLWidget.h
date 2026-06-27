@@ -5,6 +5,7 @@
 #include "BoundingSphere.h"
 #include "GLCamera.h"
 #include "Plane.h"
+#include "SceneRuntime.h"
 #include "TriangleMesh.h"
 #include "TransformCommand.h"
 #include "ShaderProgram.h"
@@ -59,35 +60,6 @@ enum class ClippingPlaneHatchMode { PROCEDURAL, TEXTURE };
 enum class HatchPattern { DIAGONAL_45 = 0, DIAGONAL_135 = 1, HORIZONTAL = 2, VERTICAL = 3, GRID = 4, DIAGONAL_CROSS = 5 };
 enum class HDRToneMapMode { KhronosPbrNeutral, ACES_Narkowicz, ACES_Hill, AECS_Hill_Exposure_Boost, Uncharted2ToneMapping, Reinhard };
 enum class GroundMode { None = 0, Floor = 1, Grid = 2 };
-
-struct TextureSamplerSettings
-{
-	GLenum wrapS = GL_REPEAT;
-	GLenum wrapT = GL_REPEAT;
-	GLenum minFilter = GL_LINEAR_MIPMAP_LINEAR;
-	GLenum magFilter = GL_LINEAR;
-
-	bool operator==(const TextureSamplerSettings& other) const
-	{
-		return wrapS == other.wrapS &&
-			wrapT == other.wrapT &&
-			minFilter == other.minFilter &&
-			magFilter == other.magFilter;
-	}
-};
-
-struct CachedTextureEntry
-{
-	QImage image;
-	int imageWidth = 0;
-	int imageHeight = 0;
-	int imageComponents = 0;
-	GLenum imageFormat = GL_RGBA;
-
-	GLuint lastGPUTexture = 0;
-	TextureSamplerSettings lastSamplerSettings;
-	int refCount = 0;
-};
 
 // ---------------------------------------------------------------------------
 // TextureSlotInfo
@@ -1013,6 +985,38 @@ private:
 	float groundPlaneExtent() const;
 
 private:
+	// Core scene data — owned here; GLWidget aliases every field by reference
+	// so all existing _fieldName call sites in GLWidget.cpp remain unchanged.
+	// Declaration order matters: _sceneRuntime must come before all aliases.
+	SceneRuntime _sceneRuntime;
+
+	// Reference aliases into _sceneRuntime (initialized in constructor init-list)
+	std::vector<TriangleMesh*>&                              _meshStore;
+	std::vector<int>&                                        _displayedObjectsIds;
+	std::vector<int>&                                        _hiddenObjectsIds;
+	QMap<QUuid, SceneRuntime::RecycleBinEntry>&              _recycleBin;
+	std::unordered_map<QString, CachedTextureEntry>&         _texCache;
+	std::unordered_map<unsigned int, int>&                   _texRefCount;
+	QVector<RuntimeVisibilityNode>&                          _runtimeVisibilityNodes;
+	int&                                                     _runtimeVisibilityRootIndex;
+	bool&                                                    _runtimeVisibilityHierarchyDirty;
+	int&                                                     _runtimeVisibilityMeshStoreCount;
+	bool&                                                    _runtimeVisibilityPrepared;
+	quint64&                                                 _runtimeVisibilityBoundsRevision;
+	quint64&                                                 _runtimeVisibilityMaskRevision;
+	quint64&                                                 _runtimeVisibilityMaskProcessedRevision;
+	std::vector<unsigned char>&                              _runtimeBaseVisibleMask;
+	const aiScene*&                                          _assimpScene;
+	aiScene*&                                                _globalScene;
+	glm::mat4&                                               _globalSceneTransform;
+	QList<QUuid>&                                            _pendingSceneUuids;
+	std::vector<int>&                                        _centerScreenObjectIDs;
+	bool&                                                    _visibleSwapped;
+	bool&                                                    _progressiveLoadingEnabled;
+	bool&                                                    _cancelRequested;
+	bool&                                                    _loadCancelled;
+	GltfLightData&                                           _pendingLightData;
+
 	ViewToolbar* _viewToolbar;
 
 	QSet<int> _keys;
@@ -1294,34 +1298,9 @@ private:
 
 	CornerAxisPosition _cornerAxisPosition = CornerAxisPosition::TOP_RIGHT;
 
-	std::vector<TriangleMesh*> _meshStore;
-	std::vector<int> _displayedObjectsIds;
-	std::vector<int> _hiddenObjectsIds;
-
-	struct RuntimeVisibilityNode
-	{
-		const SceneNode* sceneNode = nullptr;
-		QVector<int> children;
-		QVector<int> meshIndices;
-		BoundingBox subtreeBounds;
-		bool subtreeHasVisibleMeshes = false;
-	};
-	QVector<RuntimeVisibilityNode> _runtimeVisibilityNodes;
-	int _runtimeVisibilityRootIndex = -1;
-	bool _runtimeVisibilityHierarchyDirty = true;
-	int _runtimeVisibilityMeshStoreCount = -1;
-	bool _runtimeVisibilityPrepared = false;
-	quint64 _runtimeVisibilityBoundsRevision = 0;
-	quint64 _runtimeVisibilityMaskRevision = 1;
-	quint64 _runtimeVisibilityMaskProcessedRevision = 0;
-	std::vector<unsigned char> _runtimeBaseVisibleMask;
-
-	// Accumulates mesh UUIDs in DFS load order during a single loadAssImpModel
-	// call (both progressive and non-progressive paths).  Consumed by
-	// SceneGraph::appendFromScene() once loading completes, then cleared.
-	QList<QUuid> _pendingSceneUuids;
-	std::vector<int> _centerScreenObjectIDs;
-	bool _visibleSwapped;
+	// _meshStore, _displayedObjectsIds, _hiddenObjectsIds → SceneRuntime (Phase 5)
+	// RuntimeVisibilityNode struct + BVH fields → SceneRuntime (Phase 5)
+	// _pendingSceneUuids, _centerScreenObjectIDs, _visibleSwapped → SceneRuntime (Phase 5)
 	QPointer<QWidget> _navigationOverlayPanel;
 
 	QVBoxLayout* _editorLayout;
@@ -1466,17 +1445,9 @@ private:
 	AssImpModelLoader* _assimpModelLoader;
 	KTX2Loader _ktx2Loader;
 	GPUCapabilities _gpuCapabilities;
-	const aiScene* _assimpScene = nullptr;
-	aiScene* _globalScene = nullptr; // Merged scene from multiple files
-	glm::mat4 _globalSceneTransform = glm::mat4(1.0f);
-	bool _progressiveLoadingEnabled = false;
-	bool _cancelRequested = false;
-	bool _loadCancelled = false;
-
-	// --- Texture cache: path -> GL texture id (per GLWidget context)
-	std::unordered_map<QString, CachedTextureEntry> _texCache;
-	// Reference counts so we can release when maps are cleared
-	std::unordered_map<unsigned int, int> _texRefCount;
+	// _assimpScene, _globalScene, _globalSceneTransform → SceneRuntime (Phase 5)
+	// _progressiveLoadingEnabled, _cancelRequested, _loadCancelled → SceneRuntime (Phase 5)
+	// _texCache, _texRefCount → SceneRuntime (Phase 5)
 
 
 	ClippingPlaneHatchMode _hatchMode = ClippingPlaneHatchMode::PROCEDURAL;
@@ -1491,7 +1462,7 @@ private:
 	AdaptiveShadowMapper shadowMapper;
 
 	std::unique_ptr<GLLights> glLights;
-	GltfLightData         _pendingLightData;           // Full named data for SceneGraph
+	// _pendingLightData → SceneRuntime (Phase 5)
 	std::vector<GPULight> _originalParsedLights;       // GPU list extracted from _pendingLightData; used for animation/repositioning
 	std::vector<GPULight> _currentRepositionedLights;  // Working copy (ALL lights; gizmo rendering uses this)
 
@@ -1518,15 +1489,7 @@ private:
 
 	void applyGltfCameraEntryTransform(const GltfCameraEntry& cam);
 
-	// Recycle bin (internal only - not exposed to user)
-	struct RecycleBinEntry
-	{
-		TriangleMesh* mesh;
-		int originalIndex;      // For potential smart restoration
-		QDateTime deletedAt;    // For debugging/logging
-	};
-
-	QMap<QUuid, RecycleBinEntry> _recycleBin;
+	// RecycleBinEntry struct + _recycleBin → SceneRuntime (Phase 5)
 	QHash<QString, RuntimeAnimationFileState> _runtimeAnimationsByFile;
 	QString _activeAnimationFile;
 	int _activeAnimationClip = -1;

@@ -773,7 +773,34 @@ _floorPlane(nullptr),
 	_axisCone(nullptr),
 	_transformGizmo(nullptr),
 	_lightCube(nullptr),
-	_assimpModelLoader(nullptr)
+	_assimpModelLoader(nullptr),
+	// SceneRuntime reference aliases (Phase 5) — _sceneRuntime must be declared
+	// before these in GLWidget.h so it is constructed first.
+	_meshStore(_sceneRuntime._meshStore),
+	_displayedObjectsIds(_sceneRuntime._displayedObjectsIds),
+	_hiddenObjectsIds(_sceneRuntime._hiddenObjectsIds),
+	_recycleBin(_sceneRuntime._recycleBin),
+	_texCache(_sceneRuntime._texCache),
+	_texRefCount(_sceneRuntime._texRefCount),
+	_runtimeVisibilityNodes(_sceneRuntime._runtimeVisibilityNodes),
+	_runtimeVisibilityRootIndex(_sceneRuntime._runtimeVisibilityRootIndex),
+	_runtimeVisibilityHierarchyDirty(_sceneRuntime._runtimeVisibilityHierarchyDirty),
+	_runtimeVisibilityMeshStoreCount(_sceneRuntime._runtimeVisibilityMeshStoreCount),
+	_runtimeVisibilityPrepared(_sceneRuntime._runtimeVisibilityPrepared),
+	_runtimeVisibilityBoundsRevision(_sceneRuntime._runtimeVisibilityBoundsRevision),
+	_runtimeVisibilityMaskRevision(_sceneRuntime._runtimeVisibilityMaskRevision),
+	_runtimeVisibilityMaskProcessedRevision(_sceneRuntime._runtimeVisibilityMaskProcessedRevision),
+	_runtimeBaseVisibleMask(_sceneRuntime._runtimeBaseVisibleMask),
+	_assimpScene(_sceneRuntime._assimpScene),
+	_globalScene(_sceneRuntime._globalScene),
+	_globalSceneTransform(_sceneRuntime._globalSceneTransform),
+	_pendingSceneUuids(_sceneRuntime._pendingSceneUuids),
+	_centerScreenObjectIDs(_sceneRuntime._centerScreenObjectIDs),
+	_visibleSwapped(_sceneRuntime._visibleSwapped),
+	_progressiveLoadingEnabled(_sceneRuntime._progressiveLoadingEnabled),
+	_cancelRequested(_sceneRuntime._cancelRequested),
+	_loadCancelled(_sceneRuntime._loadCancelled),
+	_pendingLightData(_sceneRuntime._pendingLightData)
 {
     setFocusPolicy(Qt::StrongFocus);
     setMouseTracking(true);  // Enable mouseMoveEvent for hover highlighting
@@ -1462,7 +1489,7 @@ void GLWidget::moveToRecycleBin(const QUuid& uuid, int originalIndex)
 	}
 
 	// Add to recycle bin
-	RecycleBinEntry entry;
+	SceneRuntime::RecycleBinEntry entry;
 	entry.mesh = mesh;
 	entry.originalIndex = originalIndex;
 	entry.deletedAt = QDateTime::currentDateTime();
@@ -1481,7 +1508,7 @@ bool GLWidget::restoreFromRecycleBin(const QUuid& uuid)
 		return false;
 	}
 
-	RecycleBinEntry entry = _recycleBin.take(uuid);
+	SceneRuntime::RecycleBinEntry entry = _recycleBin.take(uuid);
 	TriangleMesh* mesh = entry.mesh;
 
 	// Restore at the ORIGINAL index so _meshStore keeps the SceneGraph DFS
@@ -1520,7 +1547,7 @@ void GLWidget::permanentlyDeleteFromBin(const QUuid& uuid)
 	if (!_recycleBin.contains(uuid))
 		return;
 
-	RecycleBinEntry entry = _recycleBin.take(uuid);
+	SceneRuntime::RecycleBinEntry entry = _recycleBin.take(uuid);
 	TriangleMesh* mesh = entry.mesh;
 
 	qDebug() << "Permanently deleting mesh:" << mesh->getName()
