@@ -9,6 +9,7 @@
 #include "GltfAnimationData.h"
 #include "GltfVariantData.h"
 #include "MeshInstanceState.h"
+#include "MaterialVizState.h"
 
 #include <QHash>
 #include <QMatrix4x4>
@@ -224,23 +225,23 @@ public:
 	// -----------------------------------------------------------------------
 
 	// Per-primitive variant->material mappings (empty for non-variant meshes).
-	void setVariantMappings(const QVector<GltfVariantMapping>& m) { _variantMappings = m; }
-	const QVector<GltfVariantMapping>& variantMappings() const    { return _variantMappings; }
+	void setVariantMappings(const QVector<GltfVariantMapping>& m) { _materialState.setVariantMappings(m); }
+	const QVector<GltfVariantMapping>& variantMappings() const    { return _materialState.variantMappings(); }
 
 	// Pre-built GLMaterial for every material index referenced by variants.
 	// Includes the default material keyed by originalMaterialIndex.
-	void setAllVariantMaterials(const QMap<int, GLMaterial>& mats) { _allVariantMaterials = mats; }
-	const QMap<int, GLMaterial>& allVariantMaterials() const       { return _allVariantMaterials; }
+	void setAllVariantMaterials(const QMap<int, GLMaterial>& mats) { _materialState.setAllVariantMaterials(mats); }
+	const QMap<int, GLMaterial>& allVariantMaterials() const       { return _materialState.allVariantMaterials(); }
 
-	bool hasVariants() const { return !_variantMappings.isEmpty(); }
+	bool hasVariants() const { return _materialState.hasVariants(); }
 
 	// Return a pointer to the prebuilt GLMaterial for the given variant index,
 	// or nullptr when this mesh has no mapping for that variant (keep default).
 	// Pass variantIndex = -1 to retrieve the original/default material.
 	const GLMaterial* materialForVariant(int variantIndex) const;
 
-	void setActiveVariantIndex(int idx) { _activeVariantIndex = idx; }
-	int  activeVariantIndex() const     { return _activeVariantIndex; }
+	void setActiveVariantIndex(int idx) { _instanceState.setActiveVariantIndex(idx); }
+	int  activeVariantIndex() const     { return _instanceState.activeVariantIndex(); }
 
 	void setSkinJoints(const QVector<GltfSkinJoint>& joints) { _skinJoints = joints; }
 	const QVector<GltfSkinJoint>& skinJoints() const { return _skinJoints; }
@@ -496,16 +497,14 @@ protected:
 	// Vertex buffers
 	std::vector<QOpenGLBuffer> _buffers;
 
-	GLMaterial _material;
-	float _baseThicknessFactor;
-	float _baseAttenuationDistance;
+	MaterialVizState _materialState;
+	GLMaterial& _material;   // reference alias into _materialState — do not access _material directly from outside TriangleMesh
 
 	// Internal always-valid fallback texture bound on unit 0. This is no longer
 	// a user-facing mesh texture path, but some render paths still rely on the
 	// presence of a complete 2D texture object there.
 	QImage _fallbackTextureImage, _fallbackTextureBuffer;
 	unsigned int _fallbackTexture;
-	bool _hasTextureAlpha;
 
 	float _sMax;
 	float _tMax;
@@ -561,14 +560,6 @@ protected:
 	QString _sourceFile;
 	QString _sourceNodeName;
 
-	// KHR_materials_variants: per-primitive variant->material mappings.
-	QVector<GltfVariantMapping> _variantMappings;
-
-	// Pre-built GLMaterial for each material index referenced by variants.
-	QMap<int, GLMaterial> _allVariantMaterials;
-
-	// Currently active variant (-1 = file default).
-	int _activeVariantIndex = -1;
 	QVector<GltfSkinJoint> _skinJoints;
 	QVector<QMatrix4x4> _jointPalette;
 

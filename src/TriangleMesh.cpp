@@ -431,15 +431,12 @@ _nVerts(0),
 _fallbackTexture(0),
 _sMax(1),
 _tMax(1),
-_hasTextureAlpha(false),
 _hasVertexColors(false),
-_baseThicknessFactor(0.0f),
-_baseAttenuationDistance(std::numeric_limits<float>::infinity())
+_material(_materialState.material())
 {
 	setAutoIncrName(name);
 	_memorySize = 0;
-	// Transform / bounds state now lives in _instanceState (MeshInstanceState).
-	// Its default constructor already zeros TRS and sets identity matrices.
+	// Transform/bounds state lives in _instanceState; material state in _materialState.
 
 	_indexBuffer = QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
 	_positionBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
@@ -486,17 +483,12 @@ _baseAttenuationDistance(std::numeric_limits<float>::infinity())
 
 void TriangleMesh::cacheBaseVolumeProperties()
 {
-	_baseThicknessFactor = _material.thicknessFactor();
-	_baseAttenuationDistance = _material.attenuationDistance();
+	_materialState.cacheBaseVolumeProperties();
 }
 
 void TriangleMesh::applyScaledVolumeProperties()
 {
-	// Runtime mesh scaling is already applied in the shader through modelMatrix
-	// when evaluating volume thickness/refraction. Keep the authored material
-	// values here to avoid double-applying user scale on the CPU.
-	_material.setThicknessFactor(_baseThicknessFactor);
-	_material.setAttenuationDistance(_baseAttenuationDistance);
+	_materialState.applyScaledVolumeProperties();
 }
 
 void TriangleMesh::initBuffers(
@@ -1614,7 +1606,7 @@ void TriangleMesh::render()
 		_material.hasOpacityMap() || _material.hasTransmissionMap() ||
 		_material.transmission() > 0.0f ||
 		_material.blendMode() == GLMaterial::BlendMode::Alpha ||
-		_material.alphaThreshold() > 0.0f || _hasTextureAlpha)
+		_material.alphaThreshold() > 0.0f || _materialState.hasTextureAlpha())
 	{
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -2380,7 +2372,7 @@ bool TriangleMesh::isTransparent() const
 		return false;
 
 	return (_material.opacity() < 0.999f) ||
-		_hasTextureAlpha || _material.hasOpacityMap() ||
+		_materialState.hasTextureAlpha() || _material.hasOpacityMap() ||
 		_material.hasTransmissionMap() || _material.transmission() > 0.0f;
 }
 
@@ -2587,26 +2579,7 @@ void TriangleMesh::clearAllPBRMaps()
 
 const GLMaterial* TriangleMesh::materialForVariant(int variantIndex) const
 {
-	if (_variantMappings.isEmpty())
-		return nullptr;
-
-	if (variantIndex < 0)
-	{
-		// Reset to file default
-		auto it = _allVariantMaterials.find(_originalMaterialIndex);
-		return (it != _allVariantMaterials.end()) ? &it.value() : nullptr;
-	}
-
-	for (const GltfVariantMapping& vm : _variantMappings)
-	{
-		if (vm.variantIndices.contains(variantIndex))
-		{
-			auto it = _allVariantMaterials.find(vm.materialIndex);
-			return (it != _allVariantMaterials.end()) ? &it.value() : nullptr;
-		}
-	}
-
-	return nullptr;  // no explicit mapping — caller keeps current material
+	return _materialState.materialForVariant(variantIndex, _originalMaterialIndex);
 }
 
 // ---------------------------------------------------------------------------

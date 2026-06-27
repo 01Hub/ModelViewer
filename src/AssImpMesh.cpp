@@ -1029,14 +1029,14 @@ void AssImpMesh::cacheTextureBindings()
 			addBinding("texture_diffuse" /*+ std::to_string(diffuseNr)*/, GL_TEXTURE10);
 			addBinding("albedoMap" /*+ std::to_string(diffuseNr)*/, GL_TEXTURE10); // PBR duplicate
 			diffuseNr++;
-			_hasTextureAlpha = texture.hasAlpha;
+			_materialState.setHasTextureAlpha(texture.hasAlpha);
 		}
 		else if (texture.type == "albedoMap")
 		{
 			addBinding("texture_diffuse" /*+ std::to_string(diffuseNr)*/, GL_TEXTURE10);
 			addBinding("albedoMap" /*+ std::to_string(albedoNr)*/, GL_TEXTURE10);
 			albedoNr++;
-			_hasTextureAlpha = texture.hasAlpha;
+			_materialState.setHasTextureAlpha(texture.hasAlpha);
 		}
 		else if (texture.type == "texture_specular")
 		{
@@ -1157,7 +1157,7 @@ void AssImpMesh::cacheTextureBindings()
 		{
 			addBinding("diffuseMap" /*+ std::to_string(diffuseSpecGlossNr)*/, GL_TEXTURE10);
 			diffuseSpecGlossNr++;
-			_hasTextureAlpha = texture.hasAlpha;
+			_materialState.setHasTextureAlpha(texture.hasAlpha);
 		}
 		else if (texture.type == "specularGlossinessMap")
 		{
@@ -1221,7 +1221,7 @@ void AssImpMesh::setRenderStateOptimized()
 		_material.transmission() > 0.0f ||
 		_material.blendMode() == GLMaterial::BlendMode::Alpha ||
 		_material.alphaThreshold() > 0.0f ||
-		_hasTextureAlpha;
+		_materialState.hasTextureAlpha();
 
 	if (shouldBlend != _currentBlendEnabled)
 	{

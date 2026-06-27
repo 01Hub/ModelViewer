@@ -37,7 +37,7 @@ void FloorPlane::render()
 		_material.hasOpacityMap() || _material.hasTransmissionMap() ||
 		_material.transmission() > 0.0f ||
 		_material.blendMode() == GLMaterial::BlendMode::Alpha ||
-		_material.alphaThreshold() > 0.0f || _hasTextureAlpha)
+		_material.alphaThreshold() > 0.0f || _materialState.hasTextureAlpha())
 	{
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

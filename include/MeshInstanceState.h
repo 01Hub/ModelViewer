@@ -41,6 +41,9 @@ public:
     void setHasNegativeScale(bool v) { _hasNegativeScale = v; }
     bool hasNegativeScale() const { return _hasNegativeScale; }
 
+    void setActiveVariantIndex(int idx) { _activeVariantIndex = idx; }
+    int  activeVariantIndex() const     { return _activeVariantIndex; }
+
     // ---- User TRS -----------------------------------------------------------
 
     QVector3D getTranslation() const;
@@ -266,8 +269,9 @@ private:
     // Picking geometry (derived from _trsfPoints + indices)
     std::vector<Triangle*> _triangles;
 
-    bool _selected        = false;
+    bool _selected         = false;
     bool _hasNegativeScale = false;
+    int  _activeVariantIndex = -1;
 
     static std::atomic<quint64> _runtimeBoundsRevision;
 };
