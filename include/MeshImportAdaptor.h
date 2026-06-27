@@ -48,6 +48,12 @@ public:
     void setJointPalette(const QVector<QMatrix4x4>& palette) { _jointPalette = palette; }
     const QVector<QMatrix4x4>& jointPalette() const          { return _jointPalette; }
 
+    // ---- Mesh optimization flag ---------------------------------------------
+    // When true, meshopt vertex-cache / overdraw / vertex-fetch passes are
+    // skipped.  Set for meshes that arrive pre-optimized (e.g. clones).
+    void setSkipOptimization(bool skip) { _skipOptimization = skip; }
+    bool skipOptimization() const       { return _skipOptimization; }
+
     // ---- OCC B-Rep edge CPU data (import provenance) ------------------------
     // CPU copies retained for clone(), MVF serialization, and edge picking.
     // The corresponding GL resources (vertex buffer, VAO) remain in AssImpMesh
@@ -60,6 +66,7 @@ public:
     bool hasOccEdges() const { return !_occEdgeSegments.empty(); }
 
 private:
+    bool    _skipOptimization      = false;
     int     _sceneIndex           = -1;
     int     _originalMaterialIndex = -1;
     QString _sourceFile;

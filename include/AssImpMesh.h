@@ -192,8 +192,4 @@ private:
 	static bool _currentUniformStateHadDebugOverrides;
 	static bool _currentBlendEnabled;
 	static GLenum _currentFrontFace;
-	mutable bool _uniformStateSignatureDirty = true;
-	mutable quint64 _cachedUniformStateSignature = 0;
-
-	bool _skipOptimization = false;
 };

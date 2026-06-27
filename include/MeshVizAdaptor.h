@@ -109,6 +109,13 @@ public:
     // Built once by cacheTextureBindings(); consumed by bindTexturesOptimized().
     std::vector<PrecomputedTexture>& textureBindings()   { return _textureBindings; }
 
+    // ---- Uniform-state signature cache ----------------------------------
+    // Accessed from const methods (uniformStateSignature(), getRenderMaterialSortKey())
+    // so the fields are mutable and the accessors are const-qualified, matching
+    // the same pattern used for _uniformLocationCache above.
+    bool&    uniformStateSignatureDirty()    const { return _uniformStateSignatureDirty; }
+    quint64& cachedUniformStateSignature()   const { return _cachedUniformStateSignature; }
+
 private:
     QOpenGLBuffer _indexBuffer;
     QOpenGLBuffer _positionBuffer;
@@ -150,4 +157,7 @@ private:
     int                      _occEdgeCount = 0;
 
     std::vector<PrecomputedTexture> _textureBindings;
+
+    mutable bool    _uniformStateSignatureDirty  = true;
+    mutable quint64 _cachedUniformStateSignature = 0;
 };

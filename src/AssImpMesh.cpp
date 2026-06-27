@@ -78,7 +78,7 @@ AssImpMesh::AssImpMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex
 {
 	_currentBlendEnabled = false;
 	_currentFrontFace = GL_CCW;
-	_skipOptimization = skipOptimization;
+	_importState.setSkipOptimization(skipOptimization);
 	//setAutoIncrName(name);
 	_name = name;
 	_vertices = vertices;
@@ -108,7 +108,7 @@ AssImpMesh::~AssImpMesh()
 
 TriangleMesh* AssImpMesh::clone()
 {
-	AssImpMesh* mesh = new AssImpMesh(_prog, _name, _baseVertices, _indices, _textures, _material, _skipOptimization);
+	AssImpMesh* mesh = new AssImpMesh(_prog, _name, _baseVertices, _indices, _textures, _material, _importState.skipOptimization());
 	mesh->setMorphTargets(_morphTargets, _defaultMorphWeights);
 	if (!_currentMorphWeights.isEmpty())
 		mesh->applyMorphWeights(_currentMorphWeights);
@@ -137,7 +137,7 @@ quint64 AssImpMesh::getRenderMaterialSortKey() const
 
 void AssImpMesh::markUniformsDirty()
 {
-	_uniformStateSignatureDirty = true;
+	_vizState.uniformStateSignatureDirty() = true;
 	TriangleMesh::markUniformsDirty();
 }
 
@@ -413,8 +413,8 @@ void AssImpMesh::renderWireframeFast(QOpenGLShaderProgram* wireProg)
 
 quint64 AssImpMesh::uniformStateSignature() const
 {
-	if (!_uniformStateSignatureDirty)
-		return _cachedUniformStateSignature;
+	if (!_vizState.uniformStateSignatureDirty())
+		return _vizState.cachedUniformStateSignature();
 
 	quint64 hash = kFnvOffset;
 
@@ -561,9 +561,9 @@ quint64 AssImpMesh::uniformStateSignature() const
 	mixFloat(hash, opacityPacking.scale);
 	mixFloat(hash, opacityPacking.bias);
 
-	_cachedUniformStateSignature = hash;
-	_uniformStateSignatureDirty = false;
-	return _cachedUniformStateSignature;
+	_vizState.cachedUniformStateSignature() = hash;
+	_vizState.uniformStateSignatureDirty() = false;
+	return _vizState.cachedUniformStateSignature();
 }
 
 void AssImpMesh::optimizeMesh()
@@ -571,7 +571,7 @@ void AssImpMesh::optimizeMesh()
 	// ============================================
 	// MESH OPTIMIZATION (before splitting arrays)
 	// ============================================
-	if (_skipOptimization)
+	if (_importState.skipOptimization())
 		return;
 
 	// Check if this is a valid triangle mesh
