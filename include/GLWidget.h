@@ -5,6 +5,7 @@
 #include "AnimationRuntimeController.h"
 #include "BoundingSphere.h"
 #include "ExplodedViewRuntimeController.h"
+#include "SceneRenderController.h"
 #include "GLCamera.h"
 #include "Plane.h"
 #include "SceneRuntime.h"
@@ -42,7 +43,7 @@ class ClippingPlanesEditor;
 class ExplodedViewPanel;
 class ExplodedViewManager;
 
-enum class DebugOverlayMode { BoundingBox, VertexNormals, FaceNormals };
+#include "RenderEnums.h"
 class AssImpModelLoader;
 class Cube;
 class Cone;
@@ -60,8 +61,7 @@ enum class RenderingMode { ADS_BLINN_PHONG, PHYSICALLY_BASED_RENDERING };
 enum class CornerAxisPosition { TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT };
 enum class ClippingPlaneHatchMode { PROCEDURAL, TEXTURE };
 enum class HatchPattern { DIAGONAL_45 = 0, DIAGONAL_135 = 1, HORIZONTAL = 2, VERTICAL = 3, GRID = 4, DIAGONAL_CROSS = 5 };
-enum class HDRToneMapMode { KhronosPbrNeutral, ACES_Narkowicz, ACES_Hill, AECS_Hill_Exposure_Boost, Uncharted2ToneMapping, Reinhard };
-enum class GroundMode { None = 0, Floor = 1, Grid = 2 };
+// HDRToneMapMode, GroundMode, DebugOverlayMode → RenderEnums.h (Phase 10)
 
 // ---------------------------------------------------------------------------
 // TextureSlotInfo
@@ -963,7 +963,7 @@ private:
 	void resizeSSSBuffer(int width, int height);
 	void cleanupSSSBuffer();
 
-	GLuint _whiteTexture = 0;
+	// _whiteTexture → SceneRenderController (Phase 10)
 	void createWhiteTexture();
 
 	void generateCubemapMipmaps(GLuint cubemapTexture);
@@ -1054,6 +1054,155 @@ private:
 	QVector3D&                                  _explodedViewManualDragStartTranslationDelta;
 	QQuaternion&                                _explodedViewManualDragStartRotationQuat;
 	QVector3D&                                  _explodedViewManualDragStartRotationEuler;
+
+	// Render-pipeline resources — owned here; GLWidget aliases every field by
+	// reference so all existing call sites in GLWidget.cpp remain unchanged.
+	// Declaration order: _renderCtrl must come before all its aliases.
+	SceneRenderController _renderCtrl;
+
+	// Reference aliases into _renderCtrl (initialized in constructor init-list)
+	// ---- Shaders ----
+	std::unique_ptr<ShaderProgram>& _bgShader;
+	std::unique_ptr<ShaderProgram>& _bgSplitShader;
+	std::unique_ptr<ShaderProgram>& _fgShader;
+	std::unique_ptr<ShaderProgram>& _fgFlatShader;
+	std::unique_ptr<ShaderProgram>& _wireframeShader;
+	std::unique_ptr<ShaderProgram>& _axisShader;
+	std::unique_ptr<ShaderProgram>& _vertexNormalShader;
+	std::unique_ptr<ShaderProgram>& _faceNormalShader;
+	std::unique_ptr<ShaderProgram>& _shadowMappingShader;
+	std::unique_ptr<ShaderProgram>& _skyBoxShader;
+	std::unique_ptr<ShaderProgram>& _gridShader;
+	std::unique_ptr<ShaderProgram>& _irradianceShader;
+	std::unique_ptr<ShaderProgram>& _prefilterShader;
+	std::unique_ptr<ShaderProgram>& _sheenPrefilterShader;
+	std::unique_ptr<ShaderProgram>& _brdfShader;
+	std::unique_ptr<ShaderProgram>& _lightCubeShader;
+	std::unique_ptr<ShaderProgram>& _viewCubeShader;
+	std::unique_ptr<ShaderProgram>& _viewCubeLabelShader;
+	std::unique_ptr<ShaderProgram>& _clippingPlaneShader;
+	std::unique_ptr<ShaderProgram>& _clippedMeshShader;
+	std::unique_ptr<ShaderProgram>& _selectionShader;
+	std::unique_ptr<ShaderProgram>& _equirectToCubeShader;
+	std::unique_ptr<ShaderProgram>& _equirectToCubeQuadShader;
+	std::unique_ptr<ShaderProgram>& _downsampleShader;
+	std::unique_ptr<ShaderProgram>& _textShader;
+	std::unique_ptr<ShaderProgram>& _debugShader;
+	// ---- IBL / environment maps ----
+	unsigned int& _environmentMap;
+	unsigned int& _irradianceMap;
+	unsigned int& _prefilterMap;
+	unsigned int& _sheenPrefilterMap;
+	unsigned int& _prefilterMipLevels;
+	unsigned int& _sheenPrefilterMipLevels;
+	unsigned int& _brdfLUTTexture;
+	unsigned int& _charlieLUTTexture;
+	unsigned int& _sheenELUTTexture;
+	QString&      _currentSkyboxFolder;
+	unsigned int& _studioEnvironmentMap;
+	unsigned int& _studioIrradianceMap;
+	unsigned int& _studioPrefilterMap;
+	unsigned int& _studioSheenPrefilterMap;
+	unsigned int& _outdoorEnvironmentMap;
+	unsigned int& _outdoorIrradianceMap;
+	unsigned int& _outdoorPrefilterMap;
+	unsigned int& _outdoorSheenPrefilterMap;
+	unsigned int& _officeEnvironmentMap;
+	unsigned int& _officeIrradianceMap;
+	unsigned int& _officePrefilterMap;
+	unsigned int& _officeSheenPrefilterMap;
+	unsigned int& _skyboxFBO;
+	unsigned int& _skyboxDepthBuffer;
+	// ---- Shadow map ----
+	unsigned int& _shadowMap;
+	unsigned int& _shadowMapFBO;
+	unsigned int& _shadowWidth;
+	unsigned int& _shadowHeight;
+	float&        _shadowFarDist;
+	float&        _shadowFrustumExtentW;
+	float&        _shadowFrustumExtentH;
+	bool&         _shadowMapNeedsInitialization;
+	// ---- Transmission buffer ----
+	unsigned int& _transmissionFBO;
+	unsigned int& _transmissionColorTexture;
+	unsigned int& _transmissionDepthTexture;
+	int&          _transmissionTextureWidth;
+	int&          _transmissionTextureHeight;
+	int&          _transmissionMipLevels;
+	bool&         _transmissionEnabled;
+	// ---- SSS buffer ----
+	unsigned int& _sssFBO;
+	unsigned int& _sssCaptureTexture;
+	unsigned int& _sssDepthTexture;
+	unsigned int& _sssBlurFBO;
+	unsigned int& _sssBlurTexture;
+	int&          _sssTextureWidth;
+	int&          _sssTextureHeight;
+	bool&         _sssEnabled;
+	// ---- Debug / utility textures ----
+	unsigned int& _debugNeutralTex;
+	unsigned int& _debugNormalTex;
+	unsigned int& _debugBlackTex;
+	int&          _globalDebugChannel;
+	unsigned int& _whiteTexture;
+	// ---- Utility render geometry ----
+	unsigned int&            _debugOverlayBoxVAO;
+	unsigned int&            _debugOverlayBoxVBO;
+	QOpenGLVertexArrayObject& _bgVAO;
+	QOpenGLVertexArrayObject& _bgSplitVAO;
+	QOpenGLBuffer&            _bgSplitVBO;
+	QOpenGLVertexArrayObject& _axisVAO;
+	QOpenGLBuffer&            _axisVBO;
+	QOpenGLBuffer&            _axisCBO;
+	unsigned int&            _conversionCubeVAO;
+	unsigned int&            _conversionCubeVBO;
+	unsigned int&            _quadVAO;
+	unsigned int&            _quadVBO;
+	unsigned int&            _fsTriVAO;
+	unsigned int&            _fsTriVBO;
+	bool&                    _fsTriInitialized;
+	std::array<unsigned int, 6>& _viewCubeLabelTextures;
+	unsigned int&            _viewCubeLabelVAO;
+	unsigned int&            _viewCubeLabelVBO;
+	// ---- Capping ----
+	bool&         _cappingEnabled;
+	unsigned int& _cappingTexture;
+	// ---- Render settings ----
+	bool&           _openGLInitialized;
+	bool&           _envMapEnabled;
+	bool&           _shadowsEnabled;
+	bool&           _selfShadowsEnabled;
+	bool&           _reflectionsEnabled;
+	GroundMode&     _groundMode;
+	bool&           _floorTextureDisplayed;
+	bool&           _skyBoxEnabled;
+	int&            _skyBoxBlurPercent;
+	std::vector<QString>& _skyBoxFaces;
+	float&          _skyBoxFOV;
+	float&          _skyBoxZRotation;
+	bool&           _skyBoxTextureHDRI;
+	bool&           _gammaCorrection;
+	float&          _screenGamma;
+	bool&           _hdrToneMapping;
+	HDRToneMapMode& _toneMappingMode;
+	float&          _envMapExposure;
+	float&          _iblExposure;
+	bool&           _lowResEnabled;
+	bool&           _sectionCapsSuppressedDuringInteraction;
+	bool&           _dynamicCappingEnabled;
+	float&          _anisotropicFilteringLevel;
+	bool&           _useDefaultLights;
+	bool&           _usePunctualLights;
+	bool&           _useIBL;
+	// ---- Debug overlay display flags ----
+	bool&             _showVertexNormals;
+	bool&             _showFaceNormals;
+	bool&             _showBoundingBox;
+	bool&             _debugOverlayEnabled;
+	DebugOverlayMode& _debugOverlayMode;
+	bool&             _debugBoundingBoxAvailable;
+	bool&             _debugVertexNormalsAvailable;
+	bool&             _debugFaceNormalsAvailable;
 
 	ViewToolbar* _viewToolbar;
 
@@ -1168,35 +1317,7 @@ private:
 	// rises gradually to prevent snap-back when the focused mesh exits the frustum.
 	float _zoomInLimit = 1.0f;
 
-	bool _showVertexNormals;
-	bool _showFaceNormals;
-	bool _showBoundingBox = false;
-	bool _debugOverlayEnabled = false;
-	DebugOverlayMode _debugOverlayMode = DebugOverlayMode::BoundingBox;
-	bool _debugBoundingBoxAvailable = true;
-	bool _debugVertexNormalsAvailable = true;
-	bool _debugFaceNormalsAvailable = true;
-
-	bool _envMapEnabled;
-	bool _shadowsEnabled;
-	bool _selfShadowsEnabled;
-	bool _reflectionsEnabled;
-	GroundMode _groundMode;
-	bool _floorTextureDisplayed;
-	bool _skyBoxEnabled;
-	int  _skyBoxBlurPercent;
-
-	bool _lowResEnabled;
-	bool _sectionCapsSuppressedDuringInteraction = false;
-	bool _dynamicCappingEnabled = false;
-
-	unsigned int _shadowWidth;
-	unsigned int _shadowHeight;
-	float _shadowFarDist = 1.0f;
-	float _shadowFrustumExtentW = -1.0f;
-	float _shadowFrustumExtentH = -1.0f;
-
-	bool _shadowMapNeedsInitialization = true;
+	// Debug overlay, render settings, shadow dims → SceneRenderController (Phase 10)
 
 	float _xTran;
 	float _yTran;
@@ -1226,93 +1347,7 @@ private:
 	QMatrix4x4 _modelViewMatrix;
 	QMatrix4x4 _viewportMatrix;
 
-	std::unique_ptr<ShaderProgram> _fgShader;
-	std::unique_ptr<ShaderProgram> _fgFlatShader;      // flat shading: vert + geom (face normals) + frag
-	std::unique_ptr<ShaderProgram> _wireframeShader;   // lightweight: transform + baseColor + albedo only
-	std::unique_ptr<ShaderProgram> _axisShader;
-	std::unique_ptr<ShaderProgram> _vertexNormalShader;
-	std::unique_ptr<ShaderProgram> _faceNormalShader;
-	std::unique_ptr<ShaderProgram> _shadowMappingShader;
-	std::unique_ptr<ShaderProgram> _skyBoxShader;
-	std::unique_ptr<ShaderProgram> _gridShader;
-	std::unique_ptr<ShaderProgram> _irradianceShader;
-	std::unique_ptr<ShaderProgram> _prefilterShader;
-	std::unique_ptr<ShaderProgram> _sheenPrefilterShader;
-	std::unique_ptr<ShaderProgram> _brdfShader;
-	std::unique_ptr<ShaderProgram> _lightCubeShader;
-	std::unique_ptr<ShaderProgram> _viewCubeShader;
-	std::unique_ptr<ShaderProgram> _viewCubeLabelShader;
-	std::unique_ptr<ShaderProgram> _clippingPlaneShader;
-	std::unique_ptr<ShaderProgram> _clippedMeshShader;
-	std::unique_ptr<ShaderProgram> _selectionShader;
-	std::unique_ptr<ShaderProgram> _equirectToCubeShader;
-	std::unique_ptr<ShaderProgram> _equirectToCubeQuadShader;
-	std::unique_ptr<ShaderProgram> _downsampleShader;
-
-	unsigned int _debugOverlayBoxVAO = 0;
-	unsigned int _debugOverlayBoxVBO = 0;
-
-	unsigned int             _environmentMap  = 0;
-	unsigned int             _shadowMap       = 0;
-	unsigned int             _shadowMapFBO    = 0;
-	unsigned int             _irradianceMap   = 0;
-	unsigned int             _prefilterMap    = 0;
-	unsigned int             _sheenPrefilterMap   = 0;
-	unsigned int             _prefilterMipLevels  = 5; // Effective LOD levels: lod = roughness * (mipLevels - 1)
-	unsigned int             _sheenPrefilterMipLevels = 5; // Effective mip count for sheen LOD formula
-	unsigned int             _brdfLUTTexture  = 0;
-	unsigned int             _charlieLUTTexture   = 0;
-	unsigned int             _sheenELUTTexture    = 0;
-	QString					 _currentSkyboxFolder;  // Track the current skybox folder path for environment map regeneration
-
-	// Preset environment maps (index 1=Studio, 2=Outdoor, 3=Office)
-	unsigned int             _studioEnvironmentMap = 0;
-	unsigned int             _studioIrradianceMap = 0;
-	unsigned int             _studioPrefilterMap = 0;
-	unsigned int             _studioSheenPrefilterMap = 0;
-
-	unsigned int             _outdoorEnvironmentMap = 0;
-	unsigned int             _outdoorIrradianceMap = 0;
-	unsigned int             _outdoorPrefilterMap = 0;
-	unsigned int             _outdoorSheenPrefilterMap = 0;
-
-	unsigned int             _officeEnvironmentMap = 0;
-	unsigned int             _officeIrradianceMap = 0;
-	unsigned int             _officePrefilterMap = 0;
-	unsigned int             _officeSheenPrefilterMap = 0;
-	unsigned int			 _skyboxFBO = 0;
-	unsigned int			 _skyboxDepthBuffer = 0;
-
-	// --- Transmission Buffer Resources ---
-	GLuint _transmissionFBO = 0;              // Framebuffer object
-	GLuint _transmissionColorTexture = 0;     // RGBA32F: opaque scene capture
-	GLuint _transmissionDepthTexture = 0;     // DEPTH32F: for Phase 2 calculations
-	int _transmissionTextureWidth = 0;        // Current FBO width
-	int _transmissionTextureHeight = 0;       // Current FBO height
-	int _transmissionMipLevels = 0;			  // Number of mip levels
-	bool _transmissionEnabled = true;         // Toggle for feature
-
-	// --- SSS (Subsurface Scattering) Buffer Resources ---
-	GLuint _sssFBO = 0;                       // Capture FBO: SSS diffuse irradiance
-	GLuint _sssCaptureTexture = 0;            // RGBA16F: SSS diffuse capture (also V-blur output)
-	GLuint _sssDepthTexture = 0;              // DEPTH32F: depth for capture pass occlusion
-	GLuint _sssBlurFBO = 0;                   // Blur FBO: H-blur output
-	GLuint _sssBlurTexture = 0;               // RGBA16F: H-blur result (V-blur input)
-	int _sssTextureWidth = 0;                 // Current FBO width
-	int _sssTextureHeight = 0;                // Current FBO height
-	bool _sssEnabled = false;                 // True when any loaded mesh has hasVolumeScattering
-
-	// --- Debug texture placeholders (TextureDebugPanel) ---
-	// Created once in initializeGL; owned by this widget.
-	// _debugNeutralTex : 1×1 white RGBA         — replacement for disabled multiplicative slots
-	// _debugNormalTex  : 1×1 (128,128,255,255) — replacement for disabled normal-map slots
-	// _debugBlackTex   : 1×1 black RGBA         — replacement for disabled emissive slot
-	// Note: contributions are silenced by zeroing the scalar uniforms (setScalarOverridesForUnit),
-	//       not by the replacement texture value, so _debugNeutralTex is used for all non-normal slots.
-	GLuint _debugNeutralTex = 0;
-	GLuint _debugNormalTex  = 0;
-	GLuint _debugBlackTex   = 0;
-	int    _globalDebugChannel = 0;  // active channel ID for TextureDebugPanel dropdown; 0 = normal rendering
+	// Shaders, IBL, shadow, transmission, SSS, debug textures, utility geometry → SceneRenderController (Phase 10)
 
 	QImage					 _floorTexImage;
 	float                    _floorSize;
@@ -1321,19 +1356,7 @@ private:
 	float                    _floorPlaneZ;
 	QVector3D                _floorCenter;
 
-	std::unique_ptr<ShaderProgram> _textShader;
-
-	std::unique_ptr<ShaderProgram> _bgShader;
-	QOpenGLVertexArrayObject _bgVAO;
-
-	std::unique_ptr<ShaderProgram> _bgSplitShader;
-	QOpenGLVertexArrayObject _bgSplitVAO;
-	QOpenGLBuffer _bgSplitVBO;
-
-	QOpenGLVertexArrayObject _axisVAO;
-	QOpenGLBuffer _axisVBO;
-	QOpenGLBuffer _axisCBO;
-
+	// _textShader, _bgShader/_bgVAO, _bgSplitShader/_bgSplitVAO/VBO, _axisVAO/VBO/CBO → SceneRenderController (Phase 10)
 	CornerAxisPosition _cornerAxisPosition = CornerAxisPosition::TOP_RIGHT;
 
 	// _meshStore, _displayedObjectsIds, _hiddenObjectsIds → SceneRuntime (Phase 5)
@@ -1351,8 +1374,7 @@ private:
 	Plane* _clippingPlaneXY;
 	Plane* _clippingPlaneYZ;
 	Plane* _clippingPlaneZX;
-	bool _cappingEnabled;
-	unsigned int _cappingTexture;
+	// _cappingEnabled, _cappingTexture → SceneRenderController (Phase 10)
 
 	ViewMode _viewMode;
 	ViewProjection _projection;
@@ -1390,26 +1412,8 @@ private:
 	Plane* _floorPlane;
 	Plane* _gridPlane;
 	Cube* _skyBox;
-	GLuint _fsTriVAO = 0;          // Fullscreen triangle VAO
-	GLuint _fsTriVBO = 0;          // Fullscreen triangle VBO
-	bool _fsTriInitialized = false; // Track initialization state
-	std::vector<QString> _skyBoxFaces;
-	float _skyBoxFOV;
-	float _skyBoxZRotation;
-	bool  _skyBoxTextureHDRI;
-	bool  _gammaCorrection;
-	float _screenGamma;
-	bool  _hdrToneMapping;
-	float _envMapExposure;
-	float _iblExposure;
-
-	GLuint _conversionCubeVAO = 0;
-	GLuint _conversionCubeVBO = 0;
-
-	HDRToneMapMode _toneMappingMode;
-
-	bool _openGLInitialized = false;  // set true only after initializeGL() succeeds
-	float _anisotropicFilteringLevel = 16.0f;
+	// _fsTriVAO/VBO, _skyBoxFaces, _skyBoxFOV/_skyBoxZRotation, gamma/HDR/tone-map settings,
+	// _conversionCubeVAO/VBO, _openGLInitialized, _anisotropicFilteringLevel → SceneRenderController (Phase 10)
 
 	Cone* _axisCone;
 	ViewCubeMesh* _viewCube = nullptr;
@@ -1437,23 +1441,16 @@ private:
 	bool _customViewAnimationActive = false;
 	bool _cameraUpAxisZUp = true;
 	bool _showViewCubeOverride = true;
-	std::array<GLuint, 6> _viewCubeLabelTextures = { 0, 0, 0, 0, 0, 0 };
-	GLuint _viewCubeLabelVAO = 0;
-	GLuint _viewCubeLabelVBO = 0;
-
+	// _viewCubeLabelTextures/VAO/VBO → SceneRenderController (Phase 10)
 	Cube* _lightCube;
 	Sphere* _lightSphere;
 	bool _showLights;
-	bool _useDefaultLights;
-	bool _usePunctualLights;
-	bool _useIBL;
-
-	std::unique_ptr<ShaderProgram> _debugShader;
+	// _useDefaultLights, _usePunctualLights, _useIBL → SceneRenderController (Phase 10)
+	// _debugShader → SceneRenderController (Phase 10)
 
 	ModelViewer* _viewer;
 
-	unsigned int _quadVAO;
-	unsigned int _quadVBO;
+	// _quadVAO, _quadVBO → SceneRenderController (Phase 10)
 
 	unsigned long long _displayedObjectsMemSize;
 
