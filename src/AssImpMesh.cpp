@@ -114,6 +114,19 @@ TriangleMesh* AssImpMesh::clone()
 		mesh->applyMorphWeights(_currentMorphWeights);
 	if (_importState.hasOccEdges())
 		mesh->setPrecomputedOccEdges(_importState.occEdgeSegments(), _importState.occEdgeBoundaries());
+
+	// Copy full transform so the clone superimposes on the original.
+	// sceneRenderTransform is set once at file load from the glTF node hierarchy
+	// and never re-applied to new meshes, so it must be copied explicitly.
+	// Fast setters avoid redundant O(N) bounds rebuilds; one fullUpdateRuntimeBounds()
+	// resyncs all world-space caches after all three transform layers are in place.
+	mesh->setTranslationFast(getTranslation());
+	mesh->setRotationQuaternionFast(getRotationQuaternion(), getRotation());
+	mesh->setScalingFast(getScaling());
+	mesh->setHasNegativeScale(hasNegativeScale());
+	mesh->setSceneRenderTransformFast(getSceneRenderTransform());
+	mesh->fullUpdateRuntimeBounds();
+
 	return mesh;
 }
 
@@ -608,6 +621,11 @@ void AssImpMesh::optimizeMesh()
 			vertexCount,
 			sizeof(Vertex)
 		);
+
+		// Keep _baseVertices in sync with the reordered _vertices so that
+		// clone() can safely pass _baseVertices + _indices to a new constructor
+		// without index/vertex order mismatch.
+		_baseVertices = _vertices;
 	}
 }
 
