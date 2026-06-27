@@ -12,6 +12,7 @@
 #include "MaterialVizState.h"
 #include "MeshImportAdaptor.h"
 #include "MeshVizAdaptor.h"
+#include "MeshVertex.h"
 
 #include <QHash>
 #include <QMatrix4x4>
@@ -250,8 +251,9 @@ public:
 	bool hasSkinning() const { return _importState.hasSkinning(); }
 	void setJointPalette(const QVector<QMatrix4x4>& palette) { _importState.setJointPalette(palette); }
 	const QVector<QMatrix4x4>& jointPalette() const { return _importState.jointPalette(); }
-	virtual bool hasMorphTargets() const { return false; }
-	virtual QVector<float> defaultMorphWeights() const { return {}; }
+	virtual bool hasMorphTargets() const { return !_morphTargets.isEmpty(); }
+	virtual QVector<float> defaultMorphWeights() const { return _defaultMorphWeights; }
+	const QVector<MorphTargetData>& getMorphTargets() const { return _morphTargets; }
 	virtual void applyMorphWeights(const QVector<float>&) { }
 	virtual void resetMorphTargets() { }
 
@@ -545,6 +547,17 @@ protected:
 	GLenum _primitiveMode = GL_TRIANGLES;  // Default to triangles for backward compatibility
 
 	MeshImportAdaptor _importState;
+
+	// ---- Interleaved CPU geometry (AssImpMesh path) -------------------------
+	// _vertices is the working copy (blended by applyMorphWeights).
+	// _baseVertices is the unmodified snapshot used as the morph-delta base.
+	// Both are split into separate float arrays by initBuffers() for the GPU.
+	std::vector<Vertex> _vertices;
+	std::vector<Vertex> _baseVertices;
+
+	// ---- Morph-target data (geometry asset, static after load) --------------
+	QVector<MorphTargetData> _morphTargets;
+	QVector<float>           _defaultMorphWeights;
 
 	unsigned long long _memorySize;
 };

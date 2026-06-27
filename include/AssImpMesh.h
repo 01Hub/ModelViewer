@@ -7,49 +7,10 @@
 #include <vector>
 #include <initializer_list>
 
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <assimp/Importer.hpp>
-#include <assimp/scene.h>
-#include <assimp/postprocess.h>
 #include "TriangleMesh.h"
 #include "GLMaterial.h"
 #include <QVector2D>
-
-
-struct Vertex
-{
-	// Vertex Color 
-	glm::vec4 Color;
-	// Position
-	glm::vec3 Position;
-	// Normal
-	glm::vec3 Normal;	
-	// tangent
-	glm::vec3 Tangent;
-	// bitangent
-	glm::vec3 Bitangent;
-	// TexCoords
-	glm::vec2 TexCoords[4];
-	// Skinning
-	glm::vec4 JointIndices = glm::vec4(0.0f);
-	glm::vec4 JointWeights = glm::vec4(0.0f);
-};
-
-inline glm::vec2 getTexCoord(const Vertex& v, int index = 0)
-{
-	return (index >= 0 && index < 4) ? v.TexCoords[index] : glm::vec2(0.0f);
-}
-
-static_assert(sizeof(Vertex) == sizeof(float) * (4 + 3 + 3 + 3 + 3 + 8 + 4 + 4),
-	"Vertex struct has unexpected padding - meshopt stride will be incorrect");
-
-struct MorphTargetData
-{
-	std::vector<glm::vec3> positionDeltas;
-	std::vector<glm::vec3> normalDeltas;
-	std::vector<glm::vec3> tangentDeltas;
-};
+// Vertex, MorphTargetData, getTexCoord — defined in MeshVertex.h (included via TriangleMesh.h)
 
 class AssImpMesh : public TriangleMesh
 {
@@ -93,9 +54,7 @@ public:
 	const std::vector<float>& getOccEdgeSegments()    const { return _importState.occEdgeSegments(); }
 	const std::vector<int>&   getOccEdgeBoundaries()  const { return _importState.occEdgeBoundaries(); }
 
-	bool hasMorphTargets() const override { return !_morphTargets.isEmpty(); }
-	const QVector<MorphTargetData>& getMorphTargets() const { return _morphTargets; }
-	QVector<float> defaultMorphWeights() const override { return _defaultMorphWeights; }
+	// hasMorphTargets(), getMorphTargets(), defaultMorphWeights() — now on TriangleMesh base
 	void applyMorphWeights(const QVector<float>& weights) override;
 	void resetMorphTargets() override;
 
@@ -170,20 +129,14 @@ private:
 
 private:
 	/*  Mesh Data  */
-	std::vector<Vertex> _vertices;
-	std::vector<Vertex> _baseVertices;
+	// _vertices, _baseVertices → TriangleMesh (protected, Phase 4)
+	// _morphTargets, _defaultMorphWeights → TriangleMesh (protected, Phase 4)
 	std::vector<unsigned int> _indices;
 	// Reference alias into _materialState.textures() — same zero-churn pattern
 	// as GLMaterial& _material in TriangleMesh. Initialised in the constructor
 	// init-list; all existing _textures.xxx call sites remain unchanged.
 	std::vector<GLMaterial::Texture>& _textures;
 
-	// Feature-edge and OCC B-Rep edge GL resources moved to _vizState (MeshVizAdaptor).
-	// PrecomputedTexture struct and _textureBindings also moved to _vizState.
-	// ADS map GL IDs moved to _materialState (MaterialVizState).
-
-	QVector<MorphTargetData> _morphTargets;
-	QVector<float> _defaultMorphWeights;
 	QVector<float> _currentMorphWeights;
 
 	// State caching

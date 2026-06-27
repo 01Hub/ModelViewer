@@ -1,6 +1,10 @@
 #include "AssImpMesh.h"
 #include "TextureLocationManager.h"
 
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+
 #include <QFileInfo>
 #include <QImage>
 #include <QElapsedTimer>
