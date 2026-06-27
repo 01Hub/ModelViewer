@@ -10,7 +10,7 @@
 #include <QOpenGLVertexArrayObject>
 #include <QVector3D>
 
-class Cone;
+class ConeRenderable;
 class GLCamera;
 class ShaderProgram;
 
@@ -48,7 +48,7 @@ public:
 	                      const QMatrix4x4& viewMatrix, const QMatrix4x4& projectionMatrix,
 	                      const QRect& viewport, float fallbackScale);
 
-	void render(ShaderProgram* axisShader, Cone* axisCone, const GLCamera* camera,
+	void render(ShaderProgram* axisShader, ConeRenderable* axisCone, const GLCamera* camera,
 	            const QMatrix4x4& viewMatrix, const QMatrix4x4& projectionMatrix,
 	            float fallbackScale);
 
@@ -63,7 +63,7 @@ private:
 	               const QMatrix4x4& viewMatrix, const QMatrix4x4& projectionMatrix,
 	               const QRect& viewport, float fallbackScale) const;
 	QColor resolveHandleColor(Handle handle, const QColor& baseColor) const;
-	void drawAxes(ShaderProgram* axisShader, Cone* axisCone,
+	void drawAxes(ShaderProgram* axisShader, ConeRenderable* axisCone,
 	              const QMatrix4x4& viewMatrix, const QMatrix4x4& projectionMatrix,
 	              float worldScale);
 	void drawScaleHandle(ShaderProgram* axisShader, const QMatrix4x4& viewMatrix,

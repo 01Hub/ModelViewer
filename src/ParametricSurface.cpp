@@ -2,11 +2,12 @@
 #include "Point.h"
 #include <iostream>
 
-ParametricSurface::ParametricSurface(QOpenGLShaderProgram* prog, unsigned int nSlices, unsigned int nStacks, unsigned int sMax, unsigned int tMax) :
-	GridMesh(prog, "Prametric Surface", nSlices, nStacks)
+ParametricSurface::ParametricSurface(unsigned int nSlices, unsigned int nStacks,
+                                     unsigned int sMax, unsigned int tMax)
+    : GridMesh(nSlices, nStacks)
 {
-	_sMax = sMax;
-	_tMax = tMax;
+    _sMax = sMax;
+    _tMax = tMax;
 }
 
 ParametricSurface::~ParametricSurface()
@@ -15,117 +16,107 @@ ParametricSurface::~ParametricSurface()
 
 QVector3D ParametricSurface::normalAtParameter(const float& u, const float& v)
 {
-	float du = ((abs(firstUParameter()) + abs(lastUParameter())) / _slices) / 10.0f;
-	float dv = ((abs(firstVParameter()) + abs(lastVParameter())) / _stacks) / 10.0f;
+    float du = ((abs(firstUParameter()) + abs(lastUParameter())) / _slices) / 10.0f;
+    float dv = ((abs(firstVParameter()) + abs(lastVParameter())) / _stacks) / 10.0f;
 
-	Point o = pointAtParameter(u, v);
-	Point uDir = pointAtParameter(u + du, v);
-	Point vDir = pointAtParameter(u, v + dv);
+    Point o    = pointAtParameter(u, v);
+    Point uDir = pointAtParameter(u + du, v);
+    Point vDir = pointAtParameter(u, v + dv);
 
-	QVector3D oVec(o.getX(), o.getY(), o.getZ());
-	QVector3D uVec(uDir.getX(), uDir.getY(), uDir.getZ());
-	QVector3D vVec(vDir.getX(), vDir.getY(), vDir.getZ());
+    QVector3D oVec(o.getX(), o.getY(), o.getZ());
+    QVector3D uVec(uDir.getX(), uDir.getY(), uDir.getZ());
+    QVector3D vVec(vDir.getX(), vDir.getY(), vDir.getZ());
 
-	QVector3D t1 = uVec - oVec;
-	QVector3D t2 = vVec - oVec;
+    QVector3D t1 = uVec - oVec;
+    QVector3D t2 = vVec - oVec;
 
-	if (t1.isNull())
-	{
-		uDir = pointAtParameter(u + du, v);
-		QVector3D uVec(uDir.getX(), uDir.getY(), uDir.getZ());
-		uVec = -uVec;
-		t1 = uVec - oVec;
-	}
-	if (t2.isNull())
-	{
-		vDir = pointAtParameter(u, v + dv);
-		QVector3D vVec(vDir.getX(), vDir.getY(), vDir.getZ());
-		vVec = -vVec;
-		t2 = vVec - oVec;
-	}
+    if (t1.isNull())
+    {
+        uDir = pointAtParameter(u + du, v);
+        QVector3D uVec2(uDir.getX(), uDir.getY(), uDir.getZ());
+        uVec2 = -uVec2;
+        t1 = uVec2 - oVec;
+    }
+    if (t2.isNull())
+    {
+        vDir = pointAtParameter(u, v + dv);
+        QVector3D vVec2(vDir.getX(), vDir.getY(), vDir.getZ());
+        vVec2 = -vVec2;
+        t2 = vVec2 - oVec;
+    }
 
-	QVector3D normal = QVector3D::crossProduct(t1, t2);
-	normal = normal.normalized();
+    QVector3D normal = QVector3D::crossProduct(t1, t2);
+    normal = normal.normalized();
 
-	// store for use immediately after calling this funtion
-	_tangent = t1;
-	_bitangent = t2;
+    _tangent   = t1;
+    _bitangent = t2;
 
-	if (normal.isNull())
-		return QVector3D(0, 0, 1);
+    if (normal.isNull())
+        return QVector3D(0, 0, 1);
 
-	return normal;
+    return normal;
 }
 
 void ParametricSurface::buildMesh()
 {
-	int nVerts = ((_slices + 1) * (_stacks + 1));
-	int elements = ((_slices * (_stacks)) * 6);
+    int nVerts   = ((_slices + 1) * (_stacks + 1));
+    int elements = ((_slices * _stacks) * 6);
 
-	// Verts
-	std::vector<float> p(3 * nVerts);
-	// Normals
-	std::vector<float> n(3 * nVerts);
-	// Tangents
-	std::vector<float> tg(3 * nVerts);
-	// Bitangents
-	std::vector<float> bt(3 * nVerts);
-	// Tex coords
-	std::vector<float> tex(2 * nVerts);
-	// Elements
-	std::vector<unsigned int> el(elements);
+    std::vector<float> p(3 * nVerts);
+    std::vector<float> n(3 * nVerts);
+    std::vector<float> tg(3 * nVerts);
+    std::vector<float> bt(3 * nVerts);
+    std::vector<float> tex(2 * nVerts);
+    std::vector<unsigned int> el(elements);
 
-	// Generate positions and normals
     float u = firstUParameter(), v;
-	float uFac = abs(lastUParameter() - firstUParameter()) / _slices;
-	float vFac = abs(lastVParameter() - firstVParameter()) / _stacks;
-	float s, t;
-	unsigned int idx = 0, tIdx = 0;
-	for (unsigned int i = 0; i <= _slices; i++)
-	{
-		v = firstVParameter();
-		s = (float)i / _slices * _sMax;
-		for (unsigned int j = 0; j <= _stacks; j++)
-		{
-			t = (float)j / _stacks * _tMax;
-			Point pt = pointAtParameter(u, v);
-			p[idx] = pt.getX(); p[idx + 1] = pt.getY(); p[idx + 2] = pt.getZ();
-			QVector3D normal = normalAtParameter(u, v);
-			n[idx] = normal.x(); n[idx + 1] = normal.y(); n[idx + 2] = normal.z();
-			tg[idx] = _tangent.x(); tg[idx + 1] = _tangent.y(); tg[idx + 2] = _tangent.z();
-			bt[idx] = _bitangent.x(); bt[idx + 1] = _bitangent.y(); bt[idx + 2] = _bitangent.z();
-			idx += 3;
+    float uFac = abs(lastUParameter() - firstUParameter()) / _slices;
+    float vFac = abs(lastVParameter() - firstVParameter()) / _stacks;
+    float s, t;
+    unsigned int idx = 0, tIdx = 0;
 
-			tex[tIdx] = s;
-			tex[tIdx + 1] = t;
-			tIdx += 2;
+    for (unsigned int i = 0; i <= _slices; i++)
+    {
+        v = firstVParameter();
+        s = (float)i / _slices * _sMax;
+        for (unsigned int j = 0; j <= _stacks; j++)
+        {
+            t = (float)j / _stacks * _tMax;
+            Point pt = pointAtParameter(u, v);
+            p[idx] = pt.getX(); p[idx + 1] = pt.getY(); p[idx + 2] = pt.getZ();
+            QVector3D normal = normalAtParameter(u, v);
+            n[idx] = normal.x(); n[idx + 1] = normal.y(); n[idx + 2] = normal.z();
+            tg[idx] = _tangent.x(); tg[idx + 1] = _tangent.y(); tg[idx + 2] = _tangent.z();
+            bt[idx] = _bitangent.x(); bt[idx + 1] = _bitangent.y(); bt[idx + 2] = _bitangent.z();
+            idx += 3;
+            tex[tIdx] = s; tex[tIdx + 1] = t;
+            tIdx += 2;
+            v += vFac;
+        }
+        u += uFac;
+    }
 
-			v += vFac;
-		}
-		u += uFac;
-	}
+    idx = 0;
+    for (unsigned int i = 0; i < _slices; i++)
+    {
+        unsigned int stackStart     = i * (_stacks + 1);
+        unsigned int nextStackStart = (i + 1) * (_stacks + 1);
+        for (unsigned int j = 0; j < _stacks; j++)
+        {
+            el[idx + 0] = nextStackStart + j + 1;
+            el[idx + 1] = stackStart + j + 1;
+            el[idx + 2] = stackStart + j;
+            el[idx + 3] = nextStackStart + j + 1;
+            el[idx + 4] = stackStart + j;
+            el[idx + 5] = nextStackStart + j;
+            idx += 6;
+        }
+    }
 
-	// Generate the element list
-	// Body
-	idx = 0;
-	for (unsigned int i = 0; i < _slices; i++)
-	{
-		unsigned int stackStart = i * (_stacks + 1);
-		unsigned int nextStackStart = (i + 1) * (_stacks + 1);
-		for (unsigned int j = 0; j < _stacks; j++)
-		{
-			// For quad mesh
-			el[idx + 0] = nextStackStart + j + 1;
-			el[idx + 1] = stackStart + j + 1;
-			el[idx + 2] = stackStart + j;
-			el[idx + 3] = nextStackStart + j + 1;
-			el[idx + 4] = stackStart + j;
-			el[idx + 5] = nextStackStart + j;
-
-			idx += 6;
-		}
-	}
-
-	initBuffers(&el, &p, &n, nullptr, &tex, &tg, &bt);
-	computeBounds();
+    _points     = std::move(p);
+    _normals    = std::move(n);
+    _tangents   = std::move(tg);
+    _bitangents = std::move(bt);
+    _texCoords  = std::move(tex);
+    _indices    = std::move(el);
 }

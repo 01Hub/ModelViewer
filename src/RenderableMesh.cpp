@@ -487,6 +487,31 @@ void RenderableMesh::applyScaledVolumeProperties()
 	_materialState.applyScaledVolumeProperties();
 }
 
+void RenderableMesh::uploadGeometry(const MeshGeometry& geom)
+{
+	auto idx = geom.indices();
+	auto pts = geom.points();
+	auto nrm = geom.normals();
+	auto col = geom.colors();
+	auto tex = geom.texCoords();
+	auto tg  = geom.tangents();
+	auto bt  = geom.bitangents();
+
+	initBuffers(
+		idx.empty() ? nullptr : &idx,
+		pts.empty() ? nullptr : &pts,
+		nrm.empty() ? nullptr : &nrm,
+		col.empty() ? nullptr : &col,
+		tex.empty() ? nullptr : &tex,
+		tg.empty()  ? nullptr : &tg,
+		bt.empty()  ? nullptr : &bt
+	);
+
+	_sMax            = geom.sMax();
+	_tMax            = geom.tMax();
+	_hasVertexColors = geom.hasVertexColors();
+}
+
 void RenderableMesh::initBuffers(
 	std::vector<unsigned int>* indices,
 	std::vector<float>* points,

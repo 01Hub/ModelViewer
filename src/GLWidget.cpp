@@ -4,8 +4,8 @@
 #include "AssemblyRelationGraph.h"
 #include "ExplodedViewManager.h"
 #include "SceneGraph.h"
-#include "Cone.h"
-#include "Cube.h"
+#include "ConeRenderable.h"
+#include "CubeRenderable.h"
 #include "FloorPlane.h"
 #include "GltfCameraData.h"
 #include "GLWidget.h"
@@ -20,9 +20,9 @@
 #include "AnimationsPanel.h"
 #include "ModelViewerApplication.h"
 #include "PathUtils.h"
-#include "Plane.h"
+#include "PlaneRenderable.h"
 #include "Point.h"
-#include "Sphere.h"
+#include "SphereRenderable.h"
 #include "ViewCubeMesh.h"
 #include "stb_image.h"
 #include "TangentGenerator.h"
@@ -2043,7 +2043,7 @@ void GLWidget::initializeGL()
 	initSSSBuffer();
 
 	float size = 15;
-	_axisCone = new Cone(_axisShader.get(), _viewRange / size / 15, _viewRange / size / 5, 8.0f, 1.0f);
+	_axisCone = new ConeRenderable(_axisShader.get(), _viewRange / size / 15, _viewRange / size / 5, 8u, 1u);
 	_viewCube = new ViewCubeMesh(_viewCubeShader.get(), 1.0f);
 	initializeViewCubeLabels();
 
@@ -6133,9 +6133,9 @@ void GLWidget::createShaderPrograms()
 void GLWidget::createCappingPlanes()
 {
     const QString path = PathUtils::getDataDirectory() + "/";
-	_clippingPlaneXY = new Plane(_clippingPlaneShader.get(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
-	_clippingPlaneYZ = new Plane(_clippingPlaneShader.get(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
-	_clippingPlaneZX = new Plane(_clippingPlaneShader.get(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
+	_clippingPlaneXY = new PlaneRenderable(_clippingPlaneShader.get(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
+	_clippingPlaneYZ = new PlaneRenderable(_clippingPlaneShader.get(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
+	_clippingPlaneZX = new PlaneRenderable(_clippingPlaneShader.get(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
     _cappingTexture = loadTextureFromFile(QString(path + "textures/patterns/hatch_03.png").toStdString().c_str());
 	glActiveTexture(GL_TEXTURE6);
 	glBindTexture(GL_TEXTURE_2D, _cappingTexture);
@@ -6153,8 +6153,8 @@ void GLWidget::createCappingPlanes()
 
 void GLWidget::createLights()
 {
-	_lightCube = new Cube(_lightCubeShader.get(), 10);
-	_lightSphere = new Sphere(_lightCubeShader.get(), 1, 16, 16);
+	_lightCube = new CubeRenderable(_lightCubeShader.get(), 10);
+	_lightSphere = new SphereRenderable(_lightCubeShader.get(), 1, 16, 16);
 }
 
 void GLWidget::createFullscreenTriangle()
@@ -6715,7 +6715,7 @@ void GLWidget::loadEnvMap()
 {	
     const QString path = PathUtils::getDataDirectory() + "/";
 
-	_skyBox = new Cube(_skyBoxShader.get(), 1);
+	_skyBox = new CubeRenderable(_skyBoxShader.get(), 1);
 	_skyBoxShader->bind();
 	_skyBoxShader->setUniformValue("skybox", 1);
 	
@@ -9781,7 +9781,7 @@ void GLWidget::drawAxis(GLCamera* camera)
 
 	// Axes Cones
 	// X Axis
-	_axisCone->setParameters(axisViewRange / size / 15, axisViewRange / size / 5, 8.0f, 1.0f);
+	_axisCone->setParameters(axisViewRange / size / 15, axisViewRange / size / 5, 8u, 1u);
 	_axisShader->setUniformValue("renderCone", true);
 	QMatrix4x4 model;
 	model.translate(axisViewRange / size, 0, 0);
@@ -10924,7 +10924,7 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 
 	// Axes Cones
 	// X Axis
-	_axisCone->setParameters(axisLength / 15.0f, axisLength / 5.0f, 8.0f, 1.0f);
+	_axisCone->setParameters(axisLength / 15.0f, axisLength / 5.0f, 8u, 1u);
 	_axisShader->setUniformValue("renderCone", true);
 	mat.translate(axisLength, 0, 0);
 	mat.rotate(90, QVector3D(0, 1.0f, 0));

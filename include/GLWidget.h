@@ -8,7 +8,8 @@
 #include "SceneRenderController.h"
 #include "ViewportInteractionController.h"
 #include "GLCamera.h"
-#include "Plane.h"
+#include "PlaneRenderable.h"
+#include "FloorPlane.h"
 #include "SceneRuntime.h"
 #include "RenderableMesh.h"
 #include "TransformCommand.h"
@@ -46,9 +47,9 @@ class ExplodedViewManager;
 
 #include "RenderEnums.h"
 class AssImpModelLoader;
-class Cube;
-class Cone;
-class Sphere;
+class ConeRenderable;
+class CubeRenderable;
+class SphereRenderable;
 class ViewCubeMesh;
 class AssImpModelLoader;
 struct SceneNode;
@@ -1414,9 +1415,9 @@ private:
 	ClippingPlanesEditor* _clippingPlanesEditor;
 	ExplodedViewPanel*    _explodedViewPanel;
 	// ExplodedViewManager + hints cache + manual session → ExplodedViewRuntimeController (Phase 9)
-	Plane* _clippingPlaneXY;
-	Plane* _clippingPlaneYZ;
-	Plane* _clippingPlaneZX;
+	PlaneRenderable* _clippingPlaneXY;
+	PlaneRenderable* _clippingPlaneYZ;
+	PlaneRenderable* _clippingPlaneZX;
 	// _cappingEnabled, _cappingTexture → SceneRenderController (Phase 10)
 
 	// _viewMode, _projection, _previousProjection → ViewportInteractionController (Phase 11)
@@ -1436,21 +1437,21 @@ private:
 
 	// _boundingSphere, _selectionBoundingSphere, _boundingBox, _visibleHighestZ/Z → ViewportInteractionController (Phase 11)
 
-	Plane* _floorPlane;
-	Plane* _gridPlane;
-	Cube* _skyBox;
+	FloorPlane* _floorPlane;
+	PlaneRenderable* _gridPlane;
+	CubeRenderable* _skyBox;
 	// _fsTriVAO/VBO, _skyBoxFaces, _skyBoxFOV/_skyBoxZRotation, gamma/HDR/tone-map settings,
 	// _conversionCubeVAO/VBO, _openGLInitialized, _anisotropicFilteringLevel → SceneRenderController (Phase 10)
 
-	Cone* _axisCone;
+	ConeRenderable* _axisCone;
 	ViewCubeMesh* _viewCube = nullptr;
 	TransformGizmo* _transformGizmo = nullptr;
 	// Gizmo drag state, viewCubeHoveredRegionId, customViewAnimationActive,
 	// cameraUpAxisZUp, showViewCubeOverride → ViewportInteractionController (Phase 11)
 	// Manual placement session fields → ExplodedViewRuntimeController (Phase 9)
 	// _viewCubeLabelTextures/VAO/VBO → SceneRenderController (Phase 10)
-	Cube* _lightCube;
-	Sphere* _lightSphere;
+	CubeRenderable* _lightCube;
+	SphereRenderable* _lightSphere;
 	bool _showLights;
 	// _useDefaultLights, _usePunctualLights, _useIBL → SceneRenderController (Phase 10)
 	// _debugShader → SceneRenderController (Phase 10)

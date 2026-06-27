@@ -5,9 +5,11 @@
 class Sphere : public GridMesh
 {
 public:
-	Sphere(QOpenGLShaderProgram* prog, float rad, unsigned int sl, unsigned int st, unsigned int sMax = 1, unsigned int tMax = 1);
-	virtual TriangleMesh* clone();
+    Sphere(float rad, unsigned int sl, unsigned int st,
+           unsigned int sMax = 1, unsigned int tMax = 1);
+
+    float radius() const { return _radius; }
 
 protected:
-	float _radius;
+    float _radius;
 };

@@ -14,6 +14,8 @@
 #include "MeshAnimationState.h"
 #include "MeshVertex.h"
 
+#include "MeshGeometry.h"
+
 #include <QByteArray>
 #include <QHash>
 #include <QImage>
@@ -470,6 +472,11 @@ public:
 	void clearAllDebugUniformOverrides();
 
 protected: // methods
+	// Upload geometry from a MeshGeometry object: copies vectors into _points/_normals/etc.
+	// and calls initBuffers() to create GL buffers. Bounds are recomputed automatically.
+	// Also syncs _sMax/_tMax/_hasVertexColors from the geometry.
+	void uploadGeometry(const MeshGeometry& geom);
+
 	virtual void initBuffers(
 		std::vector<unsigned int>* indices,
 		std::vector<float>* points,

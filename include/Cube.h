@@ -1,17 +1,16 @@
 #pragma once
 
-#include "Drawable.h"
 #include "GridMesh.h"
 
 class Cube : public GridMesh
 {
 public:
-	Cube(QOpenGLShaderProgram* prog, float size = 1.0f);
+    explicit Cube(float size = 1.0f);
 
-	virtual TriangleMesh* clone();
+    void setSize(float size);
 
-	void setSize(const float& size);
+    float size() const { return _size; }
 
 protected:
-	float _size;
+    float _size;
 };

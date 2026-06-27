@@ -38,6 +38,15 @@ public:
     float tMax() const { return _tMax; }
     bool  hasVertexColors() const { return _hasVertexColors; }
 
+    // Geometry data accessors — used by RenderableMesh::uploadGeometry()
+    const std::vector<unsigned int>& indices()    const { return _indices; }
+    const std::vector<float>&        points()     const { return _points; }
+    const std::vector<float>&        normals()    const { return _normals; }
+    const std::vector<float>&        colors()     const { return _colors; }
+    const std::vector<float>&        tangents()   const { return _tangents; }
+    const std::vector<float>&        bitangents() const { return _bitangents; }
+    const std::vector<float>&        texCoords()  const { return _texCoords; }
+
 protected:
     // GL_TRIANGLES = 4; default matches historical TriangleMesh behaviour.
     unsigned int _primitiveMode = 4;

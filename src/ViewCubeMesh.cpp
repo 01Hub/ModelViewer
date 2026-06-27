@@ -74,14 +74,14 @@ bool rayTriangleIntersect(const QVector3D& origin,
 }
 
 ViewCubeMesh::ViewCubeMesh(QOpenGLShaderProgram* prog, float size, float chamferRatio)
-	: GridMesh(prog, "ViewCube", 1, 1),
+	: RenderableMesh(prog, "ViewCube"),
 	  _size(size),
 	  _chamferRatio(chamferRatio)
 {
 	setParameters(size, chamferRatio);
 }
 
-TriangleMesh* ViewCubeMesh::clone()
+RenderableMesh* ViewCubeMesh::clone()
 {
 	return new ViewCubeMesh(_prog, _size, _chamferRatio);
 }
