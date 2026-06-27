@@ -1583,16 +1583,16 @@ void TriangleMesh::render()
 	if (uniformLocationCached("hasSkinning") >= 0)
 		_prog->setUniformValue("hasSkinning", hasSkinning());
 	if (uniformLocationCached("jointCount") >= 0)
-		_prog->setUniformValue("jointCount", static_cast<int>(_jointPalette.size()));
-	if (hasSkinning() && !_jointPalette.isEmpty())
+		_prog->setUniformValue("jointCount", static_cast<int>(_importState.jointPalette().size()));
+	if (hasSkinning() && !_importState.jointPalette().isEmpty())
 	{
-		const int maxJoints = std::min(static_cast<int>(_jointPalette.size()), 128);
+		const int maxJoints = std::min(static_cast<int>(_importState.jointPalette().size()), 128);
 		for (int i = 0; i < maxJoints; ++i)
 		{
 			const QString uniformName = QStringLiteral("jointMatrices[%1]").arg(i);
 			const int jointLocation = uniformLocationCached(uniformName);
 			if (jointLocation >= 0)
-				_prog->setUniformValue(jointLocation, _jointPalette[i]);
+				_prog->setUniformValue(jointLocation, _importState.jointPalette()[i]);
 		}
 	}
 
@@ -1640,16 +1640,16 @@ void TriangleMesh::renderShadow()
 	if (uniformLocationCached("hasSkinning") >= 0)
 		_prog->setUniformValue("hasSkinning", hasSkinning());
 	if (uniformLocationCached("jointCount") >= 0)
-		_prog->setUniformValue("jointCount", static_cast<int>(_jointPalette.size()));
-	if (hasSkinning() && !_jointPalette.isEmpty())
+		_prog->setUniformValue("jointCount", static_cast<int>(_importState.jointPalette().size()));
+	if (hasSkinning() && !_importState.jointPalette().isEmpty())
 	{
-		const int maxJoints = std::min(static_cast<int>(_jointPalette.size()), 128);
+		const int maxJoints = std::min(static_cast<int>(_importState.jointPalette().size()), 128);
 		for (int i = 0; i < maxJoints; ++i)
 		{
 			const QString uniformName = QStringLiteral("jointMatrices[%1]").arg(i);
 			const int jointLocation = uniformLocationCached(uniformName);
 			if (jointLocation >= 0)
-				_prog->setUniformValue(jointLocation, _jointPalette[i]);
+				_prog->setUniformValue(jointLocation, _importState.jointPalette()[i]);
 		}
 	}
 
@@ -2579,7 +2579,7 @@ void TriangleMesh::clearAllPBRMaps()
 
 const GLMaterial* TriangleMesh::materialForVariant(int variantIndex) const
 {
-	return _materialState.materialForVariant(variantIndex, _originalMaterialIndex);
+	return _materialState.materialForVariant(variantIndex, _importState.originalMaterialIndex());
 }
 
 // ---------------------------------------------------------------------------

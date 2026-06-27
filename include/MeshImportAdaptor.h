@@ -1,0 +1,57 @@
+#pragma once
+
+#include "GltfAnimationData.h"
+
+#include <QString>
+#include <QVector>
+#include <QMatrix4x4>
+
+// Import provenance for a mesh — source file, scene/material indices, skin joint
+// definitions, and per-joint runtime palette.
+//
+// Intentionally free of GL resources, transform state, and material data.
+// Owns the CPU-side data that ties a mesh back to its origin asset; all other
+// systems (animation, export, variant switching) query this to correlate a
+// live TriangleMesh with its source scene entry.
+class MeshImportAdaptor
+{
+public:
+    MeshImportAdaptor() = default;
+
+    // ---- Scene / material indices ----------------------------------------
+    // Original index into aiScene::mMeshes[] at load time.
+    // -1 for meshes not originating from an Assimp scene (parametric shapes).
+    void setSceneIndex(int idx)           { _sceneIndex = idx; }
+    int  sceneIndex() const               { return _sceneIndex; }
+
+    // Original aiMesh::mMaterialIndex at import time.
+    // Used during export to assign the correct material without name matching.
+    void setOriginalMaterialIndex(int idx) { _originalMaterialIndex = idx; }
+    int  originalMaterialIndex() const    { return _originalMaterialIndex; }
+
+    // ---- Source file / node tracking ------------------------------------
+    void    setSourceFile(const QString& path) { _sourceFile = path; }
+    QString sourceFile() const                 { return _sourceFile; }
+
+    void    setSourceNodeName(const QString& name) { _sourceNodeName = name; }
+    QString sourceNodeName() const                 { return _sourceNodeName; }
+
+    // ---- Skinning — joint definitions (import-time, static) -------------
+    // Runtime joint palette lives in MeshAnimationState (Phase 6).
+    void setSkinJoints(const QVector<GltfSkinJoint>& joints) { _skinJoints = joints; }
+    const QVector<GltfSkinJoint>& skinJoints() const         { return _skinJoints; }
+    bool hasSkinning() const                                 { return !_skinJoints.isEmpty(); }
+
+    // Joint palette is the runtime-updated per-frame joint transform array.
+    // Kept here temporarily until MeshAnimationState is introduced (Phase 6).
+    void setJointPalette(const QVector<QMatrix4x4>& palette) { _jointPalette = palette; }
+    const QVector<QMatrix4x4>& jointPalette() const          { return _jointPalette; }
+
+private:
+    int     _sceneIndex           = -1;
+    int     _originalMaterialIndex = -1;
+    QString _sourceFile;
+    QString _sourceNodeName;
+    QVector<GltfSkinJoint>  _skinJoints;
+    QVector<QMatrix4x4>     _jointPalette;
+};

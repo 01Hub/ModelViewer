@@ -10,6 +10,7 @@
 #include "GltfVariantData.h"
 #include "MeshInstanceState.h"
 #include "MaterialVizState.h"
+#include "MeshImportAdaptor.h"
 
 #include <QHash>
 #include <QMatrix4x4>
@@ -202,21 +203,21 @@ public:
 	void resetTransformations();
 	void resetExplodedViewTransformations();
 
-	void setSceneIndex(int index) { _sceneIndex = index; }
-	int getSceneIndex() const { return _sceneIndex; }
+	void setSceneIndex(int index) { _importState.setSceneIndex(index); }
+	int getSceneIndex() const { return _importState.sceneIndex(); }
 
 	// Store the original material index from aiMesh::mMaterialIndex at import time.
 	// Used during export to ensure correct material assignment without relying on name matching.
-	void setOriginalMaterialIndex(int index) { _originalMaterialIndex = index; }
-	int getOriginalMaterialIndex() const { return _originalMaterialIndex; }
+	void setOriginalMaterialIndex(int index) { _importState.setOriginalMaterialIndex(index); }
+	int getOriginalMaterialIndex() const { return _importState.originalMaterialIndex(); }
 
 	// -----------------------------------------------------------------------
 	// Source file tracking
 	// -----------------------------------------------------------------------
-	void    setSourceFile(const QString& path) { _sourceFile = path; }
-	QString getSourceFile() const              { return _sourceFile; }
-	void    setSourceNodeName(const QString& name) { _sourceNodeName = name; }
-	QString getSourceNodeName() const              { return _sourceNodeName; }
+	void    setSourceFile(const QString& path) { _importState.setSourceFile(path); }
+	QString getSourceFile() const              { return _importState.sourceFile(); }
+	void    setSourceNodeName(const QString& name) { _importState.setSourceNodeName(name); }
+	QString getSourceNodeName() const              { return _importState.sourceNodeName(); }
 	void    setSceneRenderTransform(const QMatrix4x4& trsf);
 	void    setSceneRenderTransformFast(const QMatrix4x4& trsf);
 
@@ -243,11 +244,11 @@ public:
 	void setActiveVariantIndex(int idx) { _instanceState.setActiveVariantIndex(idx); }
 	int  activeVariantIndex() const     { return _instanceState.activeVariantIndex(); }
 
-	void setSkinJoints(const QVector<GltfSkinJoint>& joints) { _skinJoints = joints; }
-	const QVector<GltfSkinJoint>& skinJoints() const { return _skinJoints; }
-	bool hasSkinning() const { return !_skinJoints.isEmpty(); }
-	void setJointPalette(const QVector<QMatrix4x4>& palette) { _jointPalette = palette; }
-	const QVector<QMatrix4x4>& jointPalette() const { return _jointPalette; }
+	void setSkinJoints(const QVector<GltfSkinJoint>& joints) { _importState.setSkinJoints(joints); }
+	const QVector<GltfSkinJoint>& skinJoints() const { return _importState.skinJoints(); }
+	bool hasSkinning() const { return _importState.hasSkinning(); }
+	void setJointPalette(const QVector<QMatrix4x4>& palette) { _importState.setJointPalette(palette); }
+	const QVector<QMatrix4x4>& jointPalette() const { return _importState.jointPalette(); }
 	virtual bool hasMorphTargets() const { return false; }
 	virtual QVector<float> defaultMorphWeights() const { return {}; }
 	virtual void applyMorphWeights(const QVector<float>&) { }
@@ -544,24 +545,7 @@ protected:
 	// Primitive mode from glTF (GL_POINTS=0, GL_LINES=1, GL_LINE_STRIP=3, GL_TRIANGLE_STRIP=5, GL_TRIANGLES=4)
 	GLenum _primitiveMode = GL_TRIANGLES;  // Default to triangles for backward compatibility
 
-	// Original index into aiScene::mMeshes[] at load time.
-	// -1 for meshes not originating from an Assimp scene (parametric shapes, etc.).
-	// Used by the exporter to match surviving TriangleMesh objects back to aiMesh
-	// entries in the deep-copied scene without relying on name strings.
-	int _sceneIndex = -1;
-
-	// Material index from aiMesh::mMaterialIndex at import time.
-	// Stores which material in the scene's material array applies to this mesh.
-	// Used during export to ensure correct material assignment via index matching,
-	// avoiding fragile name-based matching. -1 if not from an Assimp scene.
-	int _originalMaterialIndex = -1;
-
-	// Absolute path of the file this mesh was loaded from (empty for parametric shapes).
-	QString _sourceFile;
-	QString _sourceNodeName;
-
-	QVector<GltfSkinJoint> _skinJoints;
-	QVector<QMatrix4x4> _jointPalette;
+	MeshImportAdaptor _importState;
 
 	unsigned long long _memorySize;
 };
