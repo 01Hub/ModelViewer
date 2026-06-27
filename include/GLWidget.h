@@ -4,6 +4,7 @@
 #include "AdaptiveShadowMapper.h"
 #include "AnimationRuntimeController.h"
 #include "BoundingSphere.h"
+#include "ExplodedViewRuntimeController.h"
 #include "GLCamera.h"
 #include "Plane.h"
 #include "SceneRuntime.h"
@@ -1028,6 +1029,32 @@ private:
 	QString&                                        _animatedMeshVisibilitySourceFile;
 	QSet<QUuid>&                                    _animatedHiddenMeshUuids;
 
+	// Exploded-view runtime state — owned here; GLWidget aliases every field by
+	// reference so all existing call sites in GLWidget.cpp remain unchanged.
+	// Declaration order: _explodedViewCtrl must come before all its aliases.
+	ExplodedViewRuntimeController _explodedViewCtrl;
+
+	// Reference aliases into _explodedViewCtrl (initialized in constructor init-list)
+	ExplodedViewManager*&                       _explodedViewManager;
+	QSet<QUuid>&                                _cachedHintsAssemblyUuids;
+	QUuid&                                      _cachedHintsAnchorUuid;
+	AssemblyRelationGraph::AutoPlacementHints&  _cachedAutoHints;
+	bool&                                       _cachedHintsValid;
+	bool&                                       _explodedViewManualPlacementActive;
+	QMap<QUuid, TransformState>&                _explodedViewManualOriginalStates;
+	QMap<QUuid, TransformState>&                _explodedViewManualHiddenStates;
+	bool&                                       _explodedViewManualPlacementSuppressed;
+	QSet<QUuid>&                                _explodedViewManualPlacementSessionUuids;
+	QMap<QUuid, TransformState>&                _explodedViewManualSessionStartStates;
+	QMap<QUuid, QMatrix4x4>&                   _explodedViewManualSessionStartMatrices;
+	QVector3D&                                  _explodedViewManualSessionStartPivot;
+	QVector3D&                                  _explodedViewManualSessionTranslationDelta;
+	QQuaternion&                                _explodedViewManualSessionRotationQuat;
+	QVector3D&                                  _explodedViewManualSessionRotationEuler;
+	QVector3D&                                  _explodedViewManualDragStartTranslationDelta;
+	QQuaternion&                                _explodedViewManualDragStartRotationQuat;
+	QVector3D&                                  _explodedViewManualDragStartRotationEuler;
+
 	ViewToolbar* _viewToolbar;
 
 	QSet<int> _keys;
@@ -1320,15 +1347,7 @@ private:
 
 	ClippingPlanesEditor* _clippingPlanesEditor;
 	ExplodedViewPanel*    _explodedViewPanel;
-	ExplodedViewManager*  _explodedViewManager;
-
-	// Cache for assembly-aware auto-placement hints.
-	// Invalidated whenever assemblyUuids or anchorUuid change so the O(n²)
-	// graph build does not run on every slider tick.
-	QSet<QUuid>                              _cachedHintsAssemblyUuids;
-	QUuid                                    _cachedHintsAnchorUuid;
-	AssemblyRelationGraph::AutoPlacementHints _cachedAutoHints;
-	bool                                     _cachedHintsValid = false;
+	// ExplodedViewManager + hints cache + manual session → ExplodedViewRuntimeController (Phase 9)
 	Plane* _clippingPlaneXY;
 	Plane* _clippingPlaneYZ;
 	Plane* _clippingPlaneZX;
@@ -1413,20 +1432,7 @@ private:
 	QVector3D _transformGizmoRotationStartVector = QVector3D(1.0f, 0.0f, 0.0f);
 	QVector3D _transformGizmoCurrentRotationDelta = QVector3D(0.0f, 0.0f, 0.0f);
 	bool _transformGizmoLoggedTranslationUpdate = false;
-	bool _explodedViewManualPlacementActive = false;
-	QMap<QUuid, TransformState> _explodedViewManualOriginalStates;
-	QMap<QUuid, TransformState> _explodedViewManualHiddenStates;
-	bool _explodedViewManualPlacementSuppressed = false;
-	QSet<QUuid> _explodedViewManualPlacementSessionUuids;
-	QMap<QUuid, TransformState> _explodedViewManualSessionStartStates;
-	QMap<QUuid, QMatrix4x4> _explodedViewManualSessionStartMatrices;
-	QVector3D _explodedViewManualSessionStartPivot = QVector3D(0.0f, 0.0f, 0.0f);
-	QVector3D _explodedViewManualSessionTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
-	QQuaternion _explodedViewManualSessionRotationQuat = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
-	QVector3D _explodedViewManualSessionRotationEuler = QVector3D(0.0f, 0.0f, 0.0f);
-	QVector3D _explodedViewManualDragStartTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
-	QQuaternion _explodedViewManualDragStartRotationQuat = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
-	QVector3D _explodedViewManualDragStartRotationEuler = QVector3D(0.0f, 0.0f, 0.0f);
+	// Manual placement session fields → ExplodedViewRuntimeController (Phase 9)
 	int _viewCubeHoveredRegionId = -1;
 	bool _customViewAnimationActive = false;
 	bool _cameraUpAxisZUp = true;

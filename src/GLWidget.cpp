@@ -763,7 +763,7 @@ _textRenderer(nullptr),
 _axisTextRenderer(nullptr),
 _clippingPlanesEditor(nullptr),
 _explodedViewPanel(nullptr),
-_explodedViewManager(new ExplodedViewManager()),
+// _explodedViewManager allocated in constructor body (pointer now lives in _explodedViewCtrl)
 _clippingPlaneXY(nullptr),
 _clippingPlaneYZ(nullptr),
 _clippingPlaneZX(nullptr),
@@ -819,12 +819,33 @@ _floorPlane(nullptr),
 	_animatedLightVisibilitySourceFile(_animCtrl._animatedLightVisibilitySourceFile),
 	_animatedLightVisibilityMask(_animCtrl._animatedLightVisibilityMask),
 	_animatedMeshVisibilitySourceFile(_animCtrl._animatedMeshVisibilitySourceFile),
-	_animatedHiddenMeshUuids(_animCtrl._animatedHiddenMeshUuids)
+	_animatedHiddenMeshUuids(_animCtrl._animatedHiddenMeshUuids),
+	// ExplodedViewRuntimeController reference aliases (Phase 9)
+	_explodedViewManager(_explodedViewCtrl._explodedViewManager),
+	_cachedHintsAssemblyUuids(_explodedViewCtrl._cachedHintsAssemblyUuids),
+	_cachedHintsAnchorUuid(_explodedViewCtrl._cachedHintsAnchorUuid),
+	_cachedAutoHints(_explodedViewCtrl._cachedAutoHints),
+	_cachedHintsValid(_explodedViewCtrl._cachedHintsValid),
+	_explodedViewManualPlacementActive(_explodedViewCtrl._explodedViewManualPlacementActive),
+	_explodedViewManualOriginalStates(_explodedViewCtrl._explodedViewManualOriginalStates),
+	_explodedViewManualHiddenStates(_explodedViewCtrl._explodedViewManualHiddenStates),
+	_explodedViewManualPlacementSuppressed(_explodedViewCtrl._explodedViewManualPlacementSuppressed),
+	_explodedViewManualPlacementSessionUuids(_explodedViewCtrl._explodedViewManualPlacementSessionUuids),
+	_explodedViewManualSessionStartStates(_explodedViewCtrl._explodedViewManualSessionStartStates),
+	_explodedViewManualSessionStartMatrices(_explodedViewCtrl._explodedViewManualSessionStartMatrices),
+	_explodedViewManualSessionStartPivot(_explodedViewCtrl._explodedViewManualSessionStartPivot),
+	_explodedViewManualSessionTranslationDelta(_explodedViewCtrl._explodedViewManualSessionTranslationDelta),
+	_explodedViewManualSessionRotationQuat(_explodedViewCtrl._explodedViewManualSessionRotationQuat),
+	_explodedViewManualSessionRotationEuler(_explodedViewCtrl._explodedViewManualSessionRotationEuler),
+	_explodedViewManualDragStartTranslationDelta(_explodedViewCtrl._explodedViewManualDragStartTranslationDelta),
+	_explodedViewManualDragStartRotationQuat(_explodedViewCtrl._explodedViewManualDragStartRotationQuat),
+	_explodedViewManualDragStartRotationEuler(_explodedViewCtrl._explodedViewManualDragStartRotationEuler)
 {
     setFocusPolicy(Qt::StrongFocus);
     setMouseTracking(true);  // Enable mouseMoveEvent for hover highlighting
 
     _viewer = static_cast<ModelViewer*>(parent);
+	_explodedViewManager = new ExplodedViewManager();
 	_transformGizmo = new TransformGizmo(this);
 
 
