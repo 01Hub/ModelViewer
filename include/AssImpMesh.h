@@ -1,16 +1,11 @@
 #pragma once
 
 #include <string>
-#include <fstream>
-#include <sstream>
-#include <iostream>
 #include <vector>
 #include <initializer_list>
 
 #include "TriangleMesh.h"
-#include "GLMaterial.h"
-#include <QVector2D>
-// Vertex, MorphTargetData, getTexCoord — defined in MeshVertex.h (included via TriangleMesh.h)
+// GLMaterial, Vertex, MorphTargetData — transitive via TriangleMesh.h
 
 class AssImpMesh : public TriangleMesh
 {
@@ -131,7 +126,7 @@ private:
 	/*  Mesh Data  */
 	// _vertices, _baseVertices → TriangleMesh (protected, Phase 4)
 	// _morphTargets, _defaultMorphWeights → TriangleMesh (protected, Phase 4)
-	std::vector<unsigned int> _indices;
+	// _indices → TriangleMesh (protected, Phase 4b) — AssImpMesh uses the inherited field directly
 	// Reference alias into _materialState.textures() — same zero-churn pattern
 	// as GLMaterial& _material in TriangleMesh. Initialised in the constructor
 	// init-list; all existing _textures.xxx call sites remain unchanged.
