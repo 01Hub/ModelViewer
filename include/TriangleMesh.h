@@ -11,6 +11,7 @@
 #include "MeshInstanceState.h"
 #include "MaterialVizState.h"
 #include "MeshImportAdaptor.h"
+#include "MeshVizAdaptor.h"
 
 #include <QHash>
 #include <QMatrix4x4>
@@ -477,58 +478,56 @@ protected:
 	// Public API on TriangleMesh forwards to this object.
 	MeshInstanceState _instanceState;
 
-	QOpenGLBuffer _indexBuffer;
-	QOpenGLBuffer _positionBuffer;
-	QOpenGLBuffer _normalBuffer;
-	QOpenGLBuffer _colorBuffer;
-	QOpenGLBuffer _texCoord0Buffer;
-	QOpenGLBuffer _texCoord1Buffer;
-	QOpenGLBuffer _texCoord2Buffer;
-	QOpenGLBuffer _texCoord3Buffer;
-	QOpenGLBuffer _tangentBuf;
-	QOpenGLBuffer _bitangentBuf;
-	QOpenGLBuffer _jointIndexBuffer;
-	QOpenGLBuffer _jointWeightBuffer;
+	// GL resource container — owns all vertex/index buffers, VAO, fallback
+	// texture, dirty flags, uniform-location cache, and debug override maps.
+	// Every field below up to _sMax/_tMax is a reference alias into _vizState
+	// so that all existing call sites in .cpp files compile unchanged.
+	// Initialised in the constructor init-list (must come before the aliases).
+	MeshVizAdaptor _vizState;
 
-	QOpenGLBuffer _coordBuf;
+	// ---- Reference aliases into _vizState — do NOT access these directly
+	//      from outside TriangleMesh; they are an implementation detail. ------
+	QOpenGLBuffer& _indexBuffer;
+	QOpenGLBuffer& _positionBuffer;
+	QOpenGLBuffer& _normalBuffer;
+	QOpenGLBuffer& _colorBuffer;
+	QOpenGLBuffer& _texCoord0Buffer;
+	QOpenGLBuffer& _texCoord1Buffer;
+	QOpenGLBuffer& _texCoord2Buffer;
+	QOpenGLBuffer& _texCoord3Buffer;
+	QOpenGLBuffer& _tangentBuf;
+	QOpenGLBuffer& _bitangentBuf;
+	QOpenGLBuffer& _jointIndexBuffer;
+	QOpenGLBuffer& _jointWeightBuffer;
+	QOpenGLBuffer& _coordBuf;
 
-	unsigned int _nVerts;     // Number of vertices
-	QOpenGLVertexArrayObject _vertexArrayObject;        // The Vertex Array Object
-
-	// Vertex buffers
-	std::vector<QOpenGLBuffer> _buffers;
+	unsigned int&                _nVerts;
+	QOpenGLVertexArrayObject&    _vertexArrayObject;
+	std::vector<QOpenGLBuffer>&  _buffers;
 
 	MaterialVizState _materialState;
 	GLMaterial& _material;   // reference alias into _materialState — do not access _material directly from outside TriangleMesh
 
-	// Internal always-valid fallback texture bound on unit 0. This is no longer
-	// a user-facing mesh texture path, but some render paths still rely on the
-	// presence of a complete 2D texture object there.
-	QImage _fallbackTextureImage, _fallbackTextureBuffer;
-	unsigned int _fallbackTexture;
+	// fallback texture aliases (owned by _vizState)
+	QImage&       _fallbackTextureImage;
+	QImage&       _fallbackTextureBuffer;
+	unsigned int& _fallbackTexture;
 
 	float _sMax;
 	float _tMax;
 
-	bool _textureBindingsDirty = true;
+	// References are transparent to const so no mutable annotation is needed.
+	bool&                    _textureBindingsDirty;
+	bool&                    _uniformsDirty;
+	QHash<QByteArray, int>&  _uniformLocationCache;
+	QOpenGLShaderProgram*&   _vaoConfiguredProgram;
 
-	bool _uniformsDirty = true;
-	mutable QHash<QByteArray, int> _uniformLocationCache;
-	QOpenGLShaderProgram* _vaoConfiguredProgram = nullptr;
 	static QMatrix4x4 _currentGlobalModelMatrix;
 	static QMatrix4x4 _currentViewMatrix;
 
-	// Debug texture overrides set by TextureDebugPanel.
-	// Maps GL texture unit index → replacement texture ID.
-	// Applied after setupTextures() / bindTexturesOptimized() so they override
-	// whatever was just bound, without modifying the actual material state.
-	QMap<int, GLuint> _debugTextureOverrides;
-
-	// Debug uniform overrides set by TextureDebugPanel extension toggles.
-	// Maps uniform name → replacement value (float or QVector3D).
-	// Applied unconditionally every frame after setupUniforms() so the override
-	// persists even when _uniformsDirty is false.
-	QMap<QString, QVariant> _debugUniformOverrides;
+	// Debug override aliases (owned by _vizState)
+	QMap<int, GLuint>&       _debugTextureOverrides;
+	QMap<QString, QVariant>& _debugUniformOverrides;
 
 	std::vector<unsigned int> _indices;
 	std::vector<float> _points;

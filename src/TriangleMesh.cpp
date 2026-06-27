@@ -427,12 +427,35 @@ void TriangleMesh::markRuntimeBoundsChanged()
 }
 
 TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Drawable(prog),
-_nVerts(0),
-_fallbackTexture(0),
+_indexBuffer(_vizState.indexBuffer()),
+_positionBuffer(_vizState.positionBuffer()),
+_normalBuffer(_vizState.normalBuffer()),
+_colorBuffer(_vizState.colorBuffer()),
+_texCoord0Buffer(_vizState.texCoord0Buffer()),
+_texCoord1Buffer(_vizState.texCoord1Buffer()),
+_texCoord2Buffer(_vizState.texCoord2Buffer()),
+_texCoord3Buffer(_vizState.texCoord3Buffer()),
+_tangentBuf(_vizState.tangentBuffer()),
+_bitangentBuf(_vizState.bitangentBuffer()),
+_jointIndexBuffer(_vizState.jointIndexBuffer()),
+_jointWeightBuffer(_vizState.jointWeightBuffer()),
+_coordBuf(_vizState.coordBuffer()),
+_nVerts(_vizState.nVerts()),
+_vertexArrayObject(_vizState.vao()),
+_buffers(_vizState.buffers()),
+_material(_materialState.material()),
+_fallbackTextureImage(_vizState.fallbackTextureImage()),
+_fallbackTextureBuffer(_vizState.fallbackTextureBuffer()),
+_fallbackTexture(_vizState.fallbackTexture()),
 _sMax(1),
 _tMax(1),
-_hasVertexColors(false),
-_material(_materialState.material())
+_textureBindingsDirty(_vizState.textureBindingsDirty()),
+_uniformsDirty(_vizState.uniformsDirty()),
+_uniformLocationCache(_vizState.uniformLocationCache()),
+_vaoConfiguredProgram(_vizState.vaoConfiguredProgram()),
+_debugTextureOverrides(_vizState.debugTextureOverrides()),
+_debugUniformOverrides(_vizState.debugUniformOverrides()),
+_hasVertexColors(false)
 {
 	setAutoIncrName(name);
 	_memorySize = 0;
