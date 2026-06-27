@@ -13,10 +13,23 @@
 // Forward declaration — only a pointer is stored, no full definition needed here.
 class QOpenGLShaderProgram;
 
+// One entry in the precomputed texture binding table built by
+// AssImpMesh::cacheTextureBindings().  Cached once per material change;
+// consumed every frame by bindTexturesOptimized() without re-scanning _textures.
+struct PrecomputedTexture
+{
+    unsigned int textureId;
+    unsigned int textureUnit;
+    int          uniformLocation;
+    bool         isValid;
+};
+
 // GL resource container for a TriangleMesh.
 //
 // Owns all per-mesh OpenGL state: vertex/index buffers, VAO, fallback texture,
-// per-frame dirty flags, the uniform-location cache, and debug override maps.
+// feature-edge and OCC-edge VAO/VBO pairs, the precomputed texture binding
+// table, per-frame dirty flags, the uniform-location cache, and debug override
+// maps.
 //
 // TriangleMesh embeds one of these as _vizState and exposes each field through
 // a reference alias (same zero-churn pattern used for GLMaterial& _material).
@@ -82,6 +95,20 @@ public:
     QMap<int, unsigned int>&    debugTextureOverrides()  { return _debugTextureOverrides; }
     QMap<QString, QVariant>&    debugUniformOverrides()  { return _debugUniformOverrides; }
 
+    // ---- Feature-edge VAO/VBO (heuristic silhouette edges) --------------
+    QOpenGLBuffer&              featureEdgeIndexBuffer() { return _featureEdgeIndexBuffer; }
+    QOpenGLVertexArrayObject&   featureEdgeVAO()         { return _featureEdgeVAO; }
+    int&                        featureEdgeCount()       { return _featureEdgeCount; }
+
+    // ---- OCC B-Rep edge VAO/VBO (STEP/IGES/BREP exact topology) ---------
+    QOpenGLBuffer&              occEdgeVertexBuffer()    { return _occEdgeVertexBuffer; }
+    QOpenGLVertexArrayObject&   occEdgeVAO()             { return _occEdgeVAO; }
+    int&                        occEdgeCount()           { return _occEdgeCount; }
+
+    // ---- Precomputed texture binding table ------------------------------
+    // Built once by cacheTextureBindings(); consumed by bindTexturesOptimized().
+    std::vector<PrecomputedTexture>& textureBindings()   { return _textureBindings; }
+
 private:
     QOpenGLBuffer _indexBuffer;
     QOpenGLBuffer _positionBuffer;
@@ -113,4 +140,14 @@ private:
 
     QMap<int, unsigned int>  _debugTextureOverrides;
     QMap<QString, QVariant>  _debugUniformOverrides;
+
+    QOpenGLBuffer            _featureEdgeIndexBuffer { QOpenGLBuffer::IndexBuffer };
+    QOpenGLVertexArrayObject _featureEdgeVAO;
+    int                      _featureEdgeCount = 0;
+
+    QOpenGLBuffer            _occEdgeVertexBuffer { QOpenGLBuffer::VertexBuffer };
+    QOpenGLVertexArrayObject _occEdgeVAO;
+    int                      _occEdgeCount = 0;
+
+    std::vector<PrecomputedTexture> _textureBindings;
 };

@@ -64,6 +64,16 @@ public:
     std::vector<GLMaterial::Texture>&       textures()       { return _textures; }
     void setTextures(std::vector<GLMaterial::Texture> t)     { _textures = std::move(t); }
 
+    // ---- ADS (Phong/Blinn-Phong) texture map GL IDs ---------------------
+    // Separate from the PBR texture IDs stored in GLMaterial; set via
+    // setDiffuseADSMap() / clearDiffuseADSMap() etc. on TriangleMesh.
+    unsigned int& diffuseADSMap()  { return _diffuseADSMap; }
+    unsigned int& specularADSMap() { return _specularADSMap; }
+    unsigned int& emissiveADSMap() { return _emissiveADSMap; }
+    unsigned int& normalADSMap()   { return _normalADSMap; }
+    unsigned int& heightADSMap()   { return _heightADSMap; }
+    unsigned int& opacityADSMap()  { return _opacityADSMap; }
+
 private:
     GLMaterial _material;
     bool       _hasTextureAlpha = false;
@@ -73,4 +83,11 @@ private:
     QVector<GltfVariantMapping>      _variantMappings;
     QMap<int, GLMaterial>            _allVariantMaterials;
     std::vector<GLMaterial::Texture> _textures;
+
+    unsigned int _diffuseADSMap  = 0;
+    unsigned int _specularADSMap = 0;
+    unsigned int _emissiveADSMap = 0;
+    unsigned int _normalADSMap   = 0;
+    unsigned int _heightADSMap   = 0;
+    unsigned int _opacityADSMap  = 0;
 };

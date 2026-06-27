@@ -873,28 +873,28 @@ void AssImpMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 		}
 	}
 
-	_featureEdgeCount = static_cast<GLsizei>(featureEdges.size());
-	if (_featureEdgeCount == 0)
+	_vizState.featureEdgeCount() = static_cast<GLsizei>(featureEdges.size());
+	if (_vizState.featureEdgeCount() == 0)
 		return;
 
 	// --- Step 4: Upload index buffer ---
-	if (!_featureEdgeIndexBuffer.isCreated())
-		_featureEdgeIndexBuffer.create();
-	_featureEdgeIndexBuffer.bind();
-	_featureEdgeIndexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
-	_featureEdgeIndexBuffer.allocate(featureEdges.data(),
+	if (!_vizState.featureEdgeIndexBuffer().isCreated())
+		_vizState.featureEdgeIndexBuffer().create();
+	_vizState.featureEdgeIndexBuffer().bind();
+	_vizState.featureEdgeIndexBuffer().setUsagePattern(QOpenGLBuffer::StaticDraw);
+	_vizState.featureEdgeIndexBuffer().allocate(featureEdges.data(),
 	                                 static_cast<int>(featureEdges.size() * sizeof(uint32_t)));
-	_featureEdgeIndexBuffer.release();
+	_vizState.featureEdgeIndexBuffer().release();
 
 	// --- Step 5: Create feature edge VAO ---
 	// Reuses the same vertex VBOs as the main VAO; only the index buffer differs.
 	// Attribute locations (0=pos, 1=norm, 2=color, 9=jointIdx, 10=jointWgt) are
 	// fixed by layout(location=N) in wireframe.vert, so _prog's locations match.
-	if (!_featureEdgeVAO.isCreated())
-		_featureEdgeVAO.create();
-	_featureEdgeVAO.bind();
+	if (!_vizState.featureEdgeVAO().isCreated())
+		_vizState.featureEdgeVAO().create();
+	_vizState.featureEdgeVAO().bind();
 
-	_featureEdgeIndexBuffer.bind(); // stored in VAO state
+	_vizState.featureEdgeIndexBuffer().bind(); // stored in VAO state
 
 	_positionBuffer.bind();
 	_prog->enableAttributeArray("vertexPosition");
@@ -922,7 +922,7 @@ void AssImpMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 		_prog->setAttributeBuffer("jointWeights", GL_FLOAT, 0, 4);
 	}
 
-	_featureEdgeVAO.release();
+	_vizState.featureEdgeVAO().release();
 }
 
 void AssImpMesh::setPrecomputedOccEdges(const std::vector<float>& edgeVerts,
@@ -933,24 +933,24 @@ void AssImpMesh::setPrecomputedOccEdges(const std::vector<float>& edgeVerts,
 	if (edgeVerts.empty()) return;
 
 	_importState.setOccEdgeData(edgeVerts, bounds);
-	_occEdgeCount = static_cast<GLsizei>(edgeVerts.size() / 3);
+	_vizState.occEdgeCount() = static_cast<GLsizei>(edgeVerts.size() / 3);
 
-	if (!_occEdgeVertexBuffer.isCreated())
-		_occEdgeVertexBuffer.create();
-	_occEdgeVertexBuffer.bind();
-	_occEdgeVertexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
-	_occEdgeVertexBuffer.allocate(edgeVerts.data(),
+	if (!_vizState.occEdgeVertexBuffer().isCreated())
+		_vizState.occEdgeVertexBuffer().create();
+	_vizState.occEdgeVertexBuffer().bind();
+	_vizState.occEdgeVertexBuffer().setUsagePattern(QOpenGLBuffer::StaticDraw);
+	_vizState.occEdgeVertexBuffer().allocate(edgeVerts.data(),
 	                              static_cast<int>(edgeVerts.size() * sizeof(float)));
-	_occEdgeVertexBuffer.release();
+	_vizState.occEdgeVertexBuffer().release();
 
-	if (!_occEdgeVAO.isCreated())
-		_occEdgeVAO.create();
-	_occEdgeVAO.bind();
-	_occEdgeVertexBuffer.bind();
+	if (!_vizState.occEdgeVAO().isCreated())
+		_vizState.occEdgeVAO().create();
+	_vizState.occEdgeVAO().bind();
+	_vizState.occEdgeVertexBuffer().bind();
 	_prog->enableAttributeArray("vertexPosition");
 	_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3, 3 * sizeof(float));
-	_occEdgeVAO.release();
-	_occEdgeVertexBuffer.release();
+	_vizState.occEdgeVAO().release();
+	_vizState.occEdgeVertexBuffer().release();
 }
 
 void AssImpMesh::renderFeatureEdgesFast(QOpenGLShaderProgram* wireProg)
@@ -963,15 +963,15 @@ void AssImpMesh::renderFeatureEdgesFast(QOpenGLShaderProgram* wireProg)
 	wireProg->setUniformValue("baseColor",   _material.albedoColor());
 
 	// OCC B-Rep edges take priority — exact analytical wireframe from STEP/IGES/BREP.
-	if (_occEdgeVAO.isCreated() && _occEdgeCount > 0)
+	if (_vizState.occEdgeVAO().isCreated() && _vizState.occEdgeCount() > 0)
 	{
-		_occEdgeVAO.bind();
-		glDrawArrays(GL_LINES, 0, _occEdgeCount);
-		_occEdgeVAO.release();
+		_vizState.occEdgeVAO().bind();
+		glDrawArrays(GL_LINES, 0, _vizState.occEdgeCount());
+		_vizState.occEdgeVAO().release();
 		return;
 	}
 
-	if (!_featureEdgeVAO.isCreated() || _featureEdgeCount == 0)
+	if (!_vizState.featureEdgeVAO().isCreated() || _vizState.featureEdgeCount() == 0)
 		return;
 
 	// Feature edges never use albedo textures — the edge line colour is the material
@@ -991,9 +991,9 @@ void AssImpMesh::renderFeatureEdgesFast(QOpenGLShaderProgram* wireProg)
 				glUniformMatrix4fv(baseLoc + i, 1, GL_FALSE, jointPalette()[i].constData());
 	}
 
-	_featureEdgeVAO.bind();
-	glDrawElements(GL_LINES, _featureEdgeCount, GL_UNSIGNED_INT, nullptr);
-	_featureEdgeVAO.release();
+	_vizState.featureEdgeVAO().bind();
+	glDrawElements(GL_LINES, _vizState.featureEdgeCount(), GL_UNSIGNED_INT, nullptr);
+	_vizState.featureEdgeVAO().release();
 
 	if (_hasVertexColors)
 		wireProg->setUniformValue("hasVertexColors", false);
@@ -1008,8 +1008,8 @@ void AssImpMesh::cacheTextureBindings()
 {
 	if (!_textureBindingsDirty) return;
 
-	_textureBindings.clear();
-	_textureBindings.reserve(_textures.size() * 2); // Account for duplicates
+	_vizState.textureBindings().clear();
+	_vizState.textureBindings().reserve(_textures.size() * 2); // Account for duplicates
 
 	// Counters for numbering
 	int diffuseNr = 1, specularNr = 1, emissiveNr = 1, normalNr = 1;
@@ -1038,7 +1038,7 @@ void AssImpMesh::cacheTextureBindings()
 			binding.isValid = (binding.uniformLocation != -1);
 			if (binding.isValid)
 			{
-				_textureBindings.push_back(binding);
+				_vizState.textureBindings().push_back(binding);
 			}
 			};
 
@@ -1221,7 +1221,7 @@ void AssImpMesh::cacheTextureBindings()
 
 void AssImpMesh::bindTexturesOptimized()
 {
-	for (const auto& binding : _textureBindings)
+	for (const auto& binding : _vizState.textureBindings())
 	{
 		if (binding.isValid)
 		{
@@ -1921,7 +1921,7 @@ void AssImpMesh::clearAllPBRMaps()
 
 void AssImpMesh::setDiffuseADSMap(unsigned int diffuseTex)
 {
-	_diffuseADSMap = diffuseTex;
+	_materialState.diffuseADSMap() = diffuseTex;
 	replaceOrAppendTexture("texture_diffuse", diffuseTex, false);
 	markTexturesDirty();
 	markUniformsDirty();
@@ -1929,7 +1929,7 @@ void AssImpMesh::setDiffuseADSMap(unsigned int diffuseTex)
 
 void AssImpMesh::setSpecularADSMap(unsigned int specularTex)
 {
-	_specularADSMap = specularTex;
+	_materialState.specularADSMap() = specularTex;
 	replaceOrAppendTexture("texture_specular", specularTex, false);
 	markTexturesDirty();
 	markUniformsDirty();
@@ -1937,7 +1937,7 @@ void AssImpMesh::setSpecularADSMap(unsigned int specularTex)
 
 void AssImpMesh::setEmissiveADSMap(unsigned int emissiveTex)
 {
-	_emissiveADSMap = emissiveTex;
+	_materialState.emissiveADSMap() = emissiveTex;
 	replaceOrAppendTexture("texture_emissive", emissiveTex, false);
 	markTexturesDirty();
 	markUniformsDirty();
@@ -1945,7 +1945,7 @@ void AssImpMesh::setEmissiveADSMap(unsigned int emissiveTex)
 
 void AssImpMesh::setNormalADSMap(unsigned int normalTex)
 {
-	_normalADSMap = normalTex;
+	_materialState.normalADSMap() = normalTex;
 	replaceOrAppendTexture("texture_normal", normalTex, false);
 	markTexturesDirty();
 	markUniformsDirty();
@@ -1953,7 +1953,7 @@ void AssImpMesh::setNormalADSMap(unsigned int normalTex)
 
 void AssImpMesh::setHeightADSMap(unsigned int heightTex)
 {
-	_heightADSMap = heightTex;
+	_materialState.heightADSMap() = heightTex;
 	replaceOrAppendTexture("texture_height", heightTex, false);
 	markTexturesDirty();
 	markUniformsDirty();
@@ -1961,7 +1961,7 @@ void AssImpMesh::setHeightADSMap(unsigned int heightTex)
 
 void AssImpMesh::setOpacityADSMap(unsigned int opacityTex)
 {
-	_opacityADSMap = opacityTex;
+	_materialState.opacityADSMap() = opacityTex;
 	replaceOrAppendTexture("texture_opacity", opacityTex, true);
 	_material.setBlendMode(GLMaterial::BlendMode::Alpha);
 	markTexturesDirty();
@@ -1970,7 +1970,7 @@ void AssImpMesh::setOpacityADSMap(unsigned int opacityTex)
 
 void AssImpMesh::clearDiffuseADSMap()
 {
-	_diffuseADSMap = 0;
+	_materialState.diffuseADSMap() = 0;
 	removeTexturesByType({ "texture_diffuse" });
 	markTexturesDirty();
 	markUniformsDirty();
@@ -1978,7 +1978,7 @@ void AssImpMesh::clearDiffuseADSMap()
 
 void AssImpMesh::clearSpecularADSMap()
 {
-	_specularADSMap = 0;
+	_materialState.specularADSMap() = 0;
 	removeTexturesByType({ "texture_specular" });
 	markTexturesDirty();
 	markUniformsDirty();
@@ -1986,7 +1986,7 @@ void AssImpMesh::clearSpecularADSMap()
 
 void AssImpMesh::clearEmissiveADSMap()
 {
-	_emissiveADSMap = 0;
+	_materialState.emissiveADSMap() = 0;
 	removeTexturesByType({ "texture_emissive" });
 	markTexturesDirty();
 	markUniformsDirty();
@@ -1994,7 +1994,7 @@ void AssImpMesh::clearEmissiveADSMap()
 
 void AssImpMesh::clearNormalADSMap()
 {
-	_normalADSMap = 0;
+	_materialState.normalADSMap() = 0;
 	removeTexturesByType({ "texture_normal" });
 	markTexturesDirty();
 	markUniformsDirty();
@@ -2002,7 +2002,7 @@ void AssImpMesh::clearNormalADSMap()
 
 void AssImpMesh::clearHeightADSMap()
 {
-	_heightADSMap = 0;
+	_materialState.heightADSMap() = 0;
 	removeTexturesByType({ "texture_height" });
 	markTexturesDirty();
 	markUniformsDirty();
@@ -2010,7 +2010,7 @@ void AssImpMesh::clearHeightADSMap()
 
 void AssImpMesh::clearOpacityADSMap()
 {
-	_opacityADSMap = 0;
+	_materialState.opacityADSMap() = 0;
 	removeTexturesByType({ "texture_opacity" });
 	markTexturesDirty();
 	markUniformsDirty();
@@ -2068,21 +2068,21 @@ void AssImpMesh::setTextureMaps(const GLMaterial& material)
 	syncTexture(material.hasDiffuseTransmissionColorMap(), "diffuseTransmissionColorMap", material.diffuseTransmissionColorTextureId());
 	syncTexture(material.hasSpecularGlossinessMap(), "specularGlossinessMap", material.specularGlossinessTextureId());
 
-	_diffuseADSMap = material.hasAlbedoMap()
+	_materialState.diffuseADSMap() = material.hasAlbedoMap()
 		? material.albedoTextureId()
 		: (material.hasDiffuseMap() ? material.diffuseTextureId() : 0U);
-	_specularADSMap = material.hasMetallicMap() ? material.metallicTextureId() : 0U;
-	_emissiveADSMap = material.hasEmissiveMap() ? material.emissiveTextureId() : 0U;
-	_normalADSMap = material.hasNormalMap() ? material.normalTextureId() : 0U;
-	_heightADSMap = material.hasHeightMap() ? material.heightTextureId() : 0U;
-	_opacityADSMap = material.hasOpacityMap() ? material.opacityTextureId() : 0U;
+	_materialState.specularADSMap() = material.hasMetallicMap() ? material.metallicTextureId() : 0U;
+	_materialState.emissiveADSMap() = material.hasEmissiveMap() ? material.emissiveTextureId() : 0U;
+	_materialState.normalADSMap() = material.hasNormalMap() ? material.normalTextureId() : 0U;
+	_materialState.heightADSMap() = material.hasHeightMap() ? material.heightTextureId() : 0U;
+	_materialState.opacityADSMap() = material.hasOpacityMap() ? material.opacityTextureId() : 0U;
 
-	syncTexture(_diffuseADSMap != 0, "texture_diffuse", _diffuseADSMap);
-	syncTexture(_specularADSMap != 0, "texture_specular", _specularADSMap);
-	syncTexture(_emissiveADSMap != 0, "texture_emissive", _emissiveADSMap);
-	syncTexture(_normalADSMap != 0, "texture_normal", _normalADSMap);
-	syncTexture(_heightADSMap != 0, "texture_height", _heightADSMap);
-	syncTexture(_opacityADSMap != 0, "texture_opacity", _opacityADSMap, true);
+	syncTexture(_materialState.diffuseADSMap() != 0, "texture_diffuse", _materialState.diffuseADSMap());
+	syncTexture(_materialState.specularADSMap() != 0, "texture_specular", _materialState.specularADSMap());
+	syncTexture(_materialState.emissiveADSMap() != 0, "texture_emissive", _materialState.emissiveADSMap());
+	syncTexture(_materialState.normalADSMap() != 0, "texture_normal", _materialState.normalADSMap());
+	syncTexture(_materialState.heightADSMap() != 0, "texture_height", _materialState.heightADSMap());
+	syncTexture(_materialState.opacityADSMap() != 0, "texture_opacity", _materialState.opacityADSMap(), true);
 
 	markTexturesDirty();
 	markUniformsDirty();
@@ -2116,11 +2116,11 @@ void AssImpMesh::removeTexturesByType(std::initializer_list<std::string> types)
 
 void AssImpMesh::deleteTextures()
 {
-	glDeleteTextures(1, &_diffuseADSMap);
-	glDeleteTextures(1, &_specularADSMap);
-	glDeleteTextures(1, &_emissiveADSMap);
-	glDeleteTextures(1, &_normalADSMap);
-	glDeleteTextures(1, &_heightADSMap);
-	glDeleteTextures(1, &_opacityADSMap);
+	glDeleteTextures(1, &_materialState.diffuseADSMap());
+	glDeleteTextures(1, &_materialState.specularADSMap());
+	glDeleteTextures(1, &_materialState.emissiveADSMap());
+	glDeleteTextures(1, &_materialState.normalADSMap());
+	glDeleteTextures(1, &_materialState.heightADSMap());
+	glDeleteTextures(1, &_materialState.opacityADSMap());
 	TriangleMesh::deleteTextures();
 }

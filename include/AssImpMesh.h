@@ -178,32 +178,14 @@ private:
 	// init-list; all existing _textures.xxx call sites remain unchanged.
 	std::vector<GLMaterial::Texture>& _textures;
 
-	// Feature edge buffers — built by buildAndUploadFeatureEdges(), rendered by renderFeatureEdgesFast()
-	QOpenGLBuffer               _featureEdgeIndexBuffer { QOpenGLBuffer::IndexBuffer };
-	QOpenGLVertexArrayObject    _featureEdgeVAO;
-	GLsizei                     _featureEdgeCount = 0;
-
-	// OCC B-Rep edge buffers — set by setPrecomputedOccEdges(), take priority over
-	// the heuristic feature edges in renderFeatureEdgesFast().
-	QOpenGLBuffer               _occEdgeVertexBuffer { QOpenGLBuffer::VertexBuffer };
-	QOpenGLVertexArrayObject    _occEdgeVAO;
-	GLsizei                     _occEdgeCount = 0;
-	// CPU copies of OCC edge data moved to _importState (MeshImportAdaptor).
-	// GL resources (_occEdgeVertexBuffer, _occEdgeVAO, _occEdgeCount) remain
-	// here until Phase 3c (MeshVizAdaptor).
+	// Feature-edge and OCC B-Rep edge GL resources moved to _vizState (MeshVizAdaptor).
+	// PrecomputedTexture struct and _textureBindings also moved to _vizState.
+	// ADS map GL IDs moved to _materialState (MaterialVizState).
 
 	QVector<MorphTargetData> _morphTargets;
 	QVector<float> _defaultMorphWeights;
 	QVector<float> _currentMorphWeights;
 
-	struct PrecomputedTexture
-	{
-		GLuint textureId;
-		GLuint textureUnit;
-		int uniformLocation; // Cache uniform location
-		bool isValid;
-	};
-	std::vector<PrecomputedTexture> _textureBindings;
 	// State caching
 	static QOpenGLShaderProgram* _currentUniformStateShader;
 	static quint64 _currentUniformStateSignature;
@@ -213,11 +195,5 @@ private:
 	mutable bool _uniformStateSignatureDirty = true;
 	mutable quint64 _cachedUniformStateSignature = 0;
 
-	unsigned int _diffuseADSMap = 0;
-	unsigned int _specularADSMap = 0;
-	unsigned int _emissiveADSMap = 0;
-	unsigned int _normalADSMap = 0;
-	unsigned int _heightADSMap = 0;
-	unsigned int _opacityADSMap = 0;
 	bool _skipOptimization = false;
 };
