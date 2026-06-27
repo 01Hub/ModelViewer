@@ -72,7 +72,9 @@ bool AssImpMesh::_currentUniformStateHadDebugOverrides = false;
 
 /*  Functions  */
 // Constructor
-AssImpMesh::AssImpMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<GLMaterial::Texture> textures, GLMaterial material, bool skipOptimization) : TriangleMesh(shader, "AssImpMesh")
+AssImpMesh::AssImpMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<GLMaterial::Texture> textures, GLMaterial material, bool skipOptimization)
+    : TriangleMesh(shader, "AssImpMesh")
+    , _textures(_materialState.textures())
 {
 	_currentBlendEnabled = false;
 	_currentFrontFace = GL_CCW;
@@ -110,8 +112,8 @@ TriangleMesh* AssImpMesh::clone()
 	mesh->setMorphTargets(_morphTargets, _defaultMorphWeights);
 	if (!_currentMorphWeights.isEmpty())
 		mesh->applyMorphWeights(_currentMorphWeights);
-	if (!_occEdgeSegments.empty())
-		mesh->setPrecomputedOccEdges(_occEdgeSegments, _occEdgeBoundaries);
+	if (_importState.hasOccEdges())
+		mesh->setPrecomputedOccEdges(_importState.occEdgeSegments(), _importState.occEdgeBoundaries());
 	return mesh;
 }
 
@@ -912,8 +914,7 @@ void AssImpMesh::setPrecomputedOccEdges(const std::vector<float>& edgeVerts,
 		return;
 	if (edgeVerts.empty()) return;
 
-	_occEdgeSegments  = edgeVerts;
-	_occEdgeBoundaries = bounds;
+	_importState.setOccEdgeData(edgeVerts, bounds);
 	_occEdgeCount = static_cast<GLsizei>(edgeVerts.size() / 3);
 
 	if (!_occEdgeVertexBuffer.isCreated())

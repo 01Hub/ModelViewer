@@ -5,6 +5,7 @@
 #include <QString>
 #include <QVector>
 #include <QMatrix4x4>
+#include <vector>
 
 // Import provenance for a mesh — source file, scene/material indices, skin joint
 // definitions, and per-joint runtime palette.
@@ -47,6 +48,17 @@ public:
     void setJointPalette(const QVector<QMatrix4x4>& palette) { _jointPalette = palette; }
     const QVector<QMatrix4x4>& jointPalette() const          { return _jointPalette; }
 
+    // ---- OCC B-Rep edge CPU data (import provenance) ------------------------
+    // CPU copies retained for clone(), MVF serialization, and edge picking.
+    // The corresponding GL resources (vertex buffer, VAO) remain in AssImpMesh
+    // until Phase 3c (MeshVizAdaptor).
+    void setOccEdgeData(const std::vector<float>& segments,
+                        const std::vector<int>&   boundaries)
+        { _occEdgeSegments = segments; _occEdgeBoundaries = boundaries; }
+    const std::vector<float>& occEdgeSegments()   const { return _occEdgeSegments; }
+    const std::vector<int>&   occEdgeBoundaries() const { return _occEdgeBoundaries; }
+    bool hasOccEdges() const { return !_occEdgeSegments.empty(); }
+
 private:
     int     _sceneIndex           = -1;
     int     _originalMaterialIndex = -1;
@@ -54,4 +66,6 @@ private:
     QString _sourceNodeName;
     QVector<GltfSkinJoint>  _skinJoints;
     QVector<QMatrix4x4>     _jointPalette;
+    std::vector<float>      _occEdgeSegments;
+    std::vector<int>        _occEdgeBoundaries;
 };

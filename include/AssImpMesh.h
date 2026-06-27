@@ -90,8 +90,8 @@ public:
 	// When set, renderFeatureEdgesFast() uses this buffer instead of the heuristic classifier.
 	void setPrecomputedOccEdges(const std::vector<float>& edgeVerts,
 	                            const std::vector<int>& bounds = {});
-	const std::vector<float>& getOccEdgeSegments()    const { return _occEdgeSegments; }
-	const std::vector<int>&   getOccEdgeBoundaries()  const { return _occEdgeBoundaries; }
+	const std::vector<float>& getOccEdgeSegments()    const { return _importState.occEdgeSegments(); }
+	const std::vector<int>&   getOccEdgeBoundaries()  const { return _importState.occEdgeBoundaries(); }
 
 	bool hasMorphTargets() const override { return !_morphTargets.isEmpty(); }
 	const QVector<MorphTargetData>& getMorphTargets() const { return _morphTargets; }
@@ -173,7 +173,10 @@ private:
 	std::vector<Vertex> _vertices;
 	std::vector<Vertex> _baseVertices;
 	std::vector<unsigned int> _indices;
-	std::vector<GLMaterial::Texture> _textures;
+	// Reference alias into _materialState.textures() — same zero-churn pattern
+	// as GLMaterial& _material in TriangleMesh. Initialised in the constructor
+	// init-list; all existing _textures.xxx call sites remain unchanged.
+	std::vector<GLMaterial::Texture>& _textures;
 
 	// Feature edge buffers — built by buildAndUploadFeatureEdges(), rendered by renderFeatureEdgesFast()
 	QOpenGLBuffer               _featureEdgeIndexBuffer { QOpenGLBuffer::IndexBuffer };
@@ -185,9 +188,9 @@ private:
 	QOpenGLBuffer               _occEdgeVertexBuffer { QOpenGLBuffer::VertexBuffer };
 	QOpenGLVertexArrayObject    _occEdgeVAO;
 	GLsizei                     _occEdgeCount = 0;
-	// CPU copies retained for clone(), MVF serialization, and edge picking.
-	std::vector<float>          _occEdgeSegments;
-	std::vector<int>            _occEdgeBoundaries;
+	// CPU copies of OCC edge data moved to _importState (MeshImportAdaptor).
+	// GL resources (_occEdgeVertexBuffer, _occEdgeVAO, _occEdgeCount) remain
+	// here until Phase 3c (MeshVizAdaptor).
 
 	QVector<MorphTargetData> _morphTargets;
 	QVector<float> _defaultMorphWeights;
