@@ -21,19 +21,24 @@
 //
 // Groups all viewport navigation, camera, gizmo drag, and rubber-band
 // interaction state that was previously scattered through GLWidget's private
-// section.  GLWidget embeds one instance and aliases every field via reference
-// members so all existing call sites in GLWidget.cpp compile unchanged.
+// section.  GLWidget is a friend and accesses fields directly; all other
+// code must go through GLWidget's public API.
 //
 // Introduced in Phase 11 of the mesh/render/runtime separation refactor.
+// De-aliased in the controller ownership cleanup pass.
 //
 // Qt-owned pointers (_primaryCamera, _orthoViewsCamera, navigation timers,
 // _rubberBand, _selectRect, _inertiaTimer) are NOT stored here — they remain
 // as direct GLWidget members because Qt object-tree ownership requires the
 // parent to be a QObject.
 // ---------------------------------------------------------------------------
+class GLWidget;
+
 class ViewportInteractionController
 {
-public:
+    friend class GLWidget;
+
+private:
     // ---- Saved system-camera state -----------------------------------------
     // Captured when a glTF camera is first activated; restored on deactivation.
     bool                     _systemCameraStateSaved  = false;

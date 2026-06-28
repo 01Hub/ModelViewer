@@ -96,19 +96,19 @@ public:
 	void resizeView(int w, int h) { resizeGL(w, h); }
 	void setViewMode(ViewMode mode);
 	void setCameraUpAxisZUp(bool zUp, bool syncToolbar = true);
-	bool isCameraUpAxisZUp() const { return _cameraUpAxisZUp; }
+	bool isCameraUpAxisZUp() const { return _viewCtrl._cameraUpAxisZUp; }
 	void setProjection(ViewProjection proj);
 	void setCameraMode(GLCamera::CameraMode mode);
 	GLCamera::CameraMode cameraMode() const;
 
-	void setMultiView(bool active) { _multiViewActive = active; }
+	void setMultiView(bool active) { _viewCtrl._multiViewActive = active; }
 	void setRotationActive(bool active);
 	void setPanningActive(bool active);
 	void setZoomingActive(bool active);
 
-	void setShowCenterAxisOverride(bool show) { _userShowAxisOverride = show; update(); }
-	void setShowCornerAxisOverride(bool show) { _userShowCornerAxisOverride = show; update(); }
-	void setShowViewCubeOverride(bool show) { _showViewCubeOverride = show; if (!show) _viewCubeHoveredRegionId = -1; update(); }
+	void setShowCenterAxisOverride(bool show) { _viewCtrl._userShowAxisOverride = show; update(); }
+	void setShowCornerAxisOverride(bool show) { _viewCtrl._userShowCornerAxisOverride = show; update(); }
+	void setShowViewCubeOverride(bool show) { _viewCtrl._showViewCubeOverride = show; if (!show) _viewCtrl._viewCubeHoveredRegionId = -1; update(); }
 	void setCornerAxisPosition(CornerAxisPosition position);
 
 	void beginWindowZoom();
@@ -424,7 +424,7 @@ public:
 	bool isSkyBoxHDRIEnabled() const { return _skyBoxTextureHDRI; }
 	int getSkyBoxBlurPercent() const { return _skyBoxBlurPercent; }
 	float getSkyBoxFOV() const { return _skyBoxFOV; }
-	float getPerspFOV()  const { return _FOV; }
+	float getPerspFOV()  const { return _viewCtrl._FOV; }
 	float getSkyBoxZRotationDegrees() const { return _skyBoxZRotation; }
 	bool areReflectionsEnabled() const { return _reflectionsEnabled; }
 	bool isFloorTextureShown() const { return _floorTextureDisplayed; }
@@ -607,10 +607,10 @@ public slots:
 	void onAnimationTick();
 
 	// Accessors for SelectionManager
-	QMatrix4x4 getViewMatrix() const { return _viewMatrix; }
-	QMatrix4x4 getProjectionMatrix() const { return _projectionMatrix; }
-	QMatrix4x4 getModelViewMatrix() const { return _modelViewMatrix; }
-	bool isMultiViewActive() const { return _multiViewActive; }
+	QMatrix4x4 getViewMatrix() const { return _viewCtrl._viewMatrix; }
+	QMatrix4x4 getProjectionMatrix() const { return _viewCtrl._projectionMatrix; }
+	QMatrix4x4 getModelViewMatrix() const { return _viewCtrl._modelViewMatrix; }
+	bool isMultiViewActive() const { return _viewCtrl._multiViewActive; }
 	ShaderProgram* getSelectionShader() const { return _selectionShader.get(); }
 	SelectionManager* getSelectionManager() const { return _selectionManager; }
 	// Returns the camera configured for the viewport that contains 'pixel'.
@@ -1163,105 +1163,6 @@ private:
 	// Declaration order: _viewCtrl must come before all its aliases.
 	ViewportInteractionController _viewCtrl;
 
-	// Reference aliases into _viewCtrl (initialized in constructor init-list)
-	// ---- Saved camera state ----
-	bool&                     _systemCameraStateSaved;
-	QVector3D&                _savedCameraPos;
-	QVector3D&                _savedCameraDir;
-	QVector3D&                _savedCameraUp;
-	QVector3D&                _savedCameraRight;
-	GLCamera::ProjectionType& _savedProjectionType;
-	float&                    _savedCameraFOV;
-	float&                    _savedCameraViewRange;
-	// ---- View / navigation ----
-	QVector3D&   _currentTranslation;
-	QQuaternion& _currentRotation;
-	QQuaternion& _customViewTargetRotation;
-	float&       _slerpStep;
-	float&       _slerpFrac;
-	float&       _currentViewRange;
-	float&       _scaleFrac;
-	float&       _viewRange;
-	float&       _viewBoundingSphereDia;
-	float&       _FOV;
-	bool&        _autoFitViewOnUpdate;
-	float&       _zoomInLimit;
-	// ---- View mode ----
-	ViewMode&     _viewMode;
-	ViewProjection& _projection;
-	GLCamera::ProjectionType& _previousProjection;
-	bool&         _multiViewActive;
-	int&          _viewCubeHoveredRegionId;
-	bool&         _customViewAnimationActive;
-	bool&         _cameraUpAxisZUp;
-	bool&         _showViewCubeOverride;
-	CornerAxisPosition& _cornerAxisPosition;
-	bool&         _showAxis;
-	bool&         _userShowAxisOverride;
-	bool&         _userShowCornerAxisOverride;
-	// ---- Matrices ----
-	QMatrix4x4& _projectionMatrix;
-	QMatrix4x4& _viewMatrix;
-	QMatrix4x4& _modelMatrix;
-	QMatrix4x4& _modelViewMatrix;
-	QMatrix4x4& _viewportMatrix;
-	QVector4D   (&_frustumPlanes)[6];
-	// ---- Mouse interaction ----
-	bool&     _windowZoomActive;
-	bool&     _viewZooming;
-	bool&     _viewPanning;
-	bool&     _viewRotating;
-	QPoint&   _leftButtonPoint;
-	QPoint&   _rightButtonPoint;
-	QPoint&   _middleButtonPoint;
-	bool&     _navigationViewportLocked;
-	QRect&    _navigationLockedViewport;
-	QRect&    _navigationLockedClientRect;
-	QPoint&   _lastPanPoint;
-	int&      _lastZoomDirection;
-	float&    _lastZoomStep;
-	QVector3D& _lastZoomPanVector;
-	QVector3D& _inertiaZoomPanVelocity;
-	QVector2D& _inertiaPanVelocity;
-	float&    _inertiaZoomVelocity;
-	QVector2D& _inertiaRotateVelocity;
-	float&    _inertiaDamping;
-	bool&     _mouseMovedSincePress;
-	qint64&   _lastMouseMoveTime;
-	QPoint&   _lastMousePos;
-	qint64&   _lastMouseTime;
-	// ---- Rubber-band state ----
-	QVector3D& _rubberBandPan;
-	float&     _rubberBandZoomRatio;
-	float&     _rubberBandRadius;
-	QVector3D& _rubberBandCenter;
-	bool&      _shiftDragActive;
-	QPoint&    _sweepStartPoint;
-	// ---- Transform-gizmo drag state ----
-	bool&      _transformGizmoRequested;
-	bool&      _transformGizmoTranslating;
-	bool&      _transformGizmoScaling;
-	bool&      _transformGizmoUniformScaling;
-	bool&      _transformGizmoRotating;
-	QPoint&    _transformGizmoDragStartPixel;
-	QVector3D& _transformGizmoDragAxis;
-	QVector3D& _transformGizmoStartPivot;
-	float&     _transformGizmoDragScale;
-	QMap<int, TransformState>&  _transformGizmoStartStates;
-	QMap<int, QVector3D>&       _transformGizmoStartCenters;
-	QMap<int, QMatrix4x4>&      _transformGizmoStartMatrices;
-	QVector3D& _transformGizmoCurrentTranslationDelta;
-	QVector3D& _transformGizmoCurrentScaleDelta;
-	QVector3D& _transformGizmoRotationPlaneNormal;
-	QVector3D& _transformGizmoRotationStartVector;
-	QVector3D& _transformGizmoCurrentRotationDelta;
-	bool&      _transformGizmoLoggedTranslationUpdate;
-	// ---- Bounding sphere / box ----
-	BoundingSphere& _boundingSphere;
-	BoundingSphere& _selectionBoundingSphere;
-	BoundingBox&    _boundingBox;
-	float&          _visibleHighestZ;
-	float&          _visibleLowestZ;
 
 	ViewToolbar* _viewToolbar;
 
@@ -1271,7 +1172,6 @@ private:
 	QColor      _bgTopColor;
 	QColor      _bgBotColor;
 	int _gradientStyle = 0; // 0=Vertical, 1=Horizontal, 2=TopLeftToBottomRight, 3=TopRightToBottomLeft
-	// _windowZoomActive, _viewZooming, _viewPanning, _viewRotating → ViewportInteractionController (Phase 11)
 	int _modelNum;
 	QImage _texImage, _texBuffer;
 	float _floorTexRepeatS, _floorTexRepeatT;
@@ -1282,7 +1182,6 @@ private:
 	QString _labelNumMeshes;
 	QString _modelName;
 
-	// View/nav, mouse, rubber-band state → ViewportInteractionController (Phase 11)
 	bool _selectionHighlighting;
 
 	QRubberBand* _rubberBand;
@@ -1298,7 +1197,6 @@ private:
 	unsigned int _selectionRBO = 0;        // Color render buffer
 	unsigned int _selectionDBO = 0;        // Depth render buffer
 
-	// _shiftDragActive, _sweepStartPoint, _multiViewActive, _showAxis, axis overrides → ViewportInteractionController (Phase 11)
 
 	float _clipXCoeff;
 	float _clipYCoeff;
@@ -1316,7 +1214,6 @@ private:
 	bool _clipYFlipped;
 	bool _clipZFlipped;
 
-	// _frustumPlanes, _zoomInLimit → ViewportInteractionController (Phase 11)
 	// Debug overlay, render settings, shadow dims → SceneRenderController (Phase 10)
 
 	float _xTran;
@@ -1343,7 +1240,6 @@ private:
 
 	QMatrix4x4 _lightSpaceMatrix;
 
-	// _projectionMatrix, _viewMatrix, _modelMatrix, _modelViewMatrix, _viewportMatrix → ViewportInteractionController (Phase 11)
 
 	// Shaders, IBL, shadow, transmission, SSS, debug textures, utility geometry → SceneRenderController (Phase 10)
 
@@ -1355,7 +1251,6 @@ private:
 	QVector3D                _floorCenter;
 
 	// _textShader, _bgShader/_bgVAO, _bgSplitShader/_bgSplitVAO/VBO, _axisVAO/VBO/CBO → SceneRenderController (Phase 10)
-	// _cornerAxisPosition → ViewportInteractionController (Phase 11)
 
 	// _meshStore, _displayedObjectsIds, _hiddenObjectsIds → SceneRuntime (Phase 5)
 	// RuntimeVisibilityNode struct + BVH fields → SceneRuntime (Phase 5)
@@ -1374,14 +1269,12 @@ private:
 	PlaneRenderable* _clippingPlaneZX;
 	// _cappingEnabled, _cappingTexture → SceneRenderController (Phase 10)
 
-	// _viewMode, _projection, _previousProjection → ViewportInteractionController (Phase 11)
 
 	GLCamera* _primaryCamera;
 	GLCamera* _orthoViewsCamera;
 
 	// Active glTF camera → AnimationRuntimeController (Phase 8)
 
-	// Saved system camera state → ViewportInteractionController (Phase 11)
 
 	QTimer* _keyboardNavTimer;
 	QTimer* _animateViewTimer;
@@ -1389,7 +1282,6 @@ private:
 	QTimer* _animateWindowZoomTimer;
 	QTimer* _animateCenterScreenTimer;
 
-	// _boundingSphere, _selectionBoundingSphere, _boundingBox, _visibleHighestZ/Z → ViewportInteractionController (Phase 11)
 
 	FloorPlane* _floorPlane;
 	PlaneRenderable* _gridPlane;
@@ -1401,7 +1293,6 @@ private:
 	ViewCubeMesh* _viewCube = nullptr;
 	TransformGizmo* _transformGizmo = nullptr;
 	// Gizmo drag state, viewCubeHoveredRegionId, customViewAnimationActive,
-	// cameraUpAxisZUp, showViewCubeOverride → ViewportInteractionController (Phase 11)
 	// Manual placement session fields → ExplodedViewRuntimeController (Phase 9)
 	// _viewCubeLabelTextures/VAO/VBO → SceneRenderController (Phase 10)
 	CubeRenderable* _lightCube;
