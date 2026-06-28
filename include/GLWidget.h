@@ -196,6 +196,7 @@ public:
 	void centerScreen(std::vector<int> selectedIDs);
 	void select(int id);
 	void deselect(int id);
+	void syncMeshSelectionVisualState();
 
 	bool loadAssImpModel(const QString& fileName, const UVMethod& uvMethod, QString& error, bool progressiveLoading = false);
 

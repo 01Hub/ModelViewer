@@ -1917,8 +1917,8 @@ void ExplodedViewPanel::previewAssemblyEntry(const QUuid& uuid)
         const int index = _glWidget->getIndexByUuid(uuid);
         if (index >= 0)
         {
-            _glWidget->select(index);
             _glWidget->getSelectionManager()->syncSelectedIds(QList<int>{index});
+            _glWidget->syncMeshSelectionVisualState();
             _glWidget->broadcastSelectionChanged(QList<int>{index});
             _glWidget->update();
         }

@@ -3427,18 +3427,7 @@ void GLWidget::finishExplodedViewManualPlacement()
 		}
 	}
 
-	const QList<int> selectedIds = _selectionManager ? _selectionManager->getSelectedIds() : QList<int>{};
-	for (const SceneMeshRecord& meshRecord : _sceneRuntime.meshStore())
-	{
-		SceneMesh* mesh = meshRecord.mesh;
-		if (mesh)
-			mesh->deselect();
-	}
-	for (int id : selectedIds)
-	{
-		if (id >= 0 && id < static_cast<int>(_sceneRuntime.meshStore().size()) && _sceneRuntime.meshAt(id))
-			_sceneRuntime.meshAt(id)->select();
-	}
+	syncMeshSelectionVisualState();
 
 	_renderCtrl.setShadowMapNeedsInitialization(true);
 	update();
@@ -3636,6 +3625,15 @@ void GLWidget::select(int id)
 {
 	try {
 		_sceneRuntime.meshAt(id)->select();
+		if (_selectionManager)
+		{
+			QList<int> ids = _selectionManager->getSelectedIds();
+			if (!ids.contains(id))
+			{
+				ids.append(id);
+				_selectionManager->syncSelectedIds(ids);
+			}
+		}
 	}
 	catch (const std::exception& ex) {
 		std::cout << "Exception raised in GLWidget::select\n" << ex.what() << std::endl;
@@ -3646,9 +3644,30 @@ void GLWidget::deselect(int id)
 {
 	try {
 		_sceneRuntime.meshAt(id)->deselect();
+		if (_selectionManager)
+		{
+			QList<int> ids = _selectionManager->getSelectedIds();
+			if (ids.removeAll(id) > 0)
+				_selectionManager->syncSelectedIds(ids);
+		}
 	}
 	catch (const std::exception& ex) {
-		std::cout << "Exception raised in GLWidget::select\n" << ex.what() << std::endl;
+		std::cout << "Exception raised in GLWidget::deselect\n" << ex.what() << std::endl;
+	}
+}
+
+void GLWidget::syncMeshSelectionVisualState()
+{
+	const QList<int> selectedIds = _selectionManager ? _selectionManager->getSelectedIds() : QList<int>{};
+	for (const SceneMeshRecord& meshRecord : _sceneRuntime.meshStore())
+	{
+		if (meshRecord.mesh)
+			meshRecord.mesh->deselect();
+	}
+	for (int id : selectedIds)
+	{
+		if (id >= 0 && id < static_cast<int>(_sceneRuntime.meshStore().size()) && _sceneRuntime.meshAt(id))
+			_sceneRuntime.meshAt(id)->select();
 	}
 }
 

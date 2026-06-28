@@ -3515,28 +3515,20 @@ void ModelViewer::handleTreeWidgetVisibilityChanged()
 
 void ModelViewer::handleTreeWidgetSelectionChanged()
 {
-	// Deselect everything in GLWidget first
-	const auto& store = _glWidget->getMeshStore();
-	for (size_t i = 0; i < store.size(); ++i)
-		_glWidget->deselect(static_cast<int>(i));
-
-	// Select the mesh-store indices of selected leaf items
 	const std::vector<int> selectedVec = treeWidgetModel->getSelectedIndices();
-	for (int idx : selectedVec)
-		_glWidget->select(idx);
+	const QList<int> selectedIds(selectedVec.begin(), selectedVec.end());
+
+	// Tree-initiated selection: sync SelectionManager silently (no signal) to avoid
+	// re-entering this handler via the SelectionManager::selectionChanged → singleSelectionDone
+	// → setListRow loop. Visual state is applied separately.
+	_glWidget->getSelectionManager()->syncSelectedIds(selectedIds);
+	_glWidget->syncMeshSelectionVisualState();
 
 	_glWidget->update();
 	updateSelectionStatusMessage();
 
-	// Keep SelectionManager in sync so panels that call getSelectedIds() see
-	// the same list regardless of whether the selection came from the tree or
-	// the viewport.
-	_glWidget->getSelectionManager()->syncSelectedIds(
-	    QList<int>(selectedVec.begin(), selectedVec.end()));
-
 	// Notify panels connected to GLWidget::selectionChanged (e.g. TextureDebugPanel).
-	// An empty list correctly clears the panel when nothing is selected in the tree.
-	_glWidget->broadcastSelectionChanged(QList<int>(selectedVec.begin(), selectedVec.end()));
+	_glWidget->broadcastSelectionChanged(selectedIds);
 
 	if (selectedVec.empty())
 	{
