@@ -212,36 +212,6 @@ public:
 	void synchronizeTextureCache(const GLMaterial* material, GLMaterial::TextureType type);
 	void clearTextureCache();
 
-	void setPBRAlbedoColor(const std::vector<int>& ids, const QColor& col);
-	void setPBRMetallic(const std::vector<int>& ids, const float& val);
-	void setPBRRoughness(const std::vector<int>& ids, const float& val);
-
-	void clearPBRTexMaps(const std::vector<int>& ids);
-	void clearPBRAlbedoTexMap(const std::vector<int>& ids);
-	void clearPBRMetallicTexMap(const std::vector<int>& ids);
-	void clearPBRRoughnessTexMap(const std::vector<int>& ids);
-	void clearPBRNormalTexMap(const std::vector<int>& ids);
-	void clearPBRAOTexMap(const std::vector<int>& ids);
-
-	void invertPBROpacityTexMap(const std::vector<int>& ids, const bool& inverted);
-	void clearPBROpacityTexMap(const std::vector<int>& ids);
-
-	void clearPBRHeightTexMap(const std::vector<int>& ids);
-
-	void clearPBRTransmissionTexMap(const std::vector<int>& ids);
-
-	void clearPBRIORTexMap(const std::vector<int>& ids);
-
-	void clearPBRSheenColorTexMap(const std::vector<int>& ids);
-
-	void clearPBRSheenRoughnessTexMap(const std::vector<int>& ids);
-
-	void clearPBRClearcoatTexMap(const std::vector<int>& ids);
-
-	void clearPBRClearcoatRoughnessTexMap(const std::vector<int>& ids);
-
-	void clearPBRClearcoatNormalTexMap(const std::vector<int>& ids);
-
 	void setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale);
 	void resetTransformation(const std::vector<int>& ids);
 	void applyTransforms(const QMap<int, TransformState>& transforms, bool fitView = true);
