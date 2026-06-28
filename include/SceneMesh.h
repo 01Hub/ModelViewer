@@ -5,6 +5,8 @@
 #include <initializer_list>
 
 #include "RenderableMesh.h"
+#include "MeshImportAdaptor.h"
+#include "MeshAnimationState.h"
 // GLMaterial, Vertex, MorphTargetData — transitive via RenderableMesh.h
 
 class SceneMesh : public RenderableMesh
@@ -48,6 +50,32 @@ public:
 	                            const std::vector<int>& bounds = {});
 	const std::vector<float>& getOccEdgeSegments()    const { return _importState.occEdgeSegments(); }
 	const std::vector<int>&   getOccEdgeBoundaries()  const { return _importState.occEdgeBoundaries(); }
+
+	// ---- Import provenance (moved from RenderableMesh) ----------------------
+	MeshImportAdaptor&        importState()       { return _importState; }
+	const MeshImportAdaptor&  importState() const { return _importState; }
+
+	void setSceneIndex(int index)      { _importState.setSceneIndex(index); }
+	int  getSceneIndex() const         { return _importState.sceneIndex(); }
+
+	void setOriginalMaterialIndex(int index) { _importState.setOriginalMaterialIndex(index); }
+	int  getOriginalMaterialIndex() const    { return _importState.originalMaterialIndex(); }
+
+	void    setSourceFile(const QString& path)     { _importState.setSourceFile(path); }
+	QString getSourceFile() const                  { return _importState.sourceFile(); }
+	void    setSourceNodeName(const QString& name) { _importState.setSourceNodeName(name); }
+	QString getSourceNodeName() const              { return _importState.sourceNodeName(); }
+
+	void setSkinJoints(const QVector<GltfSkinJoint>& joints) { _importState.setSkinJoints(joints); }
+	const QVector<GltfSkinJoint>& skinJoints() const         { return _importState.skinJoints(); }
+	bool hasSkinning() const override                        { return _importState.hasSkinning(); }
+
+	// ---- Animation state (moved from RenderableMesh) ------------------------
+	MeshAnimationState&        animationState()       { return _animState; }
+	const MeshAnimationState&  animationState() const { return _animState; }
+
+	void setJointPalette(const QVector<QMatrix4x4>& palette) { _animState.setJointPalette(palette); }
+	const QVector<QMatrix4x4>& jointPalette() const override  { return _animState.jointPalette(); }
 
 	// ---- Morph-target overrides (fields live in SceneMesh until DeformableGeometry wiring) ----
 	bool hasMorphTargets() const override { return !_morphTargets.isEmpty(); }
@@ -127,6 +155,10 @@ private:
 	GLuint createGLTextureFromFile(const QString& path, bool& outHasAlpha);
 
 protected:
+	// ---- Import provenance + animation state (moved from RenderableMesh) --------
+	MeshImportAdaptor  _importState;
+	MeshAnimationState _animState;
+
 	// ---- Interleaved CPU geometry (owned here until DeformableGeometry* composition) ---
 	std::vector<Vertex> _vertices;
 	std::vector<Vertex> _baseVertices;

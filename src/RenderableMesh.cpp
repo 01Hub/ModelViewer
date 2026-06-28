@@ -1605,16 +1605,16 @@ void RenderableMesh::render()
 	if (uniformLocationCached("hasSkinning") >= 0)
 		_prog->setUniformValue("hasSkinning", hasSkinning());
 	if (uniformLocationCached("jointCount") >= 0)
-		_prog->setUniformValue("jointCount", static_cast<int>(_animState.jointPalette().size()));
-	if (hasSkinning() && !_animState.jointPalette().isEmpty())
+		_prog->setUniformValue("jointCount", static_cast<int>(jointPalette().size()));
+	if (hasSkinning() && !jointPalette().isEmpty())
 	{
-		const int maxJoints = std::min(static_cast<int>(_animState.jointPalette().size()), 128);
+		const int maxJoints = std::min(static_cast<int>(jointPalette().size()), 128);
 		for (int i = 0; i < maxJoints; ++i)
 		{
 			const QString uniformName = QStringLiteral("jointMatrices[%1]").arg(i);
 			const int jointLocation = uniformLocationCached(uniformName);
 			if (jointLocation >= 0)
-				_prog->setUniformValue(jointLocation, _animState.jointPalette()[i]);
+				_prog->setUniformValue(jointLocation, jointPalette()[i]);
 		}
 	}
 
@@ -1662,16 +1662,16 @@ void RenderableMesh::renderShadow()
 	if (uniformLocationCached("hasSkinning") >= 0)
 		_prog->setUniformValue("hasSkinning", hasSkinning());
 	if (uniformLocationCached("jointCount") >= 0)
-		_prog->setUniformValue("jointCount", static_cast<int>(_animState.jointPalette().size()));
-	if (hasSkinning() && !_animState.jointPalette().isEmpty())
+		_prog->setUniformValue("jointCount", static_cast<int>(jointPalette().size()));
+	if (hasSkinning() && !jointPalette().isEmpty())
 	{
-		const int maxJoints = std::min(static_cast<int>(_animState.jointPalette().size()), 128);
+		const int maxJoints = std::min(static_cast<int>(jointPalette().size()), 128);
 		for (int i = 0; i < maxJoints; ++i)
 		{
 			const QString uniformName = QStringLiteral("jointMatrices[%1]").arg(i);
 			const int jointLocation = uniformLocationCached(uniformName);
 			if (jointLocation >= 0)
-				_prog->setUniformValue(jointLocation, _animState.jointPalette()[i]);
+				_prog->setUniformValue(jointLocation, jointPalette()[i]);
 		}
 	}
 
@@ -2601,7 +2601,7 @@ void RenderableMesh::clearAllPBRMaps()
 
 const GLMaterial* RenderableMesh::materialForVariant(int variantIndex) const
 {
-	return _materialState.materialForVariant(variantIndex, _importState.originalMaterialIndex());
+	return _materialState.materialForVariant(variantIndex, getOriginalMaterialIndex());
 }
 
 // ---------------------------------------------------------------------------

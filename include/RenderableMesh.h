@@ -10,8 +10,6 @@
 #include "GltfVariantData.h"
 #include "MeshInstanceState.h"
 #include "MaterialVizState.h"
-#include "MeshImportAdaptor.h"
-#include "MeshAnimationState.h"
 #include "MeshVertex.h"
 
 #include "MeshGeometry.h"
@@ -144,11 +142,6 @@ public:
 	MaterialVizState&         materialState()        { return _materialState; }
 	const MaterialVizState&   materialState()  const { return _materialState; }
 
-	MeshImportAdaptor&        importState()          { return _importState; }
-	const MeshImportAdaptor&  importState()    const { return _importState; }
-
-	MeshAnimationState&       animationState()       { return _animState; }
-	const MeshAnimationState& animationState() const { return _animState; }
 	// -------------------------------------------------------------------------
 
 	QVector3D ambientMaterial() const;
@@ -240,21 +233,6 @@ public:
 	void resetTransformations();
 	void resetExplodedViewTransformations();
 
-	void setSceneIndex(int index) { _importState.setSceneIndex(index); }
-	int getSceneIndex() const { return _importState.sceneIndex(); }
-
-	// Store the original material index from aiMesh::mMaterialIndex at import time.
-	// Used during export to ensure correct material assignment without relying on name matching.
-	void setOriginalMaterialIndex(int index) { _importState.setOriginalMaterialIndex(index); }
-	int getOriginalMaterialIndex() const { return _importState.originalMaterialIndex(); }
-
-	// -----------------------------------------------------------------------
-	// Source file tracking
-	// -----------------------------------------------------------------------
-	void    setSourceFile(const QString& path) { _importState.setSourceFile(path); }
-	QString getSourceFile() const              { return _importState.sourceFile(); }
-	void    setSourceNodeName(const QString& name) { _importState.setSourceNodeName(name); }
-	QString getSourceNodeName() const              { return _importState.sourceNodeName(); }
 	void    setSceneRenderTransform(const QMatrix4x4& trsf);
 	void    setSceneRenderTransformFast(const QMatrix4x4& trsf);
 
@@ -277,15 +255,16 @@ public:
 	// or nullptr when this mesh has no mapping for that variant (keep default).
 	// Pass variantIndex = -1 to retrieve the original/default material.
 	const GLMaterial* materialForVariant(int variantIndex) const;
+	virtual int getOriginalMaterialIndex() const { return -1; }
 
 	void setActiveVariantIndex(int idx) { _instanceState.setActiveVariantIndex(idx); }
 	int  activeVariantIndex() const     { return _instanceState.activeVariantIndex(); }
 
-	void setSkinJoints(const QVector<GltfSkinJoint>& joints) { _importState.setSkinJoints(joints); }
-	const QVector<GltfSkinJoint>& skinJoints() const { return _importState.skinJoints(); }
-	bool hasSkinning() const { return _importState.hasSkinning(); }
-	void setJointPalette(const QVector<QMatrix4x4>& palette) { _animState.setJointPalette(palette); }
-	const QVector<QMatrix4x4>& jointPalette() const          { return _animState.jointPalette(); }
+	virtual bool hasSkinning() const { return false; }
+	virtual const QVector<QMatrix4x4>& jointPalette() const {
+		static const QVector<QMatrix4x4> empty;
+		return empty;
+	}
 	virtual bool hasMorphTargets() const { return false; }
 	virtual QVector<float> defaultMorphWeights() const { return {}; }
 	virtual const QVector<MorphTargetData>& getMorphTargets() const {
@@ -523,9 +502,6 @@ protected:
 	// Public API on SceneMesh forwards to this object.
 	MeshInstanceState _instanceState;
 
-	// Runtime animation state: joint palette (skinning) + current morph weights.
-	MeshAnimationState _animState;
-
 	// ---- GL buffer objects (direct members, MeshVizAdaptor dissolved) -------
 	QOpenGLBuffer _indexBuffer;
 	QOpenGLBuffer _positionBuffer;
@@ -600,8 +576,6 @@ protected:
 
 	// Primitive mode from glTF (GL_POINTS=0, GL_LINES=1, GL_LINE_STRIP=3, GL_TRIANGLE_STRIP=5, GL_TRIANGLES=4)
 	GLenum _primitiveMode = GL_TRIANGLES;  // Default to triangles for backward compatibility
-
-	MeshImportAdaptor _importState;
 
 	unsigned long long _memorySize;
 };
