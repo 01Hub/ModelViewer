@@ -1,10 +1,6 @@
 #include "SceneMesh.h"
 #include "TextureLocationManager.h"
 
-#include <assimp/Importer.hpp>
-#include <assimp/scene.h>
-#include <assimp/postprocess.h>
-
 #include <QFileInfo>
 #include <QImage>
 #include <QElapsedTimer>
@@ -1311,13 +1307,6 @@ void SceneMesh::setupUniformsOptimized()
 	_uniformsDirty = false;
 }
 
-
-// Convert a QString to aiString helper
-static aiString qstrToAiString(const QString& s)
-{
-	// aiString stores a copy internally
-	return aiString(s.toUtf8().constData());
-}
 
 void SceneMesh::syncTexturesFromMaterialIfNeeded()
 {

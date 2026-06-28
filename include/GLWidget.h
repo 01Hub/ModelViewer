@@ -939,6 +939,10 @@ private:
 	GLuint uploadDecodedTexture(GLMaterial::Texture& texture, const QImage& image);
 	GLuint uploadKtx2Texture(const QString& path, const std::string& mapType, GLMaterial::Texture& texture);
 	UVMethod promptLargeModelUVDecision(int totalTriangles, UVMethod currentMethod);
+	void retainTexture(unsigned int texId);
+	void releaseTexture(unsigned int texId);
+
+public:
 	unsigned int getOrCreateTextureCached(const QString& cacheKey,
 		const QImage& image,
 		const TextureSamplerSettings& samplers = TextureSamplerSettings());
@@ -947,8 +951,8 @@ private:
 		const TextureSamplerSettings& samplers = TextureSamplerSettings());
 	unsigned int getOrLoadTextureCached(const QString& path,
 		const TextureSamplerSettings& samplers = TextureSamplerSettings());
-	void retainTexture(unsigned int texId);
-	void releaseTexture(unsigned int texId);
+
+private:
 		
 	// --- Transmission Buffer Methods ---
 	void initTransmissionBuffer();
