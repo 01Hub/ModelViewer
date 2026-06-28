@@ -7,6 +7,7 @@
 #include <assimp/matrix4x4.h>
 
 #include <QElapsedTimer>
+#include <QHash>
 #include <QMatrix4x4>
 #include <QMultiHash>
 #include <QSet>
@@ -18,6 +19,7 @@
 #include <QVector2D>
 #include <QVector3D>
 #include <QVector4D>
+#include <functional>
 #include <vector>
 
 // ---------------------------------------------------------------------------
@@ -138,6 +140,13 @@ public:
 
     QVector<LightOrigin>&        lightFileIndexMap()               { return _lightFileIndexMap; }
     const QVector<LightOrigin>&  lightFileIndexMap() const         { return _lightFileIndexMap; }
+
+    void rebuildCurrentRepositionedLights(const QHash<QString, QMatrix4x4>& userTransforms);
+    std::vector<GPULight> rebuildAndBuildUploadLights(
+        const std::function<QMatrix4x4(const QString&)>& userTransformResolver,
+        const std::function<bool(const LightOrigin&)>& isLightEnabled = {});
+    std::vector<GPULight> buildUploadLights() const;
+    std::vector<GPULight> buildUploadLights(const std::function<bool(const LightOrigin&)>& isLightEnabled) const;
 
     // ---- Static helpers ----------------------------------------------------
     static QMatrix4x4           aiToQMatrix(const aiMatrix4x4& m);

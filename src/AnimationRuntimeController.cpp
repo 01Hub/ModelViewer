@@ -4,6 +4,17 @@
 #include <assimp/quaternion.h>
 #include <assimp/vector3.h>
 
+namespace
+{
+float uniformScaleOf(const QMatrix4x4& m)
+{
+    const float sx = QVector3D(m(0, 0), m(1, 0), m(2, 0)).length();
+    const float sy = QVector3D(m(0, 1), m(1, 1), m(2, 1)).length();
+    const float sz = QVector3D(m(0, 2), m(1, 2), m(2, 2)).length();
+    return (sx + sy + sz) / 3.0f;
+}
+}
+
 void AnimationRuntimeController::resetPlayback()
 {
     _activeAnimationFile.clear();
@@ -71,6 +82,105 @@ void AnimationRuntimeController::clearAllAnimatedState()
     _animatedLightVisibilityMask.clear();
     _animatedMeshVisibilitySourceFile.clear();
     _animatedHiddenMeshUuids.clear();
+}
+
+void AnimationRuntimeController::rebuildCurrentRepositionedLights(const QHash<QString, QMatrix4x4>& userTransforms)
+{
+    if (_originalParsedLights.empty())
+    {
+        _currentRepositionedLights.clear();
+        return;
+    }
+
+    const std::vector<GPULight>& sourceLights =
+        (!_animatedLightTransformSourceFile.isEmpty() &&
+         _animatedParsedLights.size() == _originalParsedLights.size())
+        ? _animatedParsedLights
+        : _originalParsedLights;
+    _currentRepositionedLights = sourceLights;
+
+    if (_lightFileIndexMap.size() == static_cast<int>(_currentRepositionedLights.size()))
+    {
+        for (int i = 0; i < static_cast<int>(_currentRepositionedLights.size()); ++i)
+        {
+            const QString& file = _lightFileIndexMap[i].file;
+            const QMatrix4x4 transform = userTransforms.value(file, QMatrix4x4());
+            if (transform.isIdentity())
+                continue;
+
+            auto& light = _currentRepositionedLights[i];
+
+            const QVector3D pos = transform.map(
+                QVector3D(light.position.x, light.position.y, light.position.z));
+            light.position = glm::vec3(pos.x(), pos.y(), pos.z());
+
+            const QVector3D dir = transform.mapVector(
+                QVector3D(light.direction.x, light.direction.y, light.direction.z)).normalized();
+            light.direction = glm::vec3(dir.x(), dir.y(), dir.z());
+
+            const float s = uniformScaleOf(transform);
+            if (light.range > 0.0f)
+                light.range *= s;
+            if (light.type != static_cast<int>(LightType::Directional))
+                light.intensity *= (s * s);
+        }
+    }
+
+    if (!_animatedLightVisibilitySourceFile.isEmpty() &&
+        _animatedLightVisibilityMask.size() == static_cast<qsizetype>(_currentRepositionedLights.size()))
+    {
+        std::vector<GPULight> visibleLights;
+        visibleLights.reserve(_currentRepositionedLights.size());
+        for (int lightIndex = 0; lightIndex < static_cast<int>(_currentRepositionedLights.size()); ++lightIndex)
+        {
+            if (_animatedLightVisibilityMask[lightIndex])
+                visibleLights.push_back(_currentRepositionedLights[lightIndex]);
+        }
+        _currentRepositionedLights = std::move(visibleLights);
+    }
+}
+
+std::vector<GPULight> AnimationRuntimeController::rebuildAndBuildUploadLights(
+    const std::function<QMatrix4x4(const QString&)>& userTransformResolver,
+    const std::function<bool(const LightOrigin&)>& isLightEnabled)
+{
+    QHash<QString, QMatrix4x4> transformCache;
+    if (userTransformResolver)
+    {
+        for (const LightOrigin& origin : _lightFileIndexMap)
+        {
+            if (!transformCache.contains(origin.file))
+                transformCache.insert(origin.file, userTransformResolver(origin.file));
+        }
+    }
+
+    rebuildCurrentRepositionedLights(transformCache);
+    return isLightEnabled ? buildUploadLights(isLightEnabled) : buildUploadLights();
+}
+
+std::vector<GPULight> AnimationRuntimeController::buildUploadLights() const
+{
+    return _currentRepositionedLights;
+}
+
+std::vector<GPULight> AnimationRuntimeController::buildUploadLights(
+    const std::function<bool(const LightOrigin&)>& isLightEnabled) const
+{
+    if (!isLightEnabled ||
+        _lightFileIndexMap.isEmpty() ||
+        _lightFileIndexMap.size() != static_cast<int>(_currentRepositionedLights.size()))
+    {
+        return _currentRepositionedLights;
+    }
+
+    std::vector<GPULight> uploadLights;
+    uploadLights.reserve(_currentRepositionedLights.size());
+    for (int i = 0; i < static_cast<int>(_currentRepositionedLights.size()); ++i)
+    {
+        if (isLightEnabled(_lightFileIndexMap[i]))
+            uploadLights.push_back(_currentRepositionedLights[i]);
+    }
+    return uploadLights;
 }
 
 // ---------------------------------------------------------------------------

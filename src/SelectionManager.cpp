@@ -6,6 +6,7 @@
 #include <QOpenGLFunctions_4_5_Core>
 #include <QOpenGLContext>
 #include <QApplication>
+#include <QLineF>
 #include <QRect>
 #include <QMatrix4x4>
 #include <QVector4D>
@@ -171,11 +172,84 @@ int SelectionManager::hoverSelect(const QPoint& pixel)
     return hoveredId;
 }
 
-QList<int> SelectionManager::sweepSelect(const QPoint& p1, const QPoint& p2)
+QList<int> SelectionManager::sweepSelect(const QPoint& p1, const QPoint& p2, bool addToSelection)
 {
-    // Sweep selection not yet implemented in SelectionManager
-    // This will be moved when needed
-    return QList<int>();
+    const auto& ids = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+    if (ids.empty())
+        return _selectedMeshIds;
+
+    const QRect rubberRect = QRect(p1, p2).normalized();
+    if (rubberRect.isNull())
+        return _selectedMeshIds;
+
+    QList<int> selectedIds = addToSelection ? _selectedMeshIds : QList<int>{};
+
+    const QRect viewport(0, 0, _glWidget->width(), _glWidget->height());
+    const QMatrix4x4 projMatrix = _glWidget->getProjectionMatrix();
+    const QMatrix4x4 viewMatrix = _glWidget->getModelViewMatrix();
+    constexpr float SELECTION_THRESHOLD = 0.5f;
+
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+    selectedIds.reserve(selectedIds.size() + static_cast<qsizetype>(ids.size()));
+
+    for (int i : ids)
+    {
+        SceneMesh* mesh = _meshStore.at(i).mesh;
+        if (!mesh)
+            continue;
+
+        const BoundingSphere sphere = mesh->getBoundingSphere();
+        const QVector3D center = sphere.getCenter();
+        const float radius = sphere.getRadius();
+
+        const QVector4D projectedCenter = projMatrix * viewMatrix * QVector4D(center, 1.0f);
+        if (projectedCenter.w() <= 0.0f)
+            continue;
+
+        const QVector3D ndcCenter = projectedCenter.toVector3DAffine();
+        const QPointF screenCenter(
+            (ndcCenter.x() * 0.5f + 0.5f) * viewport.width(),
+            (1.0f - (ndcCenter.y() * 0.5f + 0.5f)) * viewport.height());
+
+        const QVector4D edge4 = projMatrix * viewMatrix * QVector4D(center + QVector3D(radius, 0, 0), 1.0f);
+        if (edge4.w() <= 0.0f)
+            continue;
+
+        const QVector3D ndcEdge = edge4.toVector3DAffine();
+        const QPointF screenEdge(
+            (ndcEdge.x() * 0.5f + 0.5f) * viewport.width(),
+            (1.0f - (ndcEdge.y() * 0.5f + 0.5f)) * viewport.height());
+
+        const float radiusPixels = QLineF(screenCenter, screenEdge).length();
+        const QRectF projectedRect(
+            screenCenter.x() - radiusPixels,
+            screenCenter.y() - radiusPixels,
+            2 * radiusPixels,
+            2 * radiusPixels);
+
+        if (rubberRect.contains(projectedRect.toRect()))
+        {
+            if (!selectedIds.contains(i))
+                selectedIds.push_back(i);
+        }
+        else if (rubberRect.intersects(projectedRect.toRect()))
+        {
+            const QRectF intersected = rubberRect.intersected(projectedRect.toRect());
+            const float intersectArea = intersected.width() * intersected.height();
+            const float projectedArea = projectedRect.width() * projectedRect.height();
+
+            if (projectedArea > 0 && (intersectArea / projectedArea) >= SELECTION_THRESHOLD)
+            {
+                if (!selectedIds.contains(i))
+                    selectedIds.push_back(i);
+            }
+        }
+    }
+
+    QApplication::restoreOverrideCursor();
+
+    _selectedMeshIds = selectedIds;
+    return _selectedMeshIds;
 }
 
 // ============================================================================

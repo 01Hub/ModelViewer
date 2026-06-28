@@ -60,7 +60,7 @@ public:
     // Selection operations
     int clickSelect(const QPoint& pixel);
     int hoverSelect(const QPoint& pixel);
-    QList<int> sweepSelect(const QPoint& p1, const QPoint& p2);
+    QList<int> sweepSelect(const QPoint& p1, const QPoint& p2, bool addToSelection = false);
 
     // State queries
     QList<int> getSelectedIds() const { return _selectedMeshIds; }

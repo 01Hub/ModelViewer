@@ -4973,105 +4973,35 @@ void GLWidget::updatePunctualLights()
 		return;
 	}
 
-	// Start with original positions, unless an animation runtime is actively
-	// overriding the bound light nodes for the current animated file.
-	const std::vector<GPULight>& sourceLights =
-		(!_animCtrl.animatedLightTransformSourceFile().isEmpty() &&
-		 _animCtrl.animatedParsedLights().size() == _animCtrl.originalParsedLights().size())
-		? _animCtrl.animatedParsedLights()
-		: _animCtrl.originalParsedLights();
-	_animCtrl.currentRepositionedLights() = sourceLights;
-
-	// Follow user model-level transforms: each light is moved by the exact
-	// TRS matrix its file's meshes carry (derived fresh from the mesh store,
-	// so undo/redo and every transform entry point are covered).  Lights of
-	// untransformed files keep their parsed absolute positions — the visible
-	// scene bounds are irrelevant by construction.
-	if (_animCtrl.lightFileIndexMap().size() == static_cast<int>(_animCtrl.currentRepositionedLights().size()))
+	std::vector<GPULight> uploadLights;
+	if (_viewer && _viewer->sceneGraph())
 	{
-		QHash<QString, QMatrix4x4> transformCache;
-		for (int i = 0; i < static_cast<int>(_animCtrl.currentRepositionedLights().size()); ++i)
-		{
-			const QString& file = _animCtrl.lightFileIndexMap()[i].file;
-			if (!transformCache.contains(file))
-			{
-				QMatrix4x4 m; // identity when no model-level transform exists
-				userModelTransformForFile(file, m);
-				transformCache.insert(file, m);
-			}
-			const QMatrix4x4& m = transformCache.value(file);
-			if (m.isIdentity())
-				continue;
-
-			auto& light = _animCtrl.currentRepositionedLights()[i];
-
-			const QVector3D pos = m.map(
-				QVector3D(light.position.x, light.position.y, light.position.z));
-			light.position = glm::vec3(pos.x(), pos.y(), pos.z());
-
-			const QVector3D dir = m.mapVector(
-				QVector3D(light.direction.x, light.direction.y, light.direction.z)).normalized();
-			light.direction = glm::vec3(dir.x(), dir.y(), dir.z());
-
-			const float s = uniformScaleOf(m);
-
-			// Range scales with the model so attenuation reaches the same
-			// relative extent.
-			if (light.range > 0.0f)
-				light.range *= s;
-
-			// Appearance-preserving intensity compensation (inverse-square
-			// law) for point and spot lights: a light moved s× further from
-			// the scaled surfaces needs s² the candela to light them equally.
-			if (light.type != static_cast<int>(LightType::Directional))
-				light.intensity *= (s * s);
-		}
-	}
-
-	if (!_animCtrl.animatedLightVisibilitySourceFile().isEmpty() &&
-		_animCtrl.animatedLightVisibilityMask().size() == static_cast<qsizetype>(_animCtrl.currentRepositionedLights().size()))
-	{
-		std::vector<GPULight> visibleLights;
-		visibleLights.reserve(_animCtrl.currentRepositionedLights().size());
-		for (int lightIndex = 0; lightIndex < static_cast<int>(_animCtrl.currentRepositionedLights().size()); ++lightIndex)
-		{
-			if (_animCtrl.animatedLightVisibilityMask()[lightIndex])
-				visibleLights.push_back(_animCtrl.currentRepositionedLights()[lightIndex]);
-		}
-		_animCtrl.currentRepositionedLights() = std::move(visibleLights);
-	}
-
-	// Apply per-light enabled filter before GPU upload.
-	// _animCtrl.currentRepositionedLights() is kept as the FULL set so gizmos remain
-	// visible for disabled lights.  Only the GPU-uploaded subset changes.
-	//
-	// If the map is absent (MVF flat-light path or legacy code path) fall back
-	// to uploading everything, preserving pre-existing behaviour.
-	if (_viewer && _viewer->sceneGraph() &&
-	    !_animCtrl.lightFileIndexMap().isEmpty() &&
-	    static_cast<int>(_animCtrl.currentRepositionedLights().size()) == _animCtrl.lightFileIndexMap().size())
-	{
-		std::vector<GPULight> toUpload;
-		toUpload.reserve(_animCtrl.currentRepositionedLights().size());
 		auto* sg = _viewer->sceneGraph();
-		for (int i = 0; i < static_cast<int>(_animCtrl.currentRepositionedLights().size()); ++i)
-		{
-			const LightOrigin& origin = _animCtrl.lightFileIndexMap()[i];
-			const GltfLightData& ld   = sg->lightDataForFile(origin.file);
-			if (origin.index < static_cast<int>(ld.lights.size()) &&
-			    ld.lights[origin.index].enabled)
-			{
-				toUpload.push_back(_animCtrl.currentRepositionedLights()[i]);
-			}
-		}
-		glLights->setLights(toUpload);
-		syncPunctualLightUniforms(static_cast<int>(toUpload.size()),
-		                          !toUpload.empty());
+		uploadLights = _animCtrl.rebuildAndBuildUploadLights(
+			[this](const QString& file) {
+				QMatrix4x4 m;
+				userModelTransformForFile(file, m);
+				return m;
+			},
+			[sg](const LightOrigin& origin) {
+				const GltfLightData& ld = sg->lightDataForFile(origin.file);
+				return origin.index < static_cast<int>(ld.lights.size()) &&
+				       ld.lights[origin.index].enabled;
+			});
 	}
 	else
 	{
-		glLights->setLights(_animCtrl.currentRepositionedLights());
+		uploadLights = _animCtrl.rebuildAndBuildUploadLights(
+			[this](const QString& file) {
+				QMatrix4x4 m;
+				userModelTransformForFile(file, m);
+				return m;
+			});
 	}
+
+	glLights->setLights(uploadLights);
+	syncPunctualLightUniforms(static_cast<int>(uploadLights.size()),
+	                          !uploadLights.empty());
 }
 
 void GLWidget::setAnimatedLightVisibilityState(const QString& sourceFile, const QVector<bool>& visibleByParsedLight)
@@ -13217,109 +13147,12 @@ unsigned int GLWidget::loadTextureFromFile(
 
 QList<int> GLWidget::sweepSelect(const QPoint& pixel, bool addToSelection)
 {
-	const auto& ids = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
-
-	// Check if there's actually a rubber band with non-null geometry (actual drag)
-	bool hasRubberBand = !ids.empty() && _rubberBand && !_rubberBand->geometry().isNull();
-
-	// If no rubber band, return without modifying selection (click without drag case)
-	if (!hasRubberBand) {
+	if (!_selectionManager || !_rubberBand || _rubberBand->geometry().isNull())
 		return _selectionManager ? _selectionManager->getSelectedIds() : QList<int>{};
-	}
 
-	QList<int> selectedIds = _selectionManager ? _selectionManager->getSelectedIds() : QList<int>{};
-
-	// Only clear selection if NOT adding to existing selection (Shift not held)
-	if (!addToSelection) {
-		selectedIds.clear();  // Regular sweep: replace selection
-	}
-	// If Shift is held (addToSelection=true), DON'T clear - preserve existing selection
-
-	const QRect rubberRect = _rubberBand->geometry();
-	const QRect viewport(0, 0, width(), height());
-	const QMatrix4x4 projMatrix = _viewCtrl.projectionMatrix();
-	const QMatrix4x4 viewMatrix = _viewCtrl.viewMatrix() * _viewCtrl.modelMatrix();
-	constexpr float SELECTION_THRESHOLD = 0.5f;
-
-	QApplication::setOverrideCursor(Qt::WaitCursor);
-	selectedIds.reserve(selectedIds.size() + static_cast<qsizetype>(ids.size()));
-
-	for (int i : ids) // Iterate through each ID in the 'ids' collection.
-	{
-		SceneMesh* mesh = _sceneRuntime.meshAt(i);
-
-		BoundingSphere sphere = mesh->getBoundingSphere();
-		QVector3D center = sphere.getCenter();
-		float radius = sphere.getRadius();
-
-		// Convert the 3D center into a 4D vector (homogeneous coordinates).
-		QVector4D center4(center, 1.0f);
-		// Project the center from 3D object space into clip space.
-		QVector4D projectedCenter = projMatrix * viewMatrix * center4;
-
-		// Check if the projected center is behind the camera (negative w-coordinate).
-		if (projectedCenter.w() <= 0.0f)
-			continue;
-
-		// Convert the center from clip space to normalized device coordinates (NDC).
-		QVector3D ndcCenter = projectedCenter.toVector3DAffine();
-		QPointF screenCenter(
-			(ndcCenter.x() * 0.5f + 0.5f) * viewport.width(), // Map NDC to screen coordinates along the X-axis.
-			(1.0f - (ndcCenter.y() * 0.5f + 0.5f)) * viewport.height() // Map NDC to screen coordinates along the Y-axis (invert Y for screen space).
-		);
-
-		// Project the edge of the bounding sphere in the X direction to determine its radius in screen space.
-		QVector4D edge4 = projMatrix * viewMatrix * QVector4D(center + QVector3D(radius, 0, 0), 1.0f);
-		if (edge4.w() <= 0.0f) // Check if the projected edge is behind the camera.
-			continue;
-
-		// Convert the edge from clip space to normalized device coordinates (NDC).
-		QVector3D ndcEdge = edge4.toVector3DAffine();
-		QPointF screenEdge(
-			(ndcEdge.x() * 0.5f + 0.5f) * viewport.width(), // Map NDC to screen coordinates along the X-axis for the edge.
-			(1.0f - (ndcEdge.y() * 0.5f + 0.5f)) * viewport.height() // Map NDC to screen coordinates along the Y-axis for the edge.
-		);
-
-		// Calculate the radius in pixels based on the distance between the center and edge in screen space.
-		float radiusPixels = QLineF(screenCenter, screenEdge).length();
-		QRectF projectedRect(
-			screenCenter.x() - radiusPixels, // Top-left X coordinate of the rectangle.
-			screenCenter.y() - radiusPixels, // Top-left Y coordinate of the rectangle.
-			2 * radiusPixels, // Width of the rectangle (2 * radius).
-			2 * radiusPixels  // Height of the rectangle (2 * radius).
-		);
-
-		// Check if the projected rectangle is completely within the rubber rectangle.
-		if (rubberRect.contains(projectedRect.toRect()))
-		{
-			// Add ID if not already selected (avoid duplicates)
-			if (!selectedIds.contains(i))
-				selectedIds.push_back(i);
-		}
-		else if (rubberRect.intersects(projectedRect.toRect())) // Check if the projected rectangle intersects the rubber rectangle.
-		{
-			QRectF intersected = rubberRect.intersected(projectedRect.toRect()); // Calculate the intersection rect between the two rectangles.
-			float intersectArea = intersected.width() * intersected.height(); // Compute the area of the intersection.
-			float projectedArea = projectedRect.width() * projectedRect.height(); // Compute the area of the projected rectangle.
-
-			// Select the ID if the intersection area is significant enough.
-			if (projectedArea > 0 && (intersectArea / projectedArea) >= SELECTION_THRESHOLD) {
-				// Add ID if not already selected (avoid duplicates)
-				if (!selectedIds.contains(i))
-					selectedIds.push_back(i);
-			}
-		}
-	}
-
-	QApplication::restoreOverrideCursor();
-
-	// Sync SelectionManager internal state without emitting signal (avoids feedback loops)
-	if (_selectionManager)
-		_selectionManager->syncSelectedIds(selectedIds);
-
-	// Emit sweepSelectionDone with the complete accumulated selection
+	const QList<int> selectedIds = _selectionManager->sweepSelect(_viewCtrl.leftButtonPoint(), pixel, addToSelection);
+	emit selectionChanged(selectedIds);
 	emit sweepSelectionDone(selectedIds);
-
 	return selectedIds;
 }
 
