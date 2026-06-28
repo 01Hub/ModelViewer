@@ -220,7 +220,7 @@ _floorPlane(nullptr),
 	_viewCtrl.setProjection(ViewProjection::ORTHOGRAPHIC);
 	_viewCtrl.setPreviousProjection(GLCamera::ProjectionType::ORTHOGRAPHIC);
 
-	_viewCtrl._autoFitViewOnUpdate = true;
+	_viewCtrl.setAutoFitViewOnUpdate(true);
 	_selectionHighlighting = true;
 
 	_primaryCamera = new GLCamera(width(), height(), _viewCtrl.viewRange(), _viewCtrl.FOV());
@@ -286,8 +286,8 @@ _floorPlane(nullptr),
 		_selectionManager->setHoverHighlightMode(static_cast<HoverHighlightMode>(modeIndex));
 	}
 
-	_viewCtrl._slerpStep = 0.0f;
-	_viewCtrl._slerpFrac = 0.05f;
+	_viewCtrl.resetSlerpStep();
+	_viewCtrl.setSlerpFrac(0.05f);
 
 	_modelNum = 6;
 
@@ -308,15 +308,13 @@ _floorPlane(nullptr),
 
 	_viewCtrl.setShowAxis(true);
 
-	_viewCtrl._windowZoomActive = false;
+	_viewCtrl.setWindowZoomActive(false);
 
     _rubberBand = new QRubberBand(QRubberBand::Rectangle, this);
     _rubberBand->setStyle(QStyleFactory::create("Fusion"));
 
 
-	_viewCtrl._viewZooming = false;
-	_viewCtrl._viewPanning = false;
-	_viewCtrl._viewRotating = false;
+	_viewCtrl.clearNavigationModes();
 
 	_modelName = "Model";
 
@@ -388,10 +386,10 @@ _floorPlane(nullptr),
 	_selectionDBO = 0;
 
 
-	_viewCtrl._rubberBandRadius = 1.0f;
-	_viewCtrl._rubberBandZoomRatio = 0.5f;
+	_viewCtrl.setRubberBandRadius(1.0f);
+	_viewCtrl.setRubberBandZoomRatio(0.5f);
 
-	_viewCtrl._scaleFrac = 1.0f;
+	_viewCtrl.setScaleFrac(1.0f);
 
 	_xTran = 0.0f;
 	_yTran = 0.0f;
@@ -1006,7 +1004,9 @@ void GLWidget::initializeGL()
 	_renderCtrl.debugShader()->bind();
 	_renderCtrl.debugShader()->setUniformValue("depthMap", 0);
 
-	_viewCtrl._viewMatrix.setToIdentity();
+	QMatrix4x4 identityViewMatrix;
+	identityViewMatrix.setToIdentity();
+	_viewCtrl.setViewMatrix(identityViewMatrix);
 	glEnable(GL_DEPTH_TEST);
 
 	glClearColor(0.0f, 0.0f, 0.0f, 1.f);
@@ -1086,7 +1086,7 @@ void GLWidget::resizeGL(int width, int height)
 	_primaryCamera->setViewRange(_viewCtrl.viewRange());
 	// Keep the scene radius in the camera up-to-date so that the perspective
 	// far plane always covers the full scene regardless of zoom depth.
-	_primaryCamera->setSceneRadius(_viewCtrl._boundingSphere.getRadius());
+	_primaryCamera->setSceneRadius(_viewCtrl.boundingSphere().getRadius());
 	if (_viewCtrl.projection() == ViewProjection::ORTHOGRAPHIC)
 	{
 		_primaryCamera->setProjectionType(GLCamera::ProjectionType::ORTHOGRAPHIC);		
@@ -1134,7 +1134,9 @@ void GLWidget::paintGL()
 		glLights->bind(_renderCtrl.fgShader()->programId());
 		_renderCtrl.fgShader()->setUniformValue("lightCount", glLights->getLightCount());
 
-		_viewCtrl._modelMatrix.setToIdentity();
+		QMatrix4x4 identityModelMatrix;
+		identityModelMatrix.setToIdentity();
+		_viewCtrl.setModelMatrix(identityModelMatrix);
 		if (_viewCtrl.multiViewActive())
 		{
 			renderMultiView(topColor, botColor);
@@ -1739,7 +1741,7 @@ void GLWidget::setViewMode(ViewMode mode)
 		// Compute fit + projected visual centre from the *target* orientation so
 		// that the orbit target is correct as soon as the rotation animation begins.
 		// Only compute fit view range if there are visible meshes.
-		// On an empty scene, keep _viewCtrl._viewBoundingSphereDia at the current
+		// On an empty scene, keep the cached fit diameter at the current
 		// view range so the zoom animation is a no-op while the
 		// rotation animation still proceeds normally.
 		const std::vector<int>& visibleIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
@@ -1751,7 +1753,7 @@ void GLWidget::setViewMode(ViewMode mode)
 				m.row(1).toVector3D().normalized(),
 				-m.row(2).toVector3D().normalized(),
 				&projCenter));
-			_viewCtrl._boundingSphere.setCenter(projCenter);
+			_viewCtrl.setBoundingSphereCenter(projCenter);
 		}
 		else
 		{
@@ -1762,7 +1764,7 @@ void GLWidget::setViewMode(ViewMode mode)
 		_viewCtrl.setCustomViewAnimationActive(true);
 		_animateViewTimer->start(5);
 		_viewCtrl.setViewMode(mode);
-		_viewCtrl._slerpStep = 0.0f;
+		_viewCtrl.resetSlerpStep();
 	}
 }
 
@@ -1771,7 +1773,7 @@ void GLWidget::fitAll()
 
 	// Guard: do nothing if the scene has no visible meshes.
 	// Without this, computeFitViewRange() operates on degenerate bounds,
-	// driving _viewCtrl._viewRange to near-zero and hiding the trihedron.
+	// driving the view range to near-zero and hiding the trihedron.
 	const std::vector<int>& visibleIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
 	if (_sceneRuntime.meshStore().empty() || visibleIds.empty())
 		return;
@@ -1836,7 +1838,7 @@ void GLWidget::fitAll()
 		const float shiftFactor = std::min(1.05f / std::sin(halfFovY), 1.25f);
 		_viewCtrl.setViewBoundingSphereDia(std::max(desiredDist / std::max(shiftFactor, 0.001f), 0.0001f));
 		_viewCtrl.setViewRange(_viewCtrl.viewBoundingSphereDia());
-		_viewCtrl._boundingSphere.setCenter(projCenter);
+		_viewCtrl.setBoundingSphereCenter(projCenter);
 		_primaryCamera->setViewRange(_viewCtrl.viewRange());
 		_primaryCamera->setView(projCenter - viewDir * desiredDist, viewDir, upDir, rightDir);
 
@@ -1854,19 +1856,19 @@ void GLWidget::fitAll()
 	// scene appears centred on screen with equal margins on every side.
 	QVector3D projCenter;
 	_viewCtrl.setViewBoundingSphereDia(computeFitViewRange(&projCenter));
-	_viewCtrl._boundingSphere.setCenter(projCenter);
+	_viewCtrl.setBoundingSphereCenter(projCenter);
 
 	if (!_animateFitAllTimer->isActive())
 	{
 		_keyboardNavTimer->stop();
 		_animateFitAllTimer->start(5);
-		_viewCtrl._slerpStep = 0.0f;
+		_viewCtrl.resetSlerpStep();
 	}
 }
 
 void GLWidget::setAutoFitViewOnUpdate(bool update)
 {
-	_viewCtrl._autoFitViewOnUpdate = update;
+	_viewCtrl.setAutoFitViewOnUpdate(update);
 }
 
 void GLWidget::setSelectionHighlighting(bool highlight)
@@ -1878,13 +1880,13 @@ void GLWidget::setSelectionHighlighting(bool highlight)
 
 void GLWidget::beginWindowZoom()
 {
-	_viewCtrl._windowZoomActive = true;
+	_viewCtrl.setWindowZoomActive(true);
 	setCursor(QCursor(QPixmap(":/icons/res/window-zoom-cursor.png"), 12, 12));
 }
 
 void GLWidget::performWindowZoom()
 {
-	_viewCtrl._windowZoomActive = false;
+	_viewCtrl.setWindowZoomActive(false);
 
 	QRect zoomRect = _rubberBand->geometry();
 	if (zoomRect.width() == 0 || zoomRect.height() == 0)
@@ -1895,7 +1897,7 @@ void GLWidget::performWindowZoom()
 
 	QPoint zoomWinCen = zoomRect.center();
 	QRect viewport = getViewportFromPoint(zoomWinCen);
-	QMatrix4x4 mvMatrix = _viewCtrl._viewMatrix * _viewCtrl._modelMatrix;
+	QMatrix4x4 mvMatrix = _viewCtrl.viewMatrix() * _viewCtrl.modelMatrix();
 
 	// Sample the depth buffer at the rubber-band centre to get the actual scene depth.
 	// When the centre pixel is background, scan a 9x9 neighbourhood and take the minimum
@@ -1933,8 +1935,8 @@ void GLWidget::performWindowZoom()
 			// No geometry found near centre — fall back to bounding sphere centre depth.
 			QVector3D Z = (_primaryCamera->getMode() == GLCamera::CameraMode::Orbit)
 				? _primaryCamera->getPosition()
-				: _viewCtrl._boundingSphere.getCenter();
-			Z = Z.project(mvMatrix, _viewCtrl._projectionMatrix, viewport);
+				: _viewCtrl.boundingSphere().getCenter();
+			Z = Z.project(mvMatrix, _viewCtrl.projectionMatrix(), viewport);
 			depthZ = Z.z();
 		}
 		else
@@ -1948,15 +1950,15 @@ void GLWidget::performWindowZoom()
 	QRect clientRect = getClientRectFromPoint(zoomWinCen);
 	QPoint clientWinCen = clientRect.center();
 	QVector3D o(clientWinCen.x(), height() - clientWinCen.y(), depthZ);
-	QVector3D O = o.unproject(mvMatrix, _viewCtrl._projectionMatrix, viewport);
+	QVector3D O = o.unproject(mvMatrix, _viewCtrl.projectionMatrix(), viewport);
 
 	QVector3D p(zoomWinCen.x(), height() - zoomWinCen.y(), depthZ);
-	QVector3D P = p.unproject(mvMatrix, _viewCtrl._projectionMatrix, viewport);
+	QVector3D P = p.unproject(mvMatrix, _viewCtrl.projectionMatrix(), viewport);
 
 	// Pixel-space zoom ratio (fixed: was integer division before).
 	double widthRatio  = static_cast<double>(clientRect.width())  / zoomRect.width();
 	double heightRatio = static_cast<double>(clientRect.height()) / zoomRect.height();
-	_viewCtrl._rubberBandZoomRatio = static_cast<GLfloat>((heightRatio < widthRatio) ? heightRatio : widthRatio);
+	_viewCtrl.setRubberBandZoomRatio(static_cast<GLfloat>((heightRatio < widthRatio) ? heightRatio : widthRatio));
 
 	// Perspective correction: the visible extent at signed view-space depth z_v is
 	// proportional to the eye-to-anchor distance. Correct the zoom ratio accordingly.
@@ -1974,12 +1976,12 @@ void GLWidget::performWindowZoom()
 			const float anchorDistanceOld = distanceOld + dc;
 			if (anchorDistanceOld > 0.0f)
 			{
-				const float newDistance = anchorDistanceOld / _viewCtrl._rubberBandZoomRatio - dc;
+				const float newDistance = anchorDistanceOld / _viewCtrl.rubberBandZoomRatio() - dc;
 				if (newDistance > 0.0f)
 				{
 					const float distanceFactor = distanceOld / _viewCtrl.currentViewRange();
 					const float newViewRange = newDistance / distanceFactor;
-					_viewCtrl._rubberBandZoomRatio = _viewCtrl.currentViewRange() / newViewRange;
+					_viewCtrl.setRubberBandZoomRatio(_viewCtrl.currentViewRange() / newViewRange);
 				}
 			}
 		}
@@ -1990,22 +1992,22 @@ void GLWidget::performWindowZoom()
 	// high end of the zoom ratio to keep the target in frame more reliably.
 	if (_viewCtrl.projection() == ViewProjection::PERSPECTIVE)
 	{
-		if (_viewCtrl._rubberBandZoomRatio > 4.0f)
-			_viewCtrl._rubberBandZoomRatio = 4.0f + (_viewCtrl._rubberBandZoomRatio - 4.0f) * 0.6f;
-		if (_viewCtrl._rubberBandZoomRatio > 8.0f)
-			_viewCtrl._rubberBandZoomRatio = 8.0f + (_viewCtrl._rubberBandZoomRatio - 8.0f) * 0.4f;
+		if (_viewCtrl.rubberBandZoomRatio() > 4.0f)
+			_viewCtrl.setRubberBandZoomRatio(4.0f + (_viewCtrl.rubberBandZoomRatio() - 4.0f) * 0.6f);
+		if (_viewCtrl.rubberBandZoomRatio() > 8.0f)
+			_viewCtrl.setRubberBandZoomRatio(8.0f + (_viewCtrl.rubberBandZoomRatio() - 8.0f) * 0.4f);
 	}
 
 	// Compute the pan that brings the rubber-band centre to screen centre.
 	// Both P and O are unprojected at the same depthZ, so (P - O) is already
 	// perpendicular to viewDir — no depth stripping is needed.
-	_viewCtrl._rubberBandPan = P - O;
+	_viewCtrl.setRubberBandPan(P - O);
 
 	if (!_animateWindowZoomTimer->isActive())
 	{
 		_keyboardNavTimer->stop();
 		_animateWindowZoomTimer->start(5);
-		_viewCtrl._slerpStep = 0.0f;
+		_viewCtrl.resetSlerpStep();
 	}
 	emit windowZoomEnded();
 }
@@ -2040,15 +2042,15 @@ bool GLWidget::positionGameplayCameraForScene(GLCamera::CameraMode mode)
 		return false;
 
 	const QVector3D worldUp = currentWorldUpVector();
-	const QVector3D center = _viewCtrl._boundingSphere.getCenter();
-	const float radius = std::max(_viewCtrl._boundingSphere.getRadius(), 0.001f);
+	const QVector3D center = _viewCtrl.boundingSphere().getCenter();
+	const float radius = std::max(_viewCtrl.boundingSphere().getRadius(), 0.001f);
 
 	// Derive scene extent along the current world-up axis directly from the bounding box
 	// so this is always correct regardless of convention and when recalculate was last called.
-	const float lowestUp  = _viewCtrl.cameraUpAxisZUp() ? static_cast<float>(_viewCtrl._boundingBox.zMin())
-	                                          : static_cast<float>(_viewCtrl._boundingBox.yMin());
-	const float highestUp = _viewCtrl.cameraUpAxisZUp() ? static_cast<float>(_viewCtrl._boundingBox.zMax())
-	                                          : static_cast<float>(_viewCtrl._boundingBox.yMax());
+	const float lowestUp  = _viewCtrl.cameraUpAxisZUp() ? static_cast<float>(_viewCtrl.boundingBox().zMin())
+	                                          : static_cast<float>(_viewCtrl.boundingBox().yMin());
+	const float highestUp = _viewCtrl.cameraUpAxisZUp() ? static_cast<float>(_viewCtrl.boundingBox().zMax())
+	                                          : static_cast<float>(_viewCtrl.boundingBox().yMax());
 	const float modelHeight = std::max(highestUp - lowestUp, radius * 2.0f);
 
 	// Strip the world-up component to get a purely horizontal direction.
@@ -2124,9 +2126,9 @@ void GLWidget::setCameraMode(GLCamera::CameraMode mode)
 		{
 			_viewCtrl.setPreviousProjection(orbitProjection);
 			const QVector3D viewDir = _primaryCamera->getViewDir().normalized();
-			const QVector3D center = _viewCtrl._boundingSphere.getCenter();
+			const QVector3D center = _viewCtrl.boundingSphere().getCenter();
 			const float desiredDist = std::max(_primaryCamera->getOrbitDistance(),
-				std::max(_viewCtrl.viewRange(), _viewCtrl._boundingSphere.getRadius() * 1.75f));
+				std::max(_viewCtrl.viewRange(), _viewCtrl.boundingSphere().getRadius() * 1.75f));
 			orbitEye = center - viewDir * desiredDist;
 		}
 
@@ -2183,27 +2185,21 @@ void GLWidget::setCameraMode(GLCamera::CameraMode mode)
 
 void GLWidget::setRotationActive(bool active)
 {
-	_viewCtrl._viewPanning = false;
-	_viewCtrl._viewZooming = false;
-	_viewCtrl._viewRotating = active;
+	_viewCtrl.setNavigationModes(active, false, false);
 	setCursor(QCursor(QPixmap(":/icons/res/rotatecursor.png")));
 	MainWindow::showStatusMessage(tr("Press Esc to deactivate rotation mode"));
 }
 
 void GLWidget::setPanningActive(bool active)
 {
-	_viewCtrl._viewRotating = false;
-	_viewCtrl._viewZooming = false;
-	_viewCtrl._viewPanning = active;
+	_viewCtrl.setNavigationModes(false, active, false);
 	setCursor(QCursor(QPixmap(":/icons/res/pancursor.png")));
 	MainWindow::showStatusMessage(tr("Press Esc to deactivate panning mode"));
 }
 
 void GLWidget::setZoomingActive(bool active)
 {
-	_viewCtrl._viewPanning = false;
-	_viewCtrl._viewRotating = false;
-	_viewCtrl._viewZooming = active;
+	_viewCtrl.setNavigationModes(false, false, active);
 	setCursor(QCursor(QPixmap(":/icons/res/zoomcursor.png")));
 	MainWindow::showStatusMessage(tr("Press Esc to deactivate zooming mode"));
 }
@@ -2232,13 +2228,13 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 	}
 
 	_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
-	_viewCtrl._boundingSphere.setCenter(0, 0, 0);
+	_viewCtrl.setBoundingSphereCenter(0, 0, 0);
 
 	// Recompute all visible-scene aggregates in one pass.
 	recalculateVisibleSceneStats(true);
 	// Reset smoothed zoom floor to scene radius so a freshly loaded model
 	// starts with the standard global clamp, not a stale small value.
-	_viewCtrl._zoomInLimit = _viewCtrl._boundingSphere.getRadius();
+	_viewCtrl.setZoomInLimit(_viewCtrl.boundingSphere().getRadius());
 
 	// Reposition lights from per-file user model transforms (derived from the
 	// current mesh TRS state — no bounding-sphere anchoring involved).
@@ -2257,7 +2253,7 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 
 		positionGameplayCameraForScene(_primaryCamera->getMode());
 	}
-	else if (_viewCtrl._autoFitViewOnUpdate)
+	else if (_viewCtrl.autoFitViewOnUpdate())
 	{
 		if (!isGltfCameraActive())
 		{
@@ -2273,11 +2269,11 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 void GLWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 {
 	_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
-	_viewCtrl._boundingSphere.setCenter(0, 0, 0);
-	_viewCtrl._boundingSphere.setRadius(0.0f);
-	_viewCtrl._boundingBox.setLimits(-0.001, -0.001, -0.001, 0.001, 0.001, 0.001);
-	_viewCtrl._visibleLowestZ = -1.0f;
-	_viewCtrl._visibleHighestZ = 1.0f;
+	_viewCtrl.setBoundingSphereCenter(0, 0, 0);
+	_viewCtrl.setBoundingSphereRadius(0.0f);
+	_viewCtrl.setBoundingBoxLimits(-0.001, -0.001, -0.001, 0.001, 0.001, 0.001);
+	_viewCtrl.setVisibleLowestZ(-1.0f);
+	_viewCtrl.setVisibleHighestZ(1.0f);
 
 	const std::vector<int>& visibleIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
 	if (updateMemorySize)
@@ -2289,7 +2285,7 @@ void GLWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 	{
 		_primaryCamera->setPosition(0, 0, 0);
 		_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
-		_viewCtrl._boundingSphere.setRadius(1.0f);
+		_viewCtrl.setBoundingSphereRadius(1.0f);
 		return;
 	}
 
@@ -2313,12 +2309,12 @@ void GLWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 			const BoundingBox meshBox = mesh->getBoundingBox();
 			if (firstBox)
 			{
-				_viewCtrl._boundingBox = meshBox;
+				_viewCtrl.setBoundingBox(meshBox);
 				firstBox = false;
 			}
 			else
 			{
-				_viewCtrl._boundingBox.addBox(meshBox);
+				_viewCtrl.expandBoundingBox(meshBox);
 			}
 
 			const float meshLow  = _viewCtrl.cameraUpAxisZUp() ? static_cast<float>(meshBox.zMin()) : static_cast<float>(meshBox.yMin());
@@ -2339,8 +2335,8 @@ void GLWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 
 	if (!firstBox)
 	{
-		_viewCtrl._visibleLowestZ = lowestZ;
-		_viewCtrl._visibleHighestZ = highestZ;
+		_viewCtrl.setVisibleLowestZ(lowestZ);
+		_viewCtrl.setVisibleHighestZ(highestZ);
 
 		// Derive the scene bounding sphere center from the axis-aligned bounding box
 		// midpoint — order-independent and immune to floating-point perturbations from
@@ -2352,9 +2348,9 @@ void GLWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 		// than the box half-diagonal for round geometry (e.g. sphere meshes), where the
 		// half-diagonal would be sqrt(3)x the actual radius.
 		const QVector3D boxCenter(
-			static_cast<float>((_viewCtrl._boundingBox.xMin() + _viewCtrl._boundingBox.xMax()) * 0.5),
-			static_cast<float>((_viewCtrl._boundingBox.yMin() + _viewCtrl._boundingBox.yMax()) * 0.5),
-			static_cast<float>((_viewCtrl._boundingBox.zMin() + _viewCtrl._boundingBox.zMax()) * 0.5)
+			static_cast<float>((_viewCtrl.boundingBox().xMin() + _viewCtrl.boundingBox().xMax()) * 0.5),
+			static_cast<float>((_viewCtrl.boundingBox().yMin() + _viewCtrl.boundingBox().yMax()) * 0.5),
+			static_cast<float>((_viewCtrl.boundingBox().zMin() + _viewCtrl.boundingBox().zMax()) * 0.5)
 		);
 		float bsRadius = 0.0f;
 		for (int i : visibleIds)
@@ -2370,8 +2366,8 @@ void GLWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 			}
 			catch (const std::out_of_range&) {}
 		}
-		_viewCtrl._boundingSphere.setCenter(boxCenter);
-		_viewCtrl._boundingSphere.setRadius(bsRadius > 0.0f ? bsRadius : 1.0f);
+		_viewCtrl.setBoundingSphereCenter(boxCenter);
+		_viewCtrl.setBoundingSphereRadius(bsRadius > 0.0f ? bsRadius : 1.0f);
 	}
 }
 
@@ -2383,7 +2379,7 @@ void GLWidget::triggerShadowRecomputation()
 		return;
 	}
 
-	float boundingRadius = _viewCtrl._boundingSphere.getRadius();
+	float boundingRadius = _viewCtrl.boundingSphere().getRadius();
 	_viewCtrl.setViewBoundingSphereDia(boundingRadius * 2);
 
 	float lightDistance = calculateLightDistance();
@@ -2432,7 +2428,7 @@ void GLWidget::setShadowQuality(AdaptiveShadowMapper::QualityLevel quality)
 float GLWidget::calculateLightDistance()
 {
 	QVector3D lightPos = effectiveWorldLightPosition();
-	QVector3D center = _viewCtrl._boundingSphere.getCenter();
+	QVector3D center = _viewCtrl.boundingSphere().getCenter();
 	return (lightPos - center).length();
 }
 
@@ -2579,9 +2575,9 @@ void GLWidget::updateClippingPlane()
 	_clippingPlaneXY->setPlane(_renderCtrl.clippingPlaneShader(), _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, -_renderCtrl.clippingZCoeff() * zside, _floorSize, _floorSize);
 	_clippingPlaneYZ->setPlane(_renderCtrl.clippingPlaneShader(), _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, -_renderCtrl.clippingXCoeff() * xside, _floorSize, _floorSize);
 	_clippingPlaneZX->setPlane(_renderCtrl.clippingPlaneShader(), _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, -_renderCtrl.clippingYCoeff() * yside, _floorSize, _floorSize);
-	_clippingPlanesEditor->setCoefficientLimits(-_viewCtrl._boundingBox.getXSize()/2, _viewCtrl._boundingBox.getXSize()/2, 
-		-_viewCtrl._boundingBox.getYSize() / 2, _viewCtrl._boundingBox.getYSize() / 2,
-		-_viewCtrl._boundingBox.getZSize() / 2, _viewCtrl._boundingBox.getZSize() / 2);
+	_clippingPlanesEditor->setCoefficientLimits(-_viewCtrl.boundingBox().getXSize()/2, _viewCtrl.boundingBox().getXSize()/2,
+		-_viewCtrl.boundingBox().getYSize() / 2, _viewCtrl.boundingBox().getYSize() / 2,
+		-_viewCtrl.boundingBox().getZSize() / 2, _viewCtrl.boundingBox().getZSize() / 2);
 }
 
 void GLWidget::showClippingPlaneEditor(bool show)
@@ -3075,13 +3071,13 @@ void GLWidget::applyOverlayPanelStyle(QWidget* wrapper, const QString& objectNam
 float GLWidget::groundPlaneZ()
 {
 	const float workspaceExtent = static_cast<float>(std::max({
-		_viewCtrl._boundingBox.getXSize(),
-		_viewCtrl._boundingBox.getYSize(),
-		_viewCtrl._boundingBox.getZSize()
+		_viewCtrl.boundingBox().getXSize(),
+		_viewCtrl.boundingBox().getYSize(),
+		_viewCtrl.boundingBox().getZSize()
 	}));
 	const float lowestUp = _viewCtrl.cameraUpAxisZUp()
-		? static_cast<float>(_viewCtrl._boundingBox.zMin())
-		: static_cast<float>(_viewCtrl._boundingBox.yMin());
+		? static_cast<float>(_viewCtrl.boundingBox().zMin())
+		: static_cast<float>(_viewCtrl.boundingBox().yMin());
 	return lowestUp - (_floorSize * _floorOffsetPercent) - SceneRenderController::computeFloorDepthBias(workspaceExtent, _floorSize);
 }
 
@@ -3151,13 +3147,13 @@ void GLWidget::showAxis(bool show)
 
 void GLWidget::showTransformGizmoForSelection(bool show)
 {
-	if (!show && _viewCtrl._transformGizmoTranslating)
+	if (!show && _viewCtrl.transformGizmoTranslating())
 		finishTransformGizmoTranslationDrag(false);
-	if (!show && _viewCtrl._transformGizmoScaling)
+	if (!show && _viewCtrl.transformGizmoScaling())
 		finishTransformGizmoScaleDrag(false);
-	if (!show && _viewCtrl._transformGizmoRotating)
+	if (!show && _viewCtrl.transformGizmoRotating())
 		finishTransformGizmoRotationDrag(false);
-	_viewCtrl._transformGizmoRequested = show;
+	_viewCtrl.setTransformGizmoRequested(show);
 	if (show)
 		MainWindow::showStatusMessage(
 			_explodedViewCtrl.isManualPlacementActive()
@@ -3613,8 +3609,7 @@ void GLWidget::centerScreen(std::vector<int> selectedIDs)
 {
 	_sceneRuntime.centerScreenObjectIDs().clear();
 	_sceneRuntime.centerScreenObjectIDs() = selectedIDs;
-	_viewCtrl._selectionBoundingSphere.setCenter(0, 0, 0);
-	_viewCtrl._selectionBoundingSphere.setRadius(0.0);
+	_viewCtrl.resetSelectionBoundingSphere();
 	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 		_renderCtrl.setLowResEnabled(true);
 	int count = 0;
@@ -3624,9 +3619,9 @@ void GLWidget::centerScreen(std::vector<int> selectedIDs)
 		if (mesh)
 		{
 			if (count == 0)
-				_viewCtrl._selectionBoundingSphere = mesh->getBoundingSphere();
+				_viewCtrl.setSelectionBoundingSphere(mesh->getBoundingSphere());
 			else
-				_viewCtrl._selectionBoundingSphere.addSphere(mesh->getBoundingSphere());
+				_viewCtrl.addSelectionBoundingSphere(mesh->getBoundingSphere());
 		}
 		count++;
 	}
@@ -3634,7 +3629,7 @@ void GLWidget::centerScreen(std::vector<int> selectedIDs)
 	{
 		_keyboardNavTimer->stop();
 		_animateCenterScreenTimer->start(5);
-		_viewCtrl._slerpStep = 0.0f;
+		_viewCtrl.resetSlerpStep();
 	}
 }
 
@@ -4895,7 +4890,7 @@ void GLWidget::updateMainLightPosition(float halfObjectSize)
 	}
 	else
 	{
-		float highestUp = coordinateAlongCurrentWorldUp(_viewCtrl._boundingSphere.getCenter()) + _viewCtrl._boundingSphere.getRadius();
+		float highestUp = coordinateAlongCurrentWorldUp(_viewCtrl.boundingSphere().getCenter()) + _viewCtrl.boundingSphere().getRadius();
 		setCoordinateAlongCurrentWorldUp(_lightPosition,
 			highestUp + halfObjectSize * 5.0f + (_floorSize * _floorOffsetPercent));
 	}
@@ -4903,24 +4898,24 @@ void GLWidget::updateMainLightPosition(float halfObjectSize)
 
 float GLWidget::updateFloorGeometry()
 {
-	float halfObjectSize = _viewCtrl._boundingSphere.getRadius();
-	_floorCenter = _viewCtrl._boundingSphere.getCenter();
+	float halfObjectSize = _viewCtrl.boundingSphere().getRadius();
+	_floorCenter = _viewCtrl.boundingSphere().getCenter();
 
 	if (_viewCtrl.cameraUpAxisZUp())
 	{
 		// Z is up: floor footprint is XY; if the height (Z) dominates, size to it
-		if (_viewCtrl._boundingBox.getZSize() >= _viewCtrl._boundingBox.getXSize() && _viewCtrl._boundingBox.getZSize() >= _viewCtrl._boundingBox.getYSize())
-			_floorSize = _viewCtrl._boundingBox.getZSize();
+		if (_viewCtrl.boundingBox().getZSize() >= _viewCtrl.boundingBox().getXSize() && _viewCtrl.boundingBox().getZSize() >= _viewCtrl.boundingBox().getYSize())
+			_floorSize = _viewCtrl.boundingBox().getZSize();
 		else
-			_floorSize = std::max(_viewCtrl._boundingBox.getYSize(), _viewCtrl._boundingBox.getXSize()) / 1.25f;
+			_floorSize = std::max(_viewCtrl.boundingBox().getYSize(), _viewCtrl.boundingBox().getXSize()) / 1.25f;
 	}
 	else
 	{
 		// Y is up: floor footprint is XZ; if the height (Y) dominates, size to it
-		if (_viewCtrl._boundingBox.getYSize() >= _viewCtrl._boundingBox.getXSize() && _viewCtrl._boundingBox.getYSize() >= _viewCtrl._boundingBox.getZSize())
-			_floorSize = _viewCtrl._boundingBox.getYSize();
+		if (_viewCtrl.boundingBox().getYSize() >= _viewCtrl.boundingBox().getXSize() && _viewCtrl.boundingBox().getYSize() >= _viewCtrl.boundingBox().getZSize())
+			_floorSize = _viewCtrl.boundingBox().getYSize();
 		else
-			_floorSize = std::max(_viewCtrl._boundingBox.getXSize(), _viewCtrl._boundingBox.getZSize()) / 1.25f;
+			_floorSize = std::max(_viewCtrl.boundingBox().getXSize(), _viewCtrl.boundingBox().getZSize()) / 1.25f;
 	}
 
 	_lightCube->setSize(halfObjectSize * 0.1f);
@@ -5362,7 +5357,7 @@ void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 	// Isometric View
 	glViewport(width() / 2, 0, width() / 2, height() / 2);
 	render(_primaryCamera);
-	//std::string viewLabel = _viewCtrl._viewMode == ViewMode::DIMETRIC ? "Dimetric" : _viewCtrl._viewMode
+	//std::string viewLabel = viewCtrl.viewMode() == ViewMode::DIMETRIC ? "Dimetric" : ...
 		//== ViewMode::TRIMETRIC ? "Trimetric" : "Isometric";
 	QString viewLabel;
 	switch (_viewCtrl.viewMode())
@@ -5473,7 +5468,7 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	_renderCtrl.fgShader()->bind();
 	_renderCtrl.fgShader()->setUniformValue("sssCapture", false);
 	_renderCtrl.fgShader()->setUniformValue("modelMatrix", model);
-	RenderableMesh::setCurrentRenderContext(model, _viewCtrl._viewMatrix);
+	RenderableMesh::setCurrentRenderContext(model, _viewCtrl.viewMatrix());
 	if (_renderCtrl.reflectionsEnabled() && drawReflection)
 	{
 		_renderCtrl.fgShader()->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
@@ -5487,8 +5482,8 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_FRONT);
 	configureGroundPass(false, _renderCtrl.floorTextureDisplayed());
-	_renderCtrl.fgShader()->setProperty("globalModelMatrix", QVariant::fromValue(_viewCtrl._modelMatrix));
-	RenderableMesh::setCurrentRenderContext(_viewCtrl._modelMatrix, _viewCtrl._viewMatrix);
+	_renderCtrl.fgShader()->setProperty("globalModelMatrix", QVariant::fromValue(_viewCtrl.modelMatrix()));
+	RenderableMesh::setCurrentRenderContext(_viewCtrl.modelMatrix(), _viewCtrl.viewMatrix());
 	_floorPlane->setOpacity(0.95f);
 	_floorPlane->render();
 	// The final visible floor pass also mutates _renderCtrl.fgShader() material uniforms,
@@ -5759,8 +5754,8 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		if (useWireShader)
 		{
 			RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
-			_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl._viewMatrix);
-			_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
+			_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
+			_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
 			_renderCtrl.wireframeShader()->setUniformValue("isWireframePass",  false);
 			// Pass-level defaults: renderWireframeFast only uploads when non-default.
 			_renderCtrl.wireframeShader()->setUniformValue("hasVertexColors", false);
@@ -5821,8 +5816,8 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		if (useWireShader)
 		{
 			RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
-			_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl._viewMatrix);
-			_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
+			_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
+			_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
 			_renderCtrl.wireframeShader()->setUniformValue("isWireframePass",  true);
 			// Pass-level defaults: renderWireframeFast only uploads when non-default.
 			_renderCtrl.wireframeShader()->setUniformValue("hasVertexColors", false);
@@ -5864,8 +5859,8 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		glLineWidth(1.75f);
 		RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
-		_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl._viewMatrix);
-		_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
+		_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
+		_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
 		_renderCtrl.wireframeShader()->setUniformValue("isWireframePass",  false);
 		_renderCtrl.wireframeShader()->setUniformValue("hasVertexColors", false);
 		_renderCtrl.wireframeShader()->setUniformValue("hasAlbedoMap",    false);
@@ -5920,8 +5915,8 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		glLineWidth(1.5f);
 		RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
-		_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl._viewMatrix);
-		_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
+		_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
+		_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
 		_renderCtrl.wireframeShader()->setUniformValue("isWireframePass",  true);
 		_renderCtrl.wireframeShader()->setUniformValue("hasVertexColors", false);
 		_renderCtrl.wireframeShader()->setUniformValue("hasAlbedoMap",    false);
@@ -6068,8 +6063,8 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 		if (useWireShaderT)
 		{
 			RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
-			_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl._viewMatrix);
-			_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
+			_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
+			_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
 			_renderCtrl.wireframeShader()->setUniformValue("isWireframePass",  false);
 			// Pass-level defaults: renderWireframeFast only uploads when non-default.
 			_renderCtrl.wireframeShader()->setUniformValue("hasVertexColors", false);
@@ -6132,8 +6127,8 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 		if (useWireShaderT)
 		{
 			RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
-			_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl._viewMatrix);
-			_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
+			_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
+			_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
 			_renderCtrl.wireframeShader()->setUniformValue("isWireframePass",  true);
 			// Pass-level defaults: renderWireframeFast only uploads when non-default.
 			_renderCtrl.wireframeShader()->setUniformValue("hasVertexColors", false);
@@ -6174,8 +6169,8 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		glLineWidth(1.75f);
 		RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
-		_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl._viewMatrix);
-		_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
+		_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
+		_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
 		_renderCtrl.wireframeShader()->setUniformValue("isWireframePass",  false);
 		_renderCtrl.wireframeShader()->setUniformValue("hasVertexColors", false);
 		_renderCtrl.wireframeShader()->setUniformValue("hasAlbedoMap",    false);
@@ -6228,8 +6223,8 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		glLineWidth(1.5f);
 		RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
-		_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl._viewMatrix);
-		_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
+		_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
+		_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
 		_renderCtrl.wireframeShader()->setUniformValue("isWireframePass",  true);
 		_renderCtrl.wireframeShader()->setUniformValue("hasVertexColors", false);
 		_renderCtrl.wireframeShader()->setUniformValue("hasAlbedoMap",    false);
@@ -6547,7 +6542,7 @@ bool GLWidget::isMeshFullyInsideFrustum(const SceneMesh* mesh) const
 	const BoundingBox& bb = mesh->getBoundingBox();
 	for (int i = 0; i < 6; ++i)
 	{
-		const QVector4D& p = _viewCtrl._frustumPlanes[i];
+		const QVector4D& p = _viewCtrl.frustumPlane(i);
 		// Negative support point: the AABB corner LEAST inside this plane.
 		// If even this worst-case corner is on the positive (inside) side,
 		// the whole AABB is guaranteed to lie within this half-space.
@@ -6605,10 +6600,10 @@ float GLWidget::computeFullyVisibleMinMeshRadius() const
 	// (e.g. zoomed so far out the whole scene spans the viewport).
 	return (minRadius < std::numeric_limits<float>::max())
 		? minRadius
-		: _viewCtrl._boundingSphere.getRadius();
+		: _viewCtrl.boundingSphere().getRadius();
 }
 
-// Update _viewCtrl._zoomInLimit with asymmetric smoothing:
+// Update the cached zoom-in limit with asymmetric smoothing:
 //   • Decreases are applied immediately so zoom-in is never blocked.
 //   • Increases are blended gradually (factor 0.12 ≈ 10 events to reach ~72%)
 //     so the clamp creeps back rather than snapping when the focused mesh
@@ -6616,15 +6611,16 @@ float GLWidget::computeFullyVisibleMinMeshRadius() const
 void GLWidget::updateZoomInLimit()
 {
 	const float rawFloor = computeFullyVisibleMinMeshRadius();
-	if (rawFloor <= _viewCtrl._zoomInLimit)
-		_viewCtrl._zoomInLimit = rawFloor;                                          // drop: immediate
+	if (rawFloor <= _viewCtrl.zoomInLimit())
+		_viewCtrl.setZoomInLimit(rawFloor);                                         // drop: immediate
 	else
-		_viewCtrl._zoomInLimit += (rawFloor - _viewCtrl._zoomInLimit) * 0.12f;          // rise: gradual
+		_viewCtrl.setZoomInLimit(_viewCtrl.zoomInLimit()
+			+ (rawFloor - _viewCtrl.zoomInLimit()) * 0.12f);                           // rise: gradual
 }
 
 bool GLWidget::isBoundingBoxFullyClipped_X(const BoundingBox& bb) const
 {
-	const float tx = _renderCtrl.clippingXCoeff() + static_cast<float>(_viewCtrl._boundingBox.center().getX());
+	const float tx = _renderCtrl.clippingXCoeff() + static_cast<float>(_viewCtrl.boundingBox().center().getX());
 	return _renderCtrl.clippingXFlipped()
 		? static_cast<float>(bb.xMax()) < tx
 		: static_cast<float>(bb.xMin()) > tx;
@@ -6632,7 +6628,7 @@ bool GLWidget::isBoundingBoxFullyClipped_X(const BoundingBox& bb) const
 
 bool GLWidget::isBoundingBoxFullyClipped_Y(const BoundingBox& bb) const
 {
-	const float ty = _renderCtrl.clippingYCoeff() + static_cast<float>(_viewCtrl._boundingBox.center().getY());
+	const float ty = _renderCtrl.clippingYCoeff() + static_cast<float>(_viewCtrl.boundingBox().center().getY());
 	return _renderCtrl.clippingYFlipped()
 		? static_cast<float>(bb.yMax()) < ty
 		: static_cast<float>(bb.yMin()) > ty;
@@ -6640,7 +6636,7 @@ bool GLWidget::isBoundingBoxFullyClipped_Y(const BoundingBox& bb) const
 
 bool GLWidget::isBoundingBoxFullyClipped_Z(const BoundingBox& bb) const
 {
-	const float tz = _renderCtrl.clippingZCoeff() + static_cast<float>(_viewCtrl._boundingBox.center().getZ());
+	const float tz = _renderCtrl.clippingZCoeff() + static_cast<float>(_viewCtrl.boundingBox().center().getZ());
 	return _renderCtrl.clippingZFlipped()
 		? static_cast<float>(bb.zMax()) < tz
 		: static_cast<float>(bb.zMin()) > tz;
@@ -6663,7 +6659,7 @@ bool GLWidget::isMeshFullyClipped_Z(const SceneMesh* mesh) const
 
 bool GLWidget::isBoundingBoxFullyKept_X(const BoundingBox& bb) const
 {
-	const float tx = _renderCtrl.clippingXCoeff() + static_cast<float>(_viewCtrl._boundingBox.center().getX());
+	const float tx = _renderCtrl.clippingXCoeff() + static_cast<float>(_viewCtrl.boundingBox().center().getX());
 	return _renderCtrl.clippingXFlipped()
 		? static_cast<float>(bb.xMin()) >= tx
 		: static_cast<float>(bb.xMax()) <= tx;
@@ -6671,7 +6667,7 @@ bool GLWidget::isBoundingBoxFullyKept_X(const BoundingBox& bb) const
 
 bool GLWidget::isBoundingBoxFullyKept_Y(const BoundingBox& bb) const
 {
-	const float ty = _renderCtrl.clippingYCoeff() + static_cast<float>(_viewCtrl._boundingBox.center().getY());
+	const float ty = _renderCtrl.clippingYCoeff() + static_cast<float>(_viewCtrl.boundingBox().center().getY());
 	return _renderCtrl.clippingYFlipped()
 		? static_cast<float>(bb.yMin()) >= ty
 		: static_cast<float>(bb.yMax()) <= ty;
@@ -6679,7 +6675,7 @@ bool GLWidget::isBoundingBoxFullyKept_Y(const BoundingBox& bb) const
 
 bool GLWidget::isBoundingBoxFullyKept_Z(const BoundingBox& bb) const
 {
-	const float tz = _renderCtrl.clippingZCoeff() + static_cast<float>(_viewCtrl._boundingBox.center().getZ());
+	const float tz = _renderCtrl.clippingZCoeff() + static_cast<float>(_viewCtrl.boundingBox().center().getZ());
 	return _renderCtrl.clippingZFlipped()
 		? static_cast<float>(bb.zMin()) >= tz
 		: static_cast<float>(bb.zMax()) <= tz;
@@ -6865,12 +6861,12 @@ void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 
 	prog->setUniformValue("lightSource.position",
 		shaderLightPos);
-	prog->setUniformValue("modelViewMatrix", _viewCtrl._modelViewMatrix);
-	prog->setUniformValue("normalMatrix", _viewCtrl._modelViewMatrix.normalMatrix());
+	prog->setUniformValue("modelViewMatrix", _viewCtrl.modelViewMatrix());
+	prog->setUniformValue("normalMatrix", _viewCtrl.modelViewMatrix().normalMatrix());
 	const QMatrix4x4 projMatrix = camera->getProjectionMatrix();
 	prog->setUniformValue("projectionMatrix", projMatrix);
 	prog->setUniformValue("inverseProjectionMatrix", projMatrix.inverted());
-	prog->setUniformValue("viewportMatrix", _viewCtrl._viewportMatrix);
+	prog->setUniformValue("viewportMatrix", _viewCtrl.viewportMatrix());
 
 	const QVector3D worldUp = currentWorldUpVector();
 	QVector3D viewDir = _primaryCamera->getViewDir();
@@ -6885,8 +6881,8 @@ void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 	prog->setUniformValue("cameraDir", camDir);
 	prog->setUniformValue("lightPos",
 		shaderLightPos);
-	RenderableMesh::setCurrentRenderContext(_viewCtrl._modelMatrix, camera->getViewMatrix());
-	prog->setUniformValue("modelMatrix", _viewCtrl._modelMatrix);
+	RenderableMesh::setCurrentRenderContext(_viewCtrl.modelMatrix(), camera->getViewMatrix());
+	prog->setUniformValue("modelMatrix", _viewCtrl.modelMatrix());
 	prog->setUniformValue("viewMatrix", camera->getViewMatrix());
 	prog->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
 	prog->setUniformValue("lightFarPlane", _renderCtrl.shadowFarDist());
@@ -7051,11 +7047,11 @@ void GLWidget::drawSectionCapping()
 	QVector3D pos = _primaryCamera->getRenderPosition();
 
 	_renderCtrl.clippedMeshShader()->setUniformValue("clipPlaneX", QVector4D(_viewCtrl.modelViewMatrix().map(QVector3D(_renderCtrl.clippingXFlipped() ? 1 : -1, 0, 0) + pos),
-		(_renderCtrl.clippingXFlipped() ? 1 : -1) * (pos.x() - (_renderCtrl.clippingXCoeff() + _viewCtrl._boundingBox.center().getX()))));
+		(_renderCtrl.clippingXFlipped() ? 1 : -1) * (pos.x() - (_renderCtrl.clippingXCoeff() + _viewCtrl.boundingBox().center().getX()))));
 	_renderCtrl.clippedMeshShader()->setUniformValue("clipPlaneY", QVector4D(_viewCtrl.modelViewMatrix().map(QVector3D(0, _renderCtrl.clippingYFlipped() ? 1 : -1, 0) + pos),
-		(_renderCtrl.clippingYFlipped() ? 1 : -1) * (pos.y() - (_renderCtrl.clippingYCoeff() + _viewCtrl._boundingBox.center().getY()))));
+		(_renderCtrl.clippingYFlipped() ? 1 : -1) * (pos.y() - (_renderCtrl.clippingYCoeff() + _viewCtrl.boundingBox().center().getY()))));
 	_renderCtrl.clippedMeshShader()->setUniformValue("clipPlaneZ", QVector4D(_viewCtrl.modelViewMatrix().map(QVector3D(0, 0, _renderCtrl.clippingZFlipped() ? 1 : -1) + pos),
-		(_renderCtrl.clippingZFlipped() ? 1 : -1) * (pos.z() - (_renderCtrl.clippingZCoeff() + _viewCtrl._boundingBox.center().getZ()))));
+		(_renderCtrl.clippingZFlipped() ? 1 : -1) * (pos.z() - (_renderCtrl.clippingZCoeff() + _viewCtrl.boundingBox().center().getZ()))));
 	_renderCtrl.clippedMeshShader()->setUniformValue("clipPlane", QVector4D(_viewCtrl.modelViewMatrix().map(QVector3D(_renderCtrl.clipDX(), _renderCtrl.clipDY(), _renderCtrl.clipDZ()) + pos),
 		pos.x() * _renderCtrl.clipDX() + pos.y() * _renderCtrl.clipDY() + pos.z() * _renderCtrl.clipDZ()));
 
@@ -7124,7 +7120,7 @@ void GLWidget::drawSectionCapping()
 		// drawCappingPlane
 		{
 			QMatrix4x4 model;
-			Point P = _viewCtrl._boundingBox.center();
+			Point P = _viewCtrl.boundingBox().center();
 
 			_renderCtrl.clippingPlaneShader()->bind();
 			_renderCtrl.clippingPlaneShader()->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
@@ -7143,7 +7139,7 @@ void GLWidget::drawSectionCapping()
 			bool wantFlipV = false/* read from UI or stored flag */;
 
 			// Pick a consistent density: e.g., ~3 tiles across the model diagonal
-			const float sceneDiag = _viewCtrl._boundingBox.boundingRadius() * 2.0f;
+			const float sceneDiag = _viewCtrl.boundingBox().boundingRadius() * 2.0f;
 			const float tilesAcross = wantTexture ? 3.0f : _hatchTiling;
 			const float worldUnitsPerTile = sceneDiag / tilesAcross;
 
@@ -7238,7 +7234,7 @@ void GLWidget::drawVertexNormals()
 	QVector3D pos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(_renderCtrl.vertexNormalShader(), pos);
     const float normalMagnitude =
-        std::max(std::max(_viewCtrl._boundingSphere.getRadius() * 0.02f, _viewCtrl.viewRange() * 0.01f), 0.001f);
+        std::max(std::max(_viewCtrl.boundingSphere().getRadius() * 0.02f, _viewCtrl.viewRange() * 0.01f), 0.001f);
     _renderCtrl.vertexNormalShader()->setUniformValue("normalMagnitude", normalMagnitude);
 
 	if (_sceneRuntime.meshStore().size() != 0)
@@ -7262,7 +7258,7 @@ void GLWidget::drawFaceNormals()
 	QVector3D pos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(_renderCtrl.faceNormalShader(), pos);
     const float normalMagnitude =
-        std::max(std::max(_viewCtrl._boundingSphere.getRadius() * 0.02f, _viewCtrl.viewRange() * 0.01f), 0.001f);
+        std::max(std::max(_viewCtrl.boundingSphere().getRadius() * 0.02f, _viewCtrl.viewRange() * 0.01f), 0.001f);
     _renderCtrl.faceNormalShader()->setUniformValue("normalMagnitude", normalMagnitude);
 
 	if (_sceneRuntime.meshStore().size() != 0)
@@ -7464,7 +7460,7 @@ void GLWidget::drawAxis(GLCamera* camera)
 
 void GLWidget::drawTransformGizmo(GLCamera* camera)
 {
-	if (!_transformGizmo || !_viewCtrl._transformGizmoRequested)
+	if (!_transformGizmo || !_viewCtrl.transformGizmoRequested())
 		return;
 
 	syncTransformGizmoToSelection();
@@ -7474,7 +7470,7 @@ void GLWidget::drawTransformGizmo(GLCamera* camera)
 	const BoundingSphere selectionSphere = computeTransformGizmoSelectionSphere();
 	const float selectionRadius = selectionSphere.getRadius() > 0.0f
 		? selectionSphere.getRadius()
-		: _viewCtrl._boundingSphere.getRadius();
+		: _viewCtrl.boundingSphere().getRadius();
 	const float fallbackScale = (std::max)(selectionRadius * 0.9f, 0.01f);
 	_transformGizmo->render(_renderCtrl.axisShader(), _axisCone, camera, _viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(), fallbackScale);
 }
@@ -7600,13 +7596,13 @@ void GLWidget::syncTransformGizmoToSelection()
 	if (!_transformGizmo)
 		return;
 
-	if (!_viewCtrl._transformGizmoRequested || !_viewer)
+	if (!_viewCtrl.transformGizmoRequested() || !_viewer)
 	{
-		if (_viewCtrl._transformGizmoTranslating)
+		if (_viewCtrl.transformGizmoTranslating())
 			finishTransformGizmoTranslationDrag(false);
-		if (_viewCtrl._transformGizmoScaling)
+		if (_viewCtrl.transformGizmoScaling())
 			finishTransformGizmoScaleDrag(false);
-		if (_viewCtrl._transformGizmoRotating)
+		if (_viewCtrl.transformGizmoRotating())
 			finishTransformGizmoRotationDrag(false);
 		_transformGizmo->setVisible(false);
 		return;
@@ -7615,18 +7611,18 @@ void GLWidget::syncTransformGizmoToSelection()
 	const std::vector<int> selectedIds = activeTransformGizmoSelectionIds();
 	if (selectedIds.empty())
 	{
-		if (_viewCtrl._transformGizmoTranslating)
+		if (_viewCtrl.transformGizmoTranslating())
 			finishTransformGizmoTranslationDrag(false);
-		if (_viewCtrl._transformGizmoScaling)
+		if (_viewCtrl.transformGizmoScaling())
 			finishTransformGizmoScaleDrag(false);
-		if (_viewCtrl._transformGizmoRotating)
+		if (_viewCtrl.transformGizmoRotating())
 			finishTransformGizmoRotationDrag(false);
 		_transformGizmo->setVisible(false);
 		return;
 	}
 
-	if (_viewCtrl._transformGizmoRotating || _viewCtrl._transformGizmoScaling)
-		_transformGizmo->setPivot(_viewCtrl._transformGizmoStartPivot);
+	if (_viewCtrl.transformGizmoRotating() || _viewCtrl.transformGizmoScaling())
+		_transformGizmo->setPivot(_viewCtrl.transformGizmoStartPivot());
 	else
 		_transformGizmo->setPivot(computeTransformGizmoPivot());
 	_transformGizmo->setVisible(true);
@@ -7653,7 +7649,7 @@ bool GLWidget::beginTransformGizmoDrag(TransformGizmo::Handle handle, const QPoi
 
 bool GLWidget::beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle, const QPoint& pixel)
 {
-	if (!_viewCtrl._transformGizmoRequested || !_transformGizmo || !_viewer)
+	if (!_viewCtrl.transformGizmoRequested() || !_transformGizmo || !_viewer)
 		return false;
 
 	QVector3D axis;
@@ -7672,25 +7668,16 @@ bool GLWidget::beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle,
 		return false;
 	}
 
-	_viewCtrl._transformGizmoTranslating = true;
-	_viewCtrl._transformGizmoScaling = false;
-	_viewCtrl._transformGizmoUniformScaling = false;
-	_viewCtrl._transformGizmoRotating = false;
-	_viewCtrl._transformGizmoDragStartPixel = pixel;
-	_viewCtrl._transformGizmoDragAxis = axis;
+	_viewCtrl.setTransformGizmoMode(true, false, false, false);
+	_viewCtrl.setTransformGizmoDragStartPixel(pixel);
+	_viewCtrl.setTransformGizmoDragAxis(axis);
 	const BoundingSphere selectionSphere = computeTransformGizmoSelectionSphere();
-	_viewCtrl._transformGizmoStartPivot = selectionSphere.getCenter();
+	_viewCtrl.setTransformGizmoStartPivot(selectionSphere.getCenter());
 	const float selectionRadius = selectionSphere.getRadius() > 0.0f
 		? selectionSphere.getRadius()
-		: _viewCtrl._boundingSphere.getRadius();
-	_viewCtrl._transformGizmoDragScale = (std::max)(selectionRadius * 0.9f, 0.01f);
-	_viewCtrl._transformGizmoStartStates.clear();
-	_viewCtrl._transformGizmoStartCenters.clear();
-	_viewCtrl._transformGizmoStartMatrices.clear();
-	_viewCtrl._transformGizmoCurrentTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
-	_viewCtrl._transformGizmoCurrentScaleDelta = QVector3D(1.0f, 1.0f, 1.0f);
-	_viewCtrl._transformGizmoCurrentRotationDelta = QVector3D(0.0f, 0.0f, 0.0f);
-	_viewCtrl._transformGizmoLoggedTranslationUpdate = false;
+		: _viewCtrl.boundingSphere().getRadius();
+	_viewCtrl.setTransformGizmoDragScale((std::max)(selectionRadius * 0.9f, 0.01f));
+	_viewCtrl.resetTransformGizmoDragSession();
 	if (_explodedViewCtrl.isManualPlacementActive())
 		_explodedViewCtrl.setManualDragStartTranslationDelta(_explodedViewCtrl.manualSessionTranslationDelta());
 
@@ -7701,15 +7688,15 @@ bool GLWidget::beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle,
 
 		if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
 		{
-			_viewCtrl._transformGizmoStartStates[id] = _explodedViewCtrl.isManualPlacementActive()
+			_viewCtrl.transformGizmoStartStates()[id] = _explodedViewCtrl.isManualPlacementActive()
 				? ExplodedViewRuntimeController::explodedViewTransformState(mesh)
 				: TransformState(
 					mesh->getTranslation(),
 					mesh->getRotation(),
 					mesh->getScaling(),
 					mesh->getRotationQuaternion());
-			_viewCtrl._transformGizmoStartCenters[id] = mesh->getBoundingSphere().getCenter();
-			_viewCtrl._transformGizmoStartMatrices[id] = _explodedViewCtrl.isManualPlacementActive()
+			_viewCtrl.transformGizmoStartCenters()[id] = mesh->getBoundingSphere().getCenter();
+			_viewCtrl.transformGizmoStartMatrices()[id] = _explodedViewCtrl.isManualPlacementActive()
 				? ExplodedViewRuntimeController::explodedViewTransformMatrix(mesh)
 				: mesh->getTransformation();
 		}
@@ -7720,12 +7707,12 @@ bool GLWidget::beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle,
 		_viewer->objectTransformPanel->setTranslationValues(QVector3D(0.0f, 0.0f, 0.0f));
 	}
 
-	return !_viewCtrl._transformGizmoStartStates.isEmpty();
+	return !_viewCtrl.transformGizmoStartStates().isEmpty();
 }
 
 void GLWidget::updateTransformGizmoTranslationDrag(const QPoint& pixel)
 {
-	if (!_viewCtrl._transformGizmoTranslating || !_viewer || _viewCtrl._transformGizmoStartStates.isEmpty())
+	if (!_viewCtrl.transformGizmoTranslating() || !_viewer || _viewCtrl.transformGizmoStartStates().isEmpty())
 		return;
 
 	const QRect viewport = getViewportFromPoint(pixel);
@@ -7735,8 +7722,9 @@ void GLWidget::updateTransformGizmoTranslationDrag(const QPoint& pixel)
 
 	const QMatrix4x4 viewMatrix = camera->getViewMatrix();
 	const QMatrix4x4 projectionMatrix = camera->getProjectionMatrix();
-	const QVector3D pivotScreen3 = _viewCtrl._transformGizmoStartPivot.project(viewMatrix, projectionMatrix, viewport);
-	const QVector3D axisEndWorld = _viewCtrl._transformGizmoStartPivot + (_viewCtrl._transformGizmoDragAxis * _viewCtrl._transformGizmoDragScale);
+	const QVector3D pivotScreen3 = _viewCtrl.transformGizmoStartPivot().project(viewMatrix, projectionMatrix, viewport);
+	const QVector3D axisEndWorld = _viewCtrl.transformGizmoStartPivot() +
+		(_viewCtrl.transformGizmoDragAxis() * _viewCtrl.transformGizmoDragScale());
 	const QVector3D axisEndScreen3 = axisEndWorld.project(viewMatrix, projectionMatrix, viewport);
 
 	const QVector2D pivotScreen(pivotScreen3.x(), pivotScreen3.y());
@@ -7746,13 +7734,13 @@ void GLWidget::updateTransformGizmoTranslationDrag(const QPoint& pixel)
 		return;
 
 	const QVector2D axisScreenDir = axisScreen / axisScreenLength;
-	const QVector2D mouseDelta = QVector2D(pixel.x() - _viewCtrl._transformGizmoDragStartPixel.x(),
-		_viewCtrl._transformGizmoDragStartPixel.y() - pixel.y());
+	const QVector2D mouseDelta = QVector2D(pixel.x() - _viewCtrl.transformGizmoDragStartPixel().x(),
+		_viewCtrl.transformGizmoDragStartPixel().y() - pixel.y());
 	const float projectedPixels = QVector2D::dotProduct(mouseDelta, axisScreenDir);
-	const float worldDistance = (projectedPixels / axisScreenLength) * _viewCtrl._transformGizmoDragScale;
-	_viewCtrl._transformGizmoCurrentTranslationDelta = _viewCtrl._transformGizmoDragAxis * worldDistance;
+	const float worldDistance = (projectedPixels / axisScreenLength) * _viewCtrl.transformGizmoDragScale();
+	_viewCtrl.setTransformGizmoCurrentTranslationDelta(_viewCtrl.transformGizmoDragAxis() * worldDistance);
 
-	for (auto it = _viewCtrl._transformGizmoStartStates.begin(); it != _viewCtrl._transformGizmoStartStates.end(); ++it)
+	for (auto it = _viewCtrl.transformGizmoStartStates().begin(); it != _viewCtrl.transformGizmoStartStates().end(); ++it)
 	{
 		const int id = it.key();
 		if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
@@ -7765,7 +7753,7 @@ void GLWidget::updateTransformGizmoTranslationDrag(const QPoint& pixel)
 			// instead of re-transforming all vertices (O(N)) for each mouse event.
 			if (_explodedViewCtrl.isManualPlacementActive())
 			{
-				mesh->setExplodedViewTranslationFast(startState.translation + _viewCtrl._transformGizmoCurrentTranslationDelta);
+				mesh->setExplodedViewTranslationFast(startState.translation + _viewCtrl.transformGizmoCurrentTranslationDelta());
 				if (startState.hasExactRotation)
 					mesh->setExplodedViewRotationQuaternionFast(startState.rotationQuat, startState.rotation);
 				else
@@ -7774,7 +7762,7 @@ void GLWidget::updateTransformGizmoTranslationDrag(const QPoint& pixel)
 			}
 			else
 			{
-				mesh->setTranslationFast(startState.translation + _viewCtrl._transformGizmoCurrentTranslationDelta);
+				mesh->setTranslationFast(startState.translation + _viewCtrl.transformGizmoCurrentTranslationDelta());
 				mesh->setRotationFast(startState.rotation);
 				mesh->setScalingFast(startState.scale);
 			}
@@ -7783,12 +7771,12 @@ void GLWidget::updateTransformGizmoTranslationDrag(const QPoint& pixel)
 
 	if (_viewer->tabWidgetVizAttribs->currentWidget() == _viewer->transformationsPage)
 	{
-		_viewer->objectTransformPanel->setTranslationValues(_viewCtrl._transformGizmoCurrentTranslationDelta);
+		_viewer->objectTransformPanel->setTranslationValues(_viewCtrl.transformGizmoCurrentTranslationDelta());
 	}
 	if (_explodedViewCtrl.isManualPlacementActive())
 	{
 		_explodedViewCtrl.setManualSessionTranslationDelta(
-			_explodedViewCtrl.manualDragStartTranslationDelta() + _viewCtrl._transformGizmoCurrentTranslationDelta);
+			_explodedViewCtrl.manualDragStartTranslationDelta() + _viewCtrl.transformGizmoCurrentTranslationDelta());
 		emit explodedViewManualPlacementChanged();
 	}
 
@@ -7798,18 +7786,18 @@ void GLWidget::updateTransformGizmoTranslationDrag(const QPoint& pixel)
 
 void GLWidget::finishTransformGizmoTranslationDrag(bool commit)
 {
-	if (!_viewCtrl._transformGizmoTranslating)
+	if (!_viewCtrl.transformGizmoTranslating())
 		return;
 
-	_viewCtrl._transformGizmoTranslating = false;
+	_viewCtrl.setTransformGizmoTranslating(false);
 
-	if (!_viewer || _viewCtrl._transformGizmoStartStates.isEmpty())
+	if (!_viewer || _viewCtrl.transformGizmoStartStates().isEmpty())
 		return;
 
 	QMap<QUuid, TransformState> oldStatesByUuid;
 	QMap<QUuid, TransformState> newStatesByUuid;
 
-	for (auto it = _viewCtrl._transformGizmoStartStates.begin(); it != _viewCtrl._transformGizmoStartStates.end(); ++it)
+	for (auto it = _viewCtrl.transformGizmoStartStates().begin(); it != _viewCtrl.transformGizmoStartStates().end(); ++it)
 	{
 		const int id = it.key();
 		if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
@@ -7833,7 +7821,7 @@ void GLWidget::finishTransformGizmoTranslationDrag(bool commit)
 				mesh->getRotationQuaternion()));
 	}
 
-	const bool moved = _viewCtrl._transformGizmoCurrentTranslationDelta.lengthSquared() > 1.0e-8f;
+	const bool moved = _viewCtrl.transformGizmoCurrentTranslationDelta().lengthSquared() > 1.0e-8f;
 
 	if (_explodedViewCtrl.isManualPlacementActive())
 	{
@@ -7860,7 +7848,7 @@ void GLWidget::finishTransformGizmoTranslationDrag(bool commit)
 	}
 	else
 	{
-		for (auto it = _viewCtrl._transformGizmoStartStates.begin(); it != _viewCtrl._transformGizmoStartStates.end(); ++it)
+		for (auto it = _viewCtrl.transformGizmoStartStates().begin(); it != _viewCtrl.transformGizmoStartStates().end(); ++it)
 		{
 			const int id = it.key();
 			if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
@@ -7885,17 +7873,13 @@ void GLWidget::finishTransformGizmoTranslationDrag(bool commit)
 		update();
 	}
 
-	_viewCtrl._transformGizmoStartStates.clear();
-	_viewCtrl._transformGizmoStartCenters.clear();
-	_viewCtrl._transformGizmoStartMatrices.clear();
-	_viewCtrl._transformGizmoCurrentTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
-	_viewCtrl._transformGizmoLoggedTranslationUpdate = false;
+	_viewCtrl.resetTransformGizmoDragSession();
 	_viewer->updateTransformationValues();
 }
 
 bool GLWidget::beginTransformGizmoScaleDrag(TransformGizmo::Handle handle, const QPoint& pixel, bool uniformScale)
 {
-	if (!_viewCtrl._transformGizmoRequested || !_transformGizmo || !_viewer)
+	if (!_viewCtrl.transformGizmoRequested() || !_transformGizmo || !_viewer)
 		return false;
 	if (_explodedViewCtrl.isManualPlacementActive())
 		return false;
@@ -7919,24 +7903,16 @@ bool GLWidget::beginTransformGizmoScaleDrag(TransformGizmo::Handle handle, const
 		return false;
 	}
 
-	_viewCtrl._transformGizmoScaling = true;
-	_viewCtrl._transformGizmoUniformScaling = uniformScale;
-	_viewCtrl._transformGizmoTranslating = false;
-	_viewCtrl._transformGizmoRotating = false;
-	_viewCtrl._transformGizmoDragStartPixel = pixel;
-	_viewCtrl._transformGizmoDragAxis = axis;
+	_viewCtrl.setTransformGizmoMode(false, true, uniformScale, false);
+	_viewCtrl.setTransformGizmoDragStartPixel(pixel);
+	_viewCtrl.setTransformGizmoDragAxis(axis);
 	const BoundingSphere selectionSphere = computeTransformGizmoSelectionSphere();
-	_viewCtrl._transformGizmoStartPivot = selectionSphere.getCenter();
+	_viewCtrl.setTransformGizmoStartPivot(selectionSphere.getCenter());
 	const float selectionRadius = selectionSphere.getRadius() > 0.0f
 		? selectionSphere.getRadius()
-		: _viewCtrl._boundingSphere.getRadius();
-	_viewCtrl._transformGizmoDragScale = (std::max)(selectionRadius * 0.9f, 0.01f);
-	_viewCtrl._transformGizmoStartStates.clear();
-	_viewCtrl._transformGizmoStartCenters.clear();
-	_viewCtrl._transformGizmoStartMatrices.clear();
-	_viewCtrl._transformGizmoCurrentTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
-	_viewCtrl._transformGizmoCurrentScaleDelta = QVector3D(1.0f, 1.0f, 1.0f);
-	_viewCtrl._transformGizmoCurrentRotationDelta = QVector3D(0.0f, 0.0f, 0.0f);
+		: _viewCtrl.boundingSphere().getRadius();
+	_viewCtrl.setTransformGizmoDragScale((std::max)(selectionRadius * 0.9f, 0.01f));
+	_viewCtrl.resetTransformGizmoDragSession();
 
 	for (int id : activeTransformGizmoSelectionIds())
 	{
@@ -7945,15 +7921,15 @@ bool GLWidget::beginTransformGizmoScaleDrag(TransformGizmo::Handle handle, const
 
 		if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
 		{
-			_viewCtrl._transformGizmoStartStates[id] = _explodedViewCtrl.isManualPlacementActive()
+			_viewCtrl.transformGizmoStartStates()[id] = _explodedViewCtrl.isManualPlacementActive()
 				? ExplodedViewRuntimeController::explodedViewTransformState(mesh)
 				: TransformState(
 					mesh->getTranslation(),
 					mesh->getRotation(),
 					mesh->getScaling(),
 					mesh->getRotationQuaternion());
-			_viewCtrl._transformGizmoStartCenters[id] = mesh->getBoundingSphere().getCenter();
-			_viewCtrl._transformGizmoStartMatrices[id] = _explodedViewCtrl.isManualPlacementActive()
+			_viewCtrl.transformGizmoStartCenters()[id] = mesh->getBoundingSphere().getCenter();
+			_viewCtrl.transformGizmoStartMatrices()[id] = _explodedViewCtrl.isManualPlacementActive()
 				? ExplodedViewRuntimeController::explodedViewTransformMatrix(mesh)
 				: mesh->getTransformation();
 		}
@@ -7964,12 +7940,12 @@ bool GLWidget::beginTransformGizmoScaleDrag(TransformGizmo::Handle handle, const
 		_viewer->objectTransformPanel->setScaleValues(QVector3D(1.0f, 1.0f, 1.0f));
 	}
 
-	return !_viewCtrl._transformGizmoStartStates.isEmpty();
+	return !_viewCtrl.transformGizmoStartStates().isEmpty();
 }
 
 void GLWidget::updateTransformGizmoScaleDrag(const QPoint& pixel)
 {
-	if (!_viewCtrl._transformGizmoScaling || !_viewer || _viewCtrl._transformGizmoStartStates.isEmpty())
+	if (!_viewCtrl.transformGizmoScaling() || !_viewer || _viewCtrl.transformGizmoStartStates().isEmpty())
 		return;
 
 	const QRect viewport = getViewportFromPoint(pixel);
@@ -7979,8 +7955,9 @@ void GLWidget::updateTransformGizmoScaleDrag(const QPoint& pixel)
 
 	const QMatrix4x4 viewMatrix = camera->getViewMatrix();
 	const QMatrix4x4 projectionMatrix = camera->getProjectionMatrix();
-	const QVector3D pivotScreen3 = _viewCtrl._transformGizmoStartPivot.project(viewMatrix, projectionMatrix, viewport);
-	const QVector3D axisEndWorld = _viewCtrl._transformGizmoStartPivot + (_viewCtrl._transformGizmoDragAxis * _viewCtrl._transformGizmoDragScale);
+	const QVector3D pivotScreen3 = _viewCtrl.transformGizmoStartPivot().project(viewMatrix, projectionMatrix, viewport);
+	const QVector3D axisEndWorld = _viewCtrl.transformGizmoStartPivot() +
+		(_viewCtrl.transformGizmoDragAxis() * _viewCtrl.transformGizmoDragScale());
 	const QVector3D axisEndScreen3 = axisEndWorld.project(viewMatrix, projectionMatrix, viewport);
 
 	const QVector2D pivotScreen(pivotScreen3.x(), pivotScreen3.y());
@@ -7990,29 +7967,29 @@ void GLWidget::updateTransformGizmoScaleDrag(const QPoint& pixel)
 		return;
 
 	const QVector2D axisScreenDir = axisScreen / axisScreenLength;
-	const QVector2D mouseDelta = QVector2D(pixel.x() - _viewCtrl._transformGizmoDragStartPixel.x(),
-		_viewCtrl._transformGizmoDragStartPixel.y() - pixel.y());
+	const QVector2D mouseDelta = QVector2D(pixel.x() - _viewCtrl.transformGizmoDragStartPixel().x(),
+		_viewCtrl.transformGizmoDragStartPixel().y() - pixel.y());
 	const float projectedPixels = QVector2D::dotProduct(mouseDelta, axisScreenDir);
 	const float uniformFactor = (std::max)(0.01f, 1.0f + (projectedPixels / axisScreenLength));
 
-	if (_viewCtrl._transformGizmoUniformScaling)
+	if (_viewCtrl.transformGizmoUniformScaling())
 	{
-		_viewCtrl._transformGizmoCurrentScaleDelta = QVector3D(uniformFactor, uniformFactor, uniformFactor);
+		_viewCtrl.setTransformGizmoCurrentScaleDelta(QVector3D(uniformFactor, uniformFactor, uniformFactor));
 	}
-	else if (_viewCtrl._transformGizmoDragAxis.x() > 0.5f)
+	else if (_viewCtrl.transformGizmoDragAxis().x() > 0.5f)
 	{
-		_viewCtrl._transformGizmoCurrentScaleDelta = QVector3D(uniformFactor, 1.0f, 1.0f);
+		_viewCtrl.setTransformGizmoCurrentScaleDelta(QVector3D(uniformFactor, 1.0f, 1.0f));
 	}
-	else if (_viewCtrl._transformGizmoDragAxis.y() > 0.5f)
+	else if (_viewCtrl.transformGizmoDragAxis().y() > 0.5f)
 	{
-		_viewCtrl._transformGizmoCurrentScaleDelta = QVector3D(1.0f, uniformFactor, 1.0f);
+		_viewCtrl.setTransformGizmoCurrentScaleDelta(QVector3D(1.0f, uniformFactor, 1.0f));
 	}
 	else
 	{
-		_viewCtrl._transformGizmoCurrentScaleDelta = QVector3D(1.0f, 1.0f, uniformFactor);
+		_viewCtrl.setTransformGizmoCurrentScaleDelta(QVector3D(1.0f, 1.0f, uniformFactor));
 	}
 
-	for (auto it = _viewCtrl._transformGizmoStartStates.begin(); it != _viewCtrl._transformGizmoStartStates.end(); ++it)
+	for (auto it = _viewCtrl.transformGizmoStartStates().begin(); it != _viewCtrl.transformGizmoStartStates().end(); ++it)
 	{
 		const int id = it.key();
 		if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
@@ -8024,28 +8001,28 @@ void GLWidget::updateTransformGizmoScaleDrag(const QPoint& pixel)
 			QVector3D scaledTranslation = startState.translation;
 			QVector3D scaledScale = startState.scale;
 
-			if (_viewCtrl._transformGizmoUniformScaling)
+			if (_viewCtrl.transformGizmoUniformScaling())
 			{
-				scaledTranslation = _viewCtrl._transformGizmoStartPivot +
-					(startState.translation - _viewCtrl._transformGizmoStartPivot) * uniformFactor;
+				scaledTranslation = _viewCtrl.transformGizmoStartPivot() +
+					(startState.translation - _viewCtrl.transformGizmoStartPivot()) * uniformFactor;
 				scaledScale = startState.scale * uniformFactor;
 			}
-			else if (_viewCtrl._transformGizmoDragAxis.x() > 0.5f)
+			else if (_viewCtrl.transformGizmoDragAxis().x() > 0.5f)
 			{
-				scaledTranslation.setX(_viewCtrl._transformGizmoStartPivot.x() +
-					(startState.translation.x() - _viewCtrl._transformGizmoStartPivot.x()) * uniformFactor);
+				scaledTranslation.setX(_viewCtrl.transformGizmoStartPivot().x() +
+					(startState.translation.x() - _viewCtrl.transformGizmoStartPivot().x()) * uniformFactor);
 				scaledScale.setX(startState.scale.x() * uniformFactor);
 			}
-			else if (_viewCtrl._transformGizmoDragAxis.y() > 0.5f)
+			else if (_viewCtrl.transformGizmoDragAxis().y() > 0.5f)
 			{
-				scaledTranslation.setY(_viewCtrl._transformGizmoStartPivot.y() +
-					(startState.translation.y() - _viewCtrl._transformGizmoStartPivot.y()) * uniformFactor);
+				scaledTranslation.setY(_viewCtrl.transformGizmoStartPivot().y() +
+					(startState.translation.y() - _viewCtrl.transformGizmoStartPivot().y()) * uniformFactor);
 				scaledScale.setY(startState.scale.y() * uniformFactor);
 			}
 			else
 			{
-				scaledTranslation.setZ(_viewCtrl._transformGizmoStartPivot.z() +
-					(startState.translation.z() - _viewCtrl._transformGizmoStartPivot.z()) * uniformFactor);
+				scaledTranslation.setZ(_viewCtrl.transformGizmoStartPivot().z() +
+					(startState.translation.z() - _viewCtrl.transformGizmoStartPivot().z()) * uniformFactor);
 				scaledScale.setZ(startState.scale.z() * uniformFactor);
 			}
 
@@ -8060,7 +8037,7 @@ void GLWidget::updateTransformGizmoScaleDrag(const QPoint& pixel)
 
 	if (_viewer->tabWidgetVizAttribs->currentWidget() == _viewer->transformationsPage)
 	{
-		_viewer->objectTransformPanel->setScaleValues(_viewCtrl._transformGizmoCurrentScaleDelta);
+		_viewer->objectTransformPanel->setScaleValues(_viewCtrl.transformGizmoCurrentScaleDelta());
 	}
 
 	_renderCtrl.setShadowMapNeedsInitialization(true);
@@ -8069,19 +8046,19 @@ void GLWidget::updateTransformGizmoScaleDrag(const QPoint& pixel)
 
 void GLWidget::finishTransformGizmoScaleDrag(bool commit)
 {
-	if (!_viewCtrl._transformGizmoScaling)
+	if (!_viewCtrl.transformGizmoScaling())
 		return;
 
-	_viewCtrl._transformGizmoScaling = false;
-	_viewCtrl._transformGizmoUniformScaling = false;
+	_viewCtrl.setTransformGizmoScaling(false);
+	_viewCtrl.setTransformGizmoUniformScaling(false);
 
-	if (!_viewer || _viewCtrl._transformGizmoStartStates.isEmpty())
+	if (!_viewer || _viewCtrl.transformGizmoStartStates().isEmpty())
 		return;
 
 	QMap<QUuid, TransformState> oldStatesByUuid;
 	QMap<QUuid, TransformState> newStatesByUuid;
 
-	for (auto it = _viewCtrl._transformGizmoStartStates.begin(); it != _viewCtrl._transformGizmoStartStates.end(); ++it)
+	for (auto it = _viewCtrl.transformGizmoStartStates().begin(); it != _viewCtrl.transformGizmoStartStates().end(); ++it)
 	{
 		const int id = it.key();
 		if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
@@ -8103,7 +8080,7 @@ void GLWidget::finishTransformGizmoScaleDrag(bool commit)
 			mesh->getRotationQuaternion()));
 	}
 
-	const QVector3D scaleDelta = _viewCtrl._transformGizmoCurrentScaleDelta - QVector3D(1.0f, 1.0f, 1.0f);
+	const QVector3D scaleDelta = _viewCtrl.transformGizmoCurrentScaleDelta() - QVector3D(1.0f, 1.0f, 1.0f);
 	const bool scaled = scaleDelta.lengthSquared() > 1.0e-8f;
 
 	if (_explodedViewCtrl.isManualPlacementActive())
@@ -8117,7 +8094,7 @@ void GLWidget::finishTransformGizmoScaleDrag(bool commit)
 	}
 	else
 	{
-		for (auto it = _viewCtrl._transformGizmoStartStates.begin(); it != _viewCtrl._transformGizmoStartStates.end(); ++it)
+		for (auto it = _viewCtrl.transformGizmoStartStates().begin(); it != _viewCtrl.transformGizmoStartStates().end(); ++it)
 		{
 			const int id = it.key();
 			if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
@@ -8137,16 +8114,13 @@ void GLWidget::finishTransformGizmoScaleDrag(bool commit)
 		update();
 	}
 
-	_viewCtrl._transformGizmoStartStates.clear();
-	_viewCtrl._transformGizmoStartCenters.clear();
-	_viewCtrl._transformGizmoStartMatrices.clear();
-	_viewCtrl._transformGizmoCurrentScaleDelta = QVector3D(1.0f, 1.0f, 1.0f);
+	_viewCtrl.resetTransformGizmoDragSession();
 	_viewer->updateTransformationValues();
 }
 
 bool GLWidget::beginTransformGizmoRotationDrag(TransformGizmo::Handle handle, const QPoint& pixel)
 {
-	if (!_viewCtrl._transformGizmoRequested || !_transformGizmo || !_viewer)
+	if (!_viewCtrl.transformGizmoRequested() || !_transformGizmo || !_viewer)
 		return false;
 
 	QVector3D axis;
@@ -8186,20 +8160,12 @@ bool GLWidget::beginTransformGizmoRotationDrag(TransformGizmo::Handle handle, co
 		return false;
 	startVector.normalize();
 
-	_viewCtrl._transformGizmoRotating = true;
-	_viewCtrl._transformGizmoScaling = false;
-	_viewCtrl._transformGizmoUniformScaling = false;
-	_viewCtrl._transformGizmoTranslating = false;
-	_viewCtrl._transformGizmoDragStartPixel = pixel;
-	_viewCtrl._transformGizmoRotationPlaneNormal = axis;
-	_viewCtrl._transformGizmoRotationStartVector = startVector;
-	_viewCtrl._transformGizmoStartPivot = pivot;
-	_viewCtrl._transformGizmoStartStates.clear();
-	_viewCtrl._transformGizmoStartCenters.clear();
-	_viewCtrl._transformGizmoStartMatrices.clear();
-	_viewCtrl._transformGizmoCurrentRotationDelta = QVector3D(0.0f, 0.0f, 0.0f);
-	_viewCtrl._transformGizmoCurrentTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
-	_viewCtrl._transformGizmoCurrentScaleDelta = QVector3D(1.0f, 1.0f, 1.0f);
+	_viewCtrl.setTransformGizmoMode(false, false, false, true);
+	_viewCtrl.setTransformGizmoDragStartPixel(pixel);
+	_viewCtrl.setTransformGizmoRotationPlaneNormal(axis);
+	_viewCtrl.setTransformGizmoRotationStartVector(startVector);
+	_viewCtrl.setTransformGizmoStartPivot(pivot);
+	_viewCtrl.resetTransformGizmoDragSession();
 	if (_explodedViewCtrl.isManualPlacementActive())
 	{
 		_explodedViewCtrl.setManualDragStartRotationQuat(_explodedViewCtrl.manualSessionRotationQuat());
@@ -8213,13 +8179,13 @@ bool GLWidget::beginTransformGizmoRotationDrag(TransformGizmo::Handle handle, co
 
 		if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
 		{
-			_viewCtrl._transformGizmoStartStates[id] = TransformState(
+			_viewCtrl.transformGizmoStartStates()[id] = TransformState(
 				mesh->getTranslation(),
 				mesh->getRotation(),
 				mesh->getScaling(),
 				mesh->getRotationQuaternion());
-			_viewCtrl._transformGizmoStartCenters[id] = mesh->getBoundingSphere().getCenter();
-			_viewCtrl._transformGizmoStartMatrices[id] = mesh->getTransformation();
+			_viewCtrl.transformGizmoStartCenters()[id] = mesh->getBoundingSphere().getCenter();
+			_viewCtrl.transformGizmoStartMatrices()[id] = mesh->getTransformation();
 		}
 	}
 
@@ -8228,12 +8194,12 @@ bool GLWidget::beginTransformGizmoRotationDrag(TransformGizmo::Handle handle, co
 		_viewer->objectTransformPanel->setRotationValues(QVector3D(0.0f, 0.0f, 0.0f));
 	}
 
-	return !_viewCtrl._transformGizmoStartStates.isEmpty();
+	return !_viewCtrl.transformGizmoStartStates().isEmpty();
 }
 
 void GLWidget::updateTransformGizmoRotationDrag(const QPoint& pixel)
 {
-	if (!_viewCtrl._transformGizmoRotating || !_viewer || _viewCtrl._transformGizmoStartStates.isEmpty())
+	if (!_viewCtrl.transformGizmoRotating() || !_viewer || _viewCtrl.transformGizmoStartStates().isEmpty())
 		return;
 
 	const QRect viewport = getViewportFromPoint(pixel);
@@ -8247,28 +8213,28 @@ void GLWidget::updateTransformGizmoRotationDrag(const QPoint& pixel)
 		return;
 
 	QVector3D hitPoint;
-	if (!ViewportInteractionController::intersectRayPlane(rayOrigin, rayDir, _viewCtrl._transformGizmoStartPivot,
-		_viewCtrl._transformGizmoRotationPlaneNormal, hitPoint))
+	if (!ViewportInteractionController::intersectRayPlane(rayOrigin, rayDir, _viewCtrl.transformGizmoStartPivot(),
+		_viewCtrl.transformGizmoRotationPlaneNormal(), hitPoint))
 		return;
 
-	QVector3D currentVector = hitPoint - _viewCtrl._transformGizmoStartPivot;
+	QVector3D currentVector = hitPoint - _viewCtrl.transformGizmoStartPivot();
 	if (currentVector.lengthSquared() <= 1.0e-8f)
 		return;
 	currentVector.normalize();
 
-	const QVector3D crossVec = QVector3D::crossProduct(_viewCtrl._transformGizmoRotationStartVector, currentVector);
-	const float sinAngle = QVector3D::dotProduct(_viewCtrl._transformGizmoRotationPlaneNormal, crossVec);
-	const float cosAngle = QVector3D::dotProduct(_viewCtrl._transformGizmoRotationStartVector, currentVector);
+	const QVector3D crossVec = QVector3D::crossProduct(_viewCtrl.transformGizmoRotationStartVector(), currentVector);
+	const float sinAngle = QVector3D::dotProduct(_viewCtrl.transformGizmoRotationPlaneNormal(), crossVec);
+	const float cosAngle = QVector3D::dotProduct(_viewCtrl.transformGizmoRotationStartVector(), currentVector);
 	const float angleDegrees = qRadiansToDegrees(std::atan2(sinAngle, cosAngle));
 
-	if (_viewCtrl._transformGizmoRotationPlaneNormal.x() > 0.5f)
-		_viewCtrl._transformGizmoCurrentRotationDelta = QVector3D(angleDegrees, 0.0f, 0.0f);
-	else if (_viewCtrl._transformGizmoRotationPlaneNormal.y() > 0.5f)
-		_viewCtrl._transformGizmoCurrentRotationDelta = QVector3D(0.0f, angleDegrees, 0.0f);
+	if (_viewCtrl.transformGizmoRotationPlaneNormal().x() > 0.5f)
+		_viewCtrl.setTransformGizmoCurrentRotationDelta(QVector3D(angleDegrees, 0.0f, 0.0f));
+	else if (_viewCtrl.transformGizmoRotationPlaneNormal().y() > 0.5f)
+		_viewCtrl.setTransformGizmoCurrentRotationDelta(QVector3D(0.0f, angleDegrees, 0.0f));
 	else
-		_viewCtrl._transformGizmoCurrentRotationDelta = QVector3D(0.0f, 0.0f, angleDegrees);
+		_viewCtrl.setTransformGizmoCurrentRotationDelta(QVector3D(0.0f, 0.0f, angleDegrees));
 
-	for (auto it = _viewCtrl._transformGizmoStartStates.begin(); it != _viewCtrl._transformGizmoStartStates.end(); ++it)
+	for (auto it = _viewCtrl.transformGizmoStartStates().begin(); it != _viewCtrl.transformGizmoStartStates().end(); ++it)
 	{
 		const int id = it.key();
 		if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
@@ -8279,14 +8245,14 @@ void GLWidget::updateTransformGizmoRotationDrag(const QPoint& pixel)
 			const TransformState& startState = it.value();
 			QMatrix4x4 deltaMatrix;
 			deltaMatrix.setToIdentity();
-			deltaMatrix.translate(_viewCtrl._transformGizmoStartPivot);
-			deltaMatrix.rotate(angleDegrees, _viewCtrl._transformGizmoRotationPlaneNormal);
-			deltaMatrix.translate(-_viewCtrl._transformGizmoStartPivot);
+			deltaMatrix.translate(_viewCtrl.transformGizmoStartPivot());
+			deltaMatrix.rotate(angleDegrees, _viewCtrl.transformGizmoRotationPlaneNormal());
+			deltaMatrix.translate(-_viewCtrl.transformGizmoStartPivot());
 
 			QMatrix4x4 rotationOnlyMatrix;
 			rotationOnlyMatrix.setToIdentity();
-			rotationOnlyMatrix.rotate(angleDegrees, _viewCtrl._transformGizmoRotationPlaneNormal);
-			const QMatrix4x4 startMatrix = _viewCtrl._transformGizmoStartMatrices.value(
+			rotationOnlyMatrix.rotate(angleDegrees, _viewCtrl.transformGizmoRotationPlaneNormal());
+			const QMatrix4x4 startMatrix = _viewCtrl.transformGizmoStartMatrices().value(
 				id, _explodedViewCtrl.isManualPlacementActive() ? mesh->getExplodedViewTransformation() : mesh->getTransformation());
 			const QMatrix4x4 combinedMatrix = deltaMatrix * startMatrix;
 			const QVector3D exactTranslation(
@@ -8320,13 +8286,13 @@ void GLWidget::updateTransformGizmoRotationDrag(const QPoint& pixel)
 
 	if (_viewer->tabWidgetVizAttribs->currentWidget() == _viewer->transformationsPage)
 	{
-		_viewer->objectTransformPanel->setRotationValues(_viewCtrl._transformGizmoCurrentRotationDelta);
+		_viewer->objectTransformPanel->setRotationValues(_viewCtrl.transformGizmoCurrentRotationDelta());
 	}
 	if (_explodedViewCtrl.isManualPlacementActive())
 	{
 		QMatrix4x4 rotationOnlyMatrix;
 		rotationOnlyMatrix.setToIdentity();
-		rotationOnlyMatrix.rotate(angleDegrees, _viewCtrl._transformGizmoRotationPlaneNormal);
+		rotationOnlyMatrix.rotate(angleDegrees, _viewCtrl.transformGizmoRotationPlaneNormal());
 		const QQuaternion deltaQuat =
 			QQuaternion::fromRotationMatrix(rotationOnlyMatrix.toGenericMatrix<3, 3>()).normalized();
 		_explodedViewCtrl.setManualSessionRotationQuat(
@@ -8346,18 +8312,18 @@ void GLWidget::updateTransformGizmoRotationDrag(const QPoint& pixel)
 
 void GLWidget::finishTransformGizmoRotationDrag(bool commit)
 {
-	if (!_viewCtrl._transformGizmoRotating)
+	if (!_viewCtrl.transformGizmoRotating())
 		return;
 
-	_viewCtrl._transformGizmoRotating = false;
+	_viewCtrl.setTransformGizmoRotating(false);
 
-	if (!_viewer || _viewCtrl._transformGizmoStartStates.isEmpty())
+	if (!_viewer || _viewCtrl.transformGizmoStartStates().isEmpty())
 		return;
 
 	QMap<QUuid, TransformState> oldStatesByUuid;
 	QMap<QUuid, TransformState> newStatesByUuid;
 
-	for (auto it = _viewCtrl._transformGizmoStartStates.begin(); it != _viewCtrl._transformGizmoStartStates.end(); ++it)
+	for (auto it = _viewCtrl.transformGizmoStartStates().begin(); it != _viewCtrl.transformGizmoStartStates().end(); ++it)
 	{
 		const int id = it.key();
 		if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
@@ -8381,7 +8347,7 @@ void GLWidget::finishTransformGizmoRotationDrag(bool commit)
 				mesh->getRotationQuaternion()));
 	}
 
-	const bool moved = _viewCtrl._transformGizmoCurrentRotationDelta.lengthSquared() > 1.0e-8f;
+	const bool moved = _viewCtrl.transformGizmoCurrentRotationDelta().lengthSquared() > 1.0e-8f;
 
 	if (_explodedViewCtrl.isManualPlacementActive())
 	{
@@ -8411,7 +8377,7 @@ void GLWidget::finishTransformGizmoRotationDrag(bool commit)
 	}
 	else
 	{
-		for (auto it = _viewCtrl._transformGizmoStartStates.begin(); it != _viewCtrl._transformGizmoStartStates.end(); ++it)
+		for (auto it = _viewCtrl.transformGizmoStartStates().begin(); it != _viewCtrl.transformGizmoStartStates().end(); ++it)
 		{
 			const int id = it.key();
 			if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
@@ -8436,10 +8402,7 @@ void GLWidget::finishTransformGizmoRotationDrag(bool commit)
 		update();
 	}
 
-	_viewCtrl._transformGizmoStartStates.clear();
-	_viewCtrl._transformGizmoStartCenters.clear();
-	_viewCtrl._transformGizmoStartMatrices.clear();
-	_viewCtrl._transformGizmoCurrentRotationDelta = QVector3D(0.0f, 0.0f, 0.0f);
+	_viewCtrl.resetTransformGizmoDragSession();
 	_viewer->updateTransformationValues();
 }
 
@@ -8473,7 +8436,7 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 	// Set the viewport for the corner axis
 	glViewport(viewportX, viewportY, axisSize, axisSize);
 
-	QMatrix4x4 mat = _viewCtrl._viewMatrix;
+	QMatrix4x4 mat = _viewCtrl.viewMatrix();
 	mat.setColumn(3, QVector4D(0, 0, 0, 1));
 	mat.setRow(3, QVector4D(0, 0, 0, 1));
 	QMatrix4x4 axisProjection;
@@ -8581,7 +8544,7 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 	_axisCone->getVAO().release();
 
 	// Y Axis
-	mat = _viewCtrl._viewMatrix;
+	mat = _viewCtrl.viewMatrix();
 	mat.setColumn(3, QVector4D(0, 0, 0, 1));
 	mat.setRow(3, QVector4D(0, 0, 0, 1));
 	mat.translate(0, axisLength, 0);
@@ -8593,7 +8556,7 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 	_axisCone->getVAO().release();
 
 	// Z Axis
-	mat = _viewCtrl._viewMatrix;
+	mat = _viewCtrl.viewMatrix();
 	mat.setColumn(3, QVector4D(0, 0, 0, 1));
 	mat.setRow(3, QVector4D(0, 0, 0, 1));
 	mat.translate(0, 0, axisLength);
@@ -8647,7 +8610,7 @@ bool GLWidget::computeViewCubeRenderState(QRect& viewportRect,
 	if (viewportRect.width() <= 0 || viewportRect.height() <= 0)
 		return false;
 
-	QMatrix4x4 viewRotation = _viewCtrl._viewMatrix;
+	QMatrix4x4 viewRotation = _viewCtrl.viewMatrix();
 	viewRotation.setColumn(3, QVector4D(0.0f, 0.0f, 0.0f, 1.0f));
 	viewRotation.setRow(3, QVector4D(0.0f, 0.0f, 0.0f, 1.0f));
 
@@ -8775,7 +8738,7 @@ bool GLWidget::orientCameraToViewCubeNormal(const QVector3D& outwardNormal)
 		const QVector3D viewDir = -targetRotationMatrix.row(2).toVector3D().normalized();
 		QVector3D projCenter;
 		_viewCtrl.setViewBoundingSphereDia(computeFitViewRange(right, up, viewDir, &projCenter));
-		_viewCtrl._boundingSphere.setCenter(projCenter);
+		_viewCtrl.setBoundingSphereCenter(projCenter);
 	}
 	else
 	{
@@ -8783,7 +8746,7 @@ bool GLWidget::orientCameraToViewCubeNormal(const QVector3D& outwardNormal)
 	}
 
 	_viewCtrl.setCustomViewAnimationActive(true);
-	_viewCtrl._slerpStep = 0.0f;
+	_viewCtrl.resetSlerpStep();
 	if (!_animateViewTimer->isActive())
 		_animateViewTimer->start(5);
 	return true;
@@ -8842,19 +8805,20 @@ bool GLWidget::pickViewCubeRegionAtPixel(const QPoint& pixel, QVector3D& outward
 
 void GLWidget::updateViewCubeHover(const QPoint& pixel, Qt::MouseButtons buttons)
 {
-	const int previousRegionId = _viewCtrl._viewCubeHoveredRegionId;
+	const int previousRegionId = _viewCtrl.viewCubeHoveredRegionId();
 	if (!_viewCtrl.showViewCubeOverride() || buttons != Qt::NoButton || !_viewCube || isGltfCameraActive() || !viewCubeScreenRect().contains(pixel))
 	{
-		_viewCtrl._viewCubeHoveredRegionId = -1;
+		_viewCtrl.setViewCubeHoveredRegionId(-1);
 	}
 	else
 	{
 		QVector3D outwardNormal;
 		int regionId = -1;
-		_viewCtrl._viewCubeHoveredRegionId = pickViewCubeRegionAtPixel(pixel, outwardNormal, &regionId) ? regionId : -1;
+		_viewCtrl.setViewCubeHoveredRegionId(
+			pickViewCubeRegionAtPixel(pixel, outwardNormal, &regionId) ? regionId : -1);
 	}
 
-	if (_viewCtrl._viewCubeHoveredRegionId != previousRegionId)
+	if (_viewCtrl.viewCubeHoveredRegionId() != previousRegionId)
 		update();
 }
 
@@ -8988,7 +8952,7 @@ void GLWidget::drawViewCube()
 		if (_viewCube->isPrimaryFaceRegion(regionId))
 			_viewCube->renderRegion(regionId);
 	}
-	if (_viewCtrl._viewCubeHoveredRegionId >= 0)
+	if (_viewCtrl.viewCubeHoveredRegionId() >= 0)
 	{
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -8996,7 +8960,7 @@ void GLWidget::drawViewCube()
 		_renderCtrl.viewCubeShader()->setUniformValue("baseColor", SceneRenderController::kViewCubeStyle.hoverFaceColor);
 		_renderCtrl.viewCubeShader()->setUniformValue("ambientStrength", SceneRenderController::kViewCubeStyle.hoverAmbient);
 		_renderCtrl.viewCubeShader()->setUniformValue("diffuseStrength", SceneRenderController::kViewCubeStyle.hoverDiffuse);
-		_viewCube->renderRegion(_viewCtrl._viewCubeHoveredRegionId);
+		_viewCube->renderRegion(_viewCtrl.viewCubeHoveredRegionId());
 		glDisable(GL_BLEND);
 		if (cullWasEnabled)
 			glEnable(GL_CULL_FACE);
@@ -9094,11 +9058,11 @@ void GLWidget::drawLights()
 	QMatrix4x4 model;
 	model.translate(effectiveWorldLightPosition());
 	_renderCtrl.lightCubeShader()->bind();
-	QMatrix4x4 viewMat = _viewCtrl._viewMatrix;	
+	QMatrix4x4 viewMat = _viewCtrl.viewMatrix();
 	_renderCtrl.lightCubeShader()->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
 	_renderCtrl.lightCubeShader()->setProperty("viewMatrix", QVariant::fromValue(viewMat));
 	_renderCtrl.lightCubeShader()->setUniformValue("viewMatrix", viewMat);
-	_renderCtrl.lightCubeShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
+	_renderCtrl.lightCubeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
 	_renderCtrl.lightCubeShader()->setUniformValue("lightColor", _diffuseLight.toVector3D());	
 	_renderCtrl.lightCubeShader()->setUniformValue("intensity", 1.0f);
 	_renderCtrl.lightCubeShader()->setUniformValue("intensityScale", 1.0f);  // Tune brightness
@@ -9108,13 +9072,13 @@ void GLWidget::drawLights()
 	// Draw punctual lights — only those whose enabled flag is set (tree checkbox AND Show Lights).
 	if (!_animCtrl.currentRepositionedLights().empty())
 	{
-		const float sceneRadius = std::max(_viewCtrl._boundingSphere.getRadius(), 0.001f);
+		const float sceneRadius = std::max(_viewCtrl.boundingSphere().getRadius(), 0.001f);
 		// Keep punctual-light spheres visually aligned with the default light cube size.
 		// The cube side is baked to sceneRadius * 0.1f, while Sphere is created with radius 1.
 		// Matching the sphere diameter to the cube side means a scale of sceneRadius * 0.05f.
 		const float pointSpotScale = sceneRadius * 0.05f;
 		const float directionalScale = pointSpotScale * 0.75f;
-		const QVector3D sceneCenter = _viewCtrl._boundingSphere.getCenter();
+		const QVector3D sceneCenter = _viewCtrl.boundingSphere().getCenter();
 
 		// Build a fast enabled-lookup from the scene graph (same path used by the GPU upload).
 		// Falls back to "all enabled" when the map is absent (legacy/MVF path).
@@ -9172,7 +9136,7 @@ void GLWidget::drawLights()
 			_renderCtrl.lightCubeShader()->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
 			_renderCtrl.lightCubeShader()->setProperty("viewMatrix", QVariant::fromValue(viewMat));
 			_renderCtrl.lightCubeShader()->setUniformValue("viewMatrix", viewMat);
-			_renderCtrl.lightCubeShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
+			_renderCtrl.lightCubeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
 			_renderCtrl.lightCubeShader()->setUniformValue("lightColor", emissiveColor);
 			_renderCtrl.lightCubeShader()->setUniformValue("intensity", 1.0f);
 			_renderCtrl.lightCubeShader()->setUniformValue("intensityScale", 1.0f);
@@ -9239,7 +9203,7 @@ void GLWidget::render(GLCamera* camera)
 	// Keep the scene radius in the camera current every frame so the ortho
 	// near/far planes always cover the full scene, including animated models
 	// whose GPU-skinned geometry extends beyond the bind-pose bounding sphere.
-	camera->setSceneRadius(_viewCtrl._boundingSphere.getRadius());
+	camera->setSceneRadius(_viewCtrl.boundingSphere().getRadius());
 	_viewCtrl.syncMatricesFromCamera(*camera);
 
 	// Extract frustum planes once per frame for AABB culling
@@ -9371,8 +9335,8 @@ void GLWidget::renderToShadowBuffer()
 	// 1. render depth of scene to texture (from light's perspective)
 	// --------------------------------------------------------------
 	QMatrix4x4 lightProjection, lightView;	
-	QVector3D center = _viewCtrl._boundingSphere.getCenter();
-	float radius = _viewCtrl._boundingSphere.getRadius();
+	QVector3D center = _viewCtrl.boundingSphere().getCenter();
+	float radius = _viewCtrl.boundingSphere().getRadius();
 	QVector3D lightPos = effectiveWorldLightPosition();
 
 	// Light looks at scene center
@@ -9451,7 +9415,7 @@ void GLWidget::renderToShadowBuffer()
 	float lsMaxY = -std::numeric_limits<float>::max();
 	float lsMinZ =  std::numeric_limits<float>::max();
 	float lsMaxZ = -std::numeric_limits<float>::max();
-	const QMatrix4x4 lightModel = lightView * _viewCtrl._modelMatrix;
+	const QMatrix4x4 lightModel = lightView * _viewCtrl.modelMatrix();
 	for (const QVector3D& corner : shadowCasterBounds.getCorners())
 	{
 		const QVector3D ls = lightModel.map(corner);
@@ -9481,13 +9445,13 @@ void GLWidget::renderToShadowBuffer()
 	);
 
 	_lightSpaceMatrix = lightProjection * lightView;
-	RenderableMesh::setCurrentRenderContext(_viewCtrl._modelMatrix, lightView);
+	RenderableMesh::setCurrentRenderContext(_viewCtrl.modelMatrix(), lightView);
 
 	// render scene from light's point of view
 	_renderCtrl.shadowMappingShader()->bind();
 	_renderCtrl.shadowMappingShader()->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
-	_renderCtrl.shadowMappingShader()->setUniformValue("model", _viewCtrl._modelMatrix);
-	_renderCtrl.shadowMappingShader()->setProperty("globalModelMatrix", QVariant::fromValue(_viewCtrl._modelMatrix));
+	_renderCtrl.shadowMappingShader()->setUniformValue("model", _viewCtrl.modelMatrix());
+	_renderCtrl.shadowMappingShader()->setProperty("globalModelMatrix", QVariant::fromValue(_viewCtrl.modelMatrix()));
 
 	const float fsMinX = lsMinX - xyPad;
 	const float fsMaxX = lsMaxX + xyPad;
@@ -9503,13 +9467,13 @@ void GLWidget::renderToShadowBuffer()
 
 		const BoundingSphere sphere = mesh->getBoundingSphere();
 		// sphere.getCenter() and sphere.getRadius() are in world space — they come from
-		// _viewCtrl._boundingSphere which computeBounds() derives from _trsfPoints, and _trsfPoints
+		// the world-space bounding sphere from computeBounds() derives from _trsfPoints, and _trsfPoints
 		// is already combinedRenderTransform() * raw_vertices.  Map to light space using
-		// the same lightView * _viewCtrl._modelMatrix used for the shadow AABB above; do NOT apply
+		// the same lightView * modelMatrix used for the shadow AABB above; do NOT apply
 		// combinedRenderTransform() again or the center gets double-translated (position T
 		// becomes 2T, landing outside the frustum that correctly spans T±r).
 		const float radiusWithSlack = (std::max)(sphere.getRadius(), 0.001f) * 1.05f;
-		const QVector3D centerLS = (lightView * _viewCtrl._modelMatrix).map(sphere.getCenter());
+		const QVector3D centerLS = (lightView * _viewCtrl.modelMatrix()).map(sphere.getCenter());
 
 		return centerLS.x() + radiusWithSlack < fsMinX ||
 		       centerLS.x() - radiusWithSlack > fsMaxX ||
@@ -9632,7 +9596,7 @@ int GLWidget::processSelection(const QPoint& pixel)
 	glDisable(GL_BLEND);
 	_renderCtrl.selectionShader()->bind();
 	_renderCtrl.selectionShader()->setUniformValue("projectionMatrix", selCamera->getProjectionMatrix());
-	_renderCtrl.selectionShader()->setProperty("globalModelMatrix", QVariant::fromValue(_viewCtrl._modelMatrix));
+	_renderCtrl.selectionShader()->setProperty("globalModelMatrix", QVariant::fromValue(_viewCtrl.modelMatrix()));
 	_renderCtrl.selectionShader()->setUniformValue("viewMatrix", selCamera->getViewMatrix());
 
 	// Render ALL visible objects to FBO (not just ray-hit ones)
@@ -9976,15 +9940,15 @@ void GLWidget::setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos)
 	{
 		prog->setUniformValue("sectionActive", false);
 	}
-	prog->setUniformValue("modelViewMatrix", _viewCtrl._modelViewMatrix);
-	prog->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
-	prog->setUniformValue("clipPlaneX", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(_renderCtrl.clippingXFlipped() ? 1 : -1, 0, 0) + pos),
-		(_renderCtrl.clippingXFlipped() ? 1 : -1) * (pos.x() - (_renderCtrl.clippingXCoeff() + _viewCtrl._boundingBox.center().getX()))));
-	prog->setUniformValue("clipPlaneY", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(0, _renderCtrl.clippingYFlipped() ? 1 : -1, 0) + pos),
-		(_renderCtrl.clippingYFlipped() ? 1 : -1) * (pos.y() - (_renderCtrl.clippingYCoeff() + _viewCtrl._boundingBox.center().getY()))));
-	prog->setUniformValue("clipPlaneZ", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(0, 0, _renderCtrl.clippingZFlipped() ? 1 : -1) + pos),
-		(_renderCtrl.clippingZFlipped() ? 1 : -1) * (pos.z() - (_renderCtrl.clippingZCoeff() + _viewCtrl._boundingBox.center().getZ()))));
-	prog->setUniformValue("clipPlane", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(_renderCtrl.clipDX(), _renderCtrl.clipDY(), _renderCtrl.clipDZ()) + pos),
+	prog->setUniformValue("modelViewMatrix", _viewCtrl.modelViewMatrix());
+	prog->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
+	prog->setUniformValue("clipPlaneX", QVector4D(_viewCtrl.modelViewMatrix().map(QVector3D(_renderCtrl.clippingXFlipped() ? 1 : -1, 0, 0) + pos),
+		(_renderCtrl.clippingXFlipped() ? 1 : -1) * (pos.x() - (_renderCtrl.clippingXCoeff() + _viewCtrl.boundingBox().center().getX()))));
+	prog->setUniformValue("clipPlaneY", QVector4D(_viewCtrl.modelViewMatrix().map(QVector3D(0, _renderCtrl.clippingYFlipped() ? 1 : -1, 0) + pos),
+		(_renderCtrl.clippingYFlipped() ? 1 : -1) * (pos.y() - (_renderCtrl.clippingYCoeff() + _viewCtrl.boundingBox().center().getY()))));
+	prog->setUniformValue("clipPlaneZ", QVector4D(_viewCtrl.modelViewMatrix().map(QVector3D(0, 0, _renderCtrl.clippingZFlipped() ? 1 : -1) + pos),
+		(_renderCtrl.clippingZFlipped() ? 1 : -1) * (pos.z() - (_renderCtrl.clippingZCoeff() + _viewCtrl.boundingBox().center().getZ()))));
+	prog->setUniformValue("clipPlane", QVector4D(_viewCtrl.modelViewMatrix().map(QVector3D(_renderCtrl.clipDX(), _renderCtrl.clipDY(), _renderCtrl.clipDZ()) + pos),
 		pos.x() * _renderCtrl.clipDX() + pos.y() * _renderCtrl.clipDY() + pos.z() * _renderCtrl.clipDZ()));
 }
 
@@ -10214,16 +10178,9 @@ void GLWidget::activateGltfCamera(const QString& sourceFile, int cameraIndex)
 
 	// Save the current system camera state before the first glTF switch so the
 	// user can get back to exactly where they were.
-	if (!_viewCtrl._systemCameraStateSaved)
+	if (!_viewCtrl.systemCameraStateSaved())
 	{
-		_viewCtrl._savedCameraPos      = _primaryCamera->getPosition();
-		_viewCtrl._savedCameraDir      = _primaryCamera->getViewDir();
-		_viewCtrl._savedCameraUp       = _primaryCamera->getUpVector();
-		_viewCtrl._savedCameraRight    = _primaryCamera->getRightVector();
-		_viewCtrl._savedProjectionType = _primaryCamera->getProjectionType();
-		_viewCtrl._savedCameraFOV      = _primaryCamera->getFOV();
-		_viewCtrl._savedCameraViewRange = _primaryCamera->getViewRange();
-		_viewCtrl._systemCameraStateSaved = true;
+		_viewCtrl.saveSystemCameraState(*_primaryCamera);
 	}
 
 	_animCtrl.setActiveGltfCamera(sourceFile, cameraIndex);
@@ -10251,22 +10208,16 @@ void GLWidget::activateGltfCamera(const QString& sourceFile, int cameraIndex)
 
 void GLWidget::resetToSystemCamera()
 {
-	if (_viewCtrl._systemCameraStateSaved)
+	if (_viewCtrl.systemCameraStateSaved())
 	{
-		_primaryCamera->setView(_viewCtrl._savedCameraPos,
-		                        _viewCtrl._savedCameraDir,
-		                        _viewCtrl._savedCameraUp,
-		                        _viewCtrl._savedCameraRight);
-		_primaryCamera->setProjectionType(_viewCtrl._savedProjectionType);
-		_primaryCamera->setFOV(_viewCtrl._savedCameraFOV);
-		_primaryCamera->setViewRange(_viewCtrl._savedCameraViewRange);
-		_viewCtrl.setViewRange(_viewCtrl._savedCameraViewRange);
+		_viewCtrl.restoreSystemCameraState(*_primaryCamera);
+		_viewCtrl.setViewRange(_viewCtrl.savedCameraViewRange());
 		_viewCtrl.syncCurrentViewRange();
-		_viewCtrl.setProjection((_viewCtrl._savedProjectionType == GLCamera::ProjectionType::PERSPECTIVE)
+		_viewCtrl.setProjection((_viewCtrl.savedProjectionType() == GLCamera::ProjectionType::PERSPECTIVE)
 			? ViewProjection::PERSPECTIVE
 			: ViewProjection::ORTHOGRAPHIC);
-		_viewCtrl.setPreviousProjection(_viewCtrl._savedProjectionType);
-		_viewCtrl._systemCameraStateSaved = false;
+		_viewCtrl.setPreviousProjection(_viewCtrl.savedProjectionType());
+		_viewCtrl.clearSystemCameraState();
 	}
 
 	_animCtrl.setActiveGltfCamera(QString(), -1);
@@ -10343,17 +10294,17 @@ void GLWidget::applyGltfCameraEntryTransform(const GltfCameraEntry& cam)
 		_primaryCamera->setProjectionType(GLCamera::ProjectionType::PERSPECTIVE);
 		_primaryCamera->setFOV(qRadiansToDegrees(cam.fovYRadians));
 
-		// Set _viewCtrl._viewRange so the orbit pivot lands at the scene centre and
+		// Set the view range so the orbit pivot lands at the scene centre and
 		// navigation feel matches the glTF author's framing intent.
 		// orbitDist ≈ viewRange * 1.25 (maxShiftFactor clamp in computeViewShift),
 		// so: viewRange = distToScene / 1.25.
 		const QVector3D sceneCenter(
-			static_cast<float>(_viewCtrl._boundingSphere.getCenter().x()),
-			static_cast<float>(_viewCtrl._boundingSphere.getCenter().y()),
-			static_cast<float>(_viewCtrl._boundingSphere.getCenter().z()));
+			static_cast<float>(_viewCtrl.boundingSphere().getCenter().x()),
+			static_cast<float>(_viewCtrl.boundingSphere().getCenter().y()),
+			static_cast<float>(_viewCtrl.boundingSphere().getCenter().z()));
 		const float distToScene = QVector3D::dotProduct(sceneCenter - worldPos, worldDir);
 		// Clamp to at least scene radius so we never zoom in past the model.
-		const float clampedDist = std::max(distToScene, _viewCtrl._boundingSphere.getRadius());
+		const float clampedDist = std::max(distToScene, _viewCtrl.boundingSphere().getRadius());
 		_primaryCamera->setViewRange(clampedDist / 1.25f);
 		_viewCtrl.setProjection(ViewProjection::PERSPECTIVE);
 		_viewCtrl.setPreviousProjection(GLCamera::ProjectionType::PERSPECTIVE);
@@ -11934,7 +11885,7 @@ void GLWidget::checkAndStopTimers()
 		// Set all defaults
 		_viewCtrl.syncPoseFromCamera(*_primaryCamera);
 		_viewCtrl.setCurrentViewRange(_viewCtrl.viewRange());
-		_viewCtrl._slerpStep = 0.0f;
+		_viewCtrl.resetSlerpStep();
 		_viewCtrl.setCustomViewAnimationActive(false);
 		emit rotationsSet();
 	}
@@ -11944,7 +11895,7 @@ void GLWidget::checkAndStopTimers()
 		// Set all defaults
 		_viewCtrl.setCurrentTranslation(_primaryCamera->getPosition());
 		_viewCtrl.setCurrentViewRange(_viewCtrl.viewRange());
-		_viewCtrl._slerpStep = 0.0f;
+		_viewCtrl.resetSlerpStep();
 		emit zoomAndPanSet();
 	}
 	if (_animateWindowZoomTimer->isActive())
@@ -11954,7 +11905,7 @@ void GLWidget::checkAndStopTimers()
 		// Set all defaults
 		_viewCtrl.setCurrentTranslation(_primaryCamera->getPosition());
 		_viewCtrl.setCurrentViewRange(_viewCtrl.viewRange());
-		_viewCtrl._slerpStep = 0.0f;
+		_viewCtrl.resetSlerpStep();
 		emit zoomAndPanSet();
 	}
 	if (_animateCenterScreenTimer->isActive())
@@ -11964,7 +11915,7 @@ void GLWidget::checkAndStopTimers()
 		// Set all defaults
 		_viewCtrl.setCurrentTranslation(_primaryCamera->getPosition());
 		_viewCtrl.setCurrentViewRange(_viewCtrl.viewRange());
-		_viewCtrl._slerpStep = 0.0f;
+		_viewCtrl.resetSlerpStep();
 		emit zoomAndPanSet();
 	}
 }
@@ -12021,16 +11972,14 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 	checkAndStopTimers();
 
 	// Reset inertia on new mouse press
-	_viewCtrl._inertiaPanVelocity = QVector2D();
-	_viewCtrl._inertiaZoomVelocity = 0.0f;
-	_viewCtrl._inertiaRotateVelocity = QVector2D();
+	_viewCtrl.clearInertiaState();
 	if (_inertiaTimer) _inertiaTimer->stop();
 
 	// Reset movement tracking
-	_viewCtrl._mouseMovedSincePress = false;
-	_viewCtrl._lastMouseMoveTime = 0;
-	_viewCtrl._lastMousePos  = e->pos();
-	_viewCtrl._lastMouseTime = e->timestamp();
+	_viewCtrl.setMouseMovedSincePress(false);
+	_viewCtrl.setLastMouseMoveTime(0);
+	_viewCtrl.setLastMousePos(e->pos());
+	_viewCtrl.setLastMouseTime(e->timestamp());
 
 	if (e->button() & Qt::LeftButton)
 	{
@@ -12038,11 +11987,11 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 		const BoundingSphere selectionSphere = computeTransformGizmoSelectionSphere();
 		const float selectionRadius = selectionSphere.getRadius() > 0.0f
 			? selectionSphere.getRadius()
-			: _viewCtrl._boundingSphere.getRadius();
+			: _viewCtrl.boundingSphere().getRadius();
 		const float gizmoScale = (std::max)(selectionRadius * 0.9f, 0.01f);
 		if (!(e->modifiers() & Qt::ControlModifier) &&
-			_viewCtrl._transformGizmoRequested && _transformGizmo &&
-			_transformGizmo->activateHandleAt(clickPoint, _primaryCamera, _viewCtrl._viewMatrix, _viewCtrl._projectionMatrix,
+			_viewCtrl.transformGizmoRequested() && _transformGizmo &&
+			_transformGizmo->activateHandleAt(clickPoint, _primaryCamera, _viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(),
 				QRect(0, 0, width(), height()), gizmoScale))
 		{
 			if (beginTransformGizmoDrag(_transformGizmo->activeHandle(), clickPoint))
@@ -12054,76 +12003,67 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 		if (_transformGizmo)
 			_transformGizmo->clearInteraction();
 		if (!(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
-			&& !_viewCtrl._windowZoomActive && !_viewCtrl._viewRotating && !_viewCtrl._viewPanning && !_viewCtrl._viewZooming
+			&& !_viewCtrl.windowZoomActive() && !_viewCtrl.viewRotating() && !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming()
 			&& handleViewCubeClick(clickPoint))
 		{
 			return;
 		}
 
-		_viewCtrl._leftButtonPoint.setX(e->position().x());
-		_viewCtrl._leftButtonPoint.setY(e->position().y());
+		_viewCtrl.setLeftButtonPoint(e->position().toPoint());
 
 		// Track if Shift is held for drag selection mode
-		_viewCtrl._shiftDragActive = (e->modifiers() & Qt::ShiftModifier) != 0;
-		_viewCtrl._sweepStartPoint = QPoint(e->position().x(), e->position().y());
+		_viewCtrl.setShiftDragActive((e->modifiers() & Qt::ShiftModifier) != 0);
+		_viewCtrl.setSweepStartPoint(e->position().toPoint());
 
-		if (_viewCtrl._viewPanning || _viewCtrl._viewZooming || _viewCtrl._viewRotating)
+		if (_viewCtrl.viewPanning() || _viewCtrl.viewZooming() || _viewCtrl.viewRotating())
 		{
-			_viewCtrl._navigationViewportLocked = true;
-			_viewCtrl._navigationLockedViewport = getViewportFromPoint(e->pos());
-			_viewCtrl._navigationLockedClientRect = getClientRectFromPoint(e->pos());
+			_viewCtrl.setNavigationLock(getViewportFromPoint(e->pos()), getClientRectFromPoint(e->pos()));
 		}
 
 		if (!(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
-			&& !_viewCtrl._windowZoomActive && !_viewCtrl._viewRotating && !_viewCtrl._viewPanning && !_viewCtrl._viewZooming)
+			&& !_viewCtrl.windowZoomActive() && !_viewCtrl.viewRotating() && !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
 		{
 			// Selection
 			_selectionManager->clickSelect(clickPoint);
 		}
 
 
-		_rubberBand->setGeometry(QRect(_viewCtrl._leftButtonPoint, QSize()));
+		_rubberBand->setGeometry(QRect(_viewCtrl.leftButtonPoint(), QSize()));
 		_rubberBand->show();
 	}
 
-	if ((e->button() & Qt::RightButton) || ((e->button() & Qt::LeftButton) && _viewCtrl._viewPanning))
+	if ((e->button() & Qt::RightButton) || ((e->button() & Qt::LeftButton) && _viewCtrl.viewPanning()))
 	{
-		_viewCtrl._rightButtonPoint.setX(e->position().x());
-		_viewCtrl._rightButtonPoint.setY(e->position().y());
-		_viewCtrl._lastPanPoint = e->pos();
-		_viewCtrl._navigationViewportLocked = true;
-		_viewCtrl._navigationLockedViewport = getViewportFromPoint(e->pos());
-		_viewCtrl._navigationLockedClientRect = getClientRectFromPoint(e->pos());
+		_viewCtrl.setRightButtonPoint(e->position().toPoint());
+		_viewCtrl.setLastPanPoint(e->pos());
+		_viewCtrl.setNavigationLock(getViewportFromPoint(e->pos()), getClientRectFromPoint(e->pos()));
 	}
 
-	if (e->button() & Qt::MiddleButton || ((e->button() & Qt::LeftButton) && _viewCtrl._viewRotating))
+	if (e->button() & Qt::MiddleButton || ((e->button() & Qt::LeftButton) && _viewCtrl.viewRotating()))
 	{
-		_viewCtrl._middleButtonPoint.setX(e->position().x());
-		_viewCtrl._middleButtonPoint.setY(e->position().y());
+		_viewCtrl.setMiddleButtonPoint(e->position().toPoint());
 		if (e->button() & Qt::MiddleButton)
 		{
-			_viewCtrl._navigationViewportLocked = true;
-			_viewCtrl._navigationLockedViewport = getViewportFromPoint(e->pos());
-			_viewCtrl._navigationLockedClientRect = getClientRectFromPoint(e->pos());
+			_viewCtrl.setNavigationLock(getViewportFromPoint(e->pos()), getClientRectFromPoint(e->pos()));
 		}
 	}
 }
 
 void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 {
-	if ((e->button() & Qt::LeftButton) && _viewCtrl._transformGizmoTranslating)
+	if ((e->button() & Qt::LeftButton) && _viewCtrl.transformGizmoTranslating())
 	{
 		finishTransformGizmoTranslationDrag(true);
 		update();
 		return;
 	}
-	if ((e->button() & Qt::LeftButton) && _viewCtrl._transformGizmoScaling)
+	if ((e->button() & Qt::LeftButton) && _viewCtrl.transformGizmoScaling())
 	{
 		finishTransformGizmoScaleDrag(true);
 		update();
 		return;
 	}
-	if ((e->button() & Qt::LeftButton) && _viewCtrl._transformGizmoRotating)
+	if ((e->button() & Qt::LeftButton) && _viewCtrl.transformGizmoRotating())
 	{
 		finishTransformGizmoRotationDrag(true);
 		update();
@@ -12133,25 +12073,25 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 	if (e->button() & Qt::LeftButton)
 	{
         _rubberBand->hide();
-		if (_viewCtrl._windowZoomActive)
+		if (_viewCtrl.windowZoomActive())
 		{
 			performWindowZoom();
 		}
-		else if (!(e->modifiers() & Qt::ControlModifier) && !_viewCtrl._viewRotating && !_viewCtrl._viewPanning && !_viewCtrl._viewZooming)
+		else if (!(e->modifiers() & Qt::ControlModifier) && !_viewCtrl.viewRotating() && !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
 		{
 			// Sweep select: check shift status at release time to determine if we should add to selection
 			bool shiftHeldAtRelease = (e->modifiers() & Qt::ShiftModifier) != 0;
 			// Prefer the current shift state at release time over the state at press time
-			bool addToSelection = shiftHeldAtRelease || _viewCtrl._shiftDragActive;
+			bool addToSelection = shiftHeldAtRelease || _viewCtrl.shiftDragActive();
 
 			sweepSelect(e->pos(), addToSelection);
-			_viewCtrl._shiftDragActive = false;  // Reset the flag
+			_viewCtrl.setShiftDragActive(false);  // Reset the flag
 		}
 	}
 
 	if (e->button() & Qt::RightButton)
 	{
-		_viewCtrl._lastPanPoint = e->pos();
+		_viewCtrl.setLastPanPoint(e->pos());
 	}
 
 	if (e->button() & Qt::MiddleButton)
@@ -12172,7 +12112,7 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 	}
 
 	_renderCtrl.setLowResEnabled(false);
-	if (!_viewCtrl._viewRotating && !_viewCtrl._viewPanning && !_viewCtrl._viewZooming)
+	if (!_viewCtrl.viewRotating() && !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
 	{
 		setCursor(QCursor(Qt::ArrowCursor));
 	}
@@ -12180,13 +12120,13 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 	// Only start inertia if mouse was moving recently
 	qint64 now = e->timestamp();
 	const qint64 maxIdleMs = 50; // adjust as needed
-	bool recentMove = (_viewCtrl._lastMouseMoveTime > 0) && ((now - _viewCtrl._lastMouseMoveTime) < maxIdleMs);
+	bool recentMove = (_viewCtrl.lastMouseMoveTime() > 0) && ((now - _viewCtrl.lastMouseMoveTime()) < maxIdleMs);
 
 	// Start inertia if velocity is significant
-	if (_viewCtrl._mouseMovedSincePress && recentMove &&
-		(_viewCtrl._inertiaPanVelocity.lengthSquared() > 1.0f ||
-			std::abs(_viewCtrl._inertiaZoomVelocity) > 0.01f ||
-			_viewCtrl._inertiaRotateVelocity.lengthSquared() > 1.0f))
+	if (_viewCtrl.mouseMovedSincePress() && recentMove &&
+		(_viewCtrl.inertiaPanVelocity().lengthSquared() > 1.0f ||
+			std::abs(_viewCtrl.inertiaZoomVelocity()) > 0.01f ||
+			_viewCtrl.inertiaRotateVelocity().lengthSquared() > 1.0f))
 	{
 		if (_inertiaTimer) _inertiaTimer->start();
 	}
@@ -12197,9 +12137,7 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 
 	if (e->buttons() == Qt::NoButton)
 	{
-		_viewCtrl._navigationViewportLocked = false;
-		_viewCtrl._navigationLockedViewport = QRect();
-		_viewCtrl._navigationLockedClientRect = QRect();
+		_viewCtrl.clearNavigationLock();
 	}
 
 	update();
@@ -12207,52 +12145,52 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 
 void GLWidget::mouseMoveEvent(QMouseEvent* e)
 {
-	_viewCtrl._mouseMovedSincePress = true;
-	_viewCtrl._lastMouseMoveTime = e->timestamp();
+	_viewCtrl.setMouseMovedSincePress(true);
+	_viewCtrl.setLastMouseMoveTime(e->timestamp());
 	QPoint currentPos = e->pos();
 	qint64 currentTime = e->timestamp();
-	QPoint delta = currentPos - _viewCtrl._lastMousePos;
-	float dt = (currentTime - _viewCtrl._lastMouseTime) / 1000.0f; // seconds
+	QPoint delta = currentPos - _viewCtrl.lastMousePos();
+	float dt = (currentTime - _viewCtrl.lastMouseTime()) / 1000.0f; // seconds
 
 	QPoint downPoint(e->position().x(), e->position().y());
-	if (_viewCtrl._transformGizmoTranslating && (e->buttons() & Qt::LeftButton))
+	if (_viewCtrl.transformGizmoTranslating() && (e->buttons() & Qt::LeftButton))
 	{
 		updateTransformGizmoTranslationDrag(e->pos());
-		_viewCtrl._lastMousePos = currentPos;
-		_viewCtrl._lastMouseTime = currentTime;
+		_viewCtrl.setLastMousePos(currentPos);
+		_viewCtrl.setLastMouseTime(currentTime);
 		return;
 	}
-	if (_viewCtrl._transformGizmoScaling && (e->buttons() & Qt::LeftButton))
+	if (_viewCtrl.transformGizmoScaling() && (e->buttons() & Qt::LeftButton))
 	{
 		updateTransformGizmoScaleDrag(e->pos());
-		_viewCtrl._lastMousePos = currentPos;
-		_viewCtrl._lastMouseTime = currentTime;
+		_viewCtrl.setLastMousePos(currentPos);
+		_viewCtrl.setLastMouseTime(currentTime);
 		return;
 	}
-	if (_viewCtrl._transformGizmoRotating && (e->buttons() & Qt::LeftButton))
+	if (_viewCtrl.transformGizmoRotating() && (e->buttons() & Qt::LeftButton))
 	{
 		updateTransformGizmoRotationDrag(e->pos());
-		_viewCtrl._lastMousePos = currentPos;
-		_viewCtrl._lastMouseTime = currentTime;
+		_viewCtrl.setLastMousePos(currentPos);
+		_viewCtrl.setLastMouseTime(currentTime);
 		return;
 	}
 
-	if (e->buttons() == Qt::LeftButton && !_viewCtrl._viewPanning && !_viewCtrl._viewZooming)
+	if (e->buttons() == Qt::LeftButton && !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
 	{
-		if (!(e->modifiers() & Qt::ControlModifier) && !_viewCtrl._viewRotating && !_viewCtrl._viewPanning && !_viewCtrl._viewZooming)
+		if (!(e->modifiers() & Qt::ControlModifier) && !_viewCtrl.viewRotating() && !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
 		{
-            _rubberBand->setGeometry(QRect(_viewCtrl._leftButtonPoint, e->pos()).normalized());
+            _rubberBand->setGeometry(QRect(_viewCtrl.leftButtonPoint(), e->pos()).normalized());
 		}
-		if (_viewCtrl._windowZoomActive)
+		if (_viewCtrl.windowZoomActive())
 		{
 			setCursor(QCursor(QPixmap(":/icons/res/window-zoom-cursor.png"), 12, 12));
 		}
-		else if (((e->modifiers() & Qt::ControlModifier) || _viewCtrl._viewRotating) && !isGltfCameraActive())
+		else if (((e->modifiers() & Qt::ControlModifier) || _viewCtrl.viewRotating()) && !isGltfCameraActive())
 		{
 			if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 				_renderCtrl.setLowResEnabled(true);
 			setSectionCapsInteractionSuppressed(true);
-			QPoint rotate = _viewCtrl._leftButtonPoint - downPoint;
+			QPoint rotate = _viewCtrl.leftButtonPoint() - downPoint;
 
 			if (_primaryCamera->getMode() == GLCamera::CameraMode::Orbit)
 			{
@@ -12274,15 +12212,15 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 
 
 			_viewCtrl.syncRotationFromCamera(*_primaryCamera);
-			_viewCtrl._leftButtonPoint = downPoint;
+			_viewCtrl.setLeftButtonPoint(downPoint);
 			setCursor(QCursor(QPixmap(":/icons/res/rotatecursor.png")));
 			_viewCtrl.setViewMode(ViewMode::NONE);
 
 			const float maxInertiaVelocity = 10.0f; // Adjust as needed
 			if (dt > 0) {
-				_viewCtrl._inertiaRotateVelocity = -QVector2D(delta) / dt;
-				if (_viewCtrl._inertiaRotateVelocity.length() > maxInertiaVelocity)
-					_viewCtrl._inertiaRotateVelocity = _viewCtrl._inertiaRotateVelocity.normalized() * maxInertiaVelocity;
+				_viewCtrl.setInertiaRotateVelocity(-QVector2D(delta) / dt);
+				if (_viewCtrl.inertiaRotateVelocity().length() > maxInertiaVelocity)
+					_viewCtrl.setInertiaRotateVelocity(_viewCtrl.inertiaRotateVelocity().normalized() * maxInertiaVelocity);
 			}
 		}
 
@@ -12294,7 +12232,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		!isGltfCameraActive())
 	{
 		// Free-look in Fly/FP mode: RMB drag rotates the view via yaw/pitch
-		QPoint look = _viewCtrl._rightButtonPoint - downPoint;
+		QPoint look = _viewCtrl.rightButtonPoint() - downPoint;
 		_primaryCamera->getYaw()   += look.x() * 0.2f;
 		_primaryCamera->getPitch() += look.y() * 0.2f;
 
@@ -12305,55 +12243,55 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 
 		_primaryCamera->updateFlyView();
 		_viewCtrl.syncRotationFromCamera(*_primaryCamera);
-		_viewCtrl._rightButtonPoint = downPoint;
+		_viewCtrl.setRightButtonPoint(downPoint);
 		setCursor(QCursor(QPixmap(":/icons/res/rotatecursor.png")));
 
 		if (dt > 0) {
-			_viewCtrl._inertiaRotateVelocity = -QVector2D(look) / dt;
+			_viewCtrl.setInertiaRotateVelocity(-QVector2D(look) / dt);
 			const float maxVel = 10.0f;
-			if (_viewCtrl._inertiaRotateVelocity.length() > maxVel)
-				_viewCtrl._inertiaRotateVelocity = _viewCtrl._inertiaRotateVelocity.normalized() * maxVel;
+			if (_viewCtrl.inertiaRotateVelocity().length() > maxVel)
+				_viewCtrl.setInertiaRotateVelocity(_viewCtrl.inertiaRotateVelocity().normalized() * maxVel);
 		}
 
 		update();
 	}
-	else if (((e->buttons() == Qt::RightButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewCtrl._viewPanning)) && !isGltfCameraActive())
+	else if (((e->buttons() == Qt::RightButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewCtrl.viewPanning())) && !isGltfCameraActive())
 	{
 		if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 			_renderCtrl.setLowResEnabled(true);
 		setSectionCapsInteractionSuppressed(true);
-		QVector3D OP = get3dTranslationVectorFromMousePoints(downPoint, _viewCtrl._rightButtonPoint);
+		QVector3D OP = get3dTranslationVectorFromMousePoints(downPoint, _viewCtrl.rightButtonPoint());
 		_primaryCamera->move(OP.x(), OP.y(), OP.z());
 		_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
 
-		_viewCtrl._rightButtonPoint = downPoint;
+		_viewCtrl.setRightButtonPoint(downPoint);
 		setCursor(QCursor(QPixmap(":/icons/res/pancursor.png")));
 
 		// Clamp pan inertia velocity
 		const float maxPanInertiaVelocity = 20.0f; // Adjust as needed
 		if (dt > 0) {
-			_viewCtrl._inertiaPanVelocity = QVector2D(delta) / dt;
-			if (_viewCtrl._inertiaPanVelocity.length() > maxPanInertiaVelocity)
-				_viewCtrl._inertiaPanVelocity = _viewCtrl._inertiaPanVelocity.normalized() * maxPanInertiaVelocity;
+			_viewCtrl.setInertiaPanVelocity(QVector2D(delta) / dt);
+			if (_viewCtrl.inertiaPanVelocity().length() > maxPanInertiaVelocity)
+				_viewCtrl.setInertiaPanVelocity(_viewCtrl.inertiaPanVelocity().normalized() * maxPanInertiaVelocity);
 
-			_viewCtrl._inertiaZoomPanVelocity = OP;
+			_viewCtrl.setInertiaZoomPanVelocity(OP);
 		}
 
 		update();
 	}
-	else if (((e->buttons() == Qt::MiddleButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewCtrl._viewZooming)) && !isGltfCameraActive())
+	else if (((e->buttons() == Qt::MiddleButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewCtrl.viewZooming())) && !isGltfCameraActive())
 	{
 		if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 			_renderCtrl.setLowResEnabled(true);
 		setSectionCapsInteractionSuppressed(true);
 		// Zoom
-		if (downPoint.x() > _viewCtrl._middleButtonPoint.x() || downPoint.y() < _viewCtrl._middleButtonPoint.y()) {
+		if (downPoint.x() > _viewCtrl.middleButtonPoint().x() || downPoint.y() < _viewCtrl.middleButtonPoint().y()) {
 			_viewCtrl.setViewRange(_viewCtrl.viewRange() / 1.05f);
-			_viewCtrl._lastZoomDirection = 1;
+			_viewCtrl.setLastZoomDirection(1);
 		}
 		else {
 			_viewCtrl.setViewRange(_viewCtrl.viewRange() * 1.05f);
-			_viewCtrl._lastZoomDirection = -1;
+			_viewCtrl.setLastZoomDirection(-1);
 		}
 		
 		// Perspective: floor is the focused sub-mesh radius × 0.5 so the orbit
@@ -12363,32 +12301,32 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		// Ortho: the near/far floor in GLCamera handles tearing without any
 		// zoom restriction, so only a minimal absolute floor is applied.
 		updateZoomInLimit();
-		const float focusRadius = _viewCtrl._zoomInLimit;
+		const float focusRadius = _viewCtrl.zoomInLimit();
 		const float minVR = (_viewCtrl.projection() == ViewProjection::PERSPECTIVE)
 		    ? std::max(focusRadius * 0.5f, 0.0001f)
 		    : std::max(focusRadius / 100.0f, 0.00001f);
 		if (_viewCtrl.viewRange() < minVR)
 			_viewCtrl.setViewRange(minVR);
-		if (_viewCtrl.viewRange() > _viewCtrl._boundingSphere.getRadius() * 100.0f)
-			_viewCtrl.setViewRange(_viewCtrl._boundingSphere.getRadius() * 100.0f);
+		if (_viewCtrl.viewRange() > _viewCtrl.boundingSphere().getRadius() * 100.0f)
+			_viewCtrl.setViewRange(_viewCtrl.boundingSphere().getRadius() * 100.0f);
 		_viewCtrl.syncCurrentViewRange();
 
 		// Translate to focus on mouse center
 		QPoint cen = getClientRectFromPoint(downPoint).center();
-		float sign = (downPoint.x() > _viewCtrl._middleButtonPoint.x() || downPoint.y() < _viewCtrl._middleButtonPoint.y()) ? 1.0f : -1.0f;
-		QVector3D OP = get3dTranslationVectorFromMousePoints(cen, _viewCtrl._middleButtonPoint);
+		float sign = (downPoint.x() > _viewCtrl.middleButtonPoint().x() || downPoint.y() < _viewCtrl.middleButtonPoint().y()) ? 1.0f : -1.0f;
+		QVector3D OP = get3dTranslationVectorFromMousePoints(cen, _viewCtrl.middleButtonPoint());
 		OP *= sign * 0.05f;
 		_primaryCamera->move(OP.x(), OP.y(), OP.z());
 		_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
-		_viewCtrl._lastZoomPanVector = OP; // Store for inertia
+		_viewCtrl.setLastZoomPanVector(OP); // Store for inertia
 
 		if (dt > 0) {
-			_viewCtrl._inertiaZoomVelocity = _viewCtrl._lastZoomDirection; // +1 or -1
+			_viewCtrl.setInertiaZoomVelocity(_viewCtrl.lastZoomDirection()); // +1 or -1
 		}
 
 		resizeGL(width(), height());
 
-		_viewCtrl._middleButtonPoint = downPoint;
+		_viewCtrl.setMiddleButtonPoint(downPoint);
 		setCursor(QCursor(QPixmap(":/icons/res/zoomcursor.png")));
 
 		update();
@@ -12460,11 +12398,11 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		const BoundingSphere selectionSphere = computeTransformGizmoSelectionSphere();
 		const float selectionRadius = selectionSphere.getRadius() > 0.0f
 			? selectionSphere.getRadius()
-			: _viewCtrl._boundingSphere.getRadius();
+			: _viewCtrl.boundingSphere().getRadius();
 		const float gizmoScale = (std::max)(selectionRadius * 0.9f, 0.01f);
 		if (!(e->modifiers() & Qt::ControlModifier) &&
-			_viewCtrl._transformGizmoRequested && _transformGizmo &&
-			_transformGizmo->updateHover(e->pos(), _primaryCamera, _viewCtrl._viewMatrix, _viewCtrl._projectionMatrix,
+			_viewCtrl.transformGizmoRequested() && _transformGizmo &&
+			_transformGizmo->updateHover(e->pos(), _primaryCamera, _viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(),
 				QRect(0, 0, width(), height()), gizmoScale))
 		{
 			gizmoHovered = true;
@@ -12473,7 +12411,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		else if (_transformGizmo)
 		{
 			const bool hadHover = (_transformGizmo->hoveredHandle() != TransformGizmo::Handle::None);
-			_transformGizmo->updateHover(QPoint(-1, -1), _primaryCamera, _viewCtrl._viewMatrix, _viewCtrl._projectionMatrix,
+			_transformGizmo->updateHover(QPoint(-1, -1), _primaryCamera, _viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(),
 				QRect(0, 0, width(), height()), gizmoScale);
 			if (hadHover)
 				update();
@@ -12492,16 +12430,14 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 
 	update();
 
-	_viewCtrl._lastMousePos  = currentPos;
-	_viewCtrl._lastMouseTime = currentTime;
+	_viewCtrl.setLastMousePos(currentPos);
+	_viewCtrl.setLastMouseTime(currentTime);
 }
 
 void GLWidget::wheelEvent(QWheelEvent* e)
 {
 	// Stop any ongoing inertia when wheel zooming
-	_viewCtrl._inertiaRotateVelocity = QVector2D(0, 0);
-	_viewCtrl._inertiaPanVelocity = QVector2D(0, 0);
-	_viewCtrl._inertiaZoomVelocity = 0.0f;
+	_viewCtrl.clearInertiaState();
 	if (_inertiaTimer && _inertiaTimer->isActive())
 		_inertiaTimer->stop();
 
@@ -12524,7 +12460,7 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 			const float moveDist = _viewCtrl.viewRange() * 0.08f * std::abs(zoomStep);
 			_primaryCamera->moveForward(zoomStep > 0.0f ? moveDist : -moveDist);
 			_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
-			_viewCtrl._inertiaZoomVelocity = 0.0f;
+			_viewCtrl.setInertiaZoomVelocity(0.0f);
 			resizeGL(width(), height());
 			update();
 		}
@@ -12545,14 +12481,14 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 
 	{
 		updateZoomInLimit();
-		const float focusRadius = _viewCtrl._zoomInLimit;
+		const float focusRadius = _viewCtrl.zoomInLimit();
 		const float minVR = (_viewCtrl.projection() == ViewProjection::PERSPECTIVE)
 		    ? std::max(focusRadius * 0.5f, 0.0001f)
 		    : std::max(focusRadius / 100.0f, 0.00001f);
 		if (_viewCtrl.viewRange() < minVR)
 			_viewCtrl.setViewRange(minVR);
-		if (_viewCtrl.viewRange() > _viewCtrl._boundingSphere.getRadius() * 100.0f)
-			_viewCtrl.setViewRange(_viewCtrl._boundingSphere.getRadius() * 100.0f);
+		if (_viewCtrl.viewRange() > _viewCtrl.boundingSphere().getRadius() * 100.0f)
+			_viewCtrl.setViewRange(_viewCtrl.boundingSphere().getRadius() * 100.0f);
 	}
 
 	_viewCtrl.syncCurrentViewRange();
@@ -12566,10 +12502,10 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 	_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
 
 	// Add inertia for wheel zoom
-	_viewCtrl._inertiaZoomVelocity = (e->angleDelta().y() / 120.0f) * 0.05f; // scale as needed
+	_viewCtrl.setInertiaZoomVelocity((e->angleDelta().y() / 120.0f) * 0.05f); // scale as needed
 	if (_inertiaTimer) _inertiaTimer->start();
 
-	_viewCtrl._inertiaZoomPanVelocity += OP;
+	_viewCtrl.addInertiaZoomPanVelocity(OP);
 
 	resizeGL(width(), height());
 	update();
@@ -12583,10 +12519,8 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
 
 	if (key == Qt::Key_Escape)
 	{
-		_viewCtrl._viewRotating = false;
-		_viewCtrl._viewPanning = false;
-		_viewCtrl._viewZooming = false;
-		_viewCtrl._windowZoomActive = false;
+		_viewCtrl.clearNavigationModes();
+		_viewCtrl.setWindowZoomActive(false);
 		setCursor(QCursor(Qt::ArrowCursor));
 		MainWindow::showStatusMessage("");
 
@@ -12644,7 +12578,7 @@ void GLWidget::performKeyboardNav()
 
 	if (_keys.empty() == false && allowGameplayModifiers)
 	{
-		const float sceneScale = std::max(_viewCtrl._boundingSphere.getRadius(), 0.001f);
+		const float sceneScale = std::max(_viewCtrl.boundingSphere().getRadius(), 0.001f);
 		float factor = std::max(sceneScale * 0.02f, _viewCtrl.viewRange() * 0.01f);
 		if (modifiers & Qt::ShiftModifier)
 			factor *= 3.0f;
@@ -12751,13 +12685,13 @@ void GLWidget::performKeyboardNav()
 					_viewCtrl.setViewRange(_viewCtrl.viewRange() * 1.05f);
 				{
 					updateZoomInLimit();
-		const float focusRadius = _viewCtrl._zoomInLimit;
+		const float focusRadius = _viewCtrl.zoomInLimit();
 					const float minVR = (_viewCtrl.projection() == ViewProjection::PERSPECTIVE)
 					    ? std::max(focusRadius * 0.5f, 0.0001f)
 					    : std::max(focusRadius / 100.0f, 0.00001f);
 					if (_viewCtrl.viewRange() < minVR) _viewCtrl.setViewRange(minVR);
-					if (_viewCtrl.viewRange() > _viewCtrl._boundingSphere.getRadius() * 100.0f)
-						_viewCtrl.setViewRange(_viewCtrl._boundingSphere.getRadius() * 100.0f);
+					if (_viewCtrl.viewRange() > _viewCtrl.boundingSphere().getRadius() * 100.0f)
+						_viewCtrl.setViewRange(_viewCtrl.boundingSphere().getRadius() * 100.0f);
 				}
 				// Translate to focus on mouse center
 				QPoint pos = mapFromGlobal(QCursor::pos());
@@ -12833,8 +12767,8 @@ void GLWidget::animateFitAll()
 	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 		_renderCtrl.setLowResEnabled(true);
 
-	setZoomAndPan(_viewCtrl.viewBoundingSphereDia(), -_viewCtrl.currentTranslation() + _viewCtrl._boundingSphere.getCenter());
-	//fitBoxToScreen(_viewCtrl._boundingBox);
+	setZoomAndPan(_viewCtrl.viewBoundingSphereDia(), -_viewCtrl.currentTranslation() + _viewCtrl.boundingSphere().getCenter());
+	//fitBoxToScreen(_viewCtrl.boundingBox());
 
 	resizeGL(width(), height());
 }
@@ -12844,14 +12778,15 @@ void GLWidget::animateWindowZoom()
 	setSectionCapsInteractionSuppressed(true);
 	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 		_renderCtrl.setLowResEnabled(true);
-	setZoomAndPan(_viewCtrl.currentViewRange() / _viewCtrl._rubberBandZoomRatio, _viewCtrl._rubberBandPan);
+	setZoomAndPan(_viewCtrl.currentViewRange() / _viewCtrl.rubberBandZoomRatio(), _viewCtrl.rubberBandPan());
 	resizeGL(width(), height());
 }
 
 void GLWidget::animateCenterScreen()
 {
 	setSectionCapsInteractionSuppressed(true);
-	setZoomAndPan(_viewCtrl._selectionBoundingSphere.getRadius() * 2, -_viewCtrl.currentTranslation() + _viewCtrl._selectionBoundingSphere.getCenter());
+	setZoomAndPan(_viewCtrl.selectionBoundingSphere().getRadius() * 2,
+		-_viewCtrl.currentTranslation() + _viewCtrl.selectionBoundingSphere().getCenter());
 	resizeGL(width(), height());
 }
 
@@ -12864,49 +12799,49 @@ void GLWidget::onInertiaTimer()
 	bool active = false;
 
 	// --- Pan inertia ---
-	if (_viewCtrl._inertiaPanVelocity.lengthSquared() > 0.01f) {
+	if (_viewCtrl.inertiaPanVelocity().lengthSquared() > 0.01f) {
 		// Apply pan inertia from the last pan point, in the same way as interactive panning
-		QPointF panDelta(-_viewCtrl._inertiaPanVelocity.x(), -_viewCtrl._inertiaPanVelocity.y());
-		QPoint newPanPoint = _viewCtrl._lastPanPoint + panDelta.toPoint();
-		QVector3D OP = get3dTranslationVectorFromMousePoints(_viewCtrl._lastPanPoint, newPanPoint);
+		QPointF panDelta(-_viewCtrl.inertiaPanVelocity().x(), -_viewCtrl.inertiaPanVelocity().y());
+		QPoint newPanPoint = _viewCtrl.lastPanPoint() + panDelta.toPoint();
+		QVector3D OP = get3dTranslationVectorFromMousePoints(_viewCtrl.lastPanPoint(), newPanPoint);
 		_primaryCamera->move(OP.x(), OP.y(), OP.z());
 		_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
-		_viewCtrl._lastPanPoint = newPanPoint; // Update for next frame
-		_viewCtrl._inertiaPanVelocity *= _viewCtrl._inertiaDamping;
+		_viewCtrl.setLastPanPoint(newPanPoint); // Update for next frame
+		_viewCtrl.scaleInertiaPanVelocity(_viewCtrl.inertiaDamping());
 		active = true;
 	}
 
 	// --- Zoom inertia ---
-		if (std::abs(_viewCtrl._inertiaZoomVelocity) > 0.001f) {
+		if (std::abs(_viewCtrl.inertiaZoomVelocity()) > 0.001f) {
 		float zoomFactor = 1.005f;
-		if (_viewCtrl._inertiaZoomVelocity > 0)
+		if (_viewCtrl.inertiaZoomVelocity() > 0)
 			_viewCtrl.setViewRange(_viewCtrl.viewRange() / zoomFactor);
 		else
 			_viewCtrl.setViewRange(_viewCtrl.viewRange() * zoomFactor);
 
 		QPoint cen = getViewportFromPoint(mapFromGlobal(QCursor::pos())).center();
 		QVector3D OP = get3dTranslationVectorFromMousePoints(cen, cen);
-		OP *= -_viewCtrl._inertiaZoomPanVelocity * 0.05f;
+		OP *= -_viewCtrl.inertiaZoomPanVelocity() * 0.05f;
 		_primaryCamera->move(OP.x(), OP.y(), OP.z());
 		_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
 
 		// Decay inertia
-		_viewCtrl._inertiaZoomVelocity *= _viewCtrl._inertiaDamping * 0.1f;
-		_viewCtrl._inertiaZoomPanVelocity *= _viewCtrl._inertiaDamping * 0.1f;
+		_viewCtrl.scaleInertiaZoomVelocity(_viewCtrl.inertiaDamping() * 0.1f);
+		_viewCtrl.scaleInertiaZoomPanVelocity(_viewCtrl.inertiaDamping() * 0.1f);
 
-		if (std::abs(_viewCtrl._inertiaZoomVelocity) > 0.001f)
+		if (std::abs(_viewCtrl.inertiaZoomVelocity()) > 0.001f)
 			active = true;
 		else
-			_viewCtrl._inertiaZoomVelocity = 0.0f;
+			_viewCtrl.setInertiaZoomVelocity(0.0f);
 
 		resizeGL(width(), height());
 
 		updateZoomInLimit();
-		const float focusRadius = _viewCtrl._zoomInLimit;
+		const float focusRadius = _viewCtrl.zoomInLimit();
 		const float minRange = (_viewCtrl.projection() == ViewProjection::PERSPECTIVE)
 		    ? std::max(focusRadius * 0.5f, 0.0001f)
 		    : std::max(focusRadius / 100.0f, 0.00001f);
-		const float maxRange = _viewCtrl._boundingSphere.getRadius() * 100.0f;
+		const float maxRange = _viewCtrl.boundingSphere().getRadius() * 100.0f;
 		if (_viewCtrl.viewRange() < minRange) _viewCtrl.setViewRange(minRange);
 		if (_viewCtrl.viewRange() > maxRange) _viewCtrl.setViewRange(maxRange);
 		_viewCtrl.syncCurrentViewRange();
@@ -12915,12 +12850,12 @@ void GLWidget::onInertiaTimer()
 	}
 
 	// --- Rotation inertia ---
-	if (_viewCtrl._inertiaRotateVelocity.lengthSquared() > 0.01f) {
+	if (_viewCtrl.inertiaRotateVelocity().lengthSquared() > 0.01f) {
 		if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
 		    _primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
 		{
-			_primaryCamera->getYaw()   += _viewCtrl._inertiaRotateVelocity.x() / 2.0f;
-			_primaryCamera->getPitch() += _viewCtrl._inertiaRotateVelocity.y() / 2.0f;
+			_primaryCamera->getYaw()   += _viewCtrl.inertiaRotateVelocity().x() / 2.0f;
+			_primaryCamera->getPitch() += _viewCtrl.inertiaRotateVelocity().y() / 2.0f;
 			if (_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
 				_primaryCamera->getPitch() = std::clamp(_primaryCamera->getPitch(), -60.0f, 60.0f);
 			else
@@ -12929,19 +12864,17 @@ void GLWidget::onInertiaTimer()
 		}
 		else
 		{
-			_primaryCamera->rotateX(_viewCtrl._inertiaRotateVelocity.y() / 2.0);
-			_primaryCamera->rotateY(_viewCtrl._inertiaRotateVelocity.x() / 2.0);
+			_primaryCamera->rotateX(_viewCtrl.inertiaRotateVelocity().y() / 2.0);
+			_primaryCamera->rotateY(_viewCtrl.inertiaRotateVelocity().x() / 2.0);
 		}
 		_viewCtrl.syncRotationFromCamera(*_primaryCamera);
-		_viewCtrl._inertiaRotateVelocity *= _viewCtrl._inertiaDamping;
+		_viewCtrl.scaleInertiaRotateVelocity(_viewCtrl.inertiaDamping());
 		active = true;
 	}
 
 	if (!active) {
 		_inertiaTimer->stop();
-		_viewCtrl._inertiaPanVelocity = QVector2D();
-		_viewCtrl._inertiaZoomVelocity = 0.0f;
-		_viewCtrl._inertiaRotateVelocity = QVector2D();
+		_viewCtrl.clearInertiaState();
 		QTimer::singleShot(100, this, &GLWidget::disableSectionCapsInteractionSuppression);
 	}
 
@@ -13067,8 +13000,8 @@ QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, c
 	// Determine viewport and camera
 	const QRect widgetRect(0, 0, width(), height());
 	const QPoint safeStart = clampPointToRect(start, widgetRect);
-	QRect viewport = _viewCtrl._navigationViewportLocked ? _viewCtrl._navigationLockedViewport : getViewportFromPoint(safeStart);
-	QRect clientRect = _viewCtrl._navigationViewportLocked ? _viewCtrl._navigationLockedClientRect : getClientRectFromPoint(safeStart);
+	QRect viewport = _viewCtrl.navigationViewportLocked() ? _viewCtrl.navigationLockedViewport() : getViewportFromPoint(safeStart);
+	QRect clientRect = _viewCtrl.navigationViewportLocked() ? _viewCtrl.navigationLockedClientRect() : getClientRectFromPoint(safeStart);
 	if (viewport.width() <= 0 || viewport.height() <= 0)
 		return QVector3D(0, 0, 0);
 
@@ -13080,7 +13013,7 @@ QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, c
 
 	QVector3D viewCenter = (camera->getMode() == GLCamera::CameraMode::Orbit)
 		? camera->getPosition()
-		: _viewCtrl._boundingSphere.getCenter();
+		: _viewCtrl.boundingSphere().getCenter();
 	// Get view and projection matrices
 	QMatrix4x4 view = camera->getViewMatrix();
 	QMatrix4x4 projection = camera->getProjectionMatrix();
@@ -13304,8 +13237,8 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel, bool addToSelection)
 
 	const QRect rubberRect = _rubberBand->geometry();
 	const QRect viewport(0, 0, width(), height());
-	const QMatrix4x4 projMatrix = _viewCtrl._projectionMatrix;
-	const QMatrix4x4 viewMatrix = _viewCtrl._viewMatrix * _viewCtrl._modelMatrix;
+	const QMatrix4x4 projMatrix = _viewCtrl.projectionMatrix();
+	const QMatrix4x4 viewMatrix = _viewCtrl.viewMatrix() * _viewCtrl.modelMatrix();
 	constexpr float SELECTION_THRESHOLD = 0.5f;
 
 	QApplication::setOverrideCursor(Qt::WaitCursor);
@@ -13490,7 +13423,7 @@ std::vector<QVector3D> GLWidget::collectVisibleCorners() const
 
     // Final fallback: scene AABB if no visible mesh points could be gathered.
     if (points.empty())
-        return _viewCtrl._boundingBox.getCorners();
+        return _viewCtrl.boundingBox().getCorners();
     return points;
 }
 
@@ -13527,8 +13460,8 @@ float GLWidget::computeOrthographicFitViewRangeForViewport(
 {
 	if (corners.empty())
 	{
-		if (outCenter) *outCenter = _viewCtrl._boundingSphere.getCenter();
-		return std::max(_viewCtrl._boundingSphere.getRadius() * 2.0f, 0.0001f);
+		if (outCenter) *outCenter = _viewCtrl.boundingSphere().getCenter();
+		return std::max(_viewCtrl.boundingSphere().getRadius() * 2.0f, 0.0001f);
 	}
 
 	float xMin_v = std::numeric_limits<float>::max();
@@ -13580,9 +13513,9 @@ QVector3D GLWidget::computeVisibleWorldCenter(const std::vector<QVector3D>& corn
 	if (corners.empty())
 	{
 		return QVector3D(
-			static_cast<float>((_viewCtrl._boundingBox.xMin() + _viewCtrl._boundingBox.xMax()) * 0.5),
-			static_cast<float>((_viewCtrl._boundingBox.yMin() + _viewCtrl._boundingBox.yMax()) * 0.5),
-			static_cast<float>((_viewCtrl._boundingBox.zMin() + _viewCtrl._boundingBox.zMax()) * 0.5));
+			static_cast<float>((_viewCtrl.boundingBox().xMin() + _viewCtrl.boundingBox().xMax()) * 0.5),
+			static_cast<float>((_viewCtrl.boundingBox().yMin() + _viewCtrl.boundingBox().yMax()) * 0.5),
+			static_cast<float>((_viewCtrl.boundingBox().zMin() + _viewCtrl.boundingBox().zMax()) * 0.5));
 	}
 
 	float minX = std::numeric_limits<float>::max();
@@ -13646,7 +13579,7 @@ void GLWidget::configureOrthoSubviewCamera(
 
 	_orthoViewsCamera->setScreenSize(viewportWidth, viewportHeight);
 	_orthoViewsCamera->setViewRange(sharedViewRange);
-	_orthoViewsCamera->setSceneRadius(_viewCtrl._boundingSphere.getRadius());
+	_orthoViewsCamera->setSceneRadius(_viewCtrl.boundingSphere().getRadius());
 	_orthoViewsCamera->setProjectionType(GLCamera::ProjectionType::ORTHOGRAPHIC);
 	_orthoViewsCamera->setView(sharedCenter, viewDir, upDir, rightDir);
 }
@@ -13659,8 +13592,8 @@ float GLWidget::computeFitViewRange(const std::vector<QVector3D>& corners,
 {
 	if (corners.empty())
 	{
-		if (outCenter) *outCenter = _viewCtrl._boundingSphere.getCenter();
-		return _viewCtrl._boundingSphere.getRadius() * 2.0f;
+		if (outCenter) *outCenter = _viewCtrl.boundingSphere().getCenter();
+		return _viewCtrl.boundingSphere().getRadius() * 2.0f;
 	}
 
 	// Project every corner onto the view axes using ABSOLUTE dot products.
@@ -13691,8 +13624,8 @@ float GLWidget::computeFitViewRange(const std::vector<QVector3D>& corners,
 
 	if (halfX <= 0.0f && halfY <= 0.0f)
 	{
-		if (outCenter) *outCenter = _viewCtrl._boundingSphere.getCenter();
-		return _viewCtrl._boundingSphere.getRadius() * 2.0f;
+		if (outCenter) *outCenter = _viewCtrl.boundingSphere().getCenter();
+		return _viewCtrl.boundingSphere().getRadius() * 2.0f;
 	}
 
 	// Projected visual centre — the point in 3-D whose view-space coordinates
@@ -13779,7 +13712,7 @@ void GLWidget::fitBoxToScreen(const BoundingBox& box)
 	for (const auto& corner : vcorners)
 	{
 		// Project point to screen coordinates
-		QVector4D clipCoords = _viewCtrl._projectionMatrix * _viewCtrl._viewMatrix * QVector4D(corner, 1.0f);
+		QVector4D clipCoords = _viewCtrl.projectionMatrix() * _viewCtrl.viewMatrix() * QVector4D(corner, 1.0f);
 
 		QVector3D screenPoint(clipCoords.x() / clipCoords.w(),
                            clipCoords.y() / clipCoords.w(), 
@@ -13821,8 +13754,14 @@ void GLWidget::fitBoxToScreen(const BoundingBox& box)
 	QVector3D viewportCenterWorld(viewportCenter.x(), height() - viewportCenter.y(), 0.5);
 
 	// Unproject both points to get world coordinates
-	QVector3D screenCenterPoint = screenCenterWorld.unproject(_viewCtrl._viewMatrix * _viewCtrl._modelMatrix, _viewCtrl._projectionMatrix, QRect(0, 0, width(), height()));
-	QVector3D viewportCenterPoint = viewportCenterWorld.unproject(_viewCtrl._viewMatrix * _viewCtrl._modelMatrix, _viewCtrl._projectionMatrix, QRect(0, 0, width(), height()));
+	QVector3D screenCenterPoint = screenCenterWorld.unproject(
+		_viewCtrl.viewMatrix() * _viewCtrl.modelMatrix(),
+		_viewCtrl.projectionMatrix(),
+		QRect(0, 0, width(), height()));
+	QVector3D viewportCenterPoint = viewportCenterWorld.unproject(
+		_viewCtrl.viewMatrix() * _viewCtrl.modelMatrix(),
+		_viewCtrl.projectionMatrix(),
+		QRect(0, 0, width(), height()));
 
 	// Calculate the pan vector
 	QVector3D panVector = screenCenterPoint - viewportCenterPoint;
@@ -13834,14 +13773,14 @@ void GLWidget::fitBoxToScreen(const BoundingBox& box)
 
 void GLWidget::animateToRotation(const QQuaternion& targetRotation)
 {
-	QQuaternion curRot = QQuaternion::slerp(_viewCtrl.currentRotation(), targetRotation, _viewCtrl._slerpStep += _viewCtrl._slerpFrac);
+	QQuaternion curRot = QQuaternion::slerp(_viewCtrl.currentRotation(), targetRotation, _viewCtrl.advanceSlerpStep());
 
 	QMatrix4x4 rotMat = QMatrix4x4(curRot.toRotationMatrix());
 	QVector3D viewDir = -rotMat.row(2).toVector3D();
 	QVector3D upDir = rotMat.row(1).toVector3D();
 	QVector3D rightDir = rotMat.row(0).toVector3D();
 
-	float scaleStep = (_viewCtrl.currentViewRange() - _viewCtrl.viewBoundingSphereDia()) * _viewCtrl._slerpFrac;
+	float scaleStep = (_viewCtrl.currentViewRange() - _viewCtrl.viewBoundingSphereDia()) * _viewCtrl.slerpFrac();
 	_viewCtrl.setViewRange(_viewCtrl.viewRange() - scaleStep);
 
 	QVector3D curPos;
@@ -13854,12 +13793,12 @@ void GLWidget::animateToRotation(const QQuaternion& targetRotation)
 		const float sinHalfFov = std::max(std::sin(fovRad * 0.5f), 0.001f);
 		const float shiftFactor = std::min(1.05f / sinHalfFov, 1.25f);
 		const float targetDistance = shiftFactor * _viewCtrl.viewBoundingSphereDia();
-		const QVector3D targetEye = _viewCtrl._boundingSphere.getCenter() - targetViewDir * targetDistance;
-		curPos = _viewCtrl.currentTranslation() - (_viewCtrl._slerpStep * _viewCtrl.currentTranslation()) + (targetEye * _viewCtrl._slerpStep);
+		const QVector3D targetEye = _viewCtrl.boundingSphere().getCenter() - targetViewDir * targetDistance;
+		curPos = _viewCtrl.currentTranslation() - (_viewCtrl.slerpStep() * _viewCtrl.currentTranslation()) + (targetEye * _viewCtrl.slerpStep());
 	}
 	else
 	{
-		curPos = _viewCtrl.currentTranslation() - (_viewCtrl._slerpStep * _viewCtrl.currentTranslation()) + (_viewCtrl._boundingSphere.getCenter() * _viewCtrl._slerpStep);
+		curPos = _viewCtrl.currentTranslation() - (_viewCtrl.slerpStep() * _viewCtrl.currentTranslation()) + (_viewCtrl.boundingSphere().getCenter() * _viewCtrl.slerpStep());
 	}
 
 	_primaryCamera->setView(curPos, viewDir, upDir, rightDir);
@@ -13869,7 +13808,7 @@ void GLWidget::animateToRotation(const QQuaternion& targetRotation)
 		_primaryCamera->setYawPitchFromViewDir();
 	}
 
-	if (qFuzzyCompare(_viewCtrl._slerpStep, 1.0f))
+	if (qFuzzyCompare(_viewCtrl.slerpStep(), 1.0f))
 	{
 		if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
 			_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
@@ -13882,7 +13821,7 @@ void GLWidget::animateToRotation(const QQuaternion& targetRotation)
 			const float sinHalfFov = std::max(std::sin(fovRad * 0.5f), 0.001f);
 			const float shiftFactor = std::min(1.05f / sinHalfFov, 1.25f);
 			const float targetDistance = shiftFactor * _viewCtrl.viewBoundingSphereDia();
-			const QVector3D targetEye = _viewCtrl._boundingSphere.getCenter() - targetViewDir * targetDistance;
+			const QVector3D targetEye = _viewCtrl.boundingSphere().getCenter() - targetViewDir * targetDistance;
 			_primaryCamera->setView(targetEye, targetViewDir, targetUpDir, targetRightDir);
 			_primaryCamera->setYawPitchFromViewDir();
 			_primaryCamera->updateFlyView();
@@ -13894,7 +13833,7 @@ void GLWidget::animateToRotation(const QQuaternion& targetRotation)
 
 		_viewCtrl.syncPoseFromCamera(*_primaryCamera);
 		_viewCtrl.setCurrentViewRange(_viewCtrl.viewRange());
-		_viewCtrl._slerpStep = 0.0f;
+		_viewCtrl.resetSlerpStep();
 		_viewCtrl.setCustomViewAnimationActive(false);
 
 		emit rotationsSet();
@@ -13909,22 +13848,22 @@ void GLWidget::setRotations(float xRot, float yRot, float zRot)
 
 void GLWidget::setZoomAndPan(float zoom, QVector3D pan)
 {
-	_viewCtrl._slerpStep += _viewCtrl._slerpFrac;
+	_viewCtrl.advanceSlerpStep();
 
 	// Translation
-	QVector3D curPos = pan * _viewCtrl._slerpFrac;
+	QVector3D curPos = pan * _viewCtrl.slerpFrac();
 	_primaryCamera->move(curPos.x(), curPos.y(), curPos.z());
 
 	// Set zoom
-	float scaleStep = (_viewCtrl.currentViewRange() - zoom) * _viewCtrl._slerpFrac;
+	float scaleStep = (_viewCtrl.currentViewRange() - zoom) * _viewCtrl.slerpFrac();
 	_viewCtrl.setViewRange(_viewCtrl.viewRange() - scaleStep);
 
-	if (qFuzzyCompare(_viewCtrl._slerpStep, 1.0f))
+	if (qFuzzyCompare(_viewCtrl.slerpStep(), 1.0f))
 	{
 		// Set all defaults
 		_viewCtrl.setCurrentTranslation(_primaryCamera->getPosition());
 		_viewCtrl.setCurrentViewRange(_viewCtrl.viewRange());
-		_viewCtrl._slerpStep = 0.0f;
+		_viewCtrl.resetSlerpStep();
 
 		emit zoomAndPanSet();
 	}
@@ -14179,7 +14118,7 @@ void GLWidget::setBgTopColor(const QColor& bgTopColor)
 
 BoundingSphere GLWidget::getBoundingSphere() const
 {
-	return _viewCtrl._boundingSphere;
+	return _viewCtrl.boundingSphere();
 }
 
 std::vector<int> GLWidget::getDisplayedObjectsIds() const
@@ -14511,12 +14450,12 @@ void GLWidget::setXTran(const float& xTran)
 
 float GLWidget::highestModelZ()
 {
-	return _viewCtrl._visibleHighestZ;
+	return _viewCtrl.visibleHighestZ();
 }
 
 float GLWidget::lowestModelZ()
 {
-	return _viewCtrl._visibleLowestZ;
+	return _viewCtrl.visibleLowestZ();
 }
 
 void GLWidget::showContextMenu(const QPoint& pos)
@@ -14574,7 +14513,7 @@ void GLWidget::showContextMenu(const QPoint& pos)
 				contextMenu.addSeparator();
 
 				// If any of the view modes are active, add a menu item named select to disable them
-				if (_viewCtrl._viewZooming || _viewCtrl._viewPanning || _viewCtrl._viewRotating)
+				if (_viewCtrl.viewZooming() || _viewCtrl.viewPanning() || _viewCtrl.viewRotating())
 				{
 					contextMenu.addSeparator();
 					action = contextMenu.addAction(QIcon(":/icons/res/select.png"), tr("Select"));
