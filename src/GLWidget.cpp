@@ -779,25 +779,6 @@ _floorPlane(nullptr),
 	_cancelRequested(_sceneRuntime._cancelRequested),
 	_loadCancelled(_sceneRuntime._loadCancelled),
 	_pendingLightData(_sceneRuntime._pendingLightData),
-	// AnimationRuntimeController reference aliases (Phase 8) — _animCtrl must be
-	// declared before these in GLWidget.h so it is constructed first.
-	_runtimeAnimationsByFile(_animCtrl._runtimeAnimationsByFile),
-	_activeAnimationFile(_animCtrl._activeAnimationFile),
-	_activeAnimationClip(_animCtrl._activeAnimationClip),
-	_animationCurrentTimeSeconds(_animCtrl._animationCurrentTimeSeconds),
-	_animationPlaying(_animCtrl._animationPlaying),
-	_animationLooping(_animCtrl._animationLooping),
-	_animationPlaybackSpeed(_animCtrl._animationPlaybackSpeed),
-	_animationTimer(_animCtrl._animationTimer),
-	_animationElapsed(_animCtrl._animationElapsed),
-	_activeGltfCameraFile(_animCtrl._activeGltfCameraFile),
-	_activeGltfCameraIndex(_animCtrl._activeGltfCameraIndex),
-	_animatedLightTransformSourceFile(_animCtrl._animatedLightTransformSourceFile),
-	_animatedParsedLights(_animCtrl._animatedParsedLights),
-	_animatedLightVisibilitySourceFile(_animCtrl._animatedLightVisibilitySourceFile),
-	_animatedLightVisibilityMask(_animCtrl._animatedLightVisibilityMask),
-	_animatedMeshVisibilitySourceFile(_animCtrl._animatedMeshVisibilitySourceFile),
-	_animatedHiddenMeshUuids(_animCtrl._animatedHiddenMeshUuids),
 	// ExplodedViewRuntimeController reference aliases (Phase 9)
 	_explodedViewManager(_explodedViewCtrl._explodedViewManager),
 	_cachedHintsAssemblyUuids(_explodedViewCtrl._cachedHintsAssemblyUuids),
@@ -1447,9 +1428,9 @@ _floorPlane(nullptr),
 	_inertiaTimer->setInterval(16); // ~60 FPS
 	connect(_inertiaTimer, &QTimer::timeout, this, &GLWidget::onInertiaTimer);
 
-	_animationTimer = new QTimer(this);
-	_animationTimer->setInterval(16);
-	connect(_animationTimer, &QTimer::timeout, this, &GLWidget::onAnimationTick);
+	_animCtrl.setAnimationTimer(new QTimer(this));
+	_animCtrl.animationTimer()->setInterval(16);
+	connect(_animCtrl.animationTimer(), &QTimer::timeout, this, &GLWidget::onAnimationTick);
 
 	_editorLayout = new QVBoxLayout(this);
 	_upperLayout = new QFormLayout();
@@ -1500,15 +1481,13 @@ _floorPlane(nullptr),
 
 GLWidget::~GLWidget()
 {
-	if (_animationTimer)
+	if (_animCtrl.animationTimer())
 	{
-		_animationTimer->stop();
-		disconnect(_animationTimer, nullptr, this, nullptr);
+		_animCtrl.animationTimer()->stop();
+		disconnect(_animCtrl.animationTimer(), nullptr, this, nullptr);
 	}
-	_animationPlaying = false;
-	_activeAnimationFile.clear();
-	_activeAnimationClip = -1;
-	_runtimeAnimationsByFile.clear();
+	_animCtrl.resetPlayback();
+	_animCtrl.clearAllAnimationFiles();
 
 	_viewToolbar = nullptr;
 
@@ -5012,12 +4991,7 @@ void GLWidget::removeFromDisplay(int index)
 	{
 		_originalParsedLights.clear();
 		_currentRepositionedLights.clear();
-		_animatedLightTransformSourceFile.clear();
-		_animatedParsedLights.clear();
-		_animatedLightVisibilitySourceFile.clear();
-		_animatedLightVisibilityMask.clear();
-		_animatedMeshVisibilitySourceFile.clear();
-		_animatedHiddenMeshUuids.clear();
+		_animCtrl.clearAllAnimatedState();
 		glLights->setLights({});
 		syncPunctualLightUniforms(0, false);
 	}
@@ -5278,14 +5252,11 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 				if (!ad.isEmpty() || ad.hasSkinning)
 				{
 					_viewer->sceneGraph()->setAnimationData(fileName, ad);
-					_runtimeAnimationsByFile.remove(fileName);
-					if (_activeAnimationFile == fileName)
+					_animCtrl.removeAnimationFile(fileName);
+					if (_animCtrl.activeAnimationFile() == fileName)
 					{
-						_animationTimer->stop();
-						_animationPlaying = false;
-						_activeAnimationFile.clear();
-						_activeAnimationClip = -1;
-						_animationCurrentTimeSeconds = 0.0;
+						_animCtrl.animationTimer()->stop();
+						_animCtrl.resetPlayback();
 					}
 					syncFileNodeTransforms(fileName);
 					if (!ad.clips.isEmpty())
@@ -5293,7 +5264,7 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 				}
 				else if (preservesNodeTransforms)
 				{
-					_runtimeAnimationsByFile.remove(fileName);
+					_animCtrl.removeAnimationFile(fileName);
 					syncFileNodeTransforms(fileName);
 				}
 
@@ -6006,18 +5977,18 @@ void GLWidget::applyTransforms(const QMap<int, TransformState>& transforms, bool
 	if (isModelLevelTransform && isGltfCameraActive() && _viewer)
 	{
 		const GltfCameraData camData =
-			_viewer->sceneGraph()->gltfCameraDataForFile(_activeGltfCameraFile);
-		if (_activeGltfCameraIndex >= 0 && _activeGltfCameraIndex < camData.cameras.size())
+			_viewer->sceneGraph()->gltfCameraDataForFile(_animCtrl.activeGltfCameraFile());
+		if (_animCtrl.activeGltfCameraIndex() >= 0 && _animCtrl.activeGltfCameraIndex() < camData.cameras.size())
 		{
-			const GltfCameraEntry& cam = camData.cameras[_activeGltfCameraIndex];
+			const GltfCameraEntry& cam = camData.cameras[_animCtrl.activeGltfCameraIndex()];
 			// Always apply the static transform first; then let applyAnimationPose
 			// override it for animated cameras (same logic as activateGltfCamera).
 			applyGltfCameraEntryTransform(cam);
 			const bool animationOwnsThisFile =
-				_activeAnimationFile == _activeGltfCameraFile && _activeAnimationClip >= 0;
+				_animCtrl.activeAnimationFile() == _animCtrl.activeGltfCameraFile() && _animCtrl.activeAnimationClip() >= 0;
 			if (animationOwnsThisFile)
 			{
-				applyAnimationPose(_activeAnimationFile, _activeAnimationClip, _animationCurrentTimeSeconds);
+				applyAnimationPose(_animCtrl.activeAnimationFile(), _animCtrl.activeAnimationClip(), _animCtrl.animationCurrentTimeSeconds());
 			}
 		}
 	}
@@ -6557,9 +6528,9 @@ void GLWidget::updatePunctualLights()
 	// Start with original positions, unless an animation runtime is actively
 	// overriding the bound light nodes for the current animated file.
 	const std::vector<GPULight>& sourceLights =
-		(!_animatedLightTransformSourceFile.isEmpty() &&
-		 _animatedParsedLights.size() == _originalParsedLights.size())
-		? _animatedParsedLights
+		(!_animCtrl.animatedLightTransformSourceFile().isEmpty() &&
+		 _animCtrl.animatedParsedLights().size() == _originalParsedLights.size())
+		? _animCtrl.animatedParsedLights()
 		: _originalParsedLights;
 	_currentRepositionedLights = sourceLights;
 
@@ -6609,14 +6580,14 @@ void GLWidget::updatePunctualLights()
 		}
 	}
 
-	if (!_animatedLightVisibilitySourceFile.isEmpty() &&
-		_animatedLightVisibilityMask.size() == static_cast<qsizetype>(_currentRepositionedLights.size()))
+	if (!_animCtrl.animatedLightVisibilitySourceFile().isEmpty() &&
+		_animCtrl.animatedLightVisibilityMask().size() == static_cast<qsizetype>(_currentRepositionedLights.size()))
 	{
 		std::vector<GPULight> visibleLights;
 		visibleLights.reserve(_currentRepositionedLights.size());
 		for (int lightIndex = 0; lightIndex < static_cast<int>(_currentRepositionedLights.size()); ++lightIndex)
 		{
-			if (_animatedLightVisibilityMask[lightIndex])
+			if (_animCtrl.animatedLightVisibilityMask()[lightIndex])
 				visibleLights.push_back(_currentRepositionedLights[lightIndex]);
 		}
 		_currentRepositionedLights = std::move(visibleLights);
@@ -6657,43 +6628,32 @@ void GLWidget::updatePunctualLights()
 
 void GLWidget::setAnimatedLightVisibilityState(const QString& sourceFile, const QVector<bool>& visibleByParsedLight)
 {
-	_animatedLightVisibilitySourceFile = sourceFile;
-	_animatedLightVisibilityMask = visibleByParsedLight;
+	_animCtrl.setAnimatedLightVisibility(sourceFile, visibleByParsedLight);
 	updatePunctualLights();
 }
 
 void GLWidget::setAnimatedLightTransformState(const QString& sourceFile, const std::vector<GPULight>& animatedLights)
 {
-	_animatedLightTransformSourceFile = sourceFile;
-	_animatedParsedLights = animatedLights;
+	_animCtrl.setAnimatedLightTransform(sourceFile, animatedLights);
 	updatePunctualLights();
 }
 
 void GLWidget::clearAnimatedLightTransformState(const QString& sourceFile)
 {
-	if (_animatedLightTransformSourceFile != sourceFile)
-		return;
-
-	_animatedLightTransformSourceFile.clear();
-	_animatedParsedLights.clear();
+	_animCtrl.clearAnimatedLightTransform(sourceFile);
 	updatePunctualLights();
 }
 
 void GLWidget::clearAnimatedLightVisibilityState(const QString& sourceFile)
 {
-	if (_animatedLightVisibilitySourceFile != sourceFile)
-		return;
-
-	_animatedLightVisibilitySourceFile.clear();
-	_animatedLightVisibilityMask.clear();
+	_animCtrl.clearAnimatedLightVisibility(sourceFile);
 	updatePunctualLights();
 }
 
 void GLWidget::setAnimatedMeshVisibilityState(const QString& sourceFile, const QSet<QUuid>& hiddenMeshUuids)
 {
-	const bool activatingForFile = (_animatedMeshVisibilitySourceFile != sourceFile);
-	_animatedMeshVisibilitySourceFile = sourceFile;
-	_animatedHiddenMeshUuids = hiddenMeshUuids;
+	const bool activatingForFile = (_animCtrl.animatedMeshVisibilitySourceFile() != sourceFile);
+	_animCtrl.setAnimatedMeshVisibility(sourceFile, hiddenMeshUuids);
 	recalculateVisibleSceneStats();
 	updatePunctualLights();
 	if (activatingForFile)
@@ -6702,11 +6662,7 @@ void GLWidget::setAnimatedMeshVisibilityState(const QString& sourceFile, const Q
 
 void GLWidget::clearAnimatedMeshVisibilityState(const QString& sourceFile)
 {
-	if (_animatedMeshVisibilitySourceFile != sourceFile)
-		return;
-
-	_animatedMeshVisibilitySourceFile.clear();
-	_animatedHiddenMeshUuids.clear();
+	_animCtrl.clearAnimatedMeshVisibility(sourceFile);
 	recalculateVisibleSceneStats();
 	updatePunctualLights();
 }
@@ -9046,11 +9002,11 @@ bool GLWidget::isMeshAnimationVisible(const TriangleMesh* mesh) const
 {
 	if (!mesh)
 		return false;
-	if (_animatedMeshVisibilitySourceFile.isEmpty())
+	if (_animCtrl.animatedMeshVisibilitySourceFile().isEmpty())
 		return true;
-	if (mesh->getSourceFile() != _animatedMeshVisibilitySourceFile)
+	if (mesh->getSourceFile() != _animCtrl.animatedMeshVisibilitySourceFile())
 		return true;
-	return !_animatedHiddenMeshUuids.contains(mesh->uuid());
+	return !_animCtrl.animatedHiddenMeshUuids().contains(mesh->uuid());
 }
 
 bool GLWidget::isMeshVisible(const TriangleMesh* mesh, int activeClipPlaneIndex) const
@@ -12592,7 +12548,7 @@ void GLWidget::syncFileNodeTransforms(const QString& sourceFile)
 
 	const SceneGraphWorldTransforms evaluatedWorlds = sceneGraph->evaluateWorldTransformsForFile(sourceFile);
 
-	RuntimeAnimationFileState& runtime = _runtimeAnimationsByFile[sourceFile];
+	RuntimeAnimationFileState& runtime = _animCtrl.runtimeAnimationsByFile()[sourceFile];
 	runtime.data = sceneGraph->animationDataForFile(sourceFile);
 	runtime.defaultNodeTransformsByUuid.clear();
 	runtime.defaultNodeMorphWeightsByUuid.clear();
@@ -12699,11 +12655,11 @@ void GLWidget::setActiveAnimation(const QString& sourceFile, int clipIndex)
 	// stale runtime cache, which makes meshes appear to "stick" in the wrong pose.
 	syncFileNodeTransforms(sourceFile);
 
-	_activeAnimationFile = sourceFile;
-	_activeAnimationClip = clipIndex;
-	_animationCurrentTimeSeconds = 0.0;
-	_animationPlaying = false;
-	_animationTimer->stop();
+	_animCtrl.setActiveAnimationFile(sourceFile);
+	_animCtrl.setActiveAnimationClip(clipIndex);
+	_animCtrl.setAnimationCurrentTimeSeconds(0.0);
+	_animCtrl.setPlaying(false);
+	_animCtrl.animationTimer()->stop();
 	_viewer->sceneGraph()->setActiveAnimationClip(sourceFile, clipIndex);
 	applyAnimationPose(sourceFile, clipIndex, 0.0);
 	emit animationStateChanged();
@@ -12711,15 +12667,31 @@ void GLWidget::setActiveAnimation(const QString& sourceFile, int clipIndex)
 
 void GLWidget::clearAnimationRuntimeForFile(const QString& sourceFile)
 {
-	_runtimeAnimationsByFile.remove(sourceFile);
-	if (_activeAnimationFile == sourceFile)
+	const bool wasActive = (_animCtrl.activeAnimationFile() == sourceFile);
+	_animCtrl.removeAnimationFile(sourceFile);
+	if (wasActive)
 	{
-		_animationTimer->stop();
-		_animationPlaying = false;
-		_activeAnimationFile.clear();
-		_activeAnimationClip = -1;
-		_animationCurrentTimeSeconds = 0.0;
-		emit animationStateChanged();
+		_animCtrl.animationTimer()->stop();
+		_animCtrl.resetPlayback();
+
+		// If other animated files remain, activate the first one so their
+		// animation continues rather than going dark.
+		const QStringList remaining = _viewer && _viewer->sceneGraph()
+			? _viewer->sceneGraph()->filesWithAnimations()
+			: QStringList();
+		if (!remaining.isEmpty())
+		{
+			const QString& nextFile = remaining.first();
+			const GltfAnimationData data = _viewer->sceneGraph()->animationDataForFile(nextFile);
+			if (!data.clips.isEmpty())
+				setActiveAnimation(nextFile, 0);
+			else
+				emit animationStateChanged();
+		}
+		else
+		{
+			emit animationStateChanged();
+		}
 	}
 }
 
@@ -12730,40 +12702,40 @@ void GLWidget::syncRuntimeNodeTransforms(const QString& sourceFile)
 
 void GLWidget::setAnimationPlaying(bool playing)
 {
-	_animationPlaying = playing;
-	if (_animationPlaying)
+	_animCtrl.setPlaying(playing);
+	if (_animCtrl.isPlaying())
 	{
-		_animationElapsed.restart();
-		_animationTimer->start();
+		_animCtrl.animationElapsed().restart();
+		_animCtrl.animationTimer()->start();
 	}
 	else
 	{
-		_animationTimer->stop();
+		_animCtrl.animationTimer()->stop();
 	}
 	emit animationStateChanged();
 }
 
 void GLWidget::seekAnimation(double timeSeconds)
 {
-	if (_activeAnimationFile.isEmpty() || _activeAnimationClip < 0)
+	if (_animCtrl.activeAnimationFile().isEmpty() || _animCtrl.activeAnimationClip() < 0)
 		return;
 
-	_animationCurrentTimeSeconds = std::max(0.0, timeSeconds);
-	applyAnimationPose(_activeAnimationFile, _activeAnimationClip, _animationCurrentTimeSeconds);
+	_animCtrl.setAnimationCurrentTimeSeconds(std::max(0.0, timeSeconds));
+	applyAnimationPose(_animCtrl.activeAnimationFile(), _animCtrl.activeAnimationClip(), _animCtrl.animationCurrentTimeSeconds());
 	emit animationStateChanged();
 }
 
 void GLWidget::setAnimationLooping(bool looping)
 {
-	_animationLooping = looping;
+	_animCtrl.setLooping(looping);
 	emit animationStateChanged();
 }
 
 void GLWidget::setAnimationPlaybackSpeed(double speed)
 {
-	_animationPlaybackSpeed = std::clamp(speed, 0.25, 4.0);
-	if (_animationPlaying)
-		_animationElapsed.restart();
+	_animCtrl.setPlaybackSpeed(std::clamp(speed, 0.25, 4.0));
+	if (_animCtrl.isPlaying())
+		_animCtrl.animationElapsed().restart();
 	emit animationStateChanged();
 }
 
@@ -12796,8 +12768,7 @@ void GLWidget::activateGltfCamera(const QString& sourceFile, int cameraIndex)
 		_systemCameraStateSaved = true;
 	}
 
-	_activeGltfCameraFile  = sourceFile;
-	_activeGltfCameraIndex = cameraIndex;
+	_animCtrl.setActiveGltfCamera(sourceFile, cameraIndex);
 
 	// Always apply the static camera position/FOV from the parsed glTF camera
 	// entry.  This handles the common case of cameras with no animation
@@ -12811,10 +12782,10 @@ void GLWidget::activateGltfCamera(const QString& sourceFile, int cameraIndex)
 	// applyAnimationPose's worldTransformsByNodeUuid won't contain the camera
 	// node UUID and the view set above is preserved unchanged.
 	const bool animationOwnsThisFile =
-		_activeAnimationFile == sourceFile && _activeAnimationClip >= 0;
+		_animCtrl.activeAnimationFile() == sourceFile && _animCtrl.activeAnimationClip() >= 0;
 	if (animationOwnsThisFile)
 	{
-		applyAnimationPose(sourceFile, _activeAnimationClip, _animationCurrentTimeSeconds);
+		applyAnimationPose(sourceFile, _animCtrl.activeAnimationClip(), _animCtrl.animationCurrentTimeSeconds());
 	}
 
 	update();
@@ -12840,8 +12811,7 @@ void GLWidget::resetToSystemCamera()
 		_systemCameraStateSaved = false;
 	}
 
-	_activeGltfCameraFile.clear();
-	_activeGltfCameraIndex = -1;
+	_animCtrl.setActiveGltfCamera(QString(), -1);
 
 	update();
 }
@@ -12898,7 +12868,7 @@ void GLWidget::applyGltfCameraEntryTransform(const GltfCameraEntry& cam)
 	float modelScale = 1.0f;
 	{
 		QMatrix4x4 userTransform;
-		if (userModelTransformForFile(_activeGltfCameraFile, userTransform))
+		if (userModelTransformForFile(_animCtrl.activeGltfCameraFile(), userTransform))
 		{
 			modelScale = uniformScaleOf(userTransform);
 			if (cam.needsModelTransformCompensation)
@@ -12953,7 +12923,7 @@ void GLWidget::applyGltfCameraEntryTransform(const GltfCameraEntry& cam)
 
 void GLWidget::refreshAnimationMaterialState(const QString& sourceFile)
 {
-	RuntimeAnimationFileState& runtime = _runtimeAnimationsByFile[sourceFile];
+	RuntimeAnimationFileState& runtime = _animCtrl.runtimeAnimationsByFile()[sourceFile];
 	if (runtime.data.sourceFile.isEmpty())
 		runtime.data = _viewer && _viewer->sceneGraph()
 			? _viewer->sceneGraph()->animationDataForFile(sourceFile)
@@ -12970,40 +12940,40 @@ void GLWidget::refreshAnimationMaterialState(const QString& sourceFile)
 		runtime.defaultMeshMaterials.insert(mesh->uuid(), mesh->getMaterial());
 	}
 
-	if (_activeAnimationFile == sourceFile && _activeAnimationClip >= 0)
-		applyAnimationPose(sourceFile, _activeAnimationClip, _animationCurrentTimeSeconds);
+	if (_animCtrl.activeAnimationFile() == sourceFile && _animCtrl.activeAnimationClip() >= 0)
+		applyAnimationPose(sourceFile, _animCtrl.activeAnimationClip(), _animCtrl.animationCurrentTimeSeconds());
 }
 
 void GLWidget::onAnimationTick()
 {
-	if (!_animationPlaying || _activeAnimationFile.isEmpty() || _activeAnimationClip < 0)
+	if (!_animCtrl.isPlaying() || _animCtrl.activeAnimationFile().isEmpty() || _animCtrl.activeAnimationClip() < 0)
 		return;
 
-	const RuntimeAnimationFileState runtime = _runtimeAnimationsByFile.value(_activeAnimationFile);
-	if (_activeAnimationClip >= runtime.data.clips.size())
+	const RuntimeAnimationFileState runtime = _animCtrl.runtimeAnimationsByFile().value(_animCtrl.activeAnimationFile());
+	if (_animCtrl.activeAnimationClip() >= runtime.data.clips.size())
 		return;
 
-	const double deltaSeconds = _animationElapsed.isValid()
-		? static_cast<double>(_animationElapsed.restart()) / 1000.0
+	const double deltaSeconds = _animCtrl.animationElapsed().isValid()
+		? static_cast<double>(_animCtrl.animationElapsed().restart()) / 1000.0
 		: 0.016;
-	const GltfAnimationClip& clip = runtime.data.clips[_activeAnimationClip];
+	const GltfAnimationClip& clip = runtime.data.clips[_animCtrl.activeAnimationClip()];
 	if (clip.durationSeconds <= 0.0)
 		return;
 
-	_animationCurrentTimeSeconds += deltaSeconds * _animationPlaybackSpeed;
-	if (_animationCurrentTimeSeconds >= clip.durationSeconds)
+	_animCtrl.setAnimationCurrentTimeSeconds(_animCtrl.animationCurrentTimeSeconds() + deltaSeconds * _animCtrl.playbackSpeed());
+	if (_animCtrl.animationCurrentTimeSeconds() >= clip.durationSeconds)
 	{
-		if (_animationLooping)
-			_animationCurrentTimeSeconds = std::fmod(_animationCurrentTimeSeconds, clip.durationSeconds);
+		if (_animCtrl.isLooping())
+			_animCtrl.setAnimationCurrentTimeSeconds(std::fmod(_animCtrl.animationCurrentTimeSeconds(), clip.durationSeconds));
 		else
 		{
-			_animationCurrentTimeSeconds = clip.durationSeconds;
-			_animationPlaying = false;
-			_animationTimer->stop();
+			_animCtrl.setAnimationCurrentTimeSeconds(clip.durationSeconds);
+			_animCtrl.setPlaying(false);
+			_animCtrl.animationTimer()->stop();
 		}
 	}
 
-	applyAnimationPose(_activeAnimationFile, _activeAnimationClip, _animationCurrentTimeSeconds);
+	applyAnimationPose(_animCtrl.activeAnimationFile(), _animCtrl.activeAnimationClip(), _animCtrl.animationCurrentTimeSeconds());
 	emit animationStateChanged();
 }
 
@@ -13016,7 +12986,7 @@ void GLWidget::resetAnimationPose(const QString& sourceFile)
 	if (!fileNode)
 		return;
 
-	const RuntimeAnimationFileState runtime = _runtimeAnimationsByFile.value(sourceFile);
+	const RuntimeAnimationFileState runtime = _animCtrl.runtimeAnimationsByFile().value(sourceFile);
 	const bool needsRuntimeNodeTransforms =
 		runtime.data.hasNodeAnimations || runtime.data.hasSkinning;
 	const std::vector<TriangleMesh*>& meshes = getMeshStore();
@@ -13167,7 +13137,7 @@ void GLWidget::updateAnimatedMeshState(const QString& sourceFile,
 	if (!fileNode)
 		return;
 
-	const RuntimeAnimationFileState runtime = _runtimeAnimationsByFile.value(sourceFile);
+	const RuntimeAnimationFileState runtime = _animCtrl.runtimeAnimationsByFile().value(sourceFile);
 	if (!runtime.data.hasNodeAnimations && !runtime.data.hasSkinning)
 		return;
 
@@ -13216,7 +13186,7 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 		return;
 	SceneGraph* sceneGraph = _viewer->sceneGraph();
 
-	RuntimeAnimationFileState& runtime = _runtimeAnimationsByFile[sourceFile];
+	RuntimeAnimationFileState& runtime = _animCtrl.runtimeAnimationsByFile()[sourceFile];
 	if (runtime.data.sourceFile.isEmpty())
 		runtime.data = sceneGraph->animationDataForFile(sourceFile);
 
@@ -13580,12 +13550,12 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 		// transform from worldTransforms and drive the primary camera so that
 		// animated cameras (e.g. the firefly-chasing cameras in
 		// DiffuseTransmissionPlant) stay in sync with the animation timeline.
-		if (_activeGltfCameraFile == sourceFile && _activeGltfCameraIndex >= 0 && _primaryCamera)
+		if (_animCtrl.activeGltfCameraFile() == sourceFile && _animCtrl.activeGltfCameraIndex() >= 0 && _primaryCamera)
 		{
 			const GltfCameraData camData = _viewer->sceneGraph()->gltfCameraDataForFile(sourceFile);
-			if (_activeGltfCameraIndex < camData.cameras.size())
+			if (_animCtrl.activeGltfCameraIndex() < camData.cameras.size())
 			{
-				const GltfCameraEntry& cam = camData.cameras[_activeGltfCameraIndex];
+				const GltfCameraEntry& cam = camData.cameras[_animCtrl.activeGltfCameraIndex()];
 				const QUuid cameraNodeUuid = resolveRuntimeNodeUuid(runtime, cam.nodeIndex, cam.nodeName);
 				if (!cameraNodeUuid.isNull() && worldTransformsByNodeUuid.contains(cameraNodeUuid))
 				{
@@ -18358,12 +18328,7 @@ void GLWidget::setParsedLights(const GltfLightData& lightData)
         _originalParsedLights.push_back(entry.gpuLight);
 
     _currentRepositionedLights.clear();
-    _animatedLightTransformSourceFile.clear();
-    _animatedParsedLights.clear();
-    _animatedLightVisibilitySourceFile.clear();
-    _animatedLightVisibilityMask.clear();
-    _animatedMeshVisibilitySourceFile.clear();
-    _animatedHiddenMeshUuids.clear();
+    _animCtrl.clearAllAnimatedState();
 
     syncPunctualLightUniforms(static_cast<int>(_originalParsedLights.size()),
                               !_originalParsedLights.empty());

@@ -272,19 +272,19 @@ public:
 	void setAnimationPlaybackSpeed(double speed);
 	void syncRuntimeNodeTransforms(const QString& sourceFile);
 	void refreshAnimationMaterialState(const QString& sourceFile);
-	QString activeAnimationFile() const { return _activeAnimationFile; }
-	int activeAnimationClip() const { return _activeAnimationClip; }
-	double currentAnimationTimeSeconds() const { return _animationCurrentTimeSeconds; }
-	bool isAnimationPlaying() const { return _animationPlaying; }
-	bool isAnimationLooping() const { return _animationLooping; }
-	double animationPlaybackSpeed() const { return _animationPlaybackSpeed; }
+	QString activeAnimationFile() const { return _animCtrl.activeAnimationFile(); }
+	int activeAnimationClip() const { return _animCtrl.activeAnimationClip(); }
+	double currentAnimationTimeSeconds() const { return _animCtrl.animationCurrentTimeSeconds(); }
+	bool isAnimationPlaying() const { return _animCtrl.isPlaying(); }
+	bool isAnimationLooping() const { return _animCtrl.isLooping(); }
+	double animationPlaybackSpeed() const { return _animCtrl.playbackSpeed(); }
 
 	// glTF camera switching
 	void activateGltfCamera(const QString& sourceFile, int cameraIndex);
 	void resetToSystemCamera();
-	bool isGltfCameraActive()     const { return _activeGltfCameraIndex >= 0; }
-	QString activeGltfCameraFile()  const { return _activeGltfCameraFile; }
-	int     activeGltfCameraIndex() const { return _activeGltfCameraIndex; }
+	bool isGltfCameraActive()     const { return _animCtrl.activeGltfCameraIndex() >= 0; }
+	QString activeGltfCameraFile()  const { return _animCtrl.activeGltfCameraFile(); }
+	int     activeGltfCameraIndex() const { return _animCtrl.activeGltfCameraIndex(); }
 
 public:
 	float getXTran() const;
@@ -1005,29 +1005,7 @@ private:
 	bool&                                                    _loadCancelled;
 	GltfLightData&                                           _pendingLightData;
 
-	// Animation runtime state — owned here; GLWidget aliases every field by
-	// reference so all existing call sites in GLWidget.cpp remain unchanged.
-	// Declaration order: _animCtrl must come before all its reference aliases.
 	AnimationRuntimeController _animCtrl;
-
-	// Reference aliases into _animCtrl (initialized in constructor init-list)
-	QHash<QString, RuntimeAnimationFileState>&      _runtimeAnimationsByFile;
-	QString&                                        _activeAnimationFile;
-	int&                                            _activeAnimationClip;
-	double&                                         _animationCurrentTimeSeconds;
-	bool&                                           _animationPlaying;
-	bool&                                           _animationLooping;
-	double&                                         _animationPlaybackSpeed;
-	QTimer*&                                        _animationTimer;
-	QElapsedTimer&                                  _animationElapsed;
-	QString&                                        _activeGltfCameraFile;
-	int&                                            _activeGltfCameraIndex;
-	QString&                                        _animatedLightTransformSourceFile;
-	std::vector<GPULight>&                          _animatedParsedLights;
-	QString&                                        _animatedLightVisibilitySourceFile;
-	QVector<bool>&                                  _animatedLightVisibilityMask;
-	QString&                                        _animatedMeshVisibilitySourceFile;
-	QSet<QUuid>&                                    _animatedHiddenMeshUuids;
 
 	// Exploded-view runtime state — owned here; GLWidget aliases every field by
 	// reference so all existing call sites in GLWidget.cpp remain unchanged.
