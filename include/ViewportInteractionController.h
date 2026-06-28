@@ -21,8 +21,8 @@
 //
 // Groups all viewport navigation, camera, gizmo drag, and rubber-band
 // interaction state that was previously scattered through GLWidget's private
-// section.  GLWidget is a friend and accesses fields directly; all other
-// code must go through GLWidget's public API.
+// section.  Fields are public: this is a data aggregate owned by GLWidget;
+// all external callers must go through GLWidget's public API.
 //
 // Introduced in Phase 11 of the mesh/render/runtime separation refactor.
 // De-aliased in the controller ownership cleanup pass.
@@ -32,13 +32,10 @@
 // as direct GLWidget members because Qt object-tree ownership requires the
 // parent to be a QObject.
 // ---------------------------------------------------------------------------
-class GLWidget;
 
 class ViewportInteractionController
 {
-    friend class GLWidget;
-
-private:
+public:
     // ---- Saved system-camera state -----------------------------------------
     // Captured when a glTF camera is first activated; restored on deactivation.
     bool                     _systemCameraStateSaved  = false;
@@ -149,6 +146,7 @@ private:
     // ---- Static picking / viewport helpers ---------------------------------
     // Returns the CornerAxisPosition clamped to one of the four valid corners.
     static CornerAxisPosition normalizeCornerAxisPosition(CornerAxisPosition position);
+
 
     // Converts a pixel coordinate to a world-space ray (orig, dir).
     // Returns false if the viewport is degenerate or the ray is zero.

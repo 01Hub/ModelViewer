@@ -264,6 +264,35 @@ public:
     GLuint cappingTexture()       const { return _cappingTexture; }
     void   setCappingTexture(GLuint t)  { _cappingTexture = t; }
 
+    // ---- Clipping plane state ----------------------------------------------
+    bool  yzClippingEnabled()             const { return _clipYZEnabled; }
+    void  setYZClippingEnabled(bool v)          { _clipYZEnabled = v; }
+    bool  zxClippingEnabled()             const { return _clipZXEnabled; }
+    void  setZXClippingEnabled(bool v)          { _clipZXEnabled = v; }
+    bool  xyClippingEnabled()             const { return _clipXYEnabled; }
+    void  setXYClippingEnabled(bool v)          { _clipXYEnabled = v; }
+
+    bool  clippingXFlipped()              const { return _clipXFlipped; }
+    void  setClippingXFlipped(bool v)           { _clipXFlipped = v; }
+    bool  clippingYFlipped()              const { return _clipYFlipped; }
+    void  setClippingYFlipped(bool v)           { _clipYFlipped = v; }
+    bool  clippingZFlipped()              const { return _clipZFlipped; }
+    void  setClippingZFlipped(bool v)           { _clipZFlipped = v; }
+
+    float clippingXCoeff()                const { return _clipXCoeff; }
+    void  setClippingXCoeff(float v)            { _clipXCoeff = v; }
+    float clippingYCoeff()                const { return _clipYCoeff; }
+    void  setClippingYCoeff(float v)            { _clipYCoeff = v; }
+    float clippingZCoeff()                const { return _clipZCoeff; }
+    void  setClippingZCoeff(float v)            { _clipZCoeff = v; }
+
+    float clipDX()                        const { return _clipDX; }
+    void  setClipDX(float v)                    { _clipDX = v; }
+    float clipDY()                        const { return _clipDY; }
+    void  setClipDY(float v)                    { _clipDY = v; }
+    float clipDZ()                        const { return _clipDZ; }
+    void  setClipDZ(float v)                    { _clipDZ = v; }
+
     // ---- Render settings ---------------------------------------------------
     bool isOpenGLInitialized() const { return _openGLInitialized; }
     void setOpenGLInitialized(bool v) { _openGLInitialized = v; }
@@ -540,6 +569,20 @@ private:
     // ---- Capping -----------------------------------------------------------
     bool         _cappingEnabled = false;
     unsigned int _cappingTexture = 0;
+
+    // ---- Clipping plane state ----------------------------------------------
+    bool  _clipYZEnabled  = false;
+    bool  _clipZXEnabled  = false;
+    bool  _clipXYEnabled  = false;
+    bool  _clipXFlipped   = false;
+    bool  _clipYFlipped   = false;
+    bool  _clipZFlipped   = false;
+    float _clipXCoeff     = 0.0f;
+    float _clipYCoeff     = 0.0f;
+    float _clipZCoeff     = 0.0f;
+    float _clipDX         = 0.0f;
+    float _clipDY         = 0.0f;
+    float _clipDZ         = 0.0f;
 
     // ---- Render settings ---------------------------------------------------
     bool         _openGLInitialized                  = false;

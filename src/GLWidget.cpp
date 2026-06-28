@@ -329,13 +329,6 @@ _floorPlane(nullptr),
 
 	_modelName = "Model";
 
-	_clipYZEnabled = false;
-	_clipZXEnabled = false;
-	_clipXYEnabled = false;
-
-	_clipXFlipped = false;
-	_clipYFlipped = false;
-	_clipZFlipped = false;
 	_clippingPlaneXY = nullptr;
 	_clippingPlaneYZ = nullptr;
 	_clippingPlaneZX = nullptr;
@@ -408,14 +401,6 @@ _floorPlane(nullptr),
 	_viewCtrl._rubberBandZoomRatio = 0.5f;
 
 	_viewCtrl._scaleFrac = 1.0f;
-
-	_clipXCoeff = 0.0f;
-	_clipYCoeff = 0.0f;
-	_clipZCoeff = 0.0f;
-
-	_clipDX = 0.0f;
-	_clipDY = 0.0f;
-	_clipDZ = 0.0f;
 
 	_xTran = 0.0f;
 	_yTran = 0.0f;
@@ -2603,12 +2588,12 @@ bool GLWidget::shouldUseFallbackLightForVisibleScene() const
 
 void GLWidget::updateClippingPlane()
 {
-	float xside = _clipXFlipped || _clipXCoeff > 0 ? -1.0f : 1.0f;
-	float yside = _clipYFlipped || _clipYCoeff > 0 ? 1.0f : -1.0f;
-	float zside = _clipZFlipped || _clipZCoeff > 0 ? -1.0f : 1.0f;
-	_clippingPlaneXY->setPlane(_renderCtrl.clippingPlaneShader(), _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, -_clipZCoeff * zside, _floorSize, _floorSize);
-	_clippingPlaneYZ->setPlane(_renderCtrl.clippingPlaneShader(), _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, -_clipXCoeff * xside, _floorSize, _floorSize);
-	_clippingPlaneZX->setPlane(_renderCtrl.clippingPlaneShader(), _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, -_clipYCoeff * yside, _floorSize, _floorSize);
+	float xside = _renderCtrl.clippingXFlipped() || _renderCtrl.clippingXCoeff() > 0 ? -1.0f : 1.0f;
+	float yside = _renderCtrl.clippingYFlipped() || _renderCtrl.clippingYCoeff() > 0 ? 1.0f : -1.0f;
+	float zside = _renderCtrl.clippingZFlipped() || _renderCtrl.clippingZCoeff() > 0 ? -1.0f : 1.0f;
+	_clippingPlaneXY->setPlane(_renderCtrl.clippingPlaneShader(), _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, -_renderCtrl.clippingZCoeff() * zside, _floorSize, _floorSize);
+	_clippingPlaneYZ->setPlane(_renderCtrl.clippingPlaneShader(), _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, -_renderCtrl.clippingXCoeff() * xside, _floorSize, _floorSize);
+	_clippingPlaneZX->setPlane(_renderCtrl.clippingPlaneShader(), _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, -_renderCtrl.clippingYCoeff() * yside, _floorSize, _floorSize);
 	_clippingPlanesEditor->setCoefficientLimits(-_viewCtrl._boundingBox.getXSize()/2, _viewCtrl._boundingBox.getXSize()/2, 
 		-_viewCtrl._boundingBox.getYSize() / 2, _viewCtrl._boundingBox.getYSize() / 2,
 		-_viewCtrl._boundingBox.getZSize() / 2, _viewCtrl._boundingBox.getZSize() / 2);
@@ -6670,24 +6655,24 @@ void GLWidget::updateZoomInLimit()
 
 bool GLWidget::isBoundingBoxFullyClipped_X(const BoundingBox& bb) const
 {
-	const float tx = _clipXCoeff + static_cast<float>(_viewCtrl._boundingBox.center().getX());
-	return _clipXFlipped
+	const float tx = _renderCtrl.clippingXCoeff() + static_cast<float>(_viewCtrl._boundingBox.center().getX());
+	return _renderCtrl.clippingXFlipped()
 		? static_cast<float>(bb.xMax()) < tx
 		: static_cast<float>(bb.xMin()) > tx;
 }
 
 bool GLWidget::isBoundingBoxFullyClipped_Y(const BoundingBox& bb) const
 {
-	const float ty = _clipYCoeff + static_cast<float>(_viewCtrl._boundingBox.center().getY());
-	return _clipYFlipped
+	const float ty = _renderCtrl.clippingYCoeff() + static_cast<float>(_viewCtrl._boundingBox.center().getY());
+	return _renderCtrl.clippingYFlipped()
 		? static_cast<float>(bb.yMax()) < ty
 		: static_cast<float>(bb.yMin()) > ty;
 }
 
 bool GLWidget::isBoundingBoxFullyClipped_Z(const BoundingBox& bb) const
 {
-	const float tz = _clipZCoeff + static_cast<float>(_viewCtrl._boundingBox.center().getZ());
-	return _clipZFlipped
+	const float tz = _renderCtrl.clippingZCoeff() + static_cast<float>(_viewCtrl._boundingBox.center().getZ());
+	return _renderCtrl.clippingZFlipped()
 		? static_cast<float>(bb.zMax()) < tz
 		: static_cast<float>(bb.zMin()) > tz;
 }
@@ -6709,24 +6694,24 @@ bool GLWidget::isMeshFullyClipped_Z(const SceneMesh* mesh) const
 
 bool GLWidget::isBoundingBoxFullyKept_X(const BoundingBox& bb) const
 {
-	const float tx = _clipXCoeff + static_cast<float>(_viewCtrl._boundingBox.center().getX());
-	return _clipXFlipped
+	const float tx = _renderCtrl.clippingXCoeff() + static_cast<float>(_viewCtrl._boundingBox.center().getX());
+	return _renderCtrl.clippingXFlipped()
 		? static_cast<float>(bb.xMin()) >= tx
 		: static_cast<float>(bb.xMax()) <= tx;
 }
 
 bool GLWidget::isBoundingBoxFullyKept_Y(const BoundingBox& bb) const
 {
-	const float ty = _clipYCoeff + static_cast<float>(_viewCtrl._boundingBox.center().getY());
-	return _clipYFlipped
+	const float ty = _renderCtrl.clippingYCoeff() + static_cast<float>(_viewCtrl._boundingBox.center().getY());
+	return _renderCtrl.clippingYFlipped()
 		? static_cast<float>(bb.yMin()) >= ty
 		: static_cast<float>(bb.yMax()) <= ty;
 }
 
 bool GLWidget::isBoundingBoxFullyKept_Z(const BoundingBox& bb) const
 {
-	const float tz = _clipZCoeff + static_cast<float>(_viewCtrl._boundingBox.center().getZ());
-	return _clipZFlipped
+	const float tz = _renderCtrl.clippingZCoeff() + static_cast<float>(_viewCtrl._boundingBox.center().getZ());
+	return _renderCtrl.clippingZFlipped()
 		? static_cast<float>(bb.zMin()) >= tz
 		: static_cast<float>(bb.zMax()) <= tz;
 }
@@ -6764,9 +6749,9 @@ bool GLWidget::isMeshStraddlesCapPlane(const SceneMesh* mesh, int planeIndex) co
 
 bool GLWidget::isBoundingBoxInvisibleInAllClipPasses(const BoundingBox& bb) const
 {
-	if (_clipYZEnabled && !isBoundingBoxFullyClipped_X(bb)) return false;
-	if (_clipZXEnabled && !isBoundingBoxFullyClipped_Y(bb)) return false;
-	if (_clipXYEnabled && !isBoundingBoxFullyClipped_Z(bb)) return false;
+	if (_renderCtrl.yzClippingEnabled() && !isBoundingBoxFullyClipped_X(bb)) return false;
+	if (_renderCtrl.zxClippingEnabled() && !isBoundingBoxFullyClipped_Y(bb)) return false;
+	if (_renderCtrl.xyClippingEnabled() && !isBoundingBoxFullyClipped_Z(bb)) return false;
 	return true;
 }
 
@@ -6866,27 +6851,27 @@ void GLWidget::drawMeshesWithClipping(QOpenGLShaderProgram* prog,
 
 	// https://stackoverflow.com/questions/16901829/how-to-clip-only-intersection-not-union-of-clipping-planes
 	// If any clipping is active
-	if (_clipYZEnabled || _clipZXEnabled || _clipXYEnabled)
+	if (_renderCtrl.yzClippingEnabled() || _renderCtrl.zxClippingEnabled() || _renderCtrl.xyClippingEnabled())
 	{
 		// Then draw meshes with clip planes enabled.
 		// Each pass activates one plane to produce the union of all half-spaces.
 		// activeClipPlaneIndex (0/1/2) tells the draw functions which single plane
 		// is active so per-pass AABB culling tests only that plane.
-		if (_clipYZEnabled)
+		if (_renderCtrl.yzClippingEnabled())
 		{
 			glEnable(GL_CLIP_DISTANCE0);
 			if (transparentPass) drawTransparentMeshes(prog, 0);
 			else                 drawOpaqueMeshes(prog, 0);
 			glDisable(GL_CLIP_DISTANCE0);
 		}
-		if (_clipZXEnabled)
+		if (_renderCtrl.zxClippingEnabled())
 		{
 			glEnable(GL_CLIP_DISTANCE1);
 			if (transparentPass) drawTransparentMeshes(prog, 1);
 			else                 drawOpaqueMeshes(prog, 1);
 			glDisable(GL_CLIP_DISTANCE1);
 		}
-		if (_clipXYEnabled)
+		if (_renderCtrl.xyClippingEnabled())
 		{
 			glEnable(GL_CLIP_DISTANCE2);
 			if (transparentPass) drawTransparentMeshes(prog, 2);
@@ -7096,23 +7081,23 @@ void GLWidget::drawSectionCapping()
 	_renderCtrl.clippedMeshShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
 	QVector3D pos = _primaryCamera->getRenderPosition();
 
-	_renderCtrl.clippedMeshShader()->setUniformValue("clipPlaneX", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(_clipXFlipped ? 1 : -1, 0, 0) + pos),
-		(_clipXFlipped ? 1 : -1) * (pos.x() - (_clipXCoeff + _viewCtrl._boundingBox.center().getX()))));
-	_renderCtrl.clippedMeshShader()->setUniformValue("clipPlaneY", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(0, _clipYFlipped ? 1 : -1, 0) + pos),
-		(_clipYFlipped ? 1 : -1) * (pos.y() - (_clipYCoeff + _viewCtrl._boundingBox.center().getY()))));
-	_renderCtrl.clippedMeshShader()->setUniformValue("clipPlaneZ", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(0, 0, _clipZFlipped ? 1 : -1) + pos),
-		(_clipZFlipped ? 1 : -1) * (pos.z() - (_clipZCoeff + _viewCtrl._boundingBox.center().getZ()))));
-	_renderCtrl.clippedMeshShader()->setUniformValue("clipPlane", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
-		pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
+	_renderCtrl.clippedMeshShader()->setUniformValue("clipPlaneX", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(_renderCtrl.clippingXFlipped() ? 1 : -1, 0, 0) + pos),
+		(_renderCtrl.clippingXFlipped() ? 1 : -1) * (pos.x() - (_renderCtrl.clippingXCoeff() + _viewCtrl._boundingBox.center().getX()))));
+	_renderCtrl.clippedMeshShader()->setUniformValue("clipPlaneY", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(0, _renderCtrl.clippingYFlipped() ? 1 : -1, 0) + pos),
+		(_renderCtrl.clippingYFlipped() ? 1 : -1) * (pos.y() - (_renderCtrl.clippingYCoeff() + _viewCtrl._boundingBox.center().getY()))));
+	_renderCtrl.clippedMeshShader()->setUniformValue("clipPlaneZ", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(0, 0, _renderCtrl.clippingZFlipped() ? 1 : -1) + pos),
+		(_renderCtrl.clippingZFlipped() ? 1 : -1) * (pos.z() - (_renderCtrl.clippingZCoeff() + _viewCtrl._boundingBox.center().getZ()))));
+	_renderCtrl.clippedMeshShader()->setUniformValue("clipPlane", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(_renderCtrl.clipDX(), _renderCtrl.clipDY(), _renderCtrl.clipDZ()) + pos),
+		pos.x() * _renderCtrl.clipDX() + pos.y() * _renderCtrl.clipDY() + pos.z() * _renderCtrl.clipDZ()));
 
 	for (int i = 0; i < 3; ++i)
 	{
 		// Clipping Planes
-		if (_clipYZEnabled && i == 0)
+		if (_renderCtrl.yzClippingEnabled() && i == 0)
 			glEnable(GL_CLIP_DISTANCE0);
-		if (_clipZXEnabled && i == 1)
+		if (_renderCtrl.zxClippingEnabled() && i == 1)
 			glEnable(GL_CLIP_DISTANCE1);
-		if (_clipXYEnabled && i == 2)
+		if (_renderCtrl.xyClippingEnabled() && i == 2)
 			glEnable(GL_CLIP_DISTANCE2);
 
 		// https://www.opengl.org/archives/resources/code/samples/advanced/advanced97/notes/node10.html
@@ -7180,9 +7165,9 @@ void GLWidget::drawSectionCapping()
 			glActiveTexture(GL_TEXTURE6);
 			glBindTexture(GL_TEXTURE_2D, _renderCtrl.cappingTexture());
 			_renderCtrl.clippingPlaneShader()->setUniformValue("hatchMap", 6);
-			float yAng = _clipXFlipped || _clipXCoeff > 0 ? 90.0f : -90.0f;
-			float xAng = _clipYFlipped || _clipYCoeff > 0 ? 90.0f : -90.0f;
-			float zAng = _clipZFlipped || _clipZCoeff > 0 ? 0.0f : 180.0f;
+			float yAng = _renderCtrl.clippingXFlipped() || _renderCtrl.clippingXCoeff() > 0 ? 90.0f : -90.0f;
+			float xAng = _renderCtrl.clippingYFlipped() || _renderCtrl.clippingYCoeff() > 0 ? 90.0f : -90.0f;
+			float zAng = _renderCtrl.clippingZFlipped() || _renderCtrl.clippingZCoeff() > 0 ? 0.0f : 180.0f;
 
 			bool wantTexture = _hatchMode == ClippingPlaneHatchMode::TEXTURE/* read from UI or stored flag */;
 			bool wantFlipU = false/* read from UI or stored flag */;
@@ -7213,9 +7198,9 @@ void GLWidget::drawSectionCapping()
 			_renderCtrl.clippingPlaneShader()->bind();
 			_clippingPlaneYZ->setSceneRenderTransformFast(model);
 			_renderCtrl.clippingPlaneShader()->setUniformValue("planeColor", QVector3D(0.20f, 0.5f, 0.5f));			
-			if (_clipYZEnabled && i == 0)
+			if (_renderCtrl.yzClippingEnabled() && i == 0)
 			{
-				const float xPlane = P.getX() + _clipXCoeff;
+				const float xPlane = P.getX() + _renderCtrl.clippingXCoeff();
 				// Origin at plane through bbox center
 				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchOrigin", QVector3D(xPlane, P.getY(), P.getZ()));
 				// World-space basis on the plane: U=+Y, V=+Z
@@ -7231,9 +7216,9 @@ void GLWidget::drawSectionCapping()
 			_renderCtrl.clippingPlaneShader()->bind();
 			_clippingPlaneZX->setSceneRenderTransformFast(model);
 			_renderCtrl.clippingPlaneShader()->setUniformValue("planeColor", QVector3D(0.5f, 0.20f, 0.5f));
-			if (_clipZXEnabled && i == 1)
+			if (_renderCtrl.zxClippingEnabled() && i == 1)
 			{
-				const float yPlane = P.getY() + _clipYCoeff;
+				const float yPlane = P.getY() + _renderCtrl.clippingYCoeff();
 				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchOrigin", QVector3D(P.getX(), yPlane, P.getZ()));
 				// U=+Z, V=+X
 				_renderCtrl.clippingPlaneShader()->setUniformValue("uDir", QVector3D(0.f, 0.f, 1.f));
@@ -7248,9 +7233,9 @@ void GLWidget::drawSectionCapping()
 			_renderCtrl.clippingPlaneShader()->bind();
 			_clippingPlaneXY->setSceneRenderTransformFast(model);
 			_renderCtrl.clippingPlaneShader()->setUniformValue("planeColor", QVector3D(0.5f, 0.5f, 0.20f));
-			if (_clipXYEnabled && i == 2)
+			if (_renderCtrl.xyClippingEnabled() && i == 2)
 			{
-				const float zPlane = P.getZ() + _clipZCoeff;
+				const float zPlane = P.getZ() + _renderCtrl.clippingZCoeff();
 				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchOrigin", QVector3D(P.getX(), P.getY(), zPlane));
 				// U=+X, V=+Y
 				_renderCtrl.clippingPlaneShader()->setUniformValue("uDir", QVector3D(1.f, 0.f, 0.f));
@@ -7260,11 +7245,11 @@ void GLWidget::drawSectionCapping()
 		}
 
 		// Clipping Planes
-		if (_clipYZEnabled && i == 0)
+		if (_renderCtrl.yzClippingEnabled() && i == 0)
 			glDisable(GL_CLIP_DISTANCE0);
-		if (_clipZXEnabled && i == 1)
+		if (_renderCtrl.zxClippingEnabled() && i == 1)
 			glDisable(GL_CLIP_DISTANCE1);
-		if (_clipXYEnabled && i == 2)
+		if (_renderCtrl.xyClippingEnabled() && i == 2)
 			glDisable(GL_CLIP_DISTANCE2);
 	}
 
@@ -9328,7 +9313,7 @@ void GLWidget::render(GLCamera* camera)
 	// --- 2.5) Section caps (after opaque, before floor & transparents) ---
 	if (_renderCtrl.cappingEnabled() &&
 		!_renderCtrl.sectionCapsSuppressedDuringInteraction() &&
-		(_clipYZEnabled || _clipZXEnabled || _clipXYEnabled))
+		(_renderCtrl.yzClippingEnabled() || _renderCtrl.zxClippingEnabled() || _renderCtrl.xyClippingEnabled()))
 	{
 		glEnable(GL_POLYGON_OFFSET_FILL);
 		glPolygonOffset(1.0f, 1.0f); // pull forward
@@ -10017,7 +10002,7 @@ void GLWidget::setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos)
 {
 	prog->bind();
 	RenderableMesh::recordProgramBindCall(true);
-	if (_clipYZEnabled || _clipZXEnabled || _clipXYEnabled || !(_clipDX == 0 && _clipDY == 0 && _clipDZ == 0))
+	if (_renderCtrl.yzClippingEnabled() || _renderCtrl.zxClippingEnabled() || _renderCtrl.xyClippingEnabled() || !(_renderCtrl.clipDX() == 0 && _renderCtrl.clipDY() == 0 && _renderCtrl.clipDZ() == 0))
 	{
 		prog->setUniformValue("sectionActive", true);
 	}
@@ -10027,14 +10012,14 @@ void GLWidget::setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos)
 	}
 	prog->setUniformValue("modelViewMatrix", _viewCtrl._modelViewMatrix);
 	prog->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
-	prog->setUniformValue("clipPlaneX", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(_clipXFlipped ? 1 : -1, 0, 0) + pos),
-		(_clipXFlipped ? 1 : -1) * (pos.x() - (_clipXCoeff + _viewCtrl._boundingBox.center().getX()))));
-	prog->setUniformValue("clipPlaneY", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(0, _clipYFlipped ? 1 : -1, 0) + pos),
-		(_clipYFlipped ? 1 : -1) * (pos.y() - (_clipYCoeff + _viewCtrl._boundingBox.center().getY()))));
-	prog->setUniformValue("clipPlaneZ", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(0, 0, _clipZFlipped ? 1 : -1) + pos),
-		(_clipZFlipped ? 1 : -1) * (pos.z() - (_clipZCoeff + _viewCtrl._boundingBox.center().getZ()))));
-	prog->setUniformValue("clipPlane", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
-		pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
+	prog->setUniformValue("clipPlaneX", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(_renderCtrl.clippingXFlipped() ? 1 : -1, 0, 0) + pos),
+		(_renderCtrl.clippingXFlipped() ? 1 : -1) * (pos.x() - (_renderCtrl.clippingXCoeff() + _viewCtrl._boundingBox.center().getX()))));
+	prog->setUniformValue("clipPlaneY", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(0, _renderCtrl.clippingYFlipped() ? 1 : -1, 0) + pos),
+		(_renderCtrl.clippingYFlipped() ? 1 : -1) * (pos.y() - (_renderCtrl.clippingYCoeff() + _viewCtrl._boundingBox.center().getY()))));
+	prog->setUniformValue("clipPlaneZ", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(0, 0, _renderCtrl.clippingZFlipped() ? 1 : -1) + pos),
+		(_renderCtrl.clippingZFlipped() ? 1 : -1) * (pos.z() - (_renderCtrl.clippingZCoeff() + _viewCtrl._boundingBox.center().getZ()))));
+	prog->setUniformValue("clipPlane", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(_renderCtrl.clipDX(), _renderCtrl.clipDY(), _renderCtrl.clipDZ()) + pos),
+		pos.x() * _renderCtrl.clipDX() + pos.y() * _renderCtrl.clipDY() + pos.z() * _renderCtrl.clipDZ()));
 }
 
 
@@ -11839,7 +11824,7 @@ void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topCol
 	// --- RENDER 3: SECTION CAPS ---
 	if (_renderCtrl.cappingEnabled() &&
 		!_renderCtrl.sectionCapsSuppressedDuringInteraction() &&
-		(_clipYZEnabled || _clipZXEnabled || _clipXYEnabled))
+		(_renderCtrl.yzClippingEnabled() || _renderCtrl.zxClippingEnabled() || _renderCtrl.xyClippingEnabled()))
 	{
 		glEnable(GL_POLYGON_OFFSET_FILL);
 		glPolygonOffset(1.0f, 1.0f);

@@ -378,26 +378,26 @@ public:
 	void setCappingPlanesEnabled(const bool& enabled) { _renderCtrl.setCappingEnabled(enabled); }
 	bool cappingPlanesEnabled() const { return _renderCtrl.cappingEnabled(); }
 
-	void setYZClippingEnabled(const bool& enabled) { _clipYZEnabled = enabled; }
-	bool yzClippingEnabled() const { return _clipYZEnabled; }
-	void setZXClippingEnabled(const bool& enabled) { _clipZXEnabled = enabled; }
-	bool zxClippingEnabled() const { return _clipZXEnabled; }
-	void setXYClippingEnabled(const bool& enabled) { _clipXYEnabled = enabled; }
-	bool xyClippingEnabled() const { return _clipXYEnabled; }
+	void setYZClippingEnabled(const bool& enabled) { _renderCtrl.setYZClippingEnabled(enabled); }
+	bool yzClippingEnabled() const { return _renderCtrl.yzClippingEnabled(); }
+	void setZXClippingEnabled(const bool& enabled) { _renderCtrl.setZXClippingEnabled(enabled); }
+	bool zxClippingEnabled() const { return _renderCtrl.zxClippingEnabled(); }
+	void setXYClippingEnabled(const bool& enabled) { _renderCtrl.setXYClippingEnabled(enabled); }
+	bool xyClippingEnabled() const { return _renderCtrl.xyClippingEnabled(); }
 
-	void setClippingXFlipped(const bool& flipped) { _clipXFlipped = flipped; }
-	bool clippingXFlipped() const { return _clipXFlipped; }
-	void setClippingYFlipped(const bool& flipped) { _clipYFlipped = flipped; }
-	bool clippingYFlipped() const { return _clipYFlipped; }
-	void setClippingZFlipped(const bool& flipped) { _clipZFlipped = flipped; }
-	bool clippingZFlipped() const { return _clipZFlipped; }
+	void setClippingXFlipped(const bool& flipped) { _renderCtrl.setClippingXFlipped(flipped); }
+	bool clippingXFlipped() const { return _renderCtrl.clippingXFlipped(); }
+	void setClippingYFlipped(const bool& flipped) { _renderCtrl.setClippingYFlipped(flipped); }
+	bool clippingYFlipped() const { return _renderCtrl.clippingYFlipped(); }
+	void setClippingZFlipped(const bool& flipped) { _renderCtrl.setClippingZFlipped(flipped); }
+	bool clippingZFlipped() const { return _renderCtrl.clippingZFlipped(); }
 
-	void setClippingXCoeff(const float& coeff) { _clipXCoeff = coeff; }
-	float clippingXCoeff() const { return _clipXCoeff; }
-	void setClippingYCoeff(const float& coeff) { _clipYCoeff = coeff; }
-	float clippingYCoeff() const { return _clipYCoeff; }
-	void setClippingZCoeff(const float& coeff) { _clipZCoeff = coeff; }
-	float clippingZCoeff() const { return _clipZCoeff; }
+	void setClippingXCoeff(const float& coeff) { _renderCtrl.setClippingXCoeff(coeff); }
+	float clippingXCoeff() const { return _renderCtrl.clippingXCoeff(); }
+	void setClippingYCoeff(const float& coeff) { _renderCtrl.setClippingYCoeff(coeff); }
+	float clippingYCoeff() const { return _renderCtrl.clippingYCoeff(); }
+	void setClippingZCoeff(const float& coeff) { _renderCtrl.setClippingZCoeff(coeff); }
+	float clippingZCoeff() const { return _renderCtrl.clippingZCoeff(); }
 
 	bool getHdrToneMapping() const;
 	bool getGammaCorrection() const;
@@ -1024,23 +1024,6 @@ private:
 	unsigned int _selectionFBO = 0;
 	unsigned int _selectionRBO = 0;        // Color render buffer
 	unsigned int _selectionDBO = 0;        // Depth render buffer
-
-
-	float _clipXCoeff;
-	float _clipYCoeff;
-	float _clipZCoeff;
-
-	float _clipDX;
-	float _clipDY;
-	float _clipDZ;
-
-	bool _clipYZEnabled;
-	bool _clipZXEnabled;
-	bool _clipXYEnabled;
-
-	bool _clipXFlipped;
-	bool _clipYFlipped;
-	bool _clipZFlipped;
 
 
 	float _xTran;
