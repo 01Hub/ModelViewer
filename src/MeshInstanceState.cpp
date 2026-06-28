@@ -304,7 +304,14 @@ void MeshInstanceState::updateRuntimeBounds(
         }
     }
 
-    buildTriangles(indices);
+    if (_buildPickingTriangles)
+        buildTriangles(indices);
+    else
+    {
+        for (Triangle* t : _triangles)
+            delete t;
+        _triangles.clear();
+    }
     computeBounds();
     markRuntimeBoundsChanged();
 }

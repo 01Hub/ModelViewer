@@ -76,7 +76,7 @@ bool SceneMesh::_currentUniformStateHadDebugOverrides = false;
 
 /*  Functions  */
 // Constructor
-SceneMesh::SceneMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<GLMaterial::Texture> textures, GLMaterial material, bool skipOptimization)
+SceneMesh::SceneMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<GLMaterial::Texture> textures, GLMaterial material, bool skipOptimization, GLenum primitiveMode)
     : DeformableMesh(shader, "SceneMesh")
     , _textures(_materialState.textures())
     , _currentMorphWeights(_animState.currentMorphWeights())
@@ -92,6 +92,10 @@ SceneMesh::SceneMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> 
 	_textures = textures;
 	_material = material;
 	cacheBaseVolumeProperties();
+
+	// Set primitive mode before setupMesh() so picking triangles are built (or
+	// correctly skipped) for the right primitive type from the first upload.
+	setPrimitiveMode(primitiveMode);
 
 	// Optimize the mesh (reorder indices and vertices for better vertex cache locality, overdraw, and vertex fetch)
 	optimizeMesh();
@@ -113,12 +117,24 @@ SceneMesh::~SceneMesh()
 
 TriangleMesh* SceneMesh::clone()
 {
-	SceneMesh* mesh = new SceneMesh(_prog, _name, _baseVertices, _indices, _textures, _material, _importState.skipOptimization());
+	SceneMesh* mesh = new SceneMesh(_prog, _name, _baseVertices, _indices, _textures, _material, _importState.skipOptimization(), getPrimitiveMode());
 	mesh->setMorphTargets(_morphTargets, _defaultMorphWeights);
 	if (!_currentMorphWeights.isEmpty())
 		mesh->applyMorphWeights(_currentMorphWeights);
 	if (_importState.hasOccEdges())
 		mesh->setPrecomputedOccEdges(_importState.occEdgeSegments(), _importState.occEdgeBoundaries());
+
+	// Copy import provenance so export, skinning, animation and variant paths
+	// behave identically on the clone.
+	mesh->setSceneIndex(getSceneIndex());
+	mesh->setOriginalMaterialIndex(getOriginalMaterialIndex());
+	mesh->setSourceFile(getSourceFile());
+	mesh->setSourceNodeName(getSourceNodeName());
+	mesh->setSkinJoints(skinJoints());
+
+	// Copy material variant tables.
+	mesh->setVariantMappings(variantMappings());
+	mesh->setAllVariantMaterials(allVariantMaterials());
 
 	// Copy full transform so the clone superimposes on the original.
 	// sceneRenderTransform is set once at file load from the glTF node hierarchy
@@ -130,6 +146,14 @@ TriangleMesh* SceneMesh::clone()
 	mesh->setScalingFast(getScaling());
 	mesh->setHasNegativeScale(hasNegativeScale());
 	mesh->setSceneRenderTransformFast(getSceneRenderTransform());
+
+	// Copy exploded-view TRS and auto-explode offset so the clone appears at
+	// the same exploded position regardless of which explosion mode is active.
+	mesh->setExplodedViewTranslationFast(getExplodedViewTranslation());
+	mesh->setExplodedViewRotationQuaternionFast(getExplodedViewRotationQuaternion(), getExplodedViewRotation());
+	mesh->setExplodedViewScalingFast(getExplodedViewScaling());
+	mesh->_instanceState.setExplosionOffset(_instanceState.explosionOffset());
+
 	mesh->fullUpdateRuntimeBounds();
 
 	return mesh;

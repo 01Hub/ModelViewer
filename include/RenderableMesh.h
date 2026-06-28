@@ -95,6 +95,7 @@ public:
 	void setPrimitiveMode(GLenum mode)
 	{
 		_primitiveMode = mode;
+		_instanceState.setBuildPickingTriangles(mode == GL_TRIANGLES);
 	}
 
 	GLenum getPrimitiveMode() const

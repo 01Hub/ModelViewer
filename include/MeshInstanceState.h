@@ -197,6 +197,12 @@ public:
 
     // Full O(N) update: recomputes _trsfPoints from geometry, rebuilds picking
     // triangles, updates _localBoundingBox, _boundingBox, _boundingSphere.
+    // Controls whether updateRuntimeBounds rebuilds picking triangles.
+    // Set to false for non-triangle primitives (lines, points) so index data
+    // is never misinterpreted as triangles.  Defaults to true.
+    void setBuildPickingTriangles(bool build) { _buildPickingTriangles = build; }
+    bool buildPickingTriangles() const { return _buildPickingTriangles; }
+
     void updateRuntimeBounds(const std::vector<float>& points,
                              const std::vector<float>& normals,
                              const std::vector<float>& tangents,
@@ -228,7 +234,7 @@ private:
     void rebuildAbsoluteTransformation();
     void rebuildExplodedViewTransformation();
     void fastUpdateWorldBounds();
-    void buildTriangles(const std::vector<unsigned int>& indices);
+    void buildTriangles(const std::vector<unsigned int>& indices); // only called when primitiveMode is GL_TRIANGLES
     void computeBounds();
 
     // User TRS
@@ -269,9 +275,10 @@ private:
     // Picking geometry (derived from _trsfPoints + indices)
     std::vector<Triangle*> _triangles;
 
-    bool _selected         = false;
-    bool _hasNegativeScale = false;
-    int  _activeVariantIndex = -1;
+    bool _selected              = false;
+    bool _hasNegativeScale      = false;
+    bool _buildPickingTriangles = true;  // false for non-triangle primitives
+    int  _activeVariantIndex    = -1;
 
     static std::atomic<quint64> _runtimeBoundsRevision;
 };

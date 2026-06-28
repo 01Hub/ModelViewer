@@ -13,7 +13,7 @@ public:
 
 	/*  Functions  */
 	// Constructor
-	SceneMesh(QOpenGLShaderProgram* shader, QString name, std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<GLMaterial::Texture> textures, GLMaterial material, bool skipOptimization = false);
+	SceneMesh(QOpenGLShaderProgram* shader, QString name, std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<GLMaterial::Texture> textures, GLMaterial material, bool skipOptimization = false, GLenum primitiveMode = GL_TRIANGLES);
 	~SceneMesh();
 	virtual TriangleMesh* clone();
 	void setProg(QOpenGLShaderProgram* prog) override;

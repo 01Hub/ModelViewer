@@ -266,13 +266,13 @@ void RenderableMesh::recordVaoProgramReconfigure()
 		++s_renderDiagnostics.vaoProgramReconfigures;
 }
 
-void RenderableMesh::recordMaterialUniformRefresh(bool explicitDirty)
+void RenderableMesh::recordMaterialUniformRefresh(bool /*explicitDirty*/)
 {
 	if (!s_renderDiagnostics.enabled)
 		return;
 	++s_renderDiagnostics.materialUniformRefreshes;
-	if (explicitDirty)
-		++s_renderDiagnostics.materialUniformExplicitDirtyRefreshes;
+	// Reason breakdown (including explicit-dirty count) is recorded exclusively
+	// by recordMaterialRefreshReason() to avoid double-counting.
 }
 
 void RenderableMesh::recordMaterialUniformReuse()

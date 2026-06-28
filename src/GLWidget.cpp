@@ -12549,9 +12549,9 @@ SceneMesh* GLWidget::createMeshFromData(const AssImpMeshData& meshData)
 		meshData.indices,
 		textures,
 		resolvedMaterial,
-		!meshData.morphTargets.isEmpty());
+		!meshData.morphTargets.isEmpty(),
+		meshData.primitiveMode);
 	mesh->setHasNegativeScale(meshData.hasNegativeScale);
-	mesh->setPrimitiveMode(meshData.primitiveMode);
 	mesh->setSceneIndex(meshData.sceneIndex);
 	mesh->setOriginalMaterialIndex(meshData.originalMaterialIndex);
 	mesh->setSourceFile(meshData.sourceFile);
@@ -18178,9 +18178,8 @@ bool GLWidget::uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& meshes)
         const PreparedMvfMesh& pm = meshes[i];
 
         SceneMesh* mesh = new SceneMesh(_fgShader.get(), pm.name,
-                                          {}, {}, {}, pm.material);
+                                          {}, {}, {}, pm.material, false, pm.primitiveMode);
         mesh->setUuid(pm.uuid);
-        mesh->setPrimitiveMode(pm.primitiveMode);
         mesh->setSceneIndex(pm.sceneIndex);
         mesh->setHasNegativeScale(pm.hasNegativeScale);
         mesh->setOriginalMaterialIndex(pm.originalMaterialIndex);
@@ -18274,9 +18273,8 @@ void GLWidget::uploadOneMvfMesh(const PreparedMvfMesh& pm)
 
     // Create mesh on main thread (GL context required)
     SceneMesh* mesh = new SceneMesh(_fgShader.get(), pm.name,
-                                      {}, {}, {}, pm.material);
+                                      {}, {}, {}, pm.material, false, pm.primitiveMode);
     mesh->setUuid(pm.uuid);
-    mesh->setPrimitiveMode(pm.primitiveMode);
     mesh->setSceneIndex(pm.sceneIndex);
     mesh->setHasNegativeScale(pm.hasNegativeScale);
     mesh->setOriginalMaterialIndex(pm.originalMaterialIndex);
