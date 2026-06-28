@@ -779,26 +779,6 @@ _floorPlane(nullptr),
 	_cancelRequested(_sceneRuntime._cancelRequested),
 	_loadCancelled(_sceneRuntime._loadCancelled),
 	_pendingLightData(_sceneRuntime._pendingLightData),
-	// ExplodedViewRuntimeController reference aliases (Phase 9)
-	_explodedViewManager(_explodedViewCtrl._explodedViewManager),
-	_cachedHintsAssemblyUuids(_explodedViewCtrl._cachedHintsAssemblyUuids),
-	_cachedHintsAnchorUuid(_explodedViewCtrl._cachedHintsAnchorUuid),
-	_cachedAutoHints(_explodedViewCtrl._cachedAutoHints),
-	_cachedHintsValid(_explodedViewCtrl._cachedHintsValid),
-	_explodedViewManualPlacementActive(_explodedViewCtrl._explodedViewManualPlacementActive),
-	_explodedViewManualOriginalStates(_explodedViewCtrl._explodedViewManualOriginalStates),
-	_explodedViewManualHiddenStates(_explodedViewCtrl._explodedViewManualHiddenStates),
-	_explodedViewManualPlacementSuppressed(_explodedViewCtrl._explodedViewManualPlacementSuppressed),
-	_explodedViewManualPlacementSessionUuids(_explodedViewCtrl._explodedViewManualPlacementSessionUuids),
-	_explodedViewManualSessionStartStates(_explodedViewCtrl._explodedViewManualSessionStartStates),
-	_explodedViewManualSessionStartMatrices(_explodedViewCtrl._explodedViewManualSessionStartMatrices),
-	_explodedViewManualSessionStartPivot(_explodedViewCtrl._explodedViewManualSessionStartPivot),
-	_explodedViewManualSessionTranslationDelta(_explodedViewCtrl._explodedViewManualSessionTranslationDelta),
-	_explodedViewManualSessionRotationQuat(_explodedViewCtrl._explodedViewManualSessionRotationQuat),
-	_explodedViewManualSessionRotationEuler(_explodedViewCtrl._explodedViewManualSessionRotationEuler),
-	_explodedViewManualDragStartTranslationDelta(_explodedViewCtrl._explodedViewManualDragStartTranslationDelta),
-	_explodedViewManualDragStartRotationQuat(_explodedViewCtrl._explodedViewManualDragStartRotationQuat),
-	_explodedViewManualDragStartRotationEuler(_explodedViewCtrl._explodedViewManualDragStartRotationEuler),
 	// SceneRenderController reference aliases (Phase 10) — _renderCtrl must be declared
 	// before these in GLWidget.h so it is constructed first.
 	// ---- Shaders ----
@@ -1048,7 +1028,7 @@ _floorPlane(nullptr),
     setMouseTracking(true);  // Enable mouseMoveEvent for hover highlighting
 
     _viewer = static_cast<ModelViewer*>(parent);
-	_explodedViewManager = new ExplodedViewManager();
+	_explodedViewCtrl.setExplodedViewManager(new ExplodedViewManager());
 	_transformGizmo = new TransformGizmo(this);
 
 
@@ -3971,7 +3951,7 @@ void GLWidget::showExplodedViewPanel(bool show)
 		_explodedViewPanel->show();
 		updateExplosion();
 
-		if (_explodedViewManualPlacementSuppressed && !_explodedViewManualHiddenStates.isEmpty())
+		if (_explodedViewCtrl.isManualPlacementSuppressed() && !_explodedViewCtrl.manualHiddenStates().isEmpty())
 		{
 			QHash<QUuid, QVector3D> savedExplosionOffsets;
 			savedExplosionOffsets.reserve(static_cast<int>(_meshStore.size()));
@@ -3984,8 +3964,8 @@ void GLWidget::showExplodedViewPanel(bool show)
 				mesh->setExplosionOffset(QVector3D());
 			}
 
-			for (auto it = _explodedViewManualHiddenStates.cbegin();
-			     it != _explodedViewManualHiddenStates.cend(); ++it)
+			for (auto it = _explodedViewCtrl.manualHiddenStates().cbegin();
+			     it != _explodedViewCtrl.manualHiddenStates().cend(); ++it)
 			{
 				TriangleMesh* mesh = getMeshByUuid(it.key());
 				if (!mesh)
@@ -4004,7 +3984,7 @@ void GLWidget::showExplodedViewPanel(bool show)
 				mesh->setSceneRenderTransformFast(mesh->getSceneRenderTransform());
 			}
 
-			_explodedViewManualPlacementSuppressed = false;
+			_explodedViewCtrl.setManualPlacementSuppressed(false);
 		}
 	} else {
 		_explodedViewPanel->deactivateInteractiveState();
@@ -4013,17 +3993,17 @@ void GLWidget::showExplodedViewPanel(bool show)
 		else
 			showTransformGizmoForSelection(false);
 
-		if (!_explodedViewManualOriginalStates.isEmpty())
+		if (!_explodedViewCtrl.manualOriginalStates().isEmpty())
 		{
-			_explodedViewManualHiddenStates.clear();
-			for (auto it = _explodedViewManualOriginalStates.cbegin();
-			     it != _explodedViewManualOriginalStates.cend(); ++it)
+			_explodedViewCtrl.manualHiddenStates().clear();
+			for (auto it = _explodedViewCtrl.manualOriginalStates().cbegin();
+			     it != _explodedViewCtrl.manualOriginalStates().cend(); ++it)
 			{
 				TriangleMesh* mesh = getMeshByUuid(it.key());
 				if (!mesh)
 					continue;
 
-				_explodedViewManualHiddenStates.insert(it.key(), TransformState(
+				_explodedViewCtrl.manualHiddenStates().insert(it.key(), TransformState(
 					mesh->getExplodedViewTranslation(),
 					mesh->getExplodedViewRotation(),
 					mesh->getExplodedViewScaling(),
@@ -4032,8 +4012,8 @@ void GLWidget::showExplodedViewPanel(bool show)
 		}
 
 		_explodedViewPanel->hide();
-		_explodedViewManager->reset();
-		_cachedHintsValid = false;
+		_explodedViewCtrl.explodedViewManager()->reset();
+		_explodedViewCtrl.invalidateHintsCache();
 
 		// Hide the entire exploded authoring state while the panel is closed.
 		// This means clearing auto offsets and temporarily restoring the original
@@ -4045,8 +4025,8 @@ void GLWidget::showExplodedViewPanel(bool show)
 				_meshStore[i]->setExplosionOffset(QVector3D());
 		}
 
-		for (auto it = _explodedViewManualOriginalStates.cbegin();
-		     it != _explodedViewManualOriginalStates.cend(); ++it)
+		for (auto it = _explodedViewCtrl.manualOriginalStates().cbegin();
+		     it != _explodedViewCtrl.manualOriginalStates().cend(); ++it)
 		{
 			TriangleMesh* mesh = getMeshByUuid(it.key());
 			if (!mesh)
@@ -4056,7 +4036,7 @@ void GLWidget::showExplodedViewPanel(bool show)
 			applyExplodedViewTransformState(mesh, state, false);
 		}
 
-		_explodedViewManualPlacementSuppressed = !_explodedViewManualHiddenStates.isEmpty();
+		_explodedViewCtrl.setManualPlacementSuppressed(!_explodedViewCtrl.manualHiddenStates().isEmpty());
 		for (size_t i = 0; i < _meshStore.size(); ++i)
 		{
 			if (_meshStore[i])
@@ -4071,12 +4051,12 @@ void GLWidget::showExplodedViewPanel(bool show)
 // ---------------------------------------------------------------------------
 void GLWidget::updateExplosion()
 {
-    if (!_explodedViewPanel || !_explodedViewManager)
+    if (!_explodedViewPanel || !_explodedViewCtrl.explodedViewManager())
         return;
 
     const QSet<QUuid>& assemblyUuids = _explodedViewPanel->assemblyUuids();
     if (assemblyUuids.isEmpty()) {
-        _explodedViewManager->reset();
+        _explodedViewCtrl.explodedViewManager()->reset();
         for (size_t i = 0; i < _meshStore.size(); ++i)
         {
             if (_meshStore[i])
@@ -4158,22 +4138,21 @@ void GLWidget::updateExplosion()
     if (useAssemblyAwareAutoHints)
     {
         const QUuid anchorUuid = _explodedViewPanel->anchorUuid();
-        if (!_cachedHintsValid
-            || _cachedHintsAssemblyUuids != assemblyUuids
-            || _cachedHintsAnchorUuid    != anchorUuid)
+        if (!_explodedViewCtrl.cachedHintsValid()
+            || _explodedViewCtrl.cachedHintsAssemblyUuids() != assemblyUuids
+            || _explodedViewCtrl.cachedHintsAnchorUuid()    != anchorUuid)
         {
-            _cachedAutoHints            = AssemblyRelationGraph::buildAutoPlacementHints(assemblyUuids, this, sg);
-            _cachedHintsAssemblyUuids   = assemblyUuids;
-            _cachedHintsAnchorUuid      = anchorUuid;
-            _cachedHintsValid           = true;
+            _explodedViewCtrl.setHintsCache(
+                assemblyUuids, anchorUuid,
+                AssemblyRelationGraph::buildAutoPlacementHints(assemblyUuids, this, sg));
         }
     }
     else
     {
-        _cachedHintsValid = false;
+        _explodedViewCtrl.invalidateHintsCache();
     }
 
-    _explodedViewManager->recompute(
+    _explodedViewCtrl.explodedViewManager()->recompute(
         assemblyUuids,
         _explodedViewPanel->anchorUuid(),
         _explodedViewPanel->mode(),
@@ -4181,7 +4160,7 @@ void GLWidget::updateExplosion()
         _explodedViewPanel->factor(),
         worldCentroids,
         worldBoxes,
-        useAssemblyAwareAutoHints ? &_cachedAutoHints : nullptr);
+        useAssemblyAwareAutoHints ? &_explodedViewCtrl.cachedAutoHints() : nullptr);
 
     // Push computed offsets onto the meshes so combinedRenderTransform() returns
     // the exploded position for every render path (main, selection, shadow, etc.).
@@ -4190,7 +4169,7 @@ void GLWidget::updateExplosion()
         TriangleMesh* mesh = getMeshByUuid(uuid);
         if (mesh)
         {
-            mesh->setExplosionOffset(_explodedViewManager->offsetForMesh(uuid));
+            mesh->setExplosionOffset(_explodedViewCtrl.explodedViewManager()->offsetForMesh(uuid));
             mesh->setSceneRenderTransformFast(mesh->getSceneRenderTransform());
         }
     }
@@ -4519,7 +4498,7 @@ void GLWidget::showTransformGizmoForSelection(bool show)
 	_transformGizmoRequested = show;
 	if (show)
 		MainWindow::showStatusMessage(
-			_explodedViewManualPlacementActive
+			_explodedViewCtrl.isManualPlacementActive()
 				? tr("Manual exploded placement active: translate or rotate the selected meshes to refine the staged pose")
 				: tr("Transform gizmo active: drag the corner box handle to scale uniformly"),
 			5000);
@@ -4534,16 +4513,7 @@ bool GLWidget::beginExplodedViewManualPlacement(const QVector<QUuid>& selectionU
 	if (!_viewer || !_selectionManager)
 		return false;
 
-	_explodedViewManualPlacementSessionUuids.clear();
-	_explodedViewManualSessionStartStates.clear();
-	_explodedViewManualSessionStartMatrices.clear();
-	_explodedViewManualSessionStartPivot = QVector3D(0.0f, 0.0f, 0.0f);
-	_explodedViewManualSessionTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
-	_explodedViewManualSessionRotationQuat = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
-	_explodedViewManualSessionRotationEuler = QVector3D(0.0f, 0.0f, 0.0f);
-	_explodedViewManualDragStartTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
-	_explodedViewManualDragStartRotationQuat = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
-	_explodedViewManualDragStartRotationEuler = QVector3D(0.0f, 0.0f, 0.0f);
+	_explodedViewCtrl.resetSessionTransforms();
 	if (!selectionUuids.isEmpty())
 	{
 		for (const QUuid& uuid : selectionUuids)
@@ -4552,17 +4522,17 @@ bool GLWidget::beginExplodedViewManualPlacement(const QVector<QUuid>& selectionU
 			if (uuid.isNull() || !mesh)
 				continue;
 
-			_explodedViewManualPlacementSessionUuids.insert(uuid);
-			_explodedViewManualSessionStartStates.insert(uuid, TransformState(
+			_explodedViewCtrl.manualPlacementSessionUuids().insert(uuid);
+			_explodedViewCtrl.manualSessionStartStates().insert(uuid, TransformState(
 				mesh->getExplodedViewTranslation(),
 				mesh->getExplodedViewRotation(),
 				mesh->getExplodedViewScaling(),
 				mesh->getExplodedViewRotationQuaternion()));
-			_explodedViewManualSessionStartMatrices.insert(uuid, mesh->getExplodedViewTransformation());
-			if (_explodedViewManualOriginalStates.contains(uuid))
+			_explodedViewCtrl.manualSessionStartMatrices().insert(uuid, mesh->getExplodedViewTransformation());
+			if (_explodedViewCtrl.manualOriginalStates().contains(uuid))
 				continue;
 
-			_explodedViewManualOriginalStates.insert(uuid, TransformState(
+			_explodedViewCtrl.manualOriginalStates().insert(uuid, TransformState(
 				mesh->getExplodedViewTranslation(),
 				mesh->getExplodedViewRotation(),
 				mesh->getExplodedViewScaling(),
@@ -4582,17 +4552,17 @@ bool GLWidget::beginExplodedViewManualPlacement(const QVector<QUuid>& selectionU
 			if (uuid.isNull() || !mesh)
 				continue;
 
-			_explodedViewManualPlacementSessionUuids.insert(uuid);
-			_explodedViewManualSessionStartStates.insert(uuid, TransformState(
+			_explodedViewCtrl.manualPlacementSessionUuids().insert(uuid);
+			_explodedViewCtrl.manualSessionStartStates().insert(uuid, TransformState(
 				mesh->getExplodedViewTranslation(),
 				mesh->getExplodedViewRotation(),
 				mesh->getExplodedViewScaling(),
 				mesh->getExplodedViewRotationQuaternion()));
-			_explodedViewManualSessionStartMatrices.insert(uuid, mesh->getExplodedViewTransformation());
-			if (_explodedViewManualOriginalStates.contains(uuid))
+			_explodedViewCtrl.manualSessionStartMatrices().insert(uuid, mesh->getExplodedViewTransformation());
+			if (_explodedViewCtrl.manualOriginalStates().contains(uuid))
 				continue;
 
-			_explodedViewManualOriginalStates.insert(uuid, TransformState(
+			_explodedViewCtrl.manualOriginalStates().insert(uuid, TransformState(
 				mesh->getExplodedViewTranslation(),
 				mesh->getExplodedViewRotation(),
 				mesh->getExplodedViewScaling(),
@@ -4600,11 +4570,11 @@ bool GLWidget::beginExplodedViewManualPlacement(const QVector<QUuid>& selectionU
 		}
 	}
 
-	if (_explodedViewManualPlacementSessionUuids.isEmpty())
+	if (_explodedViewCtrl.manualPlacementSessionUuids().isEmpty())
 		return false;
 
-	_explodedViewManualPlacementActive = true;
-	_explodedViewManualSessionStartPivot = computeTransformGizmoPivot();
+	_explodedViewCtrl.setManualPlacementActive(true);
+	_explodedViewCtrl.setManualSessionStartPivot(computeTransformGizmoPivot());
 	showTransformGizmoForSelection(true);
 	emit explodedViewManualPlacementChanged();
 	return true;
@@ -4612,13 +4582,13 @@ bool GLWidget::beginExplodedViewManualPlacement(const QVector<QUuid>& selectionU
 
 bool GLWidget::hasExplodedViewManualTransformChanges() const
 {
-	for (auto it = _explodedViewManualOriginalStates.cbegin(); it != _explodedViewManualOriginalStates.cend(); ++it)
+	for (auto it = _explodedViewCtrl.manualOriginalStates().cbegin(); it != _explodedViewCtrl.manualOriginalStates().cend(); ++it)
 	{
 		TransformState currentState;
-		if (_explodedViewManualPlacementSuppressed)
+		if (_explodedViewCtrl.isManualPlacementSuppressed())
 		{
-			auto hiddenIt = _explodedViewManualHiddenStates.find(it.key());
-			if (hiddenIt == _explodedViewManualHiddenStates.end())
+			auto hiddenIt = _explodedViewCtrl.manualHiddenStates().find(it.key());
+			if (hiddenIt == _explodedViewCtrl.manualHiddenStates().end())
 				continue;
 			currentState = hiddenIt.value();
 		}
@@ -4644,13 +4614,13 @@ bool GLWidget::hasExplodedViewManualTransformChanges() const
 QSet<QUuid> GLWidget::explodedViewManualPlacementUuids() const
 {
 	QSet<QUuid> uuids;
-	for (auto it = _explodedViewManualOriginalStates.cbegin(); it != _explodedViewManualOriginalStates.cend(); ++it)
+	for (auto it = _explodedViewCtrl.manualOriginalStates().cbegin(); it != _explodedViewCtrl.manualOriginalStates().cend(); ++it)
 	{
 		TransformState currentState;
-		if (_explodedViewManualPlacementSuppressed)
+		if (_explodedViewCtrl.isManualPlacementSuppressed())
 		{
-			auto hiddenIt = _explodedViewManualHiddenStates.find(it.key());
-			if (hiddenIt == _explodedViewManualHiddenStates.end())
+			auto hiddenIt = _explodedViewCtrl.manualHiddenStates().find(it.key());
+			if (hiddenIt == _explodedViewCtrl.manualHiddenStates().end())
 				continue;
 			currentState = hiddenIt.value();
 		}
@@ -4675,24 +4645,24 @@ QSet<QUuid> GLWidget::explodedViewManualPlacementUuids() const
 
 QVector3D GLWidget::explodedViewManualPlacementTranslationDelta() const
 {
-	return _explodedViewManualSessionTranslationDelta;
+	return _explodedViewCtrl.manualSessionTranslationDelta();
 }
 
 QVector3D GLWidget::explodedViewManualPlacementRotationDelta() const
 {
-	return _explodedViewManualSessionRotationEuler;
+	return _explodedViewCtrl.manualSessionRotationEuler();
 }
 
 QMap<QUuid, TransformState> GLWidget::explodedViewManualStates() const
 {
 	QMap<QUuid, TransformState> states;
-	for (auto it = _explodedViewManualOriginalStates.cbegin(); it != _explodedViewManualOriginalStates.cend(); ++it)
+	for (auto it = _explodedViewCtrl.manualOriginalStates().cbegin(); it != _explodedViewCtrl.manualOriginalStates().cend(); ++it)
 	{
 		TransformState currentState;
-		if (_explodedViewManualPlacementSuppressed)
+		if (_explodedViewCtrl.isManualPlacementSuppressed())
 		{
-			auto hiddenIt = _explodedViewManualHiddenStates.find(it.key());
-			if (hiddenIt == _explodedViewManualHiddenStates.end())
+			auto hiddenIt = _explodedViewCtrl.manualHiddenStates().find(it.key());
+			if (hiddenIt == _explodedViewCtrl.manualHiddenStates().end())
 				continue;
 			currentState = hiddenIt.value();
 		}
@@ -4721,14 +4691,14 @@ void GLWidget::restoreExplodedViewManualStates(const QMap<QUuid, TransformState>
 	if (states.isEmpty())
 		return;
 
-	_explodedViewManualOriginalStates.clear();
+	_explodedViewCtrl.manualOriginalStates().clear();
 	for (auto it = states.cbegin(); it != states.cend(); ++it)
 	{
 		TriangleMesh* mesh = getMeshByUuid(it.key());
 		if (!mesh)
 			continue;
 
-		_explodedViewManualOriginalStates.insert(it.key(), TransformState());
+		_explodedViewCtrl.manualOriginalStates().insert(it.key(), TransformState());
 		applyExplodedViewTransformState(mesh, it.value(), false);
 
 		const QVector3D savedExplosionOffset = mesh->explosionOffset();
@@ -4745,21 +4715,21 @@ void GLWidget::restoreExplodedViewManualStates(const QMap<QUuid, TransformState>
 
 void GLWidget::setExplodedViewManualPlacementTranslationDelta(const QVector3D& delta)
 {
-	if (!_explodedViewManualPlacementActive || _explodedViewManualSessionStartStates.isEmpty())
+	if (!_explodedViewCtrl.isManualPlacementActive() || _explodedViewCtrl.manualSessionStartStates().isEmpty())
 		return;
 
-	_explodedViewManualSessionTranslationDelta = delta;
+	_explodedViewCtrl.setManualSessionTranslationDelta(delta);
 	applyExplodedViewManualPlacementSessionTransform();
 	emit explodedViewManualPlacementChanged();
 }
 
 void GLWidget::setExplodedViewManualPlacementRotationDelta(const QVector3D& delta)
 {
-	if (!_explodedViewManualPlacementActive || _explodedViewManualSessionStartStates.isEmpty())
+	if (!_explodedViewCtrl.isManualPlacementActive() || _explodedViewCtrl.manualSessionStartStates().isEmpty())
 		return;
 
-	_explodedViewManualSessionRotationEuler = delta;
-	_explodedViewManualSessionRotationQuat = quaternionFromMeshEuler(delta);
+	_explodedViewCtrl.setManualSessionRotationEuler(delta);
+	_explodedViewCtrl.setManualSessionRotationQuat(quaternionFromMeshEuler(delta));
 	applyExplodedViewManualPlacementSessionTransform();
 	emit explodedViewManualPlacementChanged();
 }
@@ -4767,8 +4737,8 @@ void GLWidget::setExplodedViewManualPlacementRotationDelta(const QVector3D& delt
 void GLWidget::finishExplodedViewManualPlacement()
 {
 	QVector<QUuid> changedUuids;
-	changedUuids.reserve(_explodedViewManualOriginalStates.size());
-	for (auto it = _explodedViewManualOriginalStates.cbegin(); it != _explodedViewManualOriginalStates.cend(); ++it)
+	changedUuids.reserve(_explodedViewCtrl.manualOriginalStates().size());
+	for (auto it = _explodedViewCtrl.manualOriginalStates().cbegin(); it != _explodedViewCtrl.manualOriginalStates().cend(); ++it)
 	{
 		TriangleMesh* mesh = getMeshByUuid(it.key());
 		if (!mesh)
@@ -4784,17 +4754,8 @@ void GLWidget::finishExplodedViewManualPlacement()
 	}
 
 	showTransformGizmoForSelection(false);
-	_explodedViewManualPlacementActive = false;
-	_explodedViewManualPlacementSessionUuids.clear();
-	_explodedViewManualSessionStartStates.clear();
-	_explodedViewManualSessionStartMatrices.clear();
-	_explodedViewManualSessionStartPivot = QVector3D(0.0f, 0.0f, 0.0f);
-	_explodedViewManualSessionTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
-	_explodedViewManualSessionRotationQuat = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
-	_explodedViewManualSessionRotationEuler = QVector3D(0.0f, 0.0f, 0.0f);
-	_explodedViewManualDragStartTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
-	_explodedViewManualDragStartRotationQuat = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
-	_explodedViewManualDragStartRotationEuler = QVector3D(0.0f, 0.0f, 0.0f);
+	_explodedViewCtrl.setManualPlacementActive(false);
+	_explodedViewCtrl.resetSessionTransforms();
 
 	for (const QUuid& uuid : changedUuids)
 	{
@@ -4838,29 +4799,14 @@ void GLWidget::clearExplodedViewManualPlacement()
 		mesh->setExplosionOffset(QVector3D());
 	}
 
-	_explodedViewManualPlacementActive = false;
-	_explodedViewManualPlacementSessionUuids.clear();
-	_explodedViewManualSessionStartStates.clear();
-	_explodedViewManualSessionStartMatrices.clear();
-	_explodedViewManualSessionStartPivot = QVector3D(0.0f, 0.0f, 0.0f);
-	_explodedViewManualSessionTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
-	_explodedViewManualSessionRotationQuat = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
-	_explodedViewManualSessionRotationEuler = QVector3D(0.0f, 0.0f, 0.0f);
-	_explodedViewManualDragStartTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
-	_explodedViewManualDragStartRotationQuat = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
-	_explodedViewManualDragStartRotationEuler = QVector3D(0.0f, 0.0f, 0.0f);
-	_explodedViewManualHiddenStates.clear();
-	_explodedViewManualPlacementSuppressed = false;
-	showTransformGizmoForSelection(false);
-
-	for (auto it = _explodedViewManualOriginalStates.cbegin(); it != _explodedViewManualOriginalStates.cend(); ++it)
+	// Restore meshes to their original states before clearing the session.
+	for (auto it = _explodedViewCtrl.manualOriginalStates().cbegin(); it != _explodedViewCtrl.manualOriginalStates().cend(); ++it)
 	{
 		TriangleMesh* mesh = getMeshByUuid(it.key());
 		if (!mesh)
 			continue;
 
-		const TransformState& state = it.value();
-		applyExplodedViewTransformState(mesh, state, false);
+		applyExplodedViewTransformState(mesh, it.value(), false);
 	}
 
 	for (TriangleMesh* mesh : _meshStore)
@@ -4872,7 +4818,8 @@ void GLWidget::clearExplodedViewManualPlacement()
 		mesh->setSceneRenderTransformFast(mesh->getSceneRenderTransform());
 	}
 
-	_explodedViewManualOriginalStates.clear();
+	_explodedViewCtrl.clearManualPlacement();
+	showTransformGizmoForSelection(false);
 	_shadowMapNeedsInitialization = true;
 	update();
 	emit explodedViewManualPlacementChanged();
@@ -9839,28 +9786,28 @@ QVector3D GLWidget::computeTransformGizmoPivot() const
 
 void GLWidget::applyExplodedViewManualPlacementSessionTransform()
 {
-	if (_explodedViewManualSessionStartStates.isEmpty())
+	if (_explodedViewCtrl.manualSessionStartStates().isEmpty())
 		return;
 
 	QMatrix4x4 rotationAroundPivot;
 	rotationAroundPivot.setToIdentity();
-	rotationAroundPivot.translate(_explodedViewManualSessionStartPivot);
-	rotationAroundPivot.rotate(_explodedViewManualSessionRotationQuat);
-	rotationAroundPivot.translate(-_explodedViewManualSessionStartPivot);
+	rotationAroundPivot.translate(_explodedViewCtrl.manualSessionStartPivot());
+	rotationAroundPivot.rotate(_explodedViewCtrl.manualSessionRotationQuat());
+	rotationAroundPivot.translate(-_explodedViewCtrl.manualSessionStartPivot());
 
 	QMatrix4x4 translationMatrix;
 	translationMatrix.setToIdentity();
-	translationMatrix.translate(_explodedViewManualSessionTranslationDelta);
+	translationMatrix.translate(_explodedViewCtrl.manualSessionTranslationDelta());
 
-	for (auto it = _explodedViewManualSessionStartStates.cbegin();
-	     it != _explodedViewManualSessionStartStates.cend(); ++it)
+	for (auto it = _explodedViewCtrl.manualSessionStartStates().cbegin();
+	     it != _explodedViewCtrl.manualSessionStartStates().cend(); ++it)
 	{
 		TriangleMesh* mesh = getMeshByUuid(it.key());
 		if (!mesh)
 			continue;
 
 		const TransformState& startState = it.value();
-		const QMatrix4x4 startMatrix = _explodedViewManualSessionStartMatrices.value(
+		const QMatrix4x4 startMatrix = _explodedViewCtrl.manualSessionStartMatrices().value(
 			it.key(), mesh->getExplodedViewTransformation());
 		const QMatrix4x4 combinedMatrix = translationMatrix * rotationAroundPivot * startMatrix;
 		const QVector3D exactTranslation(
@@ -9872,7 +9819,7 @@ void GLWidget::applyExplodedViewManualPlacementSessionTransform()
 			? startState.rotationQuat.normalized()
 			: quaternionFromMeshEuler(startState.rotation);
 		const QQuaternion exactRotationQuat =
-			(_explodedViewManualSessionRotationQuat * baseQuat).normalized();
+			(_explodedViewCtrl.manualSessionRotationQuat() * baseQuat).normalized();
 
 		QMatrix4x4 displayRotationMatrix;
 		displayRotationMatrix.setToIdentity();
@@ -9890,11 +9837,11 @@ void GLWidget::applyExplodedViewManualPlacementSessionTransform()
 
 std::vector<int> GLWidget::activeTransformGizmoSelectionIds() const
 {
-	if (_explodedViewManualPlacementActive)
+	if (_explodedViewCtrl.isManualPlacementActive())
 	{
 		std::vector<int> lockedIds;
-		lockedIds.reserve(_explodedViewManualPlacementSessionUuids.size());
-		for (const QUuid& uuid : _explodedViewManualPlacementSessionUuids)
+		lockedIds.reserve(_explodedViewCtrl.manualPlacementSessionUuids().size());
+		for (const QUuid& uuid : _explodedViewCtrl.manualPlacementSessionUuids())
 		{
 			const int id = getIndexByUuid(uuid);
 			if (id >= 0)
@@ -10002,8 +9949,8 @@ bool GLWidget::beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle,
 	_transformGizmoCurrentScaleDelta = QVector3D(1.0f, 1.0f, 1.0f);
 	_transformGizmoCurrentRotationDelta = QVector3D(0.0f, 0.0f, 0.0f);
 	_transformGizmoLoggedTranslationUpdate = false;
-	if (_explodedViewManualPlacementActive)
-		_explodedViewManualDragStartTranslationDelta = _explodedViewManualSessionTranslationDelta;
+	if (_explodedViewCtrl.isManualPlacementActive())
+		_explodedViewCtrl.setManualDragStartTranslationDelta(_explodedViewCtrl.manualSessionTranslationDelta());
 
 	for (int id : activeTransformGizmoSelectionIds())
 	{
@@ -10012,7 +9959,7 @@ bool GLWidget::beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle,
 
 		if (TriangleMesh* mesh = _meshStore[id])
 		{
-			_transformGizmoStartStates[id] = _explodedViewManualPlacementActive
+			_transformGizmoStartStates[id] = _explodedViewCtrl.isManualPlacementActive()
 				? explodedViewTransformState(mesh)
 				: TransformState(
 					mesh->getTranslation(),
@@ -10020,7 +9967,7 @@ bool GLWidget::beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle,
 					mesh->getScaling(),
 					mesh->getRotationQuaternion());
 			_transformGizmoStartCenters[id] = mesh->getBoundingSphere().getCenter();
-			_transformGizmoStartMatrices[id] = _explodedViewManualPlacementActive
+			_transformGizmoStartMatrices[id] = _explodedViewCtrl.isManualPlacementActive()
 				? explodedViewTransformMatrix(mesh)
 				: mesh->getTransformation();
 		}
@@ -10074,7 +10021,7 @@ void GLWidget::updateTransformGizmoTranslationDrag(const QPoint& pixel)
 			const TransformState& startState = it.value();
 			// Use fast setters during drag — only updates AABB from 8 corners (O(1))
 			// instead of re-transforming all vertices (O(N)) for each mouse event.
-			if (_explodedViewManualPlacementActive)
+			if (_explodedViewCtrl.isManualPlacementActive())
 			{
 				mesh->setExplodedViewTranslationFast(startState.translation + _transformGizmoCurrentTranslationDelta);
 				if (startState.hasExactRotation)
@@ -10096,10 +10043,10 @@ void GLWidget::updateTransformGizmoTranslationDrag(const QPoint& pixel)
 	{
 		_viewer->objectTransformPanel->setTranslationValues(_transformGizmoCurrentTranslationDelta);
 	}
-	if (_explodedViewManualPlacementActive)
+	if (_explodedViewCtrl.isManualPlacementActive())
 	{
-		_explodedViewManualSessionTranslationDelta =
-			_explodedViewManualDragStartTranslationDelta + _transformGizmoCurrentTranslationDelta;
+		_explodedViewCtrl.setManualSessionTranslationDelta(
+			_explodedViewCtrl.manualDragStartTranslationDelta() + _transformGizmoCurrentTranslationDelta);
 		emit explodedViewManualPlacementChanged();
 	}
 
@@ -10135,7 +10082,7 @@ void GLWidget::finishTransformGizmoTranslationDrag(bool commit)
 			continue;
 
 		oldStatesByUuid.insert(uuid, it.value());
-		newStatesByUuid.insert(uuid, _explodedViewManualPlacementActive
+		newStatesByUuid.insert(uuid, _explodedViewCtrl.isManualPlacementActive()
 			? explodedViewTransformState(mesh)
 			: TransformState(
 				mesh->getTranslation(),
@@ -10146,7 +10093,7 @@ void GLWidget::finishTransformGizmoTranslationDrag(bool commit)
 
 	const bool moved = _transformGizmoCurrentTranslationDelta.lengthSquared() > 1.0e-8f;
 
-	if (_explodedViewManualPlacementActive)
+	if (_explodedViewCtrl.isManualPlacementActive())
 	{
 		if (commit && moved && !oldStatesByUuid.isEmpty())
 		{
@@ -10160,7 +10107,7 @@ void GLWidget::finishTransformGizmoTranslationDrag(bool commit)
 				TransformCommand::Target::ExplodedViewTransform));
 		}
 		else if (!commit)
-			_explodedViewManualSessionTranslationDelta = _explodedViewManualDragStartTranslationDelta;
+			_explodedViewCtrl.setManualSessionTranslationDelta(_explodedViewCtrl.manualDragStartTranslationDelta());
 		emit explodedViewManualPlacementChanged();
 		update();
 	}
@@ -10180,7 +10127,7 @@ void GLWidget::finishTransformGizmoTranslationDrag(bool commit)
 			if (TriangleMesh* mesh = _meshStore[id])
 			{
 				const TransformState& startState = it.value();
-				if (_explodedViewManualPlacementActive)
+				if (_explodedViewCtrl.isManualPlacementActive())
 					applyExplodedViewTransformState(mesh, startState, false);
 				else
 				{
@@ -10208,7 +10155,7 @@ bool GLWidget::beginTransformGizmoScaleDrag(TransformGizmo::Handle handle, const
 {
 	if (!_transformGizmoRequested || !_transformGizmo || !_viewer)
 		return false;
-	if (_explodedViewManualPlacementActive)
+	if (_explodedViewCtrl.isManualPlacementActive())
 		return false;
 
 	QVector3D axis;
@@ -10256,7 +10203,7 @@ bool GLWidget::beginTransformGizmoScaleDrag(TransformGizmo::Handle handle, const
 
 		if (TriangleMesh* mesh = _meshStore[id])
 		{
-			_transformGizmoStartStates[id] = _explodedViewManualPlacementActive
+			_transformGizmoStartStates[id] = _explodedViewCtrl.isManualPlacementActive()
 				? explodedViewTransformState(mesh)
 				: TransformState(
 					mesh->getTranslation(),
@@ -10264,7 +10211,7 @@ bool GLWidget::beginTransformGizmoScaleDrag(TransformGizmo::Handle handle, const
 					mesh->getScaling(),
 					mesh->getRotationQuaternion());
 			_transformGizmoStartCenters[id] = mesh->getBoundingSphere().getCenter();
-			_transformGizmoStartMatrices[id] = _explodedViewManualPlacementActive
+			_transformGizmoStartMatrices[id] = _explodedViewCtrl.isManualPlacementActive()
 				? explodedViewTransformMatrix(mesh)
 				: mesh->getTransformation();
 		}
@@ -10417,7 +10364,7 @@ void GLWidget::finishTransformGizmoScaleDrag(bool commit)
 	const QVector3D scaleDelta = _transformGizmoCurrentScaleDelta - QVector3D(1.0f, 1.0f, 1.0f);
 	const bool scaled = scaleDelta.lengthSquared() > 1.0e-8f;
 
-	if (_explodedViewManualPlacementActive)
+	if (_explodedViewCtrl.isManualPlacementActive())
 	{
 		update();
 	}
@@ -10511,10 +10458,10 @@ bool GLWidget::beginTransformGizmoRotationDrag(TransformGizmo::Handle handle, co
 	_transformGizmoCurrentRotationDelta = QVector3D(0.0f, 0.0f, 0.0f);
 	_transformGizmoCurrentTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
 	_transformGizmoCurrentScaleDelta = QVector3D(1.0f, 1.0f, 1.0f);
-	if (_explodedViewManualPlacementActive)
+	if (_explodedViewCtrl.isManualPlacementActive())
 	{
-		_explodedViewManualDragStartRotationQuat = _explodedViewManualSessionRotationQuat;
-		_explodedViewManualDragStartRotationEuler = _explodedViewManualSessionRotationEuler;
+		_explodedViewCtrl.setManualDragStartRotationQuat(_explodedViewCtrl.manualSessionRotationQuat());
+		_explodedViewCtrl.setManualDragStartRotationEuler(_explodedViewCtrl.manualSessionRotationEuler());
 	}
 
 	for (int id : activeTransformGizmoSelectionIds())
@@ -10598,7 +10545,7 @@ void GLWidget::updateTransformGizmoRotationDrag(const QPoint& pixel)
 			rotationOnlyMatrix.setToIdentity();
 			rotationOnlyMatrix.rotate(angleDegrees, _transformGizmoRotationPlaneNormal);
 			const QMatrix4x4 startMatrix = _transformGizmoStartMatrices.value(
-				id, _explodedViewManualPlacementActive ? mesh->getExplodedViewTransformation() : mesh->getTransformation());
+				id, _explodedViewCtrl.isManualPlacementActive() ? mesh->getExplodedViewTransformation() : mesh->getTransformation());
 			const QMatrix4x4 combinedMatrix = deltaMatrix * startMatrix;
 			const QVector3D exactTranslation(
 				combinedMatrix(0, 3),
@@ -10614,7 +10561,7 @@ void GLWidget::updateTransformGizmoRotationDrag(const QPoint& pixel)
 			displayRotationMatrix.setToIdentity();
 			displayRotationMatrix.rotate(exactRotationQuat);
 			const QVector3D displayRotation = extractMeshRotationFromMatrix(displayRotationMatrix);
-			if (_explodedViewManualPlacementActive)
+			if (_explodedViewCtrl.isManualPlacementActive())
 			{
 				mesh->setExplodedViewTranslationFast(exactTranslation);
 				mesh->setExplodedViewRotationQuaternionFast(exactRotationQuat, displayRotation);
@@ -10633,21 +10580,21 @@ void GLWidget::updateTransformGizmoRotationDrag(const QPoint& pixel)
 	{
 		_viewer->objectTransformPanel->setRotationValues(_transformGizmoCurrentRotationDelta);
 	}
-	if (_explodedViewManualPlacementActive)
+	if (_explodedViewCtrl.isManualPlacementActive())
 	{
 		QMatrix4x4 rotationOnlyMatrix;
 		rotationOnlyMatrix.setToIdentity();
 		rotationOnlyMatrix.rotate(angleDegrees, _transformGizmoRotationPlaneNormal);
 		const QQuaternion deltaQuat =
 			QQuaternion::fromRotationMatrix(rotationOnlyMatrix.toGenericMatrix<3, 3>()).normalized();
-		_explodedViewManualSessionRotationQuat =
-			(deltaQuat * _explodedViewManualDragStartRotationQuat).normalized();
+		_explodedViewCtrl.setManualSessionRotationQuat(
+			(deltaQuat * _explodedViewCtrl.manualDragStartRotationQuat()).normalized());
 
 		QMatrix4x4 sessionRotationMatrix;
 		sessionRotationMatrix.setToIdentity();
-		sessionRotationMatrix.rotate(_explodedViewManualSessionRotationQuat);
-		_explodedViewManualSessionRotationEuler =
-			extractMeshRotationFromMatrix(sessionRotationMatrix);
+		sessionRotationMatrix.rotate(_explodedViewCtrl.manualSessionRotationQuat());
+		_explodedViewCtrl.setManualSessionRotationEuler(
+			extractMeshRotationFromMatrix(sessionRotationMatrix));
 		emit explodedViewManualPlacementChanged();
 	}
 
@@ -10683,7 +10630,7 @@ void GLWidget::finishTransformGizmoRotationDrag(bool commit)
 			continue;
 
 		oldStatesByUuid.insert(uuid, it.value());
-		newStatesByUuid.insert(uuid, _explodedViewManualPlacementActive
+		newStatesByUuid.insert(uuid, _explodedViewCtrl.isManualPlacementActive()
 			? explodedViewTransformState(mesh)
 			: TransformState(
 				mesh->getTranslation(),
@@ -10694,7 +10641,7 @@ void GLWidget::finishTransformGizmoRotationDrag(bool commit)
 
 	const bool moved = _transformGizmoCurrentRotationDelta.lengthSquared() > 1.0e-8f;
 
-	if (_explodedViewManualPlacementActive)
+	if (_explodedViewCtrl.isManualPlacementActive())
 	{
 		if (commit && moved && !oldStatesByUuid.isEmpty())
 		{
@@ -10709,8 +10656,8 @@ void GLWidget::finishTransformGizmoRotationDrag(bool commit)
 		}
 		else if (!commit)
 		{
-			_explodedViewManualSessionRotationQuat = _explodedViewManualDragStartRotationQuat;
-			_explodedViewManualSessionRotationEuler = _explodedViewManualDragStartRotationEuler;
+			_explodedViewCtrl.setManualSessionRotationQuat(_explodedViewCtrl.manualDragStartRotationQuat());
+			_explodedViewCtrl.setManualSessionRotationEuler(_explodedViewCtrl.manualDragStartRotationEuler());
 		}
 		emit explodedViewManualPlacementChanged();
 		update();
@@ -10731,7 +10678,7 @@ void GLWidget::finishTransformGizmoRotationDrag(bool commit)
 			if (TriangleMesh* mesh = _meshStore[id])
 			{
 				const TransformState& startState = it.value();
-				if (_explodedViewManualPlacementActive)
+				if (_explodedViewCtrl.isManualPlacementActive())
 					applyExplodedViewTransformState(mesh, startState, false);
 				else
 				{

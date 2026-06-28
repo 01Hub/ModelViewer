@@ -156,8 +156,8 @@ public:
 	bool beginExplodedViewManualPlacement(const QVector<QUuid>& selectionUuids = {});
 	void finishExplodedViewManualPlacement();
 	void clearExplodedViewManualPlacement();
-	bool isExplodedViewManualPlacementActive() const { return _explodedViewManualPlacementActive; }
-	bool hasExplodedViewManualPlacement() const { return !_explodedViewManualOriginalStates.isEmpty(); }
+	bool isExplodedViewManualPlacementActive() const { return _explodedViewCtrl.isManualPlacementActive(); }
+	bool hasExplodedViewManualPlacement() const { return !_explodedViewCtrl.manualOriginalStates().isEmpty(); }
 	bool hasExplodedViewManualTransformChanges() const;
 	QSet<QUuid> explodedViewManualPlacementUuids() const;
 	QVector3D explodedViewManualPlacementTranslationDelta() const;
@@ -1007,31 +1007,7 @@ private:
 
 	AnimationRuntimeController _animCtrl;
 
-	// Exploded-view runtime state — owned here; GLWidget aliases every field by
-	// reference so all existing call sites in GLWidget.cpp remain unchanged.
-	// Declaration order: _explodedViewCtrl must come before all its aliases.
 	ExplodedViewRuntimeController _explodedViewCtrl;
-
-	// Reference aliases into _explodedViewCtrl (initialized in constructor init-list)
-	ExplodedViewManager*&                       _explodedViewManager;
-	QSet<QUuid>&                                _cachedHintsAssemblyUuids;
-	QUuid&                                      _cachedHintsAnchorUuid;
-	AssemblyRelationGraph::AutoPlacementHints&  _cachedAutoHints;
-	bool&                                       _cachedHintsValid;
-	bool&                                       _explodedViewManualPlacementActive;
-	QMap<QUuid, TransformState>&                _explodedViewManualOriginalStates;
-	QMap<QUuid, TransformState>&                _explodedViewManualHiddenStates;
-	bool&                                       _explodedViewManualPlacementSuppressed;
-	QSet<QUuid>&                                _explodedViewManualPlacementSessionUuids;
-	QMap<QUuid, TransformState>&                _explodedViewManualSessionStartStates;
-	QMap<QUuid, QMatrix4x4>&                   _explodedViewManualSessionStartMatrices;
-	QVector3D&                                  _explodedViewManualSessionStartPivot;
-	QVector3D&                                  _explodedViewManualSessionTranslationDelta;
-	QQuaternion&                                _explodedViewManualSessionRotationQuat;
-	QVector3D&                                  _explodedViewManualSessionRotationEuler;
-	QVector3D&                                  _explodedViewManualDragStartTranslationDelta;
-	QQuaternion&                                _explodedViewManualDragStartRotationQuat;
-	QVector3D&                                  _explodedViewManualDragStartRotationEuler;
 
 	// Render-pipeline resources — owned here; GLWidget aliases every field by
 	// reference so all existing call sites in GLWidget.cpp remain unchanged.
