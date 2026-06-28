@@ -1,5 +1,6 @@
 #pragma once
 
+#include "GLLights.h"
 #include "RenderEnums.h"
 #include "ShaderProgram.h"
 
@@ -257,6 +258,11 @@ public:
     const std::array<unsigned int, 6>& viewCubeLabelTextures() const { return _viewCubeLabelTextures; }
     GLuint viewCubeLabelVAO() const { return _viewCubeLabelVAO; }
     GLuint viewCubeLabelVBO() const { return _viewCubeLabelVBO; }
+
+    // ---- Punctual lights GPU buffer ----------------------------------------
+    GLLights*       glLights()       { return _glLights.get(); }
+    const GLLights* glLights() const { return _glLights.get(); }
+    void initLights()                { _glLights = std::make_unique<GLLights>(); }
 
     // ---- Capping -----------------------------------------------------------
     bool   cappingEnabled()       const { return _cappingEnabled; }
@@ -565,6 +571,9 @@ private:
     std::array<unsigned int, 6> _viewCubeLabelTextures = { 0, 0, 0, 0, 0, 0 };
     unsigned int _viewCubeLabelVAO = 0;
     unsigned int _viewCubeLabelVBO = 0;
+
+    // ---- Punctual lights GPU buffer ----------------------------------------
+    std::unique_ptr<GLLights> _glLights;
 
     // ---- Capping -----------------------------------------------------------
     bool         _cappingEnabled = false;

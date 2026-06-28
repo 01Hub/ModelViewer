@@ -1127,7 +1127,6 @@ private:
 
 	AdaptiveShadowMapper shadowMapper;
 
-	std::unique_ptr<GLLights> glLights;
 	float _originalBoundingRadius = 1.0f;
 	// _animatedLight* / _animatedMesh* → AnimationRuntimeController (Phase 8)
 

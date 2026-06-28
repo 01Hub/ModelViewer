@@ -1,8 +1,11 @@
 #pragma once
 
 #include "GltfAnimationData.h"
+#include "GltfLightData.h"
 #include "GLLights.h"
 #include "GLMaterial.h"
+
+class SceneGraph;
 
 #include <assimp/matrix4x4.h>
 
@@ -147,6 +150,18 @@ public:
         const std::function<bool(const LightOrigin&)>& isLightEnabled = {});
     std::vector<GPULight> buildUploadLights() const;
     std::vector<GPULight> buildUploadLights(const std::function<bool(const LightOrigin&)>& isLightEnabled) const;
+
+    // ---- Light population --------------------------------------------------
+    // Populate the parsed-light baseline from a single-file GltfLightData
+    // (used during initial model load before the file is in SceneGraph).
+    void setParsedLightsFromSingleFile(const GltfLightData& lightData);
+    // Rebuild the full parsed-light baseline from all files registered in
+    // SceneGraph (authoritative multi-model path, called on lightDataChanged).
+    void rebuildParsedLightsFromSceneGraph(const SceneGraph* sg);
+    // Clear all parsed and repositioned light state (e.g. on scene reset).
+    void clearParsedLights();
+    // Return the enabled-filtered repositioned lights for gizmo rendering.
+    std::vector<GPULight> buildGizmoLights(const SceneGraph* sg) const;
 
     // ---- Static helpers ----------------------------------------------------
     static QMatrix4x4           aiToQMatrix(const aiMatrix4x4& m);
