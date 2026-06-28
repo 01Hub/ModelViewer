@@ -21,8 +21,9 @@
 //
 // Groups all viewport navigation, camera, gizmo drag, and rubber-band
 // interaction state that was previously scattered through GLWidget's private
-// section.  Fields are public: this is a data aggregate owned by GLWidget;
-// all external callers must go through GLWidget's public API.
+// section. A small public API now owns externally visible viewport settings
+// and matrix access, while the bulk interaction state remains an internal
+// aggregate for GLWidget during the incremental de-aliasing refactor.
 //
 // Introduced in Phase 11 of the mesh/render/runtime separation refactor.
 // De-aliased in the controller ownership cleanup pass.
@@ -36,6 +37,174 @@
 class ViewportInteractionController
 {
 public:
+    // ---- Public-facing config / state accessors ----------------------------
+    bool cameraUpAxisZUp() const                         { return _cameraUpAxisZUp; }
+    void setCameraUpAxisZUp(bool zUp)                    { _cameraUpAxisZUp = zUp; }
+
+    bool multiViewActive() const                         { return _multiViewActive; }
+    void setMultiViewActive(bool active)                 { _multiViewActive = active; }
+
+    bool userShowAxisOverride() const                    { return _userShowAxisOverride; }
+    void setUserShowAxisOverride(bool show)              { _userShowAxisOverride = show; }
+
+    bool userShowCornerAxisOverride() const              { return _userShowCornerAxisOverride; }
+    void setUserShowCornerAxisOverride(bool show)        { _userShowCornerAxisOverride = show; }
+
+    bool showViewCubeOverride() const                    { return _showViewCubeOverride; }
+    void setShowViewCubeOverride(bool show)
+    {
+        _showViewCubeOverride = show;
+        if (!show)
+            _viewCubeHoveredRegionId = -1;
+    }
+
+    bool showAxis() const                                { return _showAxis; }
+    void setShowAxis(bool show)                          { _showAxis = show; }
+
+    float FOV() const                                    { return _FOV; }
+    void setFOV(float fov)                               { _FOV = fov; }
+
+    float viewRange() const                              { return _viewRange; }
+    void setViewRange(float range)                       { _viewRange = range; }
+
+    float currentViewRange() const                       { return _currentViewRange; }
+    void setCurrentViewRange(float range)                { _currentViewRange = range; }
+
+    float viewBoundingSphereDia() const                  { return _viewBoundingSphereDia; }
+    void setViewBoundingSphereDia(float diameter)        { _viewBoundingSphereDia = diameter; }
+
+    ViewProjection projection() const                    { return _projection; }
+    void setProjection(ViewProjection projection)        { _projection = projection; }
+
+    GLCamera::ProjectionType previousProjection() const  { return _previousProjection; }
+    void setPreviousProjection(GLCamera::ProjectionType projection)
+    {
+        _previousProjection = projection;
+    }
+
+    ViewMode viewMode() const                            { return _viewMode; }
+    void setViewMode(ViewMode mode)                      { _viewMode = mode; }
+
+    const QVector3D& currentTranslation() const          { return _currentTranslation; }
+    void setCurrentTranslation(const QVector3D& translation)
+    {
+        _currentTranslation = translation;
+    }
+
+    const QQuaternion& currentRotation() const           { return _currentRotation; }
+    void setCurrentRotation(const QQuaternion& rotation) { _currentRotation = rotation; }
+
+    const QQuaternion& customViewTargetRotation() const  { return _customViewTargetRotation; }
+    void setCustomViewTargetRotation(const QQuaternion& rotation)
+    {
+        _customViewTargetRotation = rotation;
+    }
+
+    bool customViewAnimationActive() const               { return _customViewAnimationActive; }
+    void setCustomViewAnimationActive(bool active)       { _customViewAnimationActive = active; }
+
+    CornerAxisPosition cornerAxisPosition() const        { return _cornerAxisPosition; }
+    void setCornerAxisPosition(CornerAxisPosition pos)
+    {
+        _cornerAxisPosition = normalizeCornerAxisPosition(pos);
+    }
+
+    const QMatrix4x4& modelMatrix() const                { return _modelMatrix; }
+    void setModelMatrix(const QMatrix4x4& matrix)
+    {
+        _modelMatrix = matrix;
+        recomputeModelViewMatrix();
+    }
+
+    const QMatrix4x4& viewMatrix() const                 { return _viewMatrix; }
+    void setViewMatrix(const QMatrix4x4& matrix)
+    {
+        _viewMatrix = matrix;
+        recomputeModelViewMatrix();
+    }
+
+    const QMatrix4x4& projectionMatrix() const           { return _projectionMatrix; }
+    void setProjectionMatrix(const QMatrix4x4& matrix)   { _projectionMatrix = matrix; }
+
+    const QMatrix4x4& modelViewMatrix() const            { return _modelViewMatrix; }
+    const QMatrix4x4& viewportMatrix() const             { return _viewportMatrix; }
+
+    void setViewportMatrix(float width, float height)
+    {
+        _viewportMatrix = QMatrix4x4(width / 2.0f, 0.0f, 0.0f, 0.0f,
+                                     0.0f, height / 2.0f, 0.0f, 0.0f,
+                                     0.0f, 0.0f, 1.0f, 0.0f,
+                                     width / 2.0f, height / 2.0f, 0.0f, 1.0f);
+    }
+
+    void recomputeModelViewMatrix()
+    {
+        _modelViewMatrix = _viewMatrix * _modelMatrix;
+    }
+
+    void syncMatricesFromCamera(const GLCamera& camera)
+    {
+        _viewMatrix = camera.getViewMatrix();
+        _projectionMatrix = camera.getProjectionMatrix();
+        recomputeModelViewMatrix();
+    }
+
+    void syncPoseFromCamera(const GLCamera& camera)
+    {
+        _currentRotation = QQuaternion::fromRotationMatrix(
+            camera.getViewMatrix().toGenericMatrix<3, 3>());
+        _currentTranslation = camera.getPosition();
+    }
+
+    void syncRotationFromCamera(const GLCamera& camera)
+    {
+        _currentRotation = QQuaternion::fromRotationMatrix(
+            camera.getViewMatrix().toGenericMatrix<3, 3>());
+    }
+
+    void syncTranslationFromCamera(const GLCamera& camera)
+    {
+        _currentTranslation = camera.getPosition();
+    }
+
+    void syncCurrentViewRange()
+    {
+        _currentViewRange = _viewRange;
+    }
+
+    void syncPoseAndRangeFromCamera(const GLCamera& camera)
+    {
+        syncPoseFromCamera(camera);
+        syncCurrentViewRange();
+    }
+
+    void updateFrustumPlanes()
+    {
+        const QMatrix4x4 vp = _projectionMatrix * _viewMatrix;
+        const QVector4D r0 = vp.row(0);
+        const QVector4D r1 = vp.row(1);
+        const QVector4D r2 = vp.row(2);
+        const QVector4D r3 = vp.row(3);
+
+        _frustumPlanes[0] = r3 + r0;
+        _frustumPlanes[1] = r3 - r0;
+        _frustumPlanes[2] = r3 + r1;
+        _frustumPlanes[3] = r3 - r1;
+        _frustumPlanes[4] = r3 + r2;
+        _frustumPlanes[5] = r3 - r2;
+
+        for (int i = 0; i < 6; ++i)
+        {
+            const float len = QVector3D(_frustumPlanes[i].x(),
+                                        _frustumPlanes[i].y(),
+                                        _frustumPlanes[i].z()).length();
+            if (len > 1e-6f)
+                _frustumPlanes[i] /= len;
+        }
+    }
+
+    const QVector4D& frustumPlane(int index) const       { return _frustumPlanes[index]; }
+
     // ---- Saved system-camera state -----------------------------------------
     // Captured when a glTF camera is first activated; restored on deactivation.
     bool                     _systemCameraStateSaved  = false;

@@ -95,19 +95,19 @@ public:
 	void resizeView(int w, int h) { resizeGL(w, h); }
 	void setViewMode(ViewMode mode);
 	void setCameraUpAxisZUp(bool zUp, bool syncToolbar = true);
-	bool isCameraUpAxisZUp() const { return _viewCtrl._cameraUpAxisZUp; }
+	bool isCameraUpAxisZUp() const { return _viewCtrl.cameraUpAxisZUp(); }
 	void setProjection(ViewProjection proj);
 	void setCameraMode(GLCamera::CameraMode mode);
 	GLCamera::CameraMode cameraMode() const;
 
-	void setMultiView(bool active) { _viewCtrl._multiViewActive = active; }
+	void setMultiView(bool active) { _viewCtrl.setMultiViewActive(active); }
 	void setRotationActive(bool active);
 	void setPanningActive(bool active);
 	void setZoomingActive(bool active);
 
-	void setShowCenterAxisOverride(bool show) { _viewCtrl._userShowAxisOverride = show; update(); }
-	void setShowCornerAxisOverride(bool show) { _viewCtrl._userShowCornerAxisOverride = show; update(); }
-	void setShowViewCubeOverride(bool show) { _viewCtrl._showViewCubeOverride = show; if (!show) _viewCtrl._viewCubeHoveredRegionId = -1; update(); }
+	void setShowCenterAxisOverride(bool show) { _viewCtrl.setUserShowAxisOverride(show); update(); }
+	void setShowCornerAxisOverride(bool show) { _viewCtrl.setUserShowCornerAxisOverride(show); update(); }
+	void setShowViewCubeOverride(bool show) { _viewCtrl.setShowViewCubeOverride(show); update(); }
 	void setCornerAxisPosition(CornerAxisPosition position);
 
 	void beginWindowZoom();
@@ -423,7 +423,7 @@ public:
 	bool isSkyBoxHDRIEnabled() const { return _renderCtrl.skyBoxTextureHDRI(); }
 	int getSkyBoxBlurPercent() const { return _renderCtrl.skyBoxBlurPercent(); }
 	float getSkyBoxFOV() const { return _renderCtrl.skyBoxFOV(); }
-	float getPerspFOV()  const { return _viewCtrl._FOV; }
+	float getPerspFOV()  const { return _viewCtrl.FOV(); }
 	float getSkyBoxZRotationDegrees() const { return _renderCtrl.skyBoxZRotation(); }
 	bool areReflectionsEnabled() const { return _renderCtrl.reflectionsEnabled(); }
 	bool isFloorTextureShown() const { return _renderCtrl.floorTextureDisplayed(); }
@@ -606,10 +606,10 @@ public slots:
 	void onAnimationTick();
 
 	// Accessors for SelectionManager
-	QMatrix4x4 getViewMatrix() const { return _viewCtrl._viewMatrix; }
-	QMatrix4x4 getProjectionMatrix() const { return _viewCtrl._projectionMatrix; }
-	QMatrix4x4 getModelViewMatrix() const { return _viewCtrl._modelViewMatrix; }
-	bool isMultiViewActive() const { return _viewCtrl._multiViewActive; }
+	QMatrix4x4 getViewMatrix() const { return _viewCtrl.viewMatrix(); }
+	QMatrix4x4 getProjectionMatrix() const { return _viewCtrl.projectionMatrix(); }
+	QMatrix4x4 getModelViewMatrix() const { return _viewCtrl.modelViewMatrix(); }
+	bool isMultiViewActive() const { return _viewCtrl.multiViewActive(); }
 	ShaderProgram* getSelectionShader() const { return _renderCtrl.selectionShader(); }
 	SelectionManager* getSelectionManager() const { return _selectionManager; }
 	// Returns the camera configured for the viewport that contains 'pixel'.
