@@ -122,7 +122,7 @@ void DeleteMeshCommand::redo()
     QSet<QString> candidateFiles;
     for (const QUuid& uuid : _meshUuids)
     {
-        if (TriangleMesh* m = _glWidget->getMeshByUuid(uuid))
+        if (SceneMesh* m = _glWidget->getMeshByUuid(uuid))
             candidateFiles.insert(m->getSourceFile());
     }
 
@@ -131,11 +131,11 @@ void DeleteMeshCommand::redo()
     QSet<QString> filesLosingAllMeshes;
     {
         const QSet<QUuid> deletingSet(_meshUuids.begin(), _meshUuids.end());
-        const std::vector<TriangleMesh*>& store = _glWidget->getMeshStore();
+        const std::vector<SceneMesh*>& store = _glWidget->getMeshStore();
         for (const QString& file : candidateFiles)
         {
             bool allDeleted = true;
-            for (const TriangleMesh* mesh : store)
+            for (const SceneMesh* mesh : store)
             {
                 if (mesh && mesh->getSourceFile() == file &&
                     !deletingSet.contains(mesh->uuid()))

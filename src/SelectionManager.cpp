@@ -66,7 +66,7 @@ int SelectionManager::clickSelect(const QPoint& pixel)
     // === Ray-based intersection test ===
     QMap<int, float> selectedIdsDist;
     for (int i : ids) {
-        TriangleMesh* mesh = _meshStore.at(i);
+        SceneMesh* mesh = _meshStore.at(i);
         if (mesh->getBoundingSphere().intersectsWithRay(rayPos, rayDir)) {
             if (mesh->intersectsWithRay(rayPos, rayDir, intersectionPoint)) {
                 selectedIdsDist[i] = intersectionPoint.distanceToPoint(rayPos);
@@ -141,7 +141,7 @@ int SelectionManager::hoverSelect(const QPoint& pixel)
         // === Ray-based intersection test (performance-optimized) ===
         QMap<int, float> hitDistances;
         for (int i : ids) {
-            TriangleMesh* mesh = _meshStore.at(i);
+            SceneMesh* mesh = _meshStore.at(i);
             if (mesh->getBoundingSphere().intersectsWithRay(rayPos, rayDir)) {
                 if (mesh->intersectsWithRay(rayPos, rayDir, intersectionPoint)) {
                     hitDistances[i] = intersectionPoint.distanceToPoint(rayPos);

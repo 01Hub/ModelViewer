@@ -15,7 +15,7 @@ TransformCommand::TransformCommand(ModelViewer* viewer,
     // Capture old states for all meshes before transformation
     for (const QUuid& uuid : meshUuids)
     {
-        TriangleMesh* mesh = _glWidget->getMeshByUuid(uuid);
+        SceneMesh* mesh = _glWidget->getMeshByUuid(uuid);
         if (mesh)
         {
             TransformState oldState;

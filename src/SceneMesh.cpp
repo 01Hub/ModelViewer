@@ -77,7 +77,7 @@ bool SceneMesh::_currentUniformStateHadDebugOverrides = false;
 /*  Functions  */
 // Constructor
 SceneMesh::SceneMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<GLMaterial::Texture> textures, GLMaterial material, bool skipOptimization, GLenum primitiveMode)
-    : DeformableMesh(shader, "SceneMesh")
+    : RenderableMesh(shader, "SceneMesh")
     , _textures(_materialState.textures())
     , _currentMorphWeights(_animState.currentMorphWeights())
 {
@@ -115,7 +115,7 @@ SceneMesh::~SceneMesh()
 	}*/
 }
 
-TriangleMesh* SceneMesh::clone()
+SceneMesh* SceneMesh::clone()
 {
 	SceneMesh* mesh = new SceneMesh(_prog, _name, _baseVertices, _indices, _textures, _material, _importState.skipOptimization(), getPrimitiveMode());
 	mesh->setMorphTargets(_morphTargets, _defaultMorphWeights);
@@ -167,7 +167,7 @@ quint64 SceneMesh::getRenderMaterialSortKey() const
 void SceneMesh::markUniformsDirty()
 {
 	_uniformStateSignatureDirty = true;
-	TriangleMesh::markUniformsDirty();
+	RenderableMesh::markUniformsDirty();
 }
 
 void SceneMesh::resetSharedUniformStateCache()
@@ -180,7 +180,7 @@ void SceneMesh::resetSharedUniformStateCache()
 void SceneMesh::setProg(QOpenGLShaderProgram* prog)
 {
 	const bool progChanged = (_prog != prog);
-	TriangleMesh::setProg(prog);
+	RenderableMesh::setProg(prog);
 	if (progChanged)
 	{
 		_textureBindingsDirty = true;
@@ -2151,5 +2151,5 @@ void SceneMesh::deleteTextures()
 	glDeleteTextures(1, &_materialState.normalADSMap());
 	glDeleteTextures(1, &_materialState.heightADSMap());
 	glDeleteTextures(1, &_materialState.opacityADSMap());
-	TriangleMesh::deleteTextures();
+	RenderableMesh::deleteTextures();
 }

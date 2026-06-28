@@ -230,7 +230,7 @@ QVector<PartInfo> collectPartInfos(const QSet<QUuid>& assemblyUuids,
     parts.reserve(assemblyUuids.size());
     for (const QUuid& uuid : assemblyUuids)
     {
-        TriangleMesh* mesh = glWidget->getMeshByUuid(uuid);
+        SceneMesh* mesh = glWidget->getMeshByUuid(uuid);
         if (!mesh)
             continue;
 

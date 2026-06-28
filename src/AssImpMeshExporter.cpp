@@ -49,7 +49,7 @@ unsigned int primitiveModeToAiPrimitiveType(GLenum primitiveMode)
     }
 }
 
-GLMaterial exportedDefaultMaterial(const TriangleMesh* mesh)
+GLMaterial exportedDefaultMaterial(const SceneMesh* mesh)
 {
     if (!mesh)
         return GLMaterial();
@@ -63,7 +63,7 @@ GLMaterial exportedDefaultMaterial(const TriangleMesh* mesh)
     return mesh->getMaterial();
 }
 
-int exportedBaseMaterialKey(const TriangleMesh* mesh)
+int exportedBaseMaterialKey(const SceneMesh* mesh)
 {
     return mesh ? mesh->getOriginalMaterialIndex() : -1;
 }
@@ -274,7 +274,7 @@ AssImpMeshExporter::AssImpMeshExporter(QObject* parent)
 
 aiReturn AssImpMeshExporter::exportMeshes(
     const aiScene* scene,
-    const std::vector<TriangleMesh*>& meshes,
+    const std::vector<SceneMesh*>& meshes,
     const QString& exportPath,
     const ExportSettings& settings)
 {
@@ -377,7 +377,7 @@ aiReturn AssImpMeshExporter::exportMeshes(
     std::vector<aiMesh*> aiMeshes;
     std::vector<aiMaterial*> aiMaterials;
     std::vector<QMatrix4x4> transforms;
-    std::vector<const TriangleMesh*> validMeshes; // meshes that successfully made it into aiMeshes
+    std::vector<const SceneMesh*> validMeshes; // meshes that successfully made it into aiMeshes
 
     // Material deduplication map: material content hash -> material index
     QMap<QString, unsigned int> materialContentToIndex;
@@ -510,7 +510,7 @@ aiReturn AssImpMeshExporter::exportMeshes(
 
         for (size_t vi = 0; vi < validMeshes.size(); ++vi)
         {
-            const TriangleMesh* mesh = validMeshes[vi];
+            const SceneMesh* mesh = validMeshes[vi];
             MeshVariantExportEntry entry;
 
             if (!mesh->hasVariants())
@@ -696,7 +696,7 @@ aiReturn AssImpMeshExporter::exportMeshes(
  */
 aiReturn AssImpMeshExporter::exportScene(
     aiScene* scene,
-    const std::vector<TriangleMesh*>& meshes,
+    const std::vector<SceneMesh*>& meshes,
     const std::string& exportPath)
 {
     // Default settings with embedding enabled
@@ -715,7 +715,7 @@ aiReturn AssImpMeshExporter::exportScene(
  */
 aiReturn AssImpMeshExporter::exportScene(
     aiScene* scene,
-    const std::vector<TriangleMesh*>& meshes,
+    const std::vector<SceneMesh*>& meshes,
     const std::string& exportPath,
     const ExportSettings& settings)
 {
@@ -855,11 +855,11 @@ aiReturn AssImpMeshExporter::exportScene(
     // syncSceneToMeshStore produces scene->mMeshes[] in ASCENDING sceneIndex order.
     // _meshStore (and therefore `meshes`) is in traversal order, which may differ.
     // Sort a local copy by sceneIndex so the positional assignment in
-    // applyMaterialsToScene correctly pairs each TriangleMesh with its aiMesh.
+    // applyMaterialsToScene correctly pairs each SceneMesh with its aiMesh.
     logMessage("Step 3: Applying materials to scene...");
-    std::vector<TriangleMesh*> sortedMeshes = meshes;
+    std::vector<SceneMesh*> sortedMeshes = meshes;
     std::stable_sort(sortedMeshes.begin(), sortedMeshes.end(),
-        [](const TriangleMesh* a, const TriangleMesh* b)
+        [](const SceneMesh* a, const SceneMesh* b)
         {
             return a->getSceneIndex() < b->getSceneIndex();
         });
@@ -877,7 +877,7 @@ aiReturn AssImpMeshExporter::exportScene(
 
         for (size_t vi = 0; vi < sortedMeshes.size() && vi < scene->mNumMeshes; ++vi)
         {
-            const TriangleMesh* mesh = sortedMeshes[vi];
+            const SceneMesh* mesh = sortedMeshes[vi];
             MeshVariantExportEntry entry;
 
             if (!mesh || !mesh->hasVariants())
@@ -1635,7 +1635,7 @@ void AssImpMeshExporter::patchGlbImageNames(
     logMessage(QString("  -> Patched %1 image names in GLB JSON").arg(orderedNames.size()));
 }
 
-bool AssImpMeshExporter::hasGlbVirtualPaths(const std::vector<TriangleMesh*>& meshes)
+bool AssImpMeshExporter::hasGlbVirtualPaths(const std::vector<SceneMesh*>& meshes)
 {
     for (const auto* mesh : meshes)
     {
@@ -2338,7 +2338,7 @@ void AssImpMeshExporter::updateSceneMaterialPaths(aiScene* scene, const TextureP
 
 void AssImpMeshExporter::patchMtlWithPbrExtensions(
     const QString& mtlPath,
-    const std::vector<TriangleMesh*>& meshes,
+    const std::vector<SceneMesh*>& meshes,
     const TexturePackage& pkg)
 {
     // Read the file Assimp wrote.
@@ -2353,7 +2353,7 @@ void AssImpMeshExporter::patchMtlWithPbrExtensions(
 
     // Build name → GLMaterial lookup matching SceneGraphExporter's naming logic.
     QMap<QString, GLMaterial> matByName;
-    for (const TriangleMesh* mesh : meshes)
+    for (const SceneMesh* mesh : meshes)
     {
         if (!mesh)
             continue;
@@ -2468,7 +2468,7 @@ void AssImpMeshExporter::patchMtlWithPbrExtensions(
  */
 void AssImpMeshExporter::syncSceneToMeshStore(
     aiScene* scene,
-    const std::vector<TriangleMesh*>& meshes)
+    const std::vector<SceneMesh*>& meshes)
 {
     if (!scene || !scene->mRootNode || meshes.empty())
         return;
@@ -2481,10 +2481,10 @@ void AssImpMeshExporter::syncSceneToMeshStore(
         .arg(scene->mNumMeshes).arg(meshes.size()));
 
     // Build the set of original aiScene mesh indices that are still alive in _meshStore.
-    // Each TriangleMesh carries the index it was assigned at load time via setSceneIndex(),
+    // Each SceneMesh carries the index it was assigned at load time via setSceneIndex(),
     // so this is an exact, name-independent match.
     QSet<int> survivingSceneIndices;
-    for (const TriangleMesh* m : meshes)
+    for (const SceneMesh* m : meshes)
     {
         int idx = m->getSceneIndex();
         if (idx >= 0)
@@ -2558,7 +2558,7 @@ void AssImpMeshExporter::syncSceneToMeshStore(
 
 void AssImpMeshExporter::applyMaterialsToScene(
     aiScene* scene,
-    const std::vector<TriangleMesh*>& meshes,
+    const std::vector<SceneMesh*>& meshes,
     const QString& exportFileLocation)  // NEW parameter
 {
     if (!scene || meshes.empty())
@@ -2579,11 +2579,11 @@ void AssImpMeshExporter::applyMaterialsToScene(
     int normalizedCount = 0;
     if (isGltfFamily)
     {
-        QMap<unsigned int, const TriangleMesh*> materialOwners;
+        QMap<unsigned int, const SceneMesh*> materialOwners;
 
         for (size_t meshIdx = 0; meshIdx < meshes.size() && meshIdx < scene->mNumMeshes; ++meshIdx)
         {
-            const TriangleMesh* mesh = meshes[meshIdx];
+            const SceneMesh* mesh = meshes[meshIdx];
             const aiMesh* sceneMesh = scene->mMeshes[meshIdx];
             if (!mesh || !sceneMesh)
                 continue;
@@ -2598,7 +2598,7 @@ void AssImpMeshExporter::applyMaterialsToScene(
         for (auto it = materialOwners.constBegin(); it != materialOwners.constEnd(); ++it)
         {
             const unsigned int materialIndex = it.key();
-            const TriangleMesh* mesh = it.value();
+            const SceneMesh* mesh = it.value();
             aiMaterial* preservedMaterial = scene->mMaterials[materialIndex];
             if (!mesh || !preservedMaterial)
                 continue;

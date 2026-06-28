@@ -480,7 +480,7 @@ QJsonObject animationClipToJson(const GltfAnimationClip& clip)
 namespace Mvf
 {
 MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
-                           const std::vector<TriangleMesh*>& meshStore,
+                           const std::vector<SceneMesh*>& meshStore,
                            const QSet<QUuid>& visibleMeshUuids,
                            const QSet<QUuid>& selectedMeshUuids,
                            const QVector<GltfCameraData>& cameraDataByFile)
@@ -631,7 +631,7 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
         return materialObj;
     };
 
-    for (TriangleMesh* mesh : meshStore)
+    for (SceneMesh* mesh : meshStore)
     {
         if (!mesh)
             continue;

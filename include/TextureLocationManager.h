@@ -1,12 +1,12 @@
 #pragma once
+class SceneMesh;
+
 
 #include <QString>
 #include <QMap>
 #include <vector>
 
 class RenderableMesh;
-using TriangleMesh = RenderableMesh;
-
 /**
  * @class TextureMetadata
  * @brief Tracks metadata for a single texture through the packaging process
@@ -75,11 +75,11 @@ public:
      * 4. Copies files to output directory with collision handling
      * 5. Generates relative paths for portability
      *
-     * @param meshes Vector of TriangleMesh pointers to process
+     * @param meshes Vector of SceneMesh pointers to process
      * @param outputDirectory Base directory for texture output
      * @return TexturePackage with all metadata and path mappings
      */
-    TexturePackage packageTextures(const std::vector<TriangleMesh*>& meshes,
+    TexturePackage packageTextures(const std::vector<SceneMesh*>& meshes,
         const QString& outputDirectory,
         const QString& textureSubfolder);
 

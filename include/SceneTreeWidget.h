@@ -24,7 +24,7 @@ class GLWidget;
 // Node types shown (icons from Qt resources):
 //   document-root.png  Synthetic file-level node (one per imported file)
 //   assembly.png       Assembly node (has child SceneNodes)
-//   mesh.png           Mesh leaf (one per TriangleMesh UUID in a SceneNode)
+//   mesh.png           Mesh leaf (one per SceneMesh UUID in a SceneNode)
 //
 // Assembly / file items carry tri-state check boxes that control all leaves
 // beneath them.  Clicking an assembly item selects all mesh leaves below it.

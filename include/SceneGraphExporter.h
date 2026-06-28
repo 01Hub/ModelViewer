@@ -1,4 +1,6 @@
 #pragma once
+class SceneMesh;
+
 
 #include <functional>
 #include <vector>
@@ -13,12 +15,10 @@
 class SceneGraph;
 class SceneNode;
 class RenderableMesh;
-using TriangleMesh = RenderableMesh;
-
 class SceneGraphExporter
 {
 public:
-    using MeshResolver = std::function<TriangleMesh* (const QUuid&)>;
+    using MeshResolver = std::function<SceneMesh* (const QUuid&)>;
 
     // Rebuilds an export-only aiScene from:
     //  - SceneGraph hierarchy
@@ -67,7 +67,7 @@ private:
         QMap<QString, unsigned int>* animMatRemap = nullptr
     );
 
-    static aiMesh* buildMeshFromTriangleMesh(const TriangleMesh* mesh, unsigned int materialIndex);
+    static aiMesh* buildMeshFromTriangleMesh(const SceneMesh* mesh, unsigned int materialIndex);
 
-    static aiMaterial* buildMaterialFromTriangleMesh(const TriangleMesh* mesh);
+    static aiMaterial* buildMaterialFromTriangleMesh(const SceneMesh* mesh);
 };

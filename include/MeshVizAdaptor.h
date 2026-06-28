@@ -24,20 +24,20 @@ struct PrecomputedTexture
     bool         isValid;
 };
 
-// GL resource container for a TriangleMesh.
+// GL resource container for a SceneMesh.
 //
 // Owns all per-mesh OpenGL state: vertex/index buffers, VAO, fallback texture,
 // feature-edge and OCC-edge VAO/VBO pairs, the precomputed texture binding
 // table, per-frame dirty flags, the uniform-location cache, and debug override
 // maps.
 //
-// TriangleMesh embeds one of these as _vizState and exposes each field through
+// SceneMesh embeds one of these as _vizState and exposes each field through
 // a reference alias (same zero-churn pattern used for GLMaterial& _material).
-// All existing call sites in TriangleMesh.cpp, AssImpMesh.cpp, FloorPlane.cpp,
+// All existing call sites in SceneMesh.cpp, AssImpMesh.cpp, FloorPlane.cpp,
 // and ViewCubeMesh.cpp continue to compile unchanged.
 //
 // Intentionally free of geometry, material, transform, and import provenance.
-// The draw methods and shader-program knowledge remain in TriangleMesh/AssImpMesh
+// The draw methods and shader-program knowledge remain in SceneMesh/AssImpMesh
 // until Phase 4, when they migrate here.
 class MeshVizAdaptor
 {
@@ -86,7 +86,7 @@ public:
     bool& uniformsDirty()        { return _uniformsDirty; }
 
     // ---- Uniform location cache -----------------------------------------
-    // Accessed from const TriangleMesh methods via the reference alias;
+    // Accessed from const SceneMesh methods via the reference alias;
     // references are transparent to const so no mutable annotation is needed.
     QHash<QByteArray, int>& uniformLocationCache()  { return _uniformLocationCache; }
     QOpenGLShaderProgram*&  vaoConfiguredProgram()  { return _vaoConfiguredProgram; }

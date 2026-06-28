@@ -520,13 +520,10 @@ protected: // methods
 protected:
 
 	// Per-instance scene state: all transform layers, bounds, picking geometry.
-	// Public API on TriangleMesh forwards to this object.
+	// Public API on SceneMesh forwards to this object.
 	MeshInstanceState _instanceState;
 
 	// Runtime animation state: joint palette (skinning) + current morph weights.
-	// Moved here from MeshImportAdaptor (_jointPalette) and AssImpMesh
-	// (_currentMorphWeights) in Phase 6.  AssImpMesh aliases _currentMorphWeights
-	// by reference so existing call sites in AssImpMesh.cpp compile unchanged.
 	MeshAnimationState _animState;
 
 	// ---- GL buffer objects (direct members, MeshVizAdaptor dissolved) -------
@@ -610,6 +607,5 @@ protected:
 };
 
 // Backward-compatibility alias — allows all existing code that uses the name
-// "TriangleMesh" to compile unchanged while the rename propagates.
+// "SceneMesh" to compile unchanged while the rename propagates.
 // Removed in Phase 8 cleanup once all sites have been updated.
-using TriangleMesh = RenderableMesh;

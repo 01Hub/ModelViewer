@@ -32,7 +32,7 @@ void RenameMeshCommand::undo()
 
 void RenameMeshCommand::applyName(const QString& name)
 {
-    TriangleMesh* mesh = _glWidget->getMeshByUuid(_uuid);
+    SceneMesh* mesh = _glWidget->getMeshByUuid(_uuid);
     if (!mesh) return;
 
     mesh->setName(name);

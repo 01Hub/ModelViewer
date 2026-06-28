@@ -1,6 +1,6 @@
 ﻿#include "GltfPostProcessor.h"
+#include "SceneMesh.h"
 #include "GLMaterial.h"
-#include "RenderableMesh.h"
 #include <QDebug>
 #include <QBuffer>
 #include <QDir>
@@ -376,9 +376,9 @@ void GltfPostProcessor::log(const QString& message, std::function<void(const QSt
     }
 }
 
-const TriangleMesh* GltfPostProcessor::sourceMeshForMaterial(
+const SceneMesh* GltfPostProcessor::sourceMeshForMaterial(
     int materialIndex,
-    const std::vector<TriangleMesh*>& meshes)
+    const std::vector<SceneMesh*>& meshes)
 {
     auto mappedIt = _materialToSourceMeshIndex.find(materialIndex);
     if (mappedIt != _materialToSourceMeshIndex.end())
@@ -394,7 +394,7 @@ const TriangleMesh* GltfPostProcessor::sourceMeshForMaterial(
     return nullptr;
 }
 
-GLMaterial GltfPostProcessor::defaultMaterialForMesh(const TriangleMesh* mesh)
+GLMaterial GltfPostProcessor::defaultMaterialForMesh(const SceneMesh* mesh)
 {
     if (!mesh)
         return GLMaterial();
@@ -410,13 +410,13 @@ GLMaterial GltfPostProcessor::defaultMaterialForMesh(const TriangleMesh* mesh)
 
 GLMaterial GltfPostProcessor::sourceMaterialForJsonMaterial(
     int materialIndex,
-    const std::vector<TriangleMesh*>& meshes)
+    const std::vector<SceneMesh*>& meshes)
 {
     auto variantIt = _variantMatByJsonIdx.constFind(materialIndex);
     if (variantIt != _variantMatByJsonIdx.constEnd())
         return variantIt.value();
 
-    const TriangleMesh* sourceMesh = sourceMeshForMaterial(materialIndex, meshes);
+    const SceneMesh* sourceMesh = sourceMeshForMaterial(materialIndex, meshes);
     return defaultMaterialForMesh(sourceMesh);
 }
 
@@ -907,7 +907,7 @@ bool GltfPostProcessor::postProcessGlbFile(const QString& filePath,
 
 bool GltfPostProcessor::postProcessGltfFileWithMaterials(
     const QString& filePath,
-    const std::vector<TriangleMesh*>& meshes,
+    const std::vector<SceneMesh*>& meshes,
     const std::vector<GPULight>& lights,
     std::function<void(const QString&)> logCallback,
     const QString& textureSubfolder,
@@ -959,7 +959,7 @@ bool GltfPostProcessor::postProcessGltfFileWithMaterials(
 
 bool GltfPostProcessor::postProcessGlbFileWithMaterials(
     const QString& filePath,
-    const std::vector<TriangleMesh*>& meshes,
+    const std::vector<SceneMesh*>& meshes,
     const std::vector<GPULight>& lights,
     std::function<void(const QString&)> logCallback,
     const QString& textureSubfolder,
@@ -1493,7 +1493,7 @@ QString GltfPostProcessor::MaterialSignature::computeHash() const
 
 GltfPostProcessor::MaterialSignature GltfPostProcessor::buildSignatureForMesh(
     int meshIdx,
-    const TriangleMesh* mesh,
+    const SceneMesh* mesh,
     std::function<void(const QString&)> logCallback)
 {
     MaterialSignature sig;
@@ -1694,7 +1694,7 @@ int GltfPostProcessor::findMaterialByIndexFallback(
 
 bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
     QJsonObject& gltfJson,
-    const std::vector<TriangleMesh*>& meshes,
+    const std::vector<SceneMesh*>& meshes,
     const std::vector<GPULight>& lights,
     std::function<void(const QString&)> logCallback,
     const QString& textureSubfolder,
@@ -3163,7 +3163,7 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
 
         // ===== SECONDARY PASS: Patch variant materials (KHR_materials_variants) =====
         // Non-default variant materials were added as extra aiMaterials but have no
-        // corresponding source TriangleMesh, so they never enter patchedMaterials.
+        // corresponding source SceneMesh, so they never enter patchedMaterials.
         // We patch them here using the GLMaterial stored in _variantMatByJsonIdx.
         if (!_variantMatByJsonIdx.isEmpty())
         {
@@ -4211,7 +4211,7 @@ bool GltfPostProcessor::fixOcclusionTextureInfo(QJsonObject& parent, const QStri
 
 bool GltfPostProcessor::fixNormalTextureScale(
     QJsonObject& gltfJson,
-    const std::vector<TriangleMesh*>& meshes,
+    const std::vector<SceneMesh*>& meshes,
     std::function<void(const QString&)> logCallback)
 {
     bool modified = false;
@@ -4223,7 +4223,7 @@ bool GltfPostProcessor::fixNormalTextureScale(
 
     for (int i = 0; i < materials.size(); ++i)
     {
-        const TriangleMesh* sourceMesh = sourceMeshForMaterial(i, meshes);
+        const SceneMesh* sourceMesh = sourceMeshForMaterial(i, meshes);
         if (!sourceMesh) continue;
 
         const GLMaterial glMat = sourceMaterialForJsonMaterial(i, meshes);
@@ -4257,7 +4257,7 @@ bool GltfPostProcessor::fixNormalTextureScale(
 
 bool GltfPostProcessor::fixClearcoatNormalTextureScale(
     QJsonObject& gltfJson,
-    const std::vector<TriangleMesh*>& meshes,
+    const std::vector<SceneMesh*>& meshes,
     std::function<void(const QString&)> logCallback)
 {
     bool modified = false;
@@ -4269,7 +4269,7 @@ bool GltfPostProcessor::fixClearcoatNormalTextureScale(
 
     for (int i = 0; i < materials.size(); ++i)
     {
-        const TriangleMesh* sourceMesh = sourceMeshForMaterial(i, meshes);
+        const SceneMesh* sourceMesh = sourceMeshForMaterial(i, meshes);
         if (!sourceMesh) continue;
 
         const GLMaterial glMat = sourceMaterialForJsonMaterial(i, meshes);
@@ -4307,7 +4307,7 @@ bool GltfPostProcessor::fixClearcoatNormalTextureScale(
 
 bool GltfPostProcessor::fixSpecularExtension(
     QJsonObject& gltfJson,
-    const std::vector<TriangleMesh*>& meshes,
+    const std::vector<SceneMesh*>& meshes,
     std::function<void(const QString&)> logCallback)
 {
     bool modified = false;
@@ -4319,7 +4319,7 @@ bool GltfPostProcessor::fixSpecularExtension(
 
     for (int i = 0; i < materials.size(); ++i)
     {
-        const TriangleMesh* sourceMesh = sourceMeshForMaterial(i, meshes);
+        const SceneMesh* sourceMesh = sourceMeshForMaterial(i, meshes);
         if (!sourceMesh) continue;
 
         const GLMaterial glMat = sourceMaterialForJsonMaterial(i, meshes);
@@ -4402,7 +4402,7 @@ bool GltfPostProcessor::fixSpecularExtension(
 
 bool GltfPostProcessor::fixMetallicFactor(
     QJsonObject& gltfJson,
-    const std::vector<TriangleMesh*>& meshes,
+    const std::vector<SceneMesh*>& meshes,
     std::function<void(const QString&)> logCallback)
 {
     bool modified = false;
@@ -4414,7 +4414,7 @@ bool GltfPostProcessor::fixMetallicFactor(
 
     for (int i = 0; i < materials.size(); ++i)
     {
-        const TriangleMesh* sourceMesh = sourceMeshForMaterial(i, meshes);
+        const SceneMesh* sourceMesh = sourceMeshForMaterial(i, meshes);
         if (!sourceMesh) continue;
 
         const GLMaterial glMat = sourceMaterialForJsonMaterial(i, meshes);
@@ -4446,7 +4446,7 @@ bool GltfPostProcessor::fixMetallicFactor(
 
 bool GltfPostProcessor::fixSpecularTextures(
     QJsonObject& gltfJson,
-    const std::vector<TriangleMesh*>& meshes,
+    const std::vector<SceneMesh*>& meshes,
     std::function<void(const QString&)> logCallback)
 {
     log("=== SPECULAR TEXTURE FIX START ===", logCallback);
@@ -4468,7 +4468,7 @@ bool GltfPostProcessor::fixSpecularTextures(
 
     for (int i = 0; i < materials.size(); ++i)
     {
-        const TriangleMesh* sourceMesh = sourceMeshForMaterial(i, meshes);
+        const SceneMesh* sourceMesh = sourceMeshForMaterial(i, meshes);
         if (!sourceMesh)
         {
             log(QString("  -> No source mesh mapped for material %1, skipping").arg(i), logCallback);
@@ -4740,7 +4740,7 @@ int GltfPostProcessor::findOrCreateTexture(
 
 bool GltfPostProcessor::mergeOpacityIntoBaseColorTextures(
     QJsonObject& gltfJson,
-    const std::vector<TriangleMesh*>& meshes,
+    const std::vector<SceneMesh*>& meshes,
     const QString& exportFilePath,
     QByteArray* glbBinaryChunk,
     std::function<void(const QString&)> logCallback)

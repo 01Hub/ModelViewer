@@ -1,5 +1,5 @@
 #include "TextureLocationManager.h"
-#include "RenderableMesh.h"
+#include "SceneMesh.h"
 #include "GLMaterial.h"
 
 #include <QFile>
@@ -118,7 +118,7 @@ TextureMetadata TextureLocationManager::resolveTexture(const QString& path,
 }
 
 TexturePackage TextureLocationManager::packageTextures(
-    const std::vector<TriangleMesh*>& meshes,
+    const std::vector<SceneMesh*>& meshes,
     const QString& outputDirectory,
     const QString& textureSubfolder)
 {

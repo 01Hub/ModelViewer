@@ -145,4 +145,26 @@ private:
     BoundingBox    _boundingBox;
     float          _visibleHighestZ = 0.0f;
     float          _visibleLowestZ  = 0.0f;
+
+    // ---- Static picking / viewport helpers ---------------------------------
+    // Returns the CornerAxisPosition clamped to one of the four valid corners.
+    static CornerAxisPosition normalizeCornerAxisPosition(CornerAxisPosition position);
+
+    // Converts a pixel coordinate to a world-space ray (orig, dir).
+    // Returns false if the viewport is degenerate or the ray is zero.
+    static bool convertPixelToRay(const QPoint& pixel, const QRect& viewport,
+                                   int widgetHeight,
+                                   const QMatrix4x4& view,
+                                   const QMatrix4x4& projection,
+                                   QVector3D& orig, QVector3D& dir);
+
+    // Intersects a ray with a plane; populates outPoint and returns true on hit.
+    static bool intersectRayPlane(const QVector3D& rayOrigin, const QVector3D& rayDir,
+                                   const QVector3D& planePoint,
+                                   const QVector3D& planeNormal,
+                                   QVector3D& outPoint);
+
+    // Rotates a point around an arbitrary axis through pivot by angleDegrees.
+    static QVector3D rotatePointAroundAxis(const QVector3D& point, const QVector3D& pivot,
+                                            const QVector3D& axis, float angleDegrees);
 };

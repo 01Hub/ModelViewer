@@ -11,7 +11,7 @@ class SceneTreeWidget;
  *
  * Stores the UUID together with the old and new names (both already
  * deduplicated by the time the command is constructed).  redo() and undo()
- * update the TriangleMesh name and the corresponding SceneTreeWidget leaf
+ * update the SceneMesh name and the corresponding SceneTreeWidget leaf
  * item text without triggering a full tree rebuild.
  */
 class RenameMeshCommand : public ModelViewerCommand

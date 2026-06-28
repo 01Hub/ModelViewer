@@ -116,7 +116,7 @@ namespace
             collectExportNodeBaseTrs(node->mChildren[i], out);
     }
 
-    GLMaterial exportBaseMaterial(const TriangleMesh* mesh)
+    GLMaterial exportBaseMaterial(const SceneMesh* mesh)
     {
         if (!mesh)
             return GLMaterial();
@@ -382,7 +382,7 @@ namespace
         return anyTexturedBinding ? maxChannel : 0;
     }
 
-    unsigned int maxReferencedUvChannelForMesh(const TriangleMesh* mesh)
+    unsigned int maxReferencedUvChannelForMesh(const SceneMesh* mesh)
     {
         if (!mesh)
             return 0;
@@ -1233,7 +1233,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
 
     for (const QUuid& meshUuid : srcNode->meshUuids)
     {
-        TriangleMesh* triMesh = resolveMesh ? resolveMesh(meshUuid) : nullptr;
+        SceneMesh* triMesh = resolveMesh ? resolveMesh(meshUuid) : nullptr;
         if (!triMesh)
             continue;
 
@@ -1324,7 +1324,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
         }
 
         // Per-mesh user TRS (from the interactive gizmo).  This is stored in
-        // TriangleMesh::_transformation and is applied BEFORE the scene-hierarchy
+        // RenderableMesh::_transformation and is applied BEFORE the scene-hierarchy
         // world transform at render time: effectiveWorld = meshTrs * worldTransform.
         // We must fold it into the export so that the exported file matches what the
         // user sees in the viewport.
@@ -1523,7 +1523,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
     return dstNode;
 }
 
-aiMesh* SceneGraphExporter::buildMeshFromTriangleMesh(const TriangleMesh* mesh, unsigned int materialIndex)
+aiMesh* SceneGraphExporter::buildMeshFromTriangleMesh(const SceneMesh* mesh, unsigned int materialIndex)
 {
     if (!mesh)
         return nullptr;
@@ -1735,7 +1735,7 @@ aiMesh* SceneGraphExporter::buildMeshFromTriangleMesh(const TriangleMesh* mesh, 
     return out;
 }
 
-aiMaterial* SceneGraphExporter::buildMaterialFromTriangleMesh(const TriangleMesh* mesh)
+aiMaterial* SceneGraphExporter::buildMaterialFromTriangleMesh(const SceneMesh* mesh)
 {
     if (!mesh)
         return nullptr;

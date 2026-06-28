@@ -61,7 +61,6 @@ enum class DisplayMode { SHADED, HOLLOW_MESH, MESH_EDGES, WIREFRAME, SHADED_WITH
 enum class RenderingMode { ADS_BLINN_PHONG, PHYSICALLY_BASED_RENDERING };
 enum class ClippingPlaneHatchMode { PROCEDURAL, TEXTURE };
 enum class HatchPattern { DIAGONAL_45 = 0, DIAGONAL_135 = 1, HORIZONTAL = 2, VERTICAL = 3, GRID = 4, DIAGONAL_CROSS = 5 };
-// HDRToneMapMode, GroundMode, DebugOverlayMode → RenderEnums.h (Phase 10)
 
 // ---------------------------------------------------------------------------
 // TextureSlotInfo
@@ -177,22 +176,22 @@ public:
 	void setSkyBoxBlurPercent(int percent);
 	void showReflections(bool show);
 	void setGroundMode(GroundMode mode);
-	GroundMode groundMode() const { return _groundMode; }
+	GroundMode groundMode() const { return _renderCtrl.groundMode(); }
 	void showFloor(bool show);
-	bool isFloorShown() { return _groundMode == GroundMode::Floor; }
-	bool isGridShown() const { return _groundMode == GroundMode::Grid; }
+	bool isFloorShown() { return _renderCtrl.groundMode() == GroundMode::Floor; }
+	bool isGridShown() const { return _renderCtrl.groundMode() == GroundMode::Grid; }
 	void showFloorTexture(bool show);
 	void setFloorTexture(QImage img);
 
-	std::vector<TriangleMesh*> getMeshStore() const
+	std::vector<SceneMesh*> getMeshStore() const
 	{
-		std::vector<TriangleMesh*> result;
-		result.reserve(_meshStore.size());
-		for (const auto& r : _meshStore) result.push_back(r.mesh);
+		std::vector<SceneMesh*> result;
+		result.reserve(_sceneRuntime.meshStore().size());
+		for (const auto& r : _sceneRuntime.meshStore()) result.push_back(r.mesh);
 		return result;
 	}
 
-	void addToDisplay(TriangleMesh*);
+	void addToDisplay(SceneMesh*);
 	void removeFromDisplay(int index);
 	void centerScreen(std::vector<int> selectedIDs);
 	void select(int id);
@@ -202,8 +201,8 @@ public:
 
 	bool generateUVsForMeshes(const std::vector<int>& ids, const UVMethod& uvMethod, const UVConfig& uvConfig, QString& error);
 
-	aiScene* getAssImpScene() const { return _globalScene; }
-	glm::mat4 getGlobalSceneTransform() const { return _globalSceneTransform; }
+	aiScene* getAssImpScene() const { return _sceneRuntime.globalScene(); }
+	glm::mat4 getGlobalSceneTransform() const { return _sceneRuntime.globalSceneTransform(); }
 
 	void invertADSOpacityTexMap(const std::vector<int>& ids, const bool& inverted);
 
@@ -254,11 +253,11 @@ public:
 
 	void renderConversionCube();
 
-	void setAnisotropicFilteringLevel(int level) { _anisotropicFilteringLevel = level; }
-	int getAnisotropicFilteringLevel() const { return _anisotropicFilteringLevel; }
+	void setAnisotropicFilteringLevel(int level) { _renderCtrl.setAnisotropicFilteringLevel(level); }
+	int getAnisotropicFilteringLevel() const { return _renderCtrl.anisotropicFilteringLevel(); }
 
 	void setTransmissionEnabled(const bool& enabled);
-	bool isTransmissionEnabled() const { return _transmissionEnabled; }
+	bool isTransmissionEnabled() const { return _renderCtrl.transmissionEnabled(); }
 	void setActiveAnimation(const QString& sourceFile, int clipIndex);
 	void setAnimationPlaying(bool playing);
 
@@ -376,8 +375,8 @@ public:
 	RenderingMode getRenderingMode() const;
 	void setRenderingMode(const RenderingMode& renderingMode);
 
-	void setCappingPlanesEnabled(const bool& enabled) { _cappingEnabled = enabled; }
-	bool cappingPlanesEnabled() const { return _cappingEnabled; }
+	void setCappingPlanesEnabled(const bool& enabled) { _renderCtrl.setCappingEnabled(enabled); }
+	bool cappingPlanesEnabled() const { return _renderCtrl.cappingEnabled(); }
 
 	void setYZClippingEnabled(const bool& enabled) { _clipYZEnabled = enabled; }
 	bool yzClippingEnabled() const { return _clipYZEnabled; }
@@ -410,28 +409,28 @@ public:
 	GLuint getIrradianceMap(int index = 0, bool regenerate = false);
 	GLuint getPrefilterMap(int index = 0, bool regenerate = false);
 	GLuint getSheenPrefilterMap(int index = 0, bool regenerate = false);
-	unsigned int getPrefilterMipLevels() const { return _prefilterMipLevels; }
-	unsigned int getSheenPrefilterMipLevels() const { return _sheenPrefilterMipLevels; }
-	GLuint getBrdfLUT() const { return _brdfLUTTexture; }
-	GLuint getCharlieLUT() const { return _charlieLUTTexture; }
-	GLuint getSheenELUT() const { return _sheenELUTTexture; }
-	bool isEnvironmentMapEnabled() const { return _envMapEnabled; }
-	bool isIBLEnabled() const { return _useIBL; }
-	float getIBLExposure() const { return _iblExposure; }
-	float getEnvMapExposure() const { return _envMapExposure; }
-	QString getCurrentSkyboxFolder() const { return _currentSkyboxFolder; }
-	bool isSkyBoxShown() const { return _skyBoxEnabled; }
-	bool isSkyBoxHDRIEnabled() const { return _skyBoxTextureHDRI; }
-	int getSkyBoxBlurPercent() const { return _skyBoxBlurPercent; }
-	float getSkyBoxFOV() const { return _skyBoxFOV; }
+	unsigned int getPrefilterMipLevels() const { return _renderCtrl.prefilterMipLevels(); }
+	unsigned int getSheenPrefilterMipLevels() const { return _renderCtrl.sheenPrefilterMipLevels(); }
+	GLuint getBrdfLUT() const { return _renderCtrl.brdfLUTTexture(); }
+	GLuint getCharlieLUT() const { return _renderCtrl.charlieLUTTexture(); }
+	GLuint getSheenELUT() const { return _renderCtrl.sheenELUTTexture(); }
+	bool isEnvironmentMapEnabled() const { return _renderCtrl.envMapEnabled(); }
+	bool isIBLEnabled() const { return _renderCtrl.useIBL(); }
+	float getIBLExposure() const { return _renderCtrl.iblExposure(); }
+	float getEnvMapExposure() const { return _renderCtrl.envMapExposure(); }
+	QString getCurrentSkyboxFolder() const { return _renderCtrl.currentSkyboxFolder(); }
+	bool isSkyBoxShown() const { return _renderCtrl.skyBoxEnabled(); }
+	bool isSkyBoxHDRIEnabled() const { return _renderCtrl.skyBoxTextureHDRI(); }
+	int getSkyBoxBlurPercent() const { return _renderCtrl.skyBoxBlurPercent(); }
+	float getSkyBoxFOV() const { return _renderCtrl.skyBoxFOV(); }
 	float getPerspFOV()  const { return _viewCtrl._FOV; }
-	float getSkyBoxZRotationDegrees() const { return _skyBoxZRotation; }
-	bool areReflectionsEnabled() const { return _reflectionsEnabled; }
-	bool isFloorTextureShown() const { return _floorTextureDisplayed; }
-	bool areShadowsEnabled() const { return _shadowsEnabled; }
-	bool areSelfShadowsEnabled() const { return _selfShadowsEnabled; }
-	bool areDefaultLightsEnabled() const { return _useDefaultLights; }
-	bool arePunctualLightsEnabled() const { return _usePunctualLights; }
+	float getSkyBoxZRotationDegrees() const { return _renderCtrl.skyBoxZRotation(); }
+	bool areReflectionsEnabled() const { return _renderCtrl.reflectionsEnabled(); }
+	bool isFloorTextureShown() const { return _renderCtrl.floorTextureDisplayed(); }
+	bool areShadowsEnabled() const { return _renderCtrl.shadowsEnabled(); }
+	bool areSelfShadowsEnabled() const { return _renderCtrl.selfShadowsEnabled(); }
+	bool areDefaultLightsEnabled() const { return _renderCtrl.useDefaultLights(); }
+	bool arePunctualLightsEnabled() const { return _renderCtrl.usePunctualLights(); }
 	bool areLightsShown() const;
 
 	ViewToolbar* getViewToolbar() const { return _viewToolbar; }
@@ -448,8 +447,8 @@ public:
 	QVector<QUuid> getRecycleBinUuids() const;
 
 	// UUID lookup methods
-	TriangleMesh* getMeshByUuid(const QUuid& uuid) const;
-	TriangleMesh* getMeshByIndex(int index) const;
+	SceneMesh* getMeshByUuid(const QUuid& uuid) const;
+	SceneMesh* getMeshByIndex(int index) const;
 	int getIndexByUuid(const QUuid& uuid) const;
 	QUuid getUuidByIndex(int index) const;
 
@@ -528,7 +527,7 @@ public:
 	void onSceneLightDataChanged();
 
 	/// Accessor for the foreground shader (for pre-load shader validation).
-	ShaderProgram* getShader() const { return _fgShader.get(); }
+	ShaderProgram* getShader() const { return _renderCtrl.fgShader(); }
 
 	void setSectionCapsDynamicEnabled(bool enabled);
 
@@ -588,9 +587,9 @@ public slots:
 	void setIBLExposure(double exposure);
 
 	// Getters for tone mapping and gamma settings
-	bool isHDRToneMappingEnabled() const { return _hdrToneMapping; }
-	bool isGammaCorrectionEnabled() const { return _gammaCorrection; }
-	HDRToneMapMode getHDRToneMappingMode() const { return _toneMappingMode; }
+	bool isHDRToneMappingEnabled() const { return _renderCtrl.hdrToneMapping(); }
+	bool isGammaCorrectionEnabled() const { return _renderCtrl.gammaCorrection(); }
+	HDRToneMapMode getHDRToneMappingMode() const { return _renderCtrl.toneMappingMode(); }
 	void showLights(bool showLights);
 	void useDefaultLights(bool useDefaultLights);
 	void usePunctualLights(bool usePunctualLights);
@@ -611,7 +610,7 @@ public slots:
 	QMatrix4x4 getProjectionMatrix() const { return _viewCtrl._projectionMatrix; }
 	QMatrix4x4 getModelViewMatrix() const { return _viewCtrl._modelViewMatrix; }
 	bool isMultiViewActive() const { return _viewCtrl._multiViewActive; }
-	ShaderProgram* getSelectionShader() const { return _selectionShader.get(); }
+	ShaderProgram* getSelectionShader() const { return _renderCtrl.selectionShader(); }
 	SelectionManager* getSelectionManager() const { return _selectionManager; }
 	// Returns the camera configured for the viewport that contains 'pixel'.
 	// In multi-view mode the ortho camera is set to the correct orientation
@@ -749,8 +748,8 @@ private:
 	// Visibility culling
 	void extractFrustumPlanes();
 	bool  isBoundingBoxOutsideFrustum(const BoundingBox& bb) const;
-	bool  isMeshOutsideFrustum(const TriangleMesh* mesh) const;
-	bool  isMeshFullyInsideFrustum(const TriangleMesh* mesh) const;
+	bool  isMeshOutsideFrustum(const SceneMesh* mesh) const;
+	bool  isMeshFullyInsideFrustum(const SceneMesh* mesh) const;
 	float computeFullyVisibleMinMeshRadius() const;
 	void  updateZoomInLimit();
 	bool isBoundingBoxFullyClipped_X(const BoundingBox& bb) const;
@@ -761,16 +760,16 @@ private:
 	bool isBoundingBoxFullyKept_Z(const BoundingBox& bb) const;
 	bool isBoundingBoxStraddlesCapPlane(const BoundingBox& bb, int planeIndex) const;
 	bool isBoundingBoxInvisibleInAllClipPasses(const BoundingBox& bb) const;
-	bool isMeshFullyClipped_X(const TriangleMesh* mesh) const;
-	bool isMeshFullyClipped_Y(const TriangleMesh* mesh) const;
-	bool isMeshFullyClipped_Z(const TriangleMesh* mesh) const;
-	bool isMeshFullyKept_X(const TriangleMesh* mesh) const;
-	bool isMeshFullyKept_Y(const TriangleMesh* mesh) const;
-	bool isMeshFullyKept_Z(const TriangleMesh* mesh) const;
-	bool isMeshStraddlesCapPlane(const TriangleMesh* mesh, int planeIndex) const;
-	bool isMeshInvisibleInAllClipPasses(const TriangleMesh* mesh) const;
-	bool isMeshAnimationVisible(const TriangleMesh* mesh) const;
-	bool isMeshVisible(const TriangleMesh* mesh, int activeClipPlaneIndex) const;
+	bool isMeshFullyClipped_X(const SceneMesh* mesh) const;
+	bool isMeshFullyClipped_Y(const SceneMesh* mesh) const;
+	bool isMeshFullyClipped_Z(const SceneMesh* mesh) const;
+	bool isMeshFullyKept_X(const SceneMesh* mesh) const;
+	bool isMeshFullyKept_Y(const SceneMesh* mesh) const;
+	bool isMeshFullyKept_Z(const SceneMesh* mesh) const;
+	bool isMeshStraddlesCapPlane(const SceneMesh* mesh, int planeIndex) const;
+	bool isMeshInvisibleInAllClipPasses(const SceneMesh* mesh) const;
+	bool isMeshAnimationVisible(const SceneMesh* mesh) const;
+	bool isMeshVisible(const SceneMesh* mesh, int activeClipPlaneIndex) const;
 	bool sceneHasVisibleTransmissionMaterials() const;
 	bool sceneHasVisibleSSSMaterials() const;
 	void invalidateRuntimeVisibilityHierarchy();
@@ -822,8 +821,8 @@ private:
 	void render(GLCamera* camera);
 	void renderToShadowBuffer();
 	void renderQuad();
-	void renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode);
-	void renderMeshExploded(TriangleMesh* mesh, DisplayMode mode);
+	void renderMeshWithDisplayMode(SceneMesh* mesh, DisplayMode mode);
+	void renderMeshExploded(SceneMesh* mesh, DisplayMode mode);
 
 	void gradientBackground(float top_r, float top_g, float top_b, float top_a,
 		float bot_r, float bot_g, float bot_b, float bot_a, int gradientStyle);
@@ -963,7 +962,6 @@ private:
 	void resizeSSSBuffer(int width, int height);
 	void cleanupSSSBuffer();
 
-	// _whiteTexture → SceneRenderController (Phase 10)
 	void createWhiteTexture();
 
 	void generateCubemapMipmaps(GLuint cubemapTexture);
@@ -973,37 +971,7 @@ private:
 	float groundPlaneExtent() const;
 
 private:
-	// Core scene data — owned here; GLWidget aliases every field by reference
-	// so all existing _fieldName call sites in GLWidget.cpp remain unchanged.
-	// Declaration order matters: _sceneRuntime must come before all aliases.
 	SceneRuntime _sceneRuntime;
-
-	// Reference aliases into _sceneRuntime (initialized in constructor init-list)
-	std::vector<SceneMeshRecord>&                            _meshStore;
-	std::vector<int>&                                        _displayedObjectsIds;
-	std::vector<int>&                                        _hiddenObjectsIds;
-	QMap<QUuid, SceneRuntime::RecycleBinEntry>&              _recycleBin;
-	std::unordered_map<QString, CachedTextureEntry>&         _texCache;
-	std::unordered_map<unsigned int, int>&                   _texRefCount;
-	QVector<RuntimeVisibilityNode>&                          _runtimeVisibilityNodes;
-	int&                                                     _runtimeVisibilityRootIndex;
-	bool&                                                    _runtimeVisibilityHierarchyDirty;
-	int&                                                     _runtimeVisibilityMeshStoreCount;
-	bool&                                                    _runtimeVisibilityPrepared;
-	quint64&                                                 _runtimeVisibilityBoundsRevision;
-	quint64&                                                 _runtimeVisibilityMaskRevision;
-	quint64&                                                 _runtimeVisibilityMaskProcessedRevision;
-	std::vector<unsigned char>&                              _runtimeBaseVisibleMask;
-	const aiScene*&                                          _assimpScene;
-	aiScene*&                                                _globalScene;
-	glm::mat4&                                               _globalSceneTransform;
-	QList<QUuid>&                                            _pendingSceneUuids;
-	std::vector<int>&                                        _centerScreenObjectIDs;
-	bool&                                                    _visibleSwapped;
-	bool&                                                    _progressiveLoadingEnabled;
-	bool&                                                    _cancelRequested;
-	bool&                                                    _loadCancelled;
-	GltfLightData&                                           _pendingLightData;
 
 	AnimationRuntimeController _animCtrl;
 
@@ -1013,150 +981,6 @@ private:
 	// reference so all existing call sites in GLWidget.cpp remain unchanged.
 	// Declaration order: _renderCtrl must come before all its aliases.
 	SceneRenderController _renderCtrl;
-
-	// Reference aliases into _renderCtrl (initialized in constructor init-list)
-	// ---- Shaders ----
-	std::unique_ptr<ShaderProgram>& _bgShader;
-	std::unique_ptr<ShaderProgram>& _bgSplitShader;
-	std::unique_ptr<ShaderProgram>& _fgShader;
-	std::unique_ptr<ShaderProgram>& _fgFlatShader;
-	std::unique_ptr<ShaderProgram>& _wireframeShader;
-	std::unique_ptr<ShaderProgram>& _axisShader;
-	std::unique_ptr<ShaderProgram>& _vertexNormalShader;
-	std::unique_ptr<ShaderProgram>& _faceNormalShader;
-	std::unique_ptr<ShaderProgram>& _shadowMappingShader;
-	std::unique_ptr<ShaderProgram>& _skyBoxShader;
-	std::unique_ptr<ShaderProgram>& _gridShader;
-	std::unique_ptr<ShaderProgram>& _irradianceShader;
-	std::unique_ptr<ShaderProgram>& _prefilterShader;
-	std::unique_ptr<ShaderProgram>& _sheenPrefilterShader;
-	std::unique_ptr<ShaderProgram>& _brdfShader;
-	std::unique_ptr<ShaderProgram>& _lightCubeShader;
-	std::unique_ptr<ShaderProgram>& _viewCubeShader;
-	std::unique_ptr<ShaderProgram>& _viewCubeLabelShader;
-	std::unique_ptr<ShaderProgram>& _clippingPlaneShader;
-	std::unique_ptr<ShaderProgram>& _clippedMeshShader;
-	std::unique_ptr<ShaderProgram>& _selectionShader;
-	std::unique_ptr<ShaderProgram>& _equirectToCubeShader;
-	std::unique_ptr<ShaderProgram>& _equirectToCubeQuadShader;
-	std::unique_ptr<ShaderProgram>& _downsampleShader;
-	std::unique_ptr<ShaderProgram>& _textShader;
-	std::unique_ptr<ShaderProgram>& _debugShader;
-	// ---- IBL / environment maps ----
-	unsigned int& _environmentMap;
-	unsigned int& _irradianceMap;
-	unsigned int& _prefilterMap;
-	unsigned int& _sheenPrefilterMap;
-	unsigned int& _prefilterMipLevels;
-	unsigned int& _sheenPrefilterMipLevels;
-	unsigned int& _brdfLUTTexture;
-	unsigned int& _charlieLUTTexture;
-	unsigned int& _sheenELUTTexture;
-	QString&      _currentSkyboxFolder;
-	unsigned int& _studioEnvironmentMap;
-	unsigned int& _studioIrradianceMap;
-	unsigned int& _studioPrefilterMap;
-	unsigned int& _studioSheenPrefilterMap;
-	unsigned int& _outdoorEnvironmentMap;
-	unsigned int& _outdoorIrradianceMap;
-	unsigned int& _outdoorPrefilterMap;
-	unsigned int& _outdoorSheenPrefilterMap;
-	unsigned int& _officeEnvironmentMap;
-	unsigned int& _officeIrradianceMap;
-	unsigned int& _officePrefilterMap;
-	unsigned int& _officeSheenPrefilterMap;
-	unsigned int& _skyboxFBO;
-	unsigned int& _skyboxDepthBuffer;
-	// ---- Shadow map ----
-	unsigned int& _shadowMap;
-	unsigned int& _shadowMapFBO;
-	unsigned int& _shadowWidth;
-	unsigned int& _shadowHeight;
-	float&        _shadowFarDist;
-	float&        _shadowFrustumExtentW;
-	float&        _shadowFrustumExtentH;
-	bool&         _shadowMapNeedsInitialization;
-	// ---- Transmission buffer ----
-	unsigned int& _transmissionFBO;
-	unsigned int& _transmissionColorTexture;
-	unsigned int& _transmissionDepthTexture;
-	int&          _transmissionTextureWidth;
-	int&          _transmissionTextureHeight;
-	int&          _transmissionMipLevels;
-	bool&         _transmissionEnabled;
-	// ---- SSS buffer ----
-	unsigned int& _sssFBO;
-	unsigned int& _sssCaptureTexture;
-	unsigned int& _sssDepthTexture;
-	unsigned int& _sssBlurFBO;
-	unsigned int& _sssBlurTexture;
-	int&          _sssTextureWidth;
-	int&          _sssTextureHeight;
-	bool&         _sssEnabled;
-	// ---- Debug / utility textures ----
-	unsigned int& _debugNeutralTex;
-	unsigned int& _debugNormalTex;
-	unsigned int& _debugBlackTex;
-	int&          _globalDebugChannel;
-	unsigned int& _whiteTexture;
-	// ---- Utility render geometry ----
-	unsigned int&            _debugOverlayBoxVAO;
-	unsigned int&            _debugOverlayBoxVBO;
-	QOpenGLVertexArrayObject& _bgVAO;
-	QOpenGLVertexArrayObject& _bgSplitVAO;
-	QOpenGLBuffer&            _bgSplitVBO;
-	QOpenGLVertexArrayObject& _axisVAO;
-	QOpenGLBuffer&            _axisVBO;
-	QOpenGLBuffer&            _axisCBO;
-	unsigned int&            _conversionCubeVAO;
-	unsigned int&            _conversionCubeVBO;
-	unsigned int&            _quadVAO;
-	unsigned int&            _quadVBO;
-	unsigned int&            _fsTriVAO;
-	unsigned int&            _fsTriVBO;
-	bool&                    _fsTriInitialized;
-	std::array<unsigned int, 6>& _viewCubeLabelTextures;
-	unsigned int&            _viewCubeLabelVAO;
-	unsigned int&            _viewCubeLabelVBO;
-	// ---- Capping ----
-	bool&         _cappingEnabled;
-	unsigned int& _cappingTexture;
-	// ---- Render settings ----
-	bool&           _openGLInitialized;
-	bool&           _envMapEnabled;
-	bool&           _shadowsEnabled;
-	bool&           _selfShadowsEnabled;
-	bool&           _reflectionsEnabled;
-	GroundMode&     _groundMode;
-	bool&           _floorTextureDisplayed;
-	bool&           _skyBoxEnabled;
-	int&            _skyBoxBlurPercent;
-	std::vector<QString>& _skyBoxFaces;
-	float&          _skyBoxFOV;
-	float&          _skyBoxZRotation;
-	bool&           _skyBoxTextureHDRI;
-	bool&           _gammaCorrection;
-	float&          _screenGamma;
-	bool&           _hdrToneMapping;
-	HDRToneMapMode& _toneMappingMode;
-	float&          _envMapExposure;
-	float&          _iblExposure;
-	bool&           _lowResEnabled;
-	bool&           _sectionCapsSuppressedDuringInteraction;
-	bool&           _dynamicCappingEnabled;
-	float&          _anisotropicFilteringLevel;
-	bool&           _useDefaultLights;
-	bool&           _usePunctualLights;
-	bool&           _useIBL;
-	// ---- Debug overlay display flags ----
-	bool&             _showVertexNormals;
-	bool&             _showFaceNormals;
-	bool&             _showBoundingBox;
-	bool&             _debugOverlayEnabled;
-	DebugOverlayMode& _debugOverlayMode;
-	bool&             _debugBoundingBoxAvailable;
-	bool&             _debugVertexNormalsAvailable;
-	bool&             _debugFaceNormalsAvailable;
 
 	// Viewport interaction state — owned here; GLWidget aliases every field by
 	// reference so all existing call sites in GLWidget.cpp remain unchanged.
@@ -1214,7 +1038,6 @@ private:
 	bool _clipYFlipped;
 	bool _clipZFlipped;
 
-	// Debug overlay, render settings, shadow dims → SceneRenderController (Phase 10)
 
 	float _xTran;
 	float _yTran;
@@ -1241,7 +1064,6 @@ private:
 	QMatrix4x4 _lightSpaceMatrix;
 
 
-	// Shaders, IBL, shadow, transmission, SSS, debug textures, utility geometry → SceneRenderController (Phase 10)
 
 	QImage					 _floorTexImage;
 	float                    _floorSize;
@@ -1250,7 +1072,6 @@ private:
 	float                    _floorPlaneZ;
 	QVector3D                _floorCenter;
 
-	// _textShader, _bgShader/_bgVAO, _bgSplitShader/_bgSplitVAO/VBO, _axisVAO/VBO/CBO → SceneRenderController (Phase 10)
 
 	// _meshStore, _displayedObjectsIds, _hiddenObjectsIds → SceneRuntime (Phase 5)
 	// RuntimeVisibilityNode struct + BVH fields → SceneRuntime (Phase 5)
@@ -1267,7 +1088,6 @@ private:
 	PlaneRenderable* _clippingPlaneXY;
 	PlaneRenderable* _clippingPlaneYZ;
 	PlaneRenderable* _clippingPlaneZX;
-	// _cappingEnabled, _cappingTexture → SceneRenderController (Phase 10)
 
 
 	GLCamera* _primaryCamera;
@@ -1287,23 +1107,18 @@ private:
 	PlaneRenderable* _gridPlane;
 	CubeRenderable* _skyBox;
 	// _fsTriVAO/VBO, _skyBoxFaces, _skyBoxFOV/_skyBoxZRotation, gamma/HDR/tone-map settings,
-	// _conversionCubeVAO/VBO, _openGLInitialized, _anisotropicFilteringLevel → SceneRenderController (Phase 10)
 
 	ConeRenderable* _axisCone;
 	ViewCubeMesh* _viewCube = nullptr;
 	TransformGizmo* _transformGizmo = nullptr;
 	// Gizmo drag state, viewCubeHoveredRegionId, customViewAnimationActive,
 	// Manual placement session fields → ExplodedViewRuntimeController (Phase 9)
-	// _viewCubeLabelTextures/VAO/VBO → SceneRenderController (Phase 10)
 	CubeRenderable* _lightCube;
 	SphereRenderable* _lightSphere;
 	bool _showLights;
-	// _useDefaultLights, _usePunctualLights, _useIBL → SceneRenderController (Phase 10)
-	// _debugShader → SceneRenderController (Phase 10)
 
 	ModelViewer* _viewer;
 
-	// _quadVAO, _quadVBO → SceneRenderController (Phase 10)
 
 	unsigned long long _displayedObjectsMemSize;
 

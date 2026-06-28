@@ -71,7 +71,7 @@ MetadataDeleteCommand::MetadataDeleteCommand(ModelViewer* viewer,
     {
         _oldVariantData = sg->variantDataForFile(_sourceFile);
         _oldActiveVariant = sg->activeVariantForFile(_sourceFile);
-        for (TriangleMesh* mesh : _glWidget->getMeshStore())
+        for (SceneMesh* mesh : _glWidget->getMeshStore())
         {
             if (!mesh || mesh->getSourceFile() != _sourceFile)
                 continue;
@@ -246,7 +246,7 @@ void MetadataDeleteCommand::redoVariantDelete()
     if (_index < 0)
     {
         _viewer->applyVariant(_sourceFile, -1);
-        for (TriangleMesh* mesh : _glWidget->getMeshStore())
+        for (SceneMesh* mesh : _glWidget->getMeshStore())
         {
             if (mesh && mesh->getSourceFile() == _sourceFile)
                 mesh->setVariantMappings({});
@@ -264,7 +264,7 @@ void MetadataDeleteCommand::redoVariantDelete()
     for (auto it = data.meshVariantMappings.begin(); it != data.meshVariantMappings.end(); ++it)
         it.value() = remapVariantMappings(it.value(), _index);
 
-    for (TriangleMesh* mesh : _glWidget->getMeshStore())
+    for (SceneMesh* mesh : _glWidget->getMeshStore())
     {
         if (!mesh || mesh->getSourceFile() != _sourceFile)
             continue;
@@ -281,7 +281,7 @@ void MetadataDeleteCommand::redoVariantDelete()
     if (data.variantNames.isEmpty())
     {
         _viewer->applyVariant(_sourceFile, -1);
-        for (TriangleMesh* mesh : _glWidget->getMeshStore())
+        for (SceneMesh* mesh : _glWidget->getMeshStore())
         {
             if (mesh && mesh->getSourceFile() == _sourceFile)
                 mesh->setVariantMappings({});
@@ -310,7 +310,7 @@ void MetadataDeleteCommand::undoVariantDelete()
 
     for (auto it = _oldVariantMappingsByMesh.cbegin(); it != _oldVariantMappingsByMesh.cend(); ++it)
     {
-        if (TriangleMesh* mesh = _glWidget->getMeshByUuid(it.key()))
+        if (SceneMesh* mesh = _glWidget->getMeshByUuid(it.key()))
             mesh->setVariantMappings(it.value());
     }
 

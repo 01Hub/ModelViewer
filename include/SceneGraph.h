@@ -53,7 +53,7 @@ public:
     // scene              — the aiScene* returned by AssImpModelLoader::getScene()
     //                      BEFORE it is deep-copied and merged into _globalScene.
     // sourceFile         — absolute path of the file that was loaded.
-    // meshUuidsInOrder   — UUIDs of every TriangleMesh created from this file,
+    // meshUuidsInOrder   — UUIDs of every SceneMesh created from this file,
     //                      in the same DFS order that
     //                      AssImpModelLoader::processNode() visited them.
     //                      The cursor-based DFS inside buildSubtree() assigns

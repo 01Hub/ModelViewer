@@ -2,9 +2,7 @@
 
 #include <QUuid>
 
-class RenderableMesh;
-using TriangleMesh = RenderableMesh;
-
+class SceneMesh;
 // ---------------------------------------------------------------------------
 // SceneMeshRecord
 //
@@ -13,13 +11,13 @@ using TriangleMesh = RenderableMesh;
 // meshes without extra lookups.
 //
 // Introduced in Phase 7 of the mesh/render/runtime separation refactor when
-// _meshStore was changed from std::vector<TriangleMesh*> to
+// _meshStore was changed from std::vector<SceneMesh*> to
 // std::vector<SceneMeshRecord>.
 //
 // Compatibility shims:
 //   operator->()       — _meshStore[i]->method() compiles unchanged
-//   operator TriangleMesh*() — TriangleMesh* p = _meshStore[i] and
-//                              range-for (TriangleMesh* m : _meshStore) work
+//   operator SceneMesh*() — SceneMesh* p = _meshStore[i] and
+//                              range-for (SceneMesh* m : _meshStore) work
 //                              unchanged; null-pointer conditions (if
 //                              (_meshStore[i])) work via pointer bool.
 //
@@ -28,14 +26,14 @@ using TriangleMesh = RenderableMesh;
 // ---------------------------------------------------------------------------
 struct SceneMeshRecord
 {
-    TriangleMesh* mesh = nullptr;
+    SceneMesh* mesh = nullptr;
     QUuid         uuid;
 
     SceneMeshRecord() = default;
-    SceneMeshRecord(TriangleMesh* m, const QUuid& id) : mesh(m), uuid(id) {}
+    SceneMeshRecord(SceneMesh* m, const QUuid& id) : mesh(m), uuid(id) {}
 
     // ---- Compatibility shims -----------------------------------------------
-    TriangleMesh* operator->()      const { return mesh; }
-    operator TriangleMesh*()        const { return mesh; }
+    SceneMesh* operator->()      const { return mesh; }
+    operator SceneMesh*()        const { return mesh; }
     // ------------------------------------------------------------------------
 };

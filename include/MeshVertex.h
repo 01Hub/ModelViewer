@@ -7,7 +7,7 @@
 
 // Interleaved per-vertex data used by AssImpMesh for meshopt optimisation,
 // morph-target application, and GPU upload.  Stored as _vertices and
-// _baseVertices in TriangleMesh; split into separate float arrays in
+// _baseVertices in SceneMesh; split into separate float arrays in
 // initBuffers() for the GPU buffers.
 struct Vertex
 {
@@ -37,7 +37,7 @@ static_assert(sizeof(Vertex) == sizeof(float) * (4 + 3 + 3 + 3 + 3 + 8 + 4 + 4),
 	"Vertex struct has unexpected padding - meshopt stride will be incorrect");
 
 // Per-morph-target position/normal/tangent deltas (CPU-side only).
-// Stored in TriangleMesh::_morphTargets and consumed by
+// Stored in RenderableMesh::_morphTargets and consumed by
 // AssImpMesh::applyMorphWeights() to blend _baseVertices into _vertices.
 struct MorphTargetData
 {

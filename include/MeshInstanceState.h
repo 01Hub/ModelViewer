@@ -22,7 +22,7 @@ class Triangle;
 //
 // Methods that recompute bounds from geometry (updateRuntimeBounds,
 // fullUpdateRuntimeBounds, resetTransformations, resetExplodedViewTransformations,
-// setSceneRenderTransform) accept the geometry arrays from TriangleMesh as
+// setSceneRenderTransform) accept the geometry arrays from SceneMesh as
 // parameters so this class remains decoupled from the geometry type.
 class MeshInstanceState
 {

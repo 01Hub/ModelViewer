@@ -40,700 +40,26 @@
 #include <QThread>
 #include <QTreeView>
 #include <QDebug>
+#include "AnimationUtils.h"
+#include "MeshMathUtils.h"
+#include "SceneNode.h"
 
 
-constexpr auto MAX_MODEL_SIZE_BYTES = 52428800; // bytes
-
-namespace
-{
+constexpr auto  MAX_MODEL_SIZE_BYTES       = 52428800; // bytes
 constexpr float kDefaultFloorOffsetPercent = 0.0f;
-constexpr float kExplodedManualTransformTolerance = 1.0e-8f;
 
-struct ViewCubeStyle
+static SceneNode* findSceneNodeByAiChildPath(SceneNode* root, const QVector<int>& aiChildPath)
 {
-	QVector3D baseFaceColor = QVector3D(0.92f, 0.92f, 0.92f);
-	QVector3D primaryFaceColor = QVector3D(0.90f, 0.76f, 0.10f);
-	QVector3D hoverFaceColor = QVector3D(0.74f, 0.96f, 0.18f);
-	QColor labelTextColor = QColor(60, 60, 60, 235);
-	float baseAmbient = 0.45f;
-	float baseDiffuse = 0.55f;
-	float primaryAmbient = 0.38f;
-	float primaryDiffuse = 0.62f;
-	float hoverAmbient = 0.75f;
-	float hoverDiffuse = 0.25f;
-	float perspectiveScale = 0.90f;
-	float orthographicScale = 1.12f;
-	float orthographicHalfHeight = 1.2f;
-	float eyeDistance = 3.6f;
-	int minViewportSize = 96;
-	int maxViewportSize = 160;
-	int viewportPadding = 18;
-	int labelTextureSize = 256;
-	int labelFontPixelSize = 76;
-	float labelFaceOffset = 0.501f;
-	float labelFaceScale = 0.68f;
-};
-
-bool transformStatesNearlyEqual(const TransformState& a, const TransformState& b)
-{
-	if ((a.translation - b.translation).lengthSquared() > kExplodedManualTransformTolerance)
-		return false;
-	if ((a.scale - b.scale).lengthSquared() > kExplodedManualTransformTolerance)
-		return false;
-
-	if (a.hasExactRotation || b.hasExactRotation)
-	{
-		const QQuaternion identityRotation(1.0f, 0.0f, 0.0f, 0.0f);
-		const QQuaternion aq = a.hasExactRotation ? a.rotationQuat.normalized() : identityRotation;
-		const QQuaternion bq = b.hasExactRotation ? b.rotationQuat.normalized() : identityRotation;
-		return std::abs(QQuaternion::dotProduct(aq, bq)) >= (1.0f - 1.0e-4f);
-	}
-
-	return (a.rotation - b.rotation).lengthSquared() <= kExplodedManualTransformTolerance;
-}
-
-TransformState explodedViewTransformState(const TriangleMesh* mesh)
-{
-	if (!mesh)
-		return {};
-
-	return TransformState(
-		mesh->getExplodedViewTranslation(),
-		mesh->getExplodedViewRotation(),
-		mesh->getExplodedViewScaling(),
-		mesh->getExplodedViewRotationQuaternion());
-}
-
-QMatrix4x4 explodedViewTransformMatrix(const TriangleMesh* mesh)
-{
-	return mesh ? mesh->getExplodedViewTransformation() : QMatrix4x4();
-}
-
-void applyExplodedViewTransformState(TriangleMesh* mesh, const TransformState& state, bool fast)
-{
-	if (!mesh)
-		return;
-
-	if (fast)
-	{
-		mesh->setExplodedViewTranslationFast(state.translation);
-		if (state.hasExactRotation)
-			mesh->setExplodedViewRotationQuaternionFast(state.rotationQuat, state.rotation);
-		else
-			mesh->setExplodedViewRotationFast(state.rotation);
-		mesh->setExplodedViewScalingFast(state.scale);
-		return;
-	}
-
-	mesh->setExplodedViewTranslation(state.translation);
-	if (state.hasExactRotation)
-		mesh->setExplodedViewRotationQuaternion(state.rotationQuat, state.rotation);
-	else
-		mesh->setExplodedViewRotation(state.rotation);
-	mesh->setExplodedViewScaling(state.scale);
-}
-
-const ViewCubeStyle kViewCubeStyle;
-
-
-bool convertPixelToRay(const QPoint& pixel, const QRect& viewport, int widgetHeight,
-	const QMatrix4x4& view, const QMatrix4x4& projection,
-	QVector3D& orig, QVector3D& dir)
-{
-	if (viewport.width() <= 0 || viewport.height() <= 0)
-	{
-		orig = QVector3D(0, 0, 0);
-		dir = QVector3D(0, 0, 0);
-		return false;
-	}
-
-	const int yInverted = widgetHeight - pixel.y() - 1;
-	const float ndcX = (2.0f * (pixel.x() - viewport.x())) / viewport.width() - 1.0f;
-	const float ndcY = (2.0f * (yInverted - viewport.y())) / viewport.height() - 1.0f;
-
-	const QVector4D nearNdc(ndcX, ndcY, -1.0f, 1.0f);
-	const QVector4D farNdc(ndcX, ndcY, 1.0f, 1.0f);
-	const QMatrix4x4 inv = (projection * view).inverted();
-
-	QVector4D nearWorld = inv * nearNdc;
-	QVector4D farWorld = inv * farNdc;
-	if (qFuzzyIsNull(nearWorld.w()) || qFuzzyIsNull(farWorld.w()))
-	{
-		orig = QVector3D(0, 0, 0);
-		dir = QVector3D(0, 0, 0);
-		return false;
-	}
-
-	nearWorld /= nearWorld.w();
-	farWorld /= farWorld.w();
-	orig = nearWorld.toVector3D();
-	const QVector3D rawDir = farWorld.toVector3D() - orig;
-	dir = rawDir.isNull() ? QVector3D(0, 0, 0) : rawDir.normalized();
-	return !dir.isNull();
-}
-
-SceneNode* findSceneNodeByAiChildPath(SceneNode* aiRootNode, const QVector<int>& aiChildPath)
-{
-	if (!aiRootNode)
-		return nullptr;
-
-	SceneNode* current = aiRootNode;
-	for (int childIndex : aiChildPath)
-	{
-		if (childIndex < 0 || childIndex >= current->children.size())
-			return nullptr;
-		current = current->children.at(childIndex);
-	}
-
-	return current;
-}
-
-bool intersectRayPlane(const QVector3D& rayOrigin, const QVector3D& rayDir,
-	const QVector3D& planePoint, const QVector3D& planeNormal,
-	QVector3D& outPoint)
-{
-	const float denom = QVector3D::dotProduct(rayDir, planeNormal);
-	if (std::abs(denom) <= 1.0e-6f)
-		return false;
-
-	const float t = QVector3D::dotProduct(planePoint - rayOrigin, planeNormal) / denom;
-	if (t < 0.0f)
-		return false;
-
-	outPoint = rayOrigin + rayDir * t;
-	return true;
-}
-
-QVector3D rotatePointAroundAxis(const QVector3D& point, const QVector3D& pivot,
-	const QVector3D& axis, float angleDegrees)
-{
-	QMatrix4x4 rot;
-	rot.setToIdentity();
-	rot.translate(pivot);
-	rot.rotate(angleDegrees, axis);
-	rot.translate(-pivot);
-	return rot.map(point);
-}
-
-QMatrix4x4 buildMeshRotationMatrix(const QVector3D& rotation)
-{
-	QMatrix4x4 matrix;
-	matrix.setToIdentity();
-	matrix.rotate(rotation.x(), QVector3D(1.0f, 0.0f, 0.0f));
-	matrix.rotate(rotation.y(), QVector3D(0.0f, 1.0f, 0.0f));
-	matrix.rotate(rotation.z(), QVector3D(0.0f, 0.0f, 1.0f));
-	return matrix;
-}
-
-QQuaternion quaternionFromMeshEuler(const QVector3D& rotation)
-{
-	const QMatrix4x4 matrix = buildMeshRotationMatrix(rotation);
-	return QQuaternion::fromRotationMatrix(matrix.toGenericMatrix<3, 3>()).normalized();
-}
-
-float normalizeDegrees180(float degrees)
-{
-	float normalized = std::fmod(degrees + 180.0f, 360.0f);
-	if (normalized < 0.0f)
-		normalized += 360.0f;
-	normalized -= 180.0f;
-
-	if (std::abs(normalized) < 1.0e-4f)
-		return 0.0f;
-	if (std::abs(normalized - 180.0f) < 1.0e-4f || std::abs(normalized + 180.0f) < 1.0e-4f)
-		return 180.0f;
-
-	return normalized;
-}
-
-QVector3D normalizeEulerDegrees(const QVector3D& rotation)
-{
-	return QVector3D(
-		normalizeDegrees180(rotation.x()),
-		normalizeDegrees180(rotation.y()),
-		normalizeDegrees180(rotation.z()));
-}
-
-float eulerCanonicalScore(const QVector3D& rotation)
-{
-	return std::abs(rotation.x()) + std::abs(rotation.y()) + std::abs(rotation.z());
-}
-
-QVector3D canonicalizeMeshEuler(const QVector3D& rotation)
-{
-	const QVector3D primary = normalizeEulerDegrees(rotation);
-	const QVector3D alternate = normalizeEulerDegrees(
-		QVector3D(rotation.x() + 180.0f, 180.0f - rotation.y(), rotation.z() + 180.0f));
-
-	if (eulerCanonicalScore(alternate) + 1.0e-4f < eulerCanonicalScore(primary))
-		return alternate;
-
-	return primary;
-}
-
-QVector3D rotationMatrixToMeshEuler(const QMatrix4x4& matrix)
-{
-	const float m00 = matrix(0, 0);
-	const float m01 = matrix(0, 1);
-	const float m02 = matrix(0, 2);
-	const float m10 = matrix(1, 0);
-	const float m11 = matrix(1, 1);
-	const float m12 = matrix(1, 2);
-	const float m22 = matrix(2, 2);
-
-	const float yRadians = std::asin(std::clamp(m02, -1.0f, 1.0f));
-	const float cosY = std::cos(yRadians);
-
-	float xRadians = 0.0f;
-	float zRadians = 0.0f;
-	if (std::abs(cosY) > 1.0e-6f)
-	{
-		xRadians = std::atan2(-m12, m22);
-		zRadians = std::atan2(-m01, m00);
-	}
-	else
-	{
-		xRadians = std::atan2(m10, m11);
-		zRadians = 0.0f;
-	}
-
-	return canonicalizeMeshEuler(QVector3D(
-		qRadiansToDegrees(xRadians),
-		qRadiansToDegrees(yRadians),
-		qRadiansToDegrees(zRadians)));
-}
-
-QVector3D extractMeshRotationFromMatrix(const QMatrix4x4& matrix)
-{
-	QVector3D col0(matrix(0, 0), matrix(1, 0), matrix(2, 0));
-	QVector3D col1(matrix(0, 1), matrix(1, 1), matrix(2, 1));
-	QVector3D col2(matrix(0, 2), matrix(1, 2), matrix(2, 2));
-
-	const float sx = col0.length();
-	const float sy = col1.length();
-	const float sz = col2.length();
-
-	if (sx > 1.0e-8f) col0 /= sx;
-	if (sy > 1.0e-8f) col1 /= sy;
-	if (sz > 1.0e-8f) col2 /= sz;
-
-	QMatrix4x4 rotationOnly;
-	rotationOnly.setToIdentity();
-	rotationOnly(0, 0) = col0.x(); rotationOnly(1, 0) = col0.y(); rotationOnly(2, 0) = col0.z();
-	rotationOnly(0, 1) = col1.x(); rotationOnly(1, 1) = col1.y(); rotationOnly(2, 1) = col1.z();
-	rotationOnly(0, 2) = col2.x(); rotationOnly(1, 2) = col2.y(); rotationOnly(2, 2) = col2.z();
-	return rotationMatrixToMeshEuler(rotationOnly);
-}
-
-struct ViewCubeLabelFace
-{
-	QString text;
-	QVector3D right;
-	QVector3D up;
-	QVector3D normal;
-};
-
-CornerAxisPosition normalizeCornerAxisPosition(CornerAxisPosition position)
-{
-	switch (position)
-	{
-	case CornerAxisPosition::TOP_LEFT:
-	case CornerAxisPosition::TOP_RIGHT:
-	case CornerAxisPosition::BOTTOM_LEFT:
-	case CornerAxisPosition::BOTTOM_RIGHT:
-		return position;
-	default:
-		return CornerAxisPosition::TOP_RIGHT;
-	}
-}
-
-float computeFloorDepthBias(float workspaceExtent, float floorSize)
-{
-	const float extentBias = std::max(workspaceExtent, 0.0f) * 1.0e-5f;
-	const float floorFallbackBias = std::max(floorSize, 0.0f) * 1.0e-8f;
-	return std::clamp(std::max(extentBias, floorFallbackBias), 1.0e-6f, 1.0e-4f);
-}
-
-QMatrix4x4 aiToQMatrix(const aiMatrix4x4& m)
-{
-	QMatrix4x4 out;
-	out.setRow(0, QVector4D(m.a1, m.a2, m.a3, m.a4));
-	out.setRow(1, QVector4D(m.b1, m.b2, m.b3, m.b4));
-	out.setRow(2, QVector4D(m.c1, m.c2, m.c3, m.c4));
-	out.setRow(3, QVector4D(m.d1, m.d2, m.d3, m.d4));
-	return out;
-}
-
-GLWidget::RuntimeNodeTransform decomposeNodeTransform(const aiMatrix4x4& matrix)
-{
-	aiVector3D scaling;
-	aiQuaternion rotation;
-	aiVector3D position;
-	matrix.Decompose(scaling, rotation, position);
-
-	GLWidget::RuntimeNodeTransform result;
-	result.translation = QVector3D(position.x, position.y, position.z);
-	result.rotation = QQuaternion(rotation.w, rotation.x, rotation.y, rotation.z).normalized();
-	result.scale = QVector3D(scaling.x, scaling.y, scaling.z);
-	return result;
-}
-
-QMatrix4x4 composeNodeTransform(const GLWidget::RuntimeNodeTransform& tr)
-{
-	QMatrix4x4 matrix;
-	matrix.translate(tr.translation);
-	matrix.rotate(tr.rotation);
-	matrix.scale(tr.scale);
-	return matrix;
-}
-
-QUuid resolveRuntimeNodeUuid(const GLWidget::RuntimeAnimationFileState& runtime,
-                             int targetNodeIndex,
-                             const QString& fallbackNodeName = QString())
-{
-	if (targetNodeIndex >= 0 && runtime.nodeUuidByIndex.contains(targetNodeIndex))
-		return runtime.nodeUuidByIndex.value(targetNodeIndex);
-
-	if (!fallbackNodeName.isEmpty())
-		return runtime.nodeUuidByName.value(fallbackNodeName, QUuid());
-
-	return QUuid();
-}
-
-QVector3D sampleVec3Keys(const QVector<GltfAnimationVec3Key>& keys, double timeSeconds, const QVector3D& fallback)
-{
-	if (keys.isEmpty())
-		return fallback;
-	if (timeSeconds <= keys.front().timeSeconds)
-		return keys.front().value;
-	if (timeSeconds >= keys.back().timeSeconds)
-		return keys.back().value;
-
-	for (int i = 1; i < keys.size(); ++i)
-	{
-		if (timeSeconds <= keys[i].timeSeconds)
-		{
-			const double start = keys[i - 1].timeSeconds;
-			const double end = keys[i].timeSeconds;
-			const float t = end > start ? static_cast<float>((timeSeconds - start) / (end - start)) : 0.0f;
-			return keys[i - 1].value * (1.0f - t) + keys[i].value * t;
-		}
-	}
-	return keys.back().value;
-}
-
-QVector2D sampleVec2Keys(const QVector<GltfAnimationVec2Key>& keys, double timeSeconds, const QVector2D& fallback)
-{
-	if (keys.isEmpty())
-		return fallback;
-	if (timeSeconds <= keys.front().timeSeconds)
-		return keys.front().value;
-	if (timeSeconds >= keys.back().timeSeconds)
-		return keys.back().value;
-
-	for (int i = 1; i < keys.size(); ++i)
-	{
-		if (timeSeconds <= keys[i].timeSeconds)
-		{
-			const double start = keys[i - 1].timeSeconds;
-			const double end = keys[i].timeSeconds;
-			const float t = end > start ? static_cast<float>((timeSeconds - start) / (end - start)) : 0.0f;
-			return keys[i - 1].value * (1.0f - t) + keys[i].value * t;
-		}
-	}
-	return keys.back().value;
-}
-
-float sampleFloatKeys(const QVector<GltfAnimationFloatKey>& keys, double timeSeconds, float fallback)
-{
-	if (keys.isEmpty())
-		return fallback;
-	if (timeSeconds <= keys.front().timeSeconds)
-		return keys.front().value;
-	if (timeSeconds >= keys.back().timeSeconds)
-		return keys.back().value;
-
-	for (int i = 1; i < keys.size(); ++i)
-	{
-		if (timeSeconds <= keys[i].timeSeconds)
-		{
-			const double start = keys[i - 1].timeSeconds;
-			const double end = keys[i].timeSeconds;
-			const float t = end > start ? static_cast<float>((timeSeconds - start) / (end - start)) : 0.0f;
-			return keys[i - 1].value * (1.0f - t) + keys[i].value * t;
-		}
-	}
-	return keys.back().value;
-}
-
-QVector4D sampleVec4Keys(const QVector<GltfAnimationVec4Key>& keys, double timeSeconds, const QVector4D& fallback)
-{
-	if (keys.isEmpty())
-		return fallback;
-	if (timeSeconds <= keys.front().timeSeconds)
-		return keys.front().value;
-	if (timeSeconds >= keys.back().timeSeconds)
-		return keys.back().value;
-
-	for (int i = 1; i < keys.size(); ++i)
-	{
-		if (timeSeconds <= keys[i].timeSeconds)
-		{
-			const double start = keys[i - 1].timeSeconds;
-			const double end = keys[i].timeSeconds;
-			const float t = end > start ? static_cast<float>((timeSeconds - start) / (end - start)) : 0.0f;
-			return keys[i - 1].value * (1.0f - t) + keys[i].value * t;
-		}
-	}
-	return keys.back().value;
-}
-
-bool sampleBoolKeys(const QVector<GltfAnimationBoolKey>& keys, double timeSeconds, bool fallback)
-{
-	if (keys.isEmpty())
-		return fallback;
-	if (timeSeconds <= keys.front().timeSeconds)
-		return keys.front().value;
-	if (timeSeconds >= keys.back().timeSeconds)
-		return keys.back().value;
-
-	bool result = keys.front().value;
-	for (int i = 1; i < keys.size(); ++i)
-	{
-		if (timeSeconds < keys[i].timeSeconds)
-			return result;
-		result = keys[i].value;
-	}
-	return result;
-}
-
-QVector<float> sampleWeightKeys(const QVector<GltfAnimationWeightsKey>& keys, double timeSeconds, const QVector<float>& fallback)
-{
-	if (keys.isEmpty())
-		return fallback;
-	if (timeSeconds <= keys.front().timeSeconds)
-		return keys.front().values;
-	if (timeSeconds >= keys.back().timeSeconds)
-		return keys.back().values;
-
-	for (int i = 1; i < keys.size(); ++i)
-	{
-		if (timeSeconds <= keys[i].timeSeconds)
-		{
-			const double start = keys[i - 1].timeSeconds;
-			const double end = keys[i].timeSeconds;
-			const float t = end > start ? static_cast<float>((timeSeconds - start) / (end - start)) : 0.0f;
-			const int count = std::max(keys[i - 1].values.size(), keys[i].values.size());
-			QVector<float> result(count, 0.0f);
-			for (int weightIndex = 0; weightIndex < count; ++weightIndex)
-			{
-				const float startValue = weightIndex < keys[i - 1].values.size()
-					? keys[i - 1].values[weightIndex]
-					: 0.0f;
-				const float endValue = weightIndex < keys[i].values.size()
-					? keys[i].values[weightIndex]
-					: startValue;
-				result[weightIndex] = startValue * (1.0f - t) + endValue * t;
-			}
-			return result;
-		}
-	}
-	return keys.back().values;
-}
-
-std::array<ViewCubeLabelFace, 6> buildViewCubeLabelFaces(const QString& top,
-                                                         const QString& front,
-                                                         const QString& left,
-                                                         const QString& bottom,
-                                                         const QString& rear,
-                                                         const QString& right,
-                                                         const QQuaternion& axisRotation)
-{
-	// Viewer convention is Z-up:
-	// Top    = +Z, Bottom = -Z, Front = -Y, Rear = +Y, Left = -X, Right = +X.
-	std::array<ViewCubeLabelFace, 6> faces = {{
-		{ top,    QVector3D( 1.0f,  0.0f, 0.0f), QVector3D( 0.0f,  1.0f, 0.0f),         QVector3D( 0.0f,  0.0f, 1.0f) },
-		{ bottom, QVector3D( 1.0f,  0.0f, 0.0f), QVector3D( 0.0f, -1.0f, 0.0f),         QVector3D( 0.0f,  0.0f,-1.0f) },
-		{ front,  QVector3D( 1.0f,  0.0f, 0.0f), QVector3D( 0.0f,  0.0f, 1.0f),         QVector3D( 0.0f, -1.0f, 0.0f) },
-		{ rear,   QVector3D(-1.0f,  0.0f, 0.0f), QVector3D( 0.0f,  0.0f, 1.0f),         QVector3D( 0.0f,  1.0f, 0.0f) },
-		{ left,   QVector3D( 0.0f, -1.0f, 0.0f), QVector3D( 0.0f,  0.0f, 1.0f),         QVector3D(-1.0f,  0.0f, 0.0f) },
-		{ right,  QVector3D( 0.0f,  1.0f, 0.0f), QVector3D( 0.0f,  0.0f, 1.0f),         QVector3D( 1.0f,  0.0f, 0.0f) }
-	}};
-
-	for (ViewCubeLabelFace& face : faces)
-	{
-		face.right = axisRotation.rotatedVector(face.right).normalized();
-		face.up = axisRotation.rotatedVector(face.up).normalized();
-		face.normal = axisRotation.rotatedVector(face.normal).normalized();
-	}
-
-	return faces;
-}
-
-void applyTexturePointerValue(GLMaterial& material,
-	GltfAnimationTextureTarget textureTarget,
-	GltfAnimationPointerProperty property,
-	const QVector2D& vec2Value,
-	float scalarValue)
-{
-	auto applyVec2 = [&](auto setOffset, auto setScale) {
-		switch (property)
-		{
-		case GltfAnimationPointerProperty::Offset:
-			(material.*setOffset)(vec2Value);
-			break;
-		case GltfAnimationPointerProperty::Scale:
-			(material.*setScale)(vec2Value);
-			break;
-		default:
-			break;
-		}
-	};
-
-	auto applyRotation = [&](auto setRotation) {
-		if (property == GltfAnimationPointerProperty::Rotation)
-			(material.*setRotation)(scalarValue);
-	};
-
-	switch (textureTarget)
-	{
-	case GltfAnimationTextureTarget::Albedo:
-		applyVec2(&GLMaterial::setAlbedoTexOffset, &GLMaterial::setAlbedoTexScale);
-		applyRotation(&GLMaterial::setAlbedoTexRotation);
-		break;
-	case GltfAnimationTextureTarget::Metallic:
-		applyVec2(&GLMaterial::setMetallicTexOffset, &GLMaterial::setMetallicTexScale);
-		applyRotation(&GLMaterial::setMetallicTexRotation);
-		break;
-	case GltfAnimationTextureTarget::Roughness:
-		applyVec2(&GLMaterial::setRoughnessTexOffset, &GLMaterial::setRoughnessTexScale);
-		applyRotation(&GLMaterial::setRoughnessTexRotation);
-		break;
-	case GltfAnimationTextureTarget::MetallicRoughness:
-		applyVec2(&GLMaterial::setMetallicTexOffset, &GLMaterial::setMetallicTexScale);
-		applyRotation(&GLMaterial::setMetallicTexRotation);
-		applyVec2(&GLMaterial::setRoughnessTexOffset, &GLMaterial::setRoughnessTexScale);
-		applyRotation(&GLMaterial::setRoughnessTexRotation);
-		break;
-	case GltfAnimationTextureTarget::Normal:
-		applyVec2(&GLMaterial::setNormalTexOffset, &GLMaterial::setNormalTexScale);
-		applyRotation(&GLMaterial::setNormalTexRotation);
-		break;
-	case GltfAnimationTextureTarget::Occlusion:
-		applyVec2(&GLMaterial::setOcclusionTexOffset, &GLMaterial::setOcclusionTexScale);
-		applyRotation(&GLMaterial::setOcclusionTexRotation);
-		break;
-	case GltfAnimationTextureTarget::Emissive:
-		applyVec2(&GLMaterial::setEmissiveTexOffset, &GLMaterial::setEmissiveTexScale);
-		applyRotation(&GLMaterial::setEmissiveTexRotation);
-		break;
-	case GltfAnimationTextureTarget::Transmission:
-		applyVec2(&GLMaterial::setTransmissionTexOffset, &GLMaterial::setTransmissionTexScale);
-		applyRotation(&GLMaterial::setTransmissionTexRotation);
-		break;
-	case GltfAnimationTextureTarget::Thickness:
-		applyVec2(&GLMaterial::setThicknessTexOffset, &GLMaterial::setThicknessTexScale);
-		applyRotation(&GLMaterial::setThicknessTexRotation);
-		break;
-	case GltfAnimationTextureTarget::IOR:
-		applyVec2(&GLMaterial::setIORTexOffset, &GLMaterial::setIORTexScale);
-		applyRotation(&GLMaterial::setIORTexRotation);
-		break;
-	case GltfAnimationTextureTarget::SheenColor:
-		applyVec2(&GLMaterial::setSheenColorTexOffset, &GLMaterial::setSheenColorTexScale);
-		applyRotation(&GLMaterial::setSheenColorTexRotation);
-		break;
-	case GltfAnimationTextureTarget::SheenRoughness:
-		applyVec2(&GLMaterial::setSheenRoughnessTexOffset, &GLMaterial::setSheenRoughnessTexScale);
-		applyRotation(&GLMaterial::setSheenRoughnessTexRotation);
-		break;
-	case GltfAnimationTextureTarget::Clearcoat:
-		applyVec2(&GLMaterial::setClearcoatColorTexOffset, &GLMaterial::setClearcoatColorTexScale);
-		applyRotation(&GLMaterial::setClearcoatColorTexRotation);
-		break;
-	case GltfAnimationTextureTarget::ClearcoatRoughness:
-		applyVec2(&GLMaterial::setClearcoatRoughnessTexOffset, &GLMaterial::setClearcoatRoughnessTexScale);
-		applyRotation(&GLMaterial::setClearcoatRoughnessTexRotation);
-		break;
-	case GltfAnimationTextureTarget::ClearcoatNormal:
-		applyVec2(&GLMaterial::setClearcoatNormalTexOffset, &GLMaterial::setClearcoatNormalTexScale);
-		applyRotation(&GLMaterial::setClearcoatNormalTexRotation);
-		break;
-	case GltfAnimationTextureTarget::Iridescence:
-		applyVec2(&GLMaterial::setIridescenceTexOffset, &GLMaterial::setIridescenceTexScale);
-		applyRotation(&GLMaterial::setIridescenceTexRotation);
-		break;
-	case GltfAnimationTextureTarget::IridescenceThickness:
-		applyVec2(&GLMaterial::setIridescenceThicknessTexOffset, &GLMaterial::setIridescenceThicknessTexScale);
-		applyRotation(&GLMaterial::setIridescenceThicknessTexRotation);
-		break;
-	case GltfAnimationTextureTarget::SpecularFactor:
-		applyVec2(&GLMaterial::setSpecularFactorTexOffset, &GLMaterial::setSpecularFactorTexScale);
-		applyRotation(&GLMaterial::setSpecularFactorTexRotation);
-		break;
-	case GltfAnimationTextureTarget::SpecularColor:
-		applyVec2(&GLMaterial::setSpecularColorTexOffset, &GLMaterial::setSpecularColorTexScale);
-		applyRotation(&GLMaterial::setSpecularColorTexRotation);
-		break;
-	case GltfAnimationTextureTarget::Anisotropy:
-		applyVec2(&GLMaterial::setAnisotropyTexOffset, &GLMaterial::setAnisotropyTexScale);
-		applyRotation(&GLMaterial::setAnisotropyTexRotation);
-		break;
-	case GltfAnimationTextureTarget::DiffuseTransmission:
-		applyVec2(&GLMaterial::setDiffuseTransmissionTexOffset, &GLMaterial::setDiffuseTransmissionTexScale);
-		applyRotation(&GLMaterial::setDiffuseTransmissionTexRotation);
-		break;
-	case GltfAnimationTextureTarget::DiffuseTransmissionColor:
-		applyVec2(&GLMaterial::setDiffuseTransmissionColorTexOffset, &GLMaterial::setDiffuseTransmissionColorTexScale);
-		applyRotation(&GLMaterial::setDiffuseTransmissionColorTexRotation);
-		break;
-	case GltfAnimationTextureTarget::Diffuse:
-		applyVec2(&GLMaterial::setDiffuseTexOffset, &GLMaterial::setDiffuseTexScale);
-		applyRotation(&GLMaterial::setDiffuseTexRotation);
-		break;
-	case GltfAnimationTextureTarget::SpecularGlossiness:
-		applyVec2(&GLMaterial::setSpecularGlossinessTexOffset, &GLMaterial::setSpecularGlossinessTexScale);
-		applyRotation(&GLMaterial::setSpecularGlossinessTexRotation);
-		break;
-	default:
-		break;
-	}
-}
-
-void applyMaterialFactorPointerValue(GLMaterial& material,
-    GltfAnimationPointerProperty property,
-    const QVector4D& vec4Value)
-{
-    if (property != GltfAnimationPointerProperty::BaseColorFactor)
-        return;
-
-    const QVector3D color(vec4Value.x(), vec4Value.y(), vec4Value.z());
-    material.setAlbedoColor(color);
-    material.setDiffuse(color);
-    material.setOpacity(vec4Value.w());
-}
-
-QQuaternion sampleQuatKeys(const QVector<GltfAnimationQuatKey>& keys, double timeSeconds, const QQuaternion& fallback)
-{
-	if (keys.isEmpty())
-		return fallback;
-	if (timeSeconds <= keys.front().timeSeconds)
-		return keys.front().value;
-	if (timeSeconds >= keys.back().timeSeconds)
-		return keys.back().value;
-
-	for (int i = 1; i < keys.size(); ++i)
-	{
-		if (timeSeconds <= keys[i].timeSeconds)
-		{
-			const double start = keys[i - 1].timeSeconds;
-			const double end = keys[i].timeSeconds;
-			const float t = end > start ? static_cast<float>((timeSeconds - start) / (end - start)) : 0.0f;
-			return QQuaternion::slerp(keys[i - 1].value, keys[i].value, t).normalized();
-		}
-	}
-	return keys.back().value;
-}
+    if (!root)
+        return nullptr;
+    SceneNode* current = root;
+    for (int idx : aiChildPath)
+    {
+        if (idx < 0 || idx >= current->children.size())
+            return nullptr;
+        current = current->children.at(idx);
+    }
+    return current;
 }
 
 GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent),
@@ -751,178 +77,7 @@ _floorPlane(nullptr),
 	_axisCone(nullptr),
 	_transformGizmo(nullptr),
 	_lightCube(nullptr),
-	_assimpModelLoader(nullptr),
-	// SceneRuntime reference aliases (Phase 5) — _sceneRuntime must be declared
-	// before these in GLWidget.h so it is constructed first.
-	_meshStore(_sceneRuntime._meshStore),
-	_displayedObjectsIds(_sceneRuntime._displayedObjectsIds),
-	_hiddenObjectsIds(_sceneRuntime._hiddenObjectsIds),
-	_recycleBin(_sceneRuntime._recycleBin),
-	_texCache(_sceneRuntime._texCache),
-	_texRefCount(_sceneRuntime._texRefCount),
-	_runtimeVisibilityNodes(_sceneRuntime._runtimeVisibilityNodes),
-	_runtimeVisibilityRootIndex(_sceneRuntime._runtimeVisibilityRootIndex),
-	_runtimeVisibilityHierarchyDirty(_sceneRuntime._runtimeVisibilityHierarchyDirty),
-	_runtimeVisibilityMeshStoreCount(_sceneRuntime._runtimeVisibilityMeshStoreCount),
-	_runtimeVisibilityPrepared(_sceneRuntime._runtimeVisibilityPrepared),
-	_runtimeVisibilityBoundsRevision(_sceneRuntime._runtimeVisibilityBoundsRevision),
-	_runtimeVisibilityMaskRevision(_sceneRuntime._runtimeVisibilityMaskRevision),
-	_runtimeVisibilityMaskProcessedRevision(_sceneRuntime._runtimeVisibilityMaskProcessedRevision),
-	_runtimeBaseVisibleMask(_sceneRuntime._runtimeBaseVisibleMask),
-	_assimpScene(_sceneRuntime._assimpScene),
-	_globalScene(_sceneRuntime._globalScene),
-	_globalSceneTransform(_sceneRuntime._globalSceneTransform),
-	_pendingSceneUuids(_sceneRuntime._pendingSceneUuids),
-	_centerScreenObjectIDs(_sceneRuntime._centerScreenObjectIDs),
-	_visibleSwapped(_sceneRuntime._visibleSwapped),
-	_progressiveLoadingEnabled(_sceneRuntime._progressiveLoadingEnabled),
-	_cancelRequested(_sceneRuntime._cancelRequested),
-	_loadCancelled(_sceneRuntime._loadCancelled),
-	_pendingLightData(_sceneRuntime._pendingLightData),
-	// SceneRenderController reference aliases (Phase 10) — _renderCtrl must be declared
-	// before these in GLWidget.h so it is constructed first.
-	// ---- Shaders ----
-	_bgShader(_renderCtrl._bgShader),
-	_bgSplitShader(_renderCtrl._bgSplitShader),
-	_fgShader(_renderCtrl._fgShader),
-	_fgFlatShader(_renderCtrl._fgFlatShader),
-	_wireframeShader(_renderCtrl._wireframeShader),
-	_axisShader(_renderCtrl._axisShader),
-	_vertexNormalShader(_renderCtrl._vertexNormalShader),
-	_faceNormalShader(_renderCtrl._faceNormalShader),
-	_shadowMappingShader(_renderCtrl._shadowMappingShader),
-	_skyBoxShader(_renderCtrl._skyBoxShader),
-	_gridShader(_renderCtrl._gridShader),
-	_irradianceShader(_renderCtrl._irradianceShader),
-	_prefilterShader(_renderCtrl._prefilterShader),
-	_sheenPrefilterShader(_renderCtrl._sheenPrefilterShader),
-	_brdfShader(_renderCtrl._brdfShader),
-	_lightCubeShader(_renderCtrl._lightCubeShader),
-	_viewCubeShader(_renderCtrl._viewCubeShader),
-	_viewCubeLabelShader(_renderCtrl._viewCubeLabelShader),
-	_clippingPlaneShader(_renderCtrl._clippingPlaneShader),
-	_clippedMeshShader(_renderCtrl._clippedMeshShader),
-	_selectionShader(_renderCtrl._selectionShader),
-	_equirectToCubeShader(_renderCtrl._equirectToCubeShader),
-	_equirectToCubeQuadShader(_renderCtrl._equirectToCubeQuadShader),
-	_downsampleShader(_renderCtrl._downsampleShader),
-	_textShader(_renderCtrl._textShader),
-	_debugShader(_renderCtrl._debugShader),
-	// ---- IBL / environment maps ----
-	_environmentMap(_renderCtrl._environmentMap),
-	_irradianceMap(_renderCtrl._irradianceMap),
-	_prefilterMap(_renderCtrl._prefilterMap),
-	_sheenPrefilterMap(_renderCtrl._sheenPrefilterMap),
-	_prefilterMipLevels(_renderCtrl._prefilterMipLevels),
-	_sheenPrefilterMipLevels(_renderCtrl._sheenPrefilterMipLevels),
-	_brdfLUTTexture(_renderCtrl._brdfLUTTexture),
-	_charlieLUTTexture(_renderCtrl._charlieLUTTexture),
-	_sheenELUTTexture(_renderCtrl._sheenELUTTexture),
-	_currentSkyboxFolder(_renderCtrl._currentSkyboxFolder),
-	_studioEnvironmentMap(_renderCtrl._studioEnvironmentMap),
-	_studioIrradianceMap(_renderCtrl._studioIrradianceMap),
-	_studioPrefilterMap(_renderCtrl._studioPrefilterMap),
-	_studioSheenPrefilterMap(_renderCtrl._studioSheenPrefilterMap),
-	_outdoorEnvironmentMap(_renderCtrl._outdoorEnvironmentMap),
-	_outdoorIrradianceMap(_renderCtrl._outdoorIrradianceMap),
-	_outdoorPrefilterMap(_renderCtrl._outdoorPrefilterMap),
-	_outdoorSheenPrefilterMap(_renderCtrl._outdoorSheenPrefilterMap),
-	_officeEnvironmentMap(_renderCtrl._officeEnvironmentMap),
-	_officeIrradianceMap(_renderCtrl._officeIrradianceMap),
-	_officePrefilterMap(_renderCtrl._officePrefilterMap),
-	_officeSheenPrefilterMap(_renderCtrl._officeSheenPrefilterMap),
-	_skyboxFBO(_renderCtrl._skyboxFBO),
-	_skyboxDepthBuffer(_renderCtrl._skyboxDepthBuffer),
-	// ---- Shadow map ----
-	_shadowMap(_renderCtrl._shadowMap),
-	_shadowMapFBO(_renderCtrl._shadowMapFBO),
-	_shadowWidth(_renderCtrl._shadowWidth),
-	_shadowHeight(_renderCtrl._shadowHeight),
-	_shadowFarDist(_renderCtrl._shadowFarDist),
-	_shadowFrustumExtentW(_renderCtrl._shadowFrustumExtentW),
-	_shadowFrustumExtentH(_renderCtrl._shadowFrustumExtentH),
-	_shadowMapNeedsInitialization(_renderCtrl._shadowMapNeedsInitialization),
-	// ---- Transmission buffer ----
-	_transmissionFBO(_renderCtrl._transmissionFBO),
-	_transmissionColorTexture(_renderCtrl._transmissionColorTexture),
-	_transmissionDepthTexture(_renderCtrl._transmissionDepthTexture),
-	_transmissionTextureWidth(_renderCtrl._transmissionTextureWidth),
-	_transmissionTextureHeight(_renderCtrl._transmissionTextureHeight),
-	_transmissionMipLevels(_renderCtrl._transmissionMipLevels),
-	_transmissionEnabled(_renderCtrl._transmissionEnabled),
-	// ---- SSS buffer ----
-	_sssFBO(_renderCtrl._sssFBO),
-	_sssCaptureTexture(_renderCtrl._sssCaptureTexture),
-	_sssDepthTexture(_renderCtrl._sssDepthTexture),
-	_sssBlurFBO(_renderCtrl._sssBlurFBO),
-	_sssBlurTexture(_renderCtrl._sssBlurTexture),
-	_sssTextureWidth(_renderCtrl._sssTextureWidth),
-	_sssTextureHeight(_renderCtrl._sssTextureHeight),
-	_sssEnabled(_renderCtrl._sssEnabled),
-	// ---- Debug / utility textures ----
-	_debugNeutralTex(_renderCtrl._debugNeutralTex),
-	_debugNormalTex(_renderCtrl._debugNormalTex),
-	_debugBlackTex(_renderCtrl._debugBlackTex),
-	_globalDebugChannel(_renderCtrl._globalDebugChannel),
-	_whiteTexture(_renderCtrl._whiteTexture),
-	// ---- Utility render geometry ----
-	_debugOverlayBoxVAO(_renderCtrl._debugOverlayBoxVAO),
-	_debugOverlayBoxVBO(_renderCtrl._debugOverlayBoxVBO),
-	_bgVAO(_renderCtrl._bgVAO),
-	_bgSplitVAO(_renderCtrl._bgSplitVAO),
-	_bgSplitVBO(_renderCtrl._bgSplitVBO),
-	_axisVAO(_renderCtrl._axisVAO),
-	_axisVBO(_renderCtrl._axisVBO),
-	_axisCBO(_renderCtrl._axisCBO),
-	_conversionCubeVAO(_renderCtrl._conversionCubeVAO),
-	_conversionCubeVBO(_renderCtrl._conversionCubeVBO),
-	_quadVAO(_renderCtrl._quadVAO),
-	_quadVBO(_renderCtrl._quadVBO),
-	_fsTriVAO(_renderCtrl._fsTriVAO),
-	_fsTriVBO(_renderCtrl._fsTriVBO),
-	_fsTriInitialized(_renderCtrl._fsTriInitialized),
-	_viewCubeLabelTextures(_renderCtrl._viewCubeLabelTextures),
-	_viewCubeLabelVAO(_renderCtrl._viewCubeLabelVAO),
-	_viewCubeLabelVBO(_renderCtrl._viewCubeLabelVBO),
-	// ---- Capping ----
-	_cappingEnabled(_renderCtrl._cappingEnabled),
-	_cappingTexture(_renderCtrl._cappingTexture),
-	// ---- Render settings ----
-	_openGLInitialized(_renderCtrl._openGLInitialized),
-	_envMapEnabled(_renderCtrl._envMapEnabled),
-	_shadowsEnabled(_renderCtrl._shadowsEnabled),
-	_selfShadowsEnabled(_renderCtrl._selfShadowsEnabled),
-	_reflectionsEnabled(_renderCtrl._reflectionsEnabled),
-	_groundMode(_renderCtrl._groundMode),
-	_floorTextureDisplayed(_renderCtrl._floorTextureDisplayed),
-	_skyBoxEnabled(_renderCtrl._skyBoxEnabled),
-	_skyBoxBlurPercent(_renderCtrl._skyBoxBlurPercent),
-	_skyBoxFaces(_renderCtrl._skyBoxFaces),
-	_skyBoxFOV(_renderCtrl._skyBoxFOV),
-	_skyBoxZRotation(_renderCtrl._skyBoxZRotation),
-	_skyBoxTextureHDRI(_renderCtrl._skyBoxTextureHDRI),
-	_gammaCorrection(_renderCtrl._gammaCorrection),
-	_screenGamma(_renderCtrl._screenGamma),
-	_hdrToneMapping(_renderCtrl._hdrToneMapping),
-	_toneMappingMode(_renderCtrl._toneMappingMode),
-	_envMapExposure(_renderCtrl._envMapExposure),
-	_iblExposure(_renderCtrl._iblExposure),
-	_lowResEnabled(_renderCtrl._lowResEnabled),
-	_sectionCapsSuppressedDuringInteraction(_renderCtrl._sectionCapsSuppressedDuringInteraction),
-	_dynamicCappingEnabled(_renderCtrl._dynamicCappingEnabled),
-	_anisotropicFilteringLevel(_renderCtrl._anisotropicFilteringLevel),
-	_useDefaultLights(_renderCtrl._useDefaultLights),
-	_usePunctualLights(_renderCtrl._usePunctualLights),
-	_useIBL(_renderCtrl._useIBL),
-	// ---- Debug overlay display flags ----
-	_showVertexNormals(_renderCtrl._showVertexNormals),
-	_showFaceNormals(_renderCtrl._showFaceNormals),
-	_showBoundingBox(_renderCtrl._showBoundingBox),
-	_debugOverlayEnabled(_renderCtrl._debugOverlayEnabled),
-	_debugOverlayMode(_renderCtrl._debugOverlayMode),
-	_debugBoundingBoxAvailable(_renderCtrl._debugBoundingBoxAvailable),
-	_debugVertexNormalsAvailable(_renderCtrl._debugVertexNormalsAvailable),
-	_debugFaceNormalsAvailable(_renderCtrl._debugFaceNormalsAvailable)
+	_assimpModelLoader(nullptr)
 {
     setFocusPolicy(Qt::StrongFocus);
     setMouseTracking(true);  // Enable mouseMoveEvent for hover highlighting
@@ -1055,7 +210,6 @@ _floorPlane(nullptr),
 
 	loadBgColorSettings();
 
-	_quadVAO = 0;
 
 	_viewCtrl._viewBoundingSphereDia = 200.0f;
 	_viewCtrl._viewRange = _viewCtrl._viewBoundingSphereDia;
@@ -1087,10 +241,10 @@ _floorPlane(nullptr),
 	_selectionManager = new SelectionManager(
 		this,
 		_primaryCamera,
-		_meshStore,
-		_displayedObjectsIds,
-		_hiddenObjectsIds,
-		_visibleSwapped,
+		_sceneRuntime.meshStore(),
+		_sceneRuntime.displayedObjectsIds(),
+		_sceneRuntime.hiddenObjectsIds(),
+		_sceneRuntime.visibleSwapped(),
 		this);  // Parent for Qt memory management
 
 	// Connect SelectionManager signals to GLWidget update
@@ -1185,21 +339,21 @@ _floorPlane(nullptr),
 	_clippingPlaneYZ = nullptr;
 	_clippingPlaneZX = nullptr;
 
-	_cappingEnabled = false;
-	_cappingTexture = 0;
+	_renderCtrl.setCappingEnabled(false);
+	_renderCtrl.setCappingTexture(0);
 
-	_showVertexNormals = false;
-	_showFaceNormals = false;
+	_renderCtrl.setShowVertexNormals(false);
+	_renderCtrl.setShowFaceNormals(false);
 
-	_envMapEnabled = false;
-	_shadowsEnabled = false;
-	_selfShadowsEnabled = false;
-	_reflectionsEnabled = false;
+	_renderCtrl.setEnvMapEnabled(false);
+	_renderCtrl.setShadowsEnabled(false);
+	_renderCtrl.setSelfShadowsEnabled(false);
+	_renderCtrl.setReflectionsEnabled(false);
 	_floorSize = 10.0f;
 	_floorSizeFactor = 5.0f;
 	_floorPlaneZ = -0.5f;
-	_groundMode = GroundMode::None;
-	_floorTextureDisplayed = true;
+	_renderCtrl.setGroundMode(GroundMode::None);
+	_renderCtrl.setFloorTextureDisplayed(true);
 	_floorTexRepeatS = _floorTexRepeatT = 1;
 	_floorOffsetPercent = kDefaultFloorOffsetPercent / 100.0f;
 
@@ -1216,41 +370,38 @@ _floorPlane(nullptr),
 		_floorTexImage = convertToGLFormat(_texBuffer);
 	}
 
-	_skyBoxEnabled = false;
-	_skyBoxBlurPercent = 0;
-	_skyBoxFOV = 45.0f;
-	_skyBoxZRotation = 0.0f;
-	_skyBoxTextureHDRI = false;
-	_gammaCorrection = false;
-	_screenGamma = 2.2f;
-	_hdrToneMapping = false;
-	_envMapExposure = 1.0f;
-	_iblExposure = 1.0f;
-	_toneMappingMode = HDRToneMapMode::KhronosPbrNeutral;
+	_renderCtrl.setSkyBoxEnabled(false);
+	_renderCtrl.setSkyBoxBlurPercent(0);
+	_renderCtrl.setSkyBoxFOV(45.0f);
+	_renderCtrl.setSkyBoxZRotation(0.0f);
+	_renderCtrl.setSkyBoxTextureHDRI(false);
+	_renderCtrl.setGammaCorrection(false);
+	_renderCtrl.setScreenGamma(2.2f);
+	_renderCtrl.setHdrToneMapping(false);
+	_renderCtrl.setEnvMapExposure(1.0f);
+	_renderCtrl.setIblExposure(1.0f);
+	_renderCtrl.setToneMappingMode(HDRToneMapMode::KhronosPbrNeutral);
 
-	_lowResEnabled = false;	
+	_renderCtrl.setLowResEnabled(false);	
 	_showLights = false;
-	_useDefaultLights = true;
-	_usePunctualLights = true;
-	_useIBL = true;
+	_renderCtrl.setUseDefaultLights(true);
+	_renderCtrl.setUsePunctualLights(true);
+	_renderCtrl.setUseIBL(true);
 
-	_shadowWidth = 1024 * 4;
-	_shadowHeight = 1024 * 4;
+	_renderCtrl.setShadowWidth(1024 * 4);
+	_renderCtrl.setShadowHeight(1024 * 4);
 
-	_environmentMap = 0;
-	_shadowMap = 0;
-	_shadowMapFBO = 0;
-	_irradianceMap = 0;
-	_prefilterMap = 0;
-	_brdfLUTTexture = 0;
-	_charlieLUTTexture = 0;
-	_sheenELUTTexture = 0;
+	_renderCtrl.setEnvironmentMap(0);
+	_renderCtrl.setIrradianceMap(0);
+	_renderCtrl.setPrefilterMap(0);
+	_renderCtrl.setBrdfLUTTexture(0);
+	_renderCtrl.setCharlieLUTTexture(0);
+	_renderCtrl.setSheenELUTTexture(0);
 
 	_selectionFBO = 0;
 	_selectionRBO = 0;
 	_selectionDBO = 0;
 
-	_quadVBO = 0;
 
 	_viewCtrl._rubberBandRadius = 1.0f;
 	_viewCtrl._rubberBandZoomRatio = 0.5f;
@@ -1278,7 +429,7 @@ _floorPlane(nullptr),
 	_zScale = 1.0f;
 
 	_displayedObjectsMemSize = 0;
-	_visibleSwapped = false;
+	_sceneRuntime.setVisibleSwapped(false);
 
 	_keyboardNavTimer = new QTimer(this);
 	connect(_keyboardNavTimer, &QTimer::timeout, this, &GLWidget::performKeyboardNav);
@@ -1345,7 +496,7 @@ _floorPlane(nullptr),
 	        this, &GLWidget::updateExplosion);
 	updateOverlayEditorTheme();
 
-	//_displayedObjectsIds.push_back(0);
+	//_sceneRuntime.displayedObjectsIds().push_back(0);
 
 	setContextMenuPolicy(Qt::CustomContextMenu);
 	connect(this, &GLWidget::customContextMenuRequested, this, &GLWidget::showContextMenu);
@@ -1376,7 +527,7 @@ GLWidget::~GLWidget()
 	if (_axisTextRenderer)
 		delete _axisTextRenderer;
 
-	for (auto& a : _meshStore)
+	for (auto& a : _sceneRuntime.meshStore())
 	{
 		delete a.mesh;
 	}
@@ -1385,10 +536,10 @@ GLWidget::~GLWidget()
 	if (_orthoViewsCamera)
 		delete _orthoViewsCamera;
 
-	if (_globalScene)
+	if (_sceneRuntime.globalScene())
 	{
-		SceneUtils::deleteScene(_globalScene);
-		_globalScene = nullptr;
+		SceneUtils::deleteScene(_sceneRuntime.globalScene());
+		_sceneRuntime.setGlobalScene(nullptr);
 	}
 
 	if (_assimpModelLoader)
@@ -1401,98 +552,13 @@ GLWidget::~GLWidget()
 
 		cleanUpShaders();
 
-		// Delete textures
-		glDeleteTextures(1, &_environmentMap);
-		glDeleteTextures(1, &_shadowMap);
-		glDeleteTextures(1, &_irradianceMap);
-		glDeleteTextures(1, &_prefilterMap);
-		glDeleteTextures(1, &_sheenPrefilterMap);
-		glDeleteTextures(1, &_studioEnvironmentMap);
-		glDeleteTextures(1, &_studioIrradianceMap);
-		glDeleteTextures(1, &_studioPrefilterMap);
-		glDeleteTextures(1, &_studioSheenPrefilterMap);
-		glDeleteTextures(1, &_outdoorEnvironmentMap);
-		glDeleteTextures(1, &_outdoorIrradianceMap);
-		glDeleteTextures(1, &_outdoorPrefilterMap);
-		glDeleteTextures(1, &_outdoorSheenPrefilterMap);
-		glDeleteTextures(1, &_officeEnvironmentMap);
-		glDeleteTextures(1, &_officeIrradianceMap);
-		glDeleteTextures(1, &_officePrefilterMap);
-		glDeleteTextures(1, &_officeSheenPrefilterMap);
-		glDeleteTextures(1, &_brdfLUTTexture);
-		glDeleteTextures(1, &_charlieLUTTexture);
-		glDeleteTextures(1, &_sheenELUTTexture);
-		glDeleteTextures(1, &_cappingTexture);
-		for (GLuint& labelTexture : _viewCubeLabelTextures)
-		{
-			if (labelTexture != 0)
-			{
-				glDeleteTextures(1, &labelTexture);
-				labelTexture = 0;
-			}
-		}
-
-		// Delete framebuffers and renderbuffers
-		if (_skyboxFBO != 0)
-			glDeleteFramebuffers(1, &_skyboxFBO);
-		if (_shadowMapFBO != 0)
-			glDeleteFramebuffers(1, &_shadowMapFBO);
+		_renderCtrl.cleanupGLResources();
 		if (_selectionFBO != 0)
 			glDeleteFramebuffers(1, &_selectionFBO);
-
-		glDeleteRenderbuffers(1, &_skyboxDepthBuffer);
 		if (_selectionRBO != 0)
 			glDeleteRenderbuffers(1, &_selectionRBO);
 		if (_selectionDBO != 0)
 			glDeleteRenderbuffers(1, &_selectionDBO);
-
-		// Destroy Qt wrapper types
-		_axisVBO.destroy();
-		_axisVAO.destroy();
-		_bgSplitVBO.destroy();
-		_bgSplitVAO.destroy();
-		_bgVAO.destroy();
-
-		// Delete fullscreen quad
-		if (_fsTriVAO != 0)
-		{
-			glDeleteBuffers(1, &_fsTriVBO);
-			glDeleteVertexArrays(1, &_fsTriVAO);
-			_fsTriVAO = 0;
-			_fsTriVBO = 0;
-		}
-
-		// Delete quad mesh
-		if (_quadVAO != 0)
-		{
-			glDeleteBuffers(1, &_quadVBO);
-			glDeleteVertexArrays(1, &_quadVAO);
-			_quadVAO = 0;
-			_quadVBO = 0;
-		}
-
-		// Delete conversion cube
-		if (_conversionCubeVAO != 0)
-		{
-			glDeleteBuffers(1, &_conversionCubeVBO);
-			glDeleteVertexArrays(1, &_conversionCubeVAO);
-			_conversionCubeVAO = 0;
-			_conversionCubeVBO = 0;
-		}
-		if (_viewCubeLabelVAO != 0)
-		{
-			glDeleteBuffers(1, &_viewCubeLabelVBO);
-			glDeleteVertexArrays(1, &_viewCubeLabelVAO);
-			_viewCubeLabelVAO = 0;
-			_viewCubeLabelVBO = 0;
-		}
-        if (_debugOverlayBoxVAO != 0)
-        {
-            glDeleteBuffers(1, &_debugOverlayBoxVBO);
-            glDeleteVertexArrays(1, &_debugOverlayBoxVAO);
-            _debugOverlayBoxVAO = 0;
-            _debugOverlayBoxVBO = 0;
-        }
 
 		// Delete scene objects
 		if (_clippingPlaneXY)
@@ -1562,15 +628,15 @@ void GLWidget::cleanUpShaders()
 
 void GLWidget::moveToRecycleBin(const QUuid& uuid, int originalIndex)
 {
-	// Find mesh in _meshStore
-	TriangleMesh* mesh = nullptr;
+	// Find mesh in _sceneRuntime.meshStore()
+	SceneMesh* mesh = nullptr;
 	int index = -1;
 
-	for (size_t i = 0; i < _meshStore.size(); ++i)
+	for (size_t i = 0; i < _sceneRuntime.meshStore().size(); ++i)
 	{
-		if (_meshStore[i]->uuid() == uuid)
+		if (_sceneRuntime.meshStore()[i]->uuid() == uuid)
 		{
-			mesh = _meshStore[i];
+			mesh = _sceneRuntime.meshStore()[i];
 			index = static_cast<int>(i);
 			break;
 		}
@@ -1582,28 +648,28 @@ void GLWidget::moveToRecycleBin(const QUuid& uuid, int originalIndex)
 		return;
 	}
 
-	// Remove from _meshStore (but don't delete)
-	_meshStore.erase(_meshStore.begin() + index);
+	// Remove from _sceneRuntime.meshStore() (but don't delete)
+	_sceneRuntime.meshStore().erase(_sceneRuntime.meshStore().begin() + index);
 
 	// Also remove from displayed/hidden lists
-	auto it = std::find(_displayedObjectsIds.begin(),
-		_displayedObjectsIds.end(), index);
-	if (it != _displayedObjectsIds.end())
-		_displayedObjectsIds.erase(it);
+	auto it = std::find(_sceneRuntime.displayedObjectsIds().begin(),
+		_sceneRuntime.displayedObjectsIds().end(), index);
+	if (it != _sceneRuntime.displayedObjectsIds().end())
+		_sceneRuntime.displayedObjectsIds().erase(it);
 
-	it = std::find(_hiddenObjectsIds.begin(),
-		_hiddenObjectsIds.end(), index);
-	if (it != _hiddenObjectsIds.end())
-		_hiddenObjectsIds.erase(it);
+	it = std::find(_sceneRuntime.hiddenObjectsIds().begin(),
+		_sceneRuntime.hiddenObjectsIds().end(), index);
+	if (it != _sceneRuntime.hiddenObjectsIds().end())
+		_sceneRuntime.hiddenObjectsIds().erase(it);
 
 	// Adjust indices in displayed/hidden lists
 	// All indices > removed index need to be decremented
-	for (int& id : _displayedObjectsIds)
+	for (int& id : _sceneRuntime.displayedObjectsIds())
 	{
 		if (id > index)
 			id--;
 	}
-	for (int& id : _hiddenObjectsIds)
+	for (int& id : _sceneRuntime.hiddenObjectsIds())
 	{
 		if (id > index)
 			id--;
@@ -1615,7 +681,7 @@ void GLWidget::moveToRecycleBin(const QUuid& uuid, int originalIndex)
 	entry.originalIndex = originalIndex;
 	entry.deletedAt = QDateTime::currentDateTime();
 
-	_recycleBin[uuid] = entry;
+	_sceneRuntime.recycleBin()[uuid] = entry;
 
 	qDebug() << "Moved mesh to recycle bin:" << mesh->getName()
 		<< "uuid:" << uuid;
@@ -1623,39 +689,39 @@ void GLWidget::moveToRecycleBin(const QUuid& uuid, int originalIndex)
 
 bool GLWidget::restoreFromRecycleBin(const QUuid& uuid)
 {
-	if (!_recycleBin.contains(uuid))
+	if (!_sceneRuntime.recycleBin().contains(uuid))
 	{
 		qWarning() << "GLWidget::restoreFromRecycleBin - Mesh not in bin:" << uuid;
 		return false;
 	}
 
-	SceneRuntime::RecycleBinEntry entry = _recycleBin.take(uuid);
-	TriangleMesh* mesh = entry.mesh;
+	SceneRuntime::RecycleBinEntry entry = _sceneRuntime.recycleBin().take(uuid);
+	SceneMesh* mesh = entry.mesh;
 
-	// Restore at the ORIGINAL index so _meshStore keeps the SceneGraph DFS
+	// Restore at the ORIGINAL index so _sceneRuntime.meshStore() keeps the SceneGraph DFS
 	// order.  The export path pairs the export scene's meshes with the
 	// runtime mesh list by order — appending at the end scrambles material
 	// and texture assignment on any export after a delete + undo.
 	int insertIndex = entry.originalIndex;
-	if (insertIndex < 0 || insertIndex > static_cast<int>(_meshStore.size()))
-		insertIndex = static_cast<int>(_meshStore.size());
-	_meshStore.insert(_meshStore.begin() + insertIndex, {mesh, mesh->uuid()});
+	if (insertIndex < 0 || insertIndex > static_cast<int>(_sceneRuntime.meshStore().size()))
+		insertIndex = static_cast<int>(_sceneRuntime.meshStore().size());
+	_sceneRuntime.meshStore().insert(_sceneRuntime.meshStore().begin() + insertIndex, {mesh, mesh->uuid()});
 
 	// Shift existing display/hidden ids at or above the insertion point,
 	// then add the restored mesh to the displayed set (kept sorted —
 	// setDisplayList relies on sorted ids for std::set_difference).
-	for (int& id : _displayedObjectsIds)
+	for (int& id : _sceneRuntime.displayedObjectsIds())
 	{
 		if (id >= insertIndex)
 			id++;
 	}
-	for (int& id : _hiddenObjectsIds)
+	for (int& id : _sceneRuntime.hiddenObjectsIds())
 	{
 		if (id >= insertIndex)
 			id++;
 	}
-	_displayedObjectsIds.push_back(insertIndex);
-	std::sort(_displayedObjectsIds.begin(), _displayedObjectsIds.end());
+	_sceneRuntime.displayedObjectsIds().push_back(insertIndex);
+	std::sort(_sceneRuntime.displayedObjectsIds().begin(), _sceneRuntime.displayedObjectsIds().end());
 
 	qDebug() << "Restored mesh from recycle bin:" << mesh->getName()
 		<< "uuid:" << uuid << "at index:" << insertIndex;
@@ -1665,11 +731,11 @@ bool GLWidget::restoreFromRecycleBin(const QUuid& uuid)
 
 void GLWidget::permanentlyDeleteFromBin(const QUuid& uuid)
 {
-	if (!_recycleBin.contains(uuid))
+	if (!_sceneRuntime.recycleBin().contains(uuid))
 		return;
 
-	SceneRuntime::RecycleBinEntry entry = _recycleBin.take(uuid);
-	TriangleMesh* mesh = entry.mesh;
+	SceneRuntime::RecycleBinEntry entry = _sceneRuntime.recycleBin().take(uuid);
+	SceneMesh* mesh = entry.mesh;
 
 	qDebug() << "Permanently deleting mesh:" << mesh->getName()
 		<< "uuid:" << uuid;
@@ -1680,40 +746,40 @@ void GLWidget::permanentlyDeleteFromBin(const QUuid& uuid)
 
 bool GLWidget::isInRecycleBin(const QUuid& uuid) const
 {
-	return _recycleBin.contains(uuid);
+	return _sceneRuntime.recycleBin().contains(uuid);
 }
 
 QVector<QUuid> GLWidget::getRecycleBinUuids() const
 {
-	return _recycleBin.keys().toVector();
+	return _sceneRuntime.recycleBin().keys().toVector();
 }
 
-TriangleMesh* GLWidget::getMeshByUuid(const QUuid& uuid) const
+SceneMesh* GLWidget::getMeshByUuid(const QUuid& uuid) const
 {
-	// Check in _meshStore first
-	for (TriangleMesh* mesh : _meshStore)
+	// Check in _sceneRuntime.meshStore() first
+	for (SceneMesh* mesh : _sceneRuntime.meshStore())
 	{
 		if (mesh->uuid() == uuid)
 			return mesh;
 	}
 
 	// Check in recycle bin
-	if (_recycleBin.contains(uuid))
-		return _recycleBin[uuid].mesh;
+	if (_sceneRuntime.recycleBin().contains(uuid))
+		return _sceneRuntime.recycleBin()[uuid].mesh;
 
 	return nullptr;
 }
 
-TriangleMesh* GLWidget::getMeshByIndex(int index) const
+SceneMesh* GLWidget::getMeshByIndex(int index) const
 {
 	return getMeshByUuid(getUuidByIndex(index));
 }
 
 int GLWidget::getIndexByUuid(const QUuid& uuid) const
 {
-	for (size_t i = 0; i < _meshStore.size(); ++i)
+	for (size_t i = 0; i < _sceneRuntime.meshStore().size(); ++i)
 	{
-		if (_meshStore[i]->uuid() == uuid)
+		if (_sceneRuntime.meshStore()[i]->uuid() == uuid)
 			return static_cast<int>(i);
 	}
 
@@ -1722,8 +788,8 @@ int GLWidget::getIndexByUuid(const QUuid& uuid) const
 
 QUuid GLWidget::getUuidByIndex(int index) const
 {
-	if (index >= 0 && index < static_cast<int>(_meshStore.size()))
-		return _meshStore[index]->uuid();
+	if (index >= 0 && index < static_cast<int>(_sceneRuntime.meshStore().size()))
+		return _sceneRuntime.meshStore()[index]->uuid();
 
 	return QUuid();  // Invalid
 }
@@ -1745,7 +811,7 @@ static int displayModeShaderInt(DisplayMode mode)
 
 void GLWidget::initializeGL()
 {
-	_openGLInitialized = false;
+	_renderCtrl.setOpenGLInitialized(false);
 
 	if (!QOpenGLContext::currentContext())
 	{
@@ -1756,6 +822,12 @@ void GLWidget::initializeGL()
 	if (!initializeOpenGLFunctions())
 	{
 		qCritical() << "GLWidget::initializeGL: failed to resolve OpenGL 4.5 Core functions — skipping initialisation";
+		return;
+	}
+
+	if (!_renderCtrl.initialize())
+	{
+		qCritical() << "GLWidget::initializeGL: SceneRenderController failed to resolve OpenGL functions — skipping initialisation";
 		return;
 	}
 
@@ -1773,11 +845,11 @@ void GLWidget::initializeGL()
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 	// Set Anisotropic Filtering Level
 	int anIsoVals[] = { 1, 2, 4, 8, 16, 32 };
-	_anisotropicFilteringLevel = anIsoVals[settings.value("anisotropyComboBox", 4).toInt()];
+	_renderCtrl.setAnisotropicFilteringLevel(anIsoVals[settings.value("anisotropyComboBox", 4).toInt()]);
 
 	_viewCtrl._userShowAxisOverride = settings.value("showCenterTrihedronCheckBox", true).toBool();
 	_viewCtrl._userShowCornerAxisOverride = settings.value("showCornerTrihedronCheckBox", true).toBool();
-	_viewCtrl._cornerAxisPosition = normalizeCornerAxisPosition(static_cast<CornerAxisPosition>(settings.value("comboBoxCornerTrihedronPosition", 1).toInt()));
+	_viewCtrl._cornerAxisPosition = ViewportInteractionController::normalizeCornerAxisPosition(static_cast<CornerAxisPosition>(settings.value("comboBoxCornerTrihedronPosition", 1).toInt()));
 	_viewCtrl._showViewCubeOverride = settings.value("showViewCubeCheckBox", true).toBool() && (_viewCtrl._cornerAxisPosition != CornerAxisPosition::BOTTOM_RIGHT);
 		
 	makeCurrent();
@@ -1851,12 +923,12 @@ void GLWidget::initializeGL()
 
 	const std::string path = PathUtils::getDataDirectory().toStdString() + "/";
 	// Text rendering
-	_textShader->bind();
-	_textRenderer = new TextRenderer(_textShader.get(), width(), height());
+	_renderCtrl.textShader()->bind();
+	_textRenderer = new TextRenderer(_renderCtrl.textShader(), width(), height());
 	_textRenderer->Load(path + "fonts/arial.ttf", 20);
-	_axisTextRenderer = new TextRenderer(_textShader.get(), width(), height());
+	_axisTextRenderer = new TextRenderer(_renderCtrl.textShader(), width(), height());
 	_axisTextRenderer->Load(path + "fonts/arialbd.ttf", 16);
-	_textShader->release();
+	_renderCtrl.textShader()->release();
 
 	createCappingPlanes();
 
@@ -1874,23 +946,41 @@ void GLWidget::initializeGL()
 	// Each preset loads an HDR file, converts to cubemap, and generates IBL maps (irradiance + prefilter)
 	{
 		QString studioHDRPath = dataDir + "/textures/envmap/skyboxes/HDRI/studio.hdr";
-		_studioEnvironmentMap = loadPresetEnvironmentMap(studioHDRPath);
-		if (_studioEnvironmentMap)
-			generatePresetIBLMaps(_studioEnvironmentMap, _studioIrradianceMap, _studioPrefilterMap, _studioSheenPrefilterMap);
+		_renderCtrl.setStudioEnvironmentMap(loadPresetEnvironmentMap(studioHDRPath));
+		if (_renderCtrl.studioEnvironmentMap())
+		{
+			GLuint irr = 0, pf = 0, spf = 0;
+			generatePresetIBLMaps(_renderCtrl.studioEnvironmentMap(), irr, pf, spf);
+			_renderCtrl.setStudioIrradianceMap(irr);
+			_renderCtrl.setStudioPrefilterMap(pf);
+			_renderCtrl.setStudioSheenPrefilterMap(spf);
+		}
 	}
 
 	{
 		QString outdoorHDRPath = dataDir + "/textures/envmap/skyboxes/HDRI/outdoor.hdr";
-		_outdoorEnvironmentMap = loadPresetEnvironmentMap(outdoorHDRPath);
-		if (_outdoorEnvironmentMap)
-			generatePresetIBLMaps(_outdoorEnvironmentMap, _outdoorIrradianceMap, _outdoorPrefilterMap, _outdoorSheenPrefilterMap);
+		_renderCtrl.setOutdoorEnvironmentMap(loadPresetEnvironmentMap(outdoorHDRPath));
+		if (_renderCtrl.outdoorEnvironmentMap())
+		{
+			GLuint irr = 0, pf = 0, spf = 0;
+			generatePresetIBLMaps(_renderCtrl.outdoorEnvironmentMap(), irr, pf, spf);
+			_renderCtrl.setOutdoorIrradianceMap(irr);
+			_renderCtrl.setOutdoorPrefilterMap(pf);
+			_renderCtrl.setOutdoorSheenPrefilterMap(spf);
+		}
 	}
 
 	{
 		QString officeHDRPath = dataDir + "/textures/envmap/skyboxes/HDRI/office.hdr";
-		_officeEnvironmentMap = loadPresetEnvironmentMap(officeHDRPath);
-		if (_officeEnvironmentMap)
-			generatePresetIBLMaps(_officeEnvironmentMap, _officeIrradianceMap, _officePrefilterMap, _officeSheenPrefilterMap);
+		_renderCtrl.setOfficeEnvironmentMap(loadPresetEnvironmentMap(officeHDRPath));
+		if (_renderCtrl.officeEnvironmentMap())
+		{
+			GLuint irr = 0, pf = 0, spf = 0;
+			generatePresetIBLMaps(_renderCtrl.officeEnvironmentMap(), irr, pf, spf);
+			_renderCtrl.setOfficeIrradianceMap(irr);
+			_renderCtrl.setOfficePrefilterMap(pf);
+			_renderCtrl.setOfficeSheenPrefilterMap(spf);
+		}
 	}
 
 	// Shadow mapping
@@ -1902,39 +992,39 @@ void GLWidget::initializeGL()
 	initSSSBuffer();
 
 	float size = 15;
-	_axisCone = new ConeRenderable(_axisShader.get(), _viewCtrl._viewRange / size / 15, _viewCtrl._viewRange / size / 5, 8u, 1u);
-	_viewCube = new ViewCubeMesh(_viewCubeShader.get(), 1.0f);
+	_axisCone = new ConeRenderable(_renderCtrl.axisShader(), _viewCtrl._viewRange / size / 15, _viewCtrl._viewRange / size / 5, 8u, 1u);
+	_viewCube = new ViewCubeMesh(_renderCtrl.viewCubeShader(), 1.0f);
 	initializeViewCubeLabels();
 
 	// Set lighting information
-	_fgShader->bind();
+	_renderCtrl.fgShader()->bind();
 	syncDefaultLightColorUniforms();
-	_fgShader->setUniformValue("lightSource.position", _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
-	_fgShader->setUniformValue("lightModel.ambient", QVector3D(0.2f, 0.2f, 0.2f));
-	_fgShader->setUniformValue("Line.Width", 0.75f);
-	_fgShader->setUniformValue("Line.Color", QVector4D(0.05f, 0.0f, 0.05f, 1.0f));
-	_fgShader->setUniformValue("envMap", 1);
-	_fgShader->setUniformValue("shadowMap", 2);
-	_fgShader->setUniformValue("irradianceMap", 3);
-	_fgShader->setUniformValue("prefilterMap", 4);
-	_fgShader->setUniformValue("brdfLUT", 5);
-	_fgShader->setUniformValue("sheenPrefilterMap", 7);
-	_fgShader->setUniformValue("charlieLUT", 8);
-	_fgShader->setUniformValue("sheenELUT",  9);
-	_fgShader->setUniformValue("sheenPrefilterMipLevels", (int)_sheenPrefilterMipLevels);
-	_fgShader->setUniformValue("prefilterMipLevels", (int)_prefilterMipLevels);
-	_fgShader->setUniformValue("transmissionSceneTexture", 32);
-	_fgShader->setUniformValue("transmissionDepthTexture", 33);
-	_fgShader->setUniformValue("sssDiffuseTexture", 37);
-	_fgShader->setUniformValue("sssDepthTexture", 38);
-	_fgShader->setUniformValue("displayMode", displayModeShaderInt(_displayMode));
-	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
-	_fgShader->setUniformValue("selectionHighlighting", _selectionHighlighting);
+	_renderCtrl.fgShader()->setUniformValue("lightSource.position", _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
+	_renderCtrl.fgShader()->setUniformValue("lightModel.ambient", QVector3D(0.2f, 0.2f, 0.2f));
+	_renderCtrl.fgShader()->setUniformValue("Line.Width", 0.75f);
+	_renderCtrl.fgShader()->setUniformValue("Line.Color", QVector4D(0.05f, 0.0f, 0.05f, 1.0f));
+	_renderCtrl.fgShader()->setUniformValue("envMap", 1);
+	_renderCtrl.fgShader()->setUniformValue("shadowMap", 2);
+	_renderCtrl.fgShader()->setUniformValue("irradianceMap", 3);
+	_renderCtrl.fgShader()->setUniformValue("prefilterMap", 4);
+	_renderCtrl.fgShader()->setUniformValue("brdfLUT", 5);
+	_renderCtrl.fgShader()->setUniformValue("sheenPrefilterMap", 7);
+	_renderCtrl.fgShader()->setUniformValue("charlieLUT", 8);
+	_renderCtrl.fgShader()->setUniformValue("sheenELUT",  9);
+	_renderCtrl.fgShader()->setUniformValue("sheenPrefilterMipLevels", (int)_renderCtrl.sheenPrefilterMipLevels());
+	_renderCtrl.fgShader()->setUniformValue("prefilterMipLevels", (int)_renderCtrl.prefilterMipLevels());
+	_renderCtrl.fgShader()->setUniformValue("transmissionSceneTexture", 32);
+	_renderCtrl.fgShader()->setUniformValue("transmissionDepthTexture", 33);
+	_renderCtrl.fgShader()->setUniformValue("sssDiffuseTexture", 37);
+	_renderCtrl.fgShader()->setUniformValue("sssDepthTexture", 38);
+	_renderCtrl.fgShader()->setUniformValue("displayMode", displayModeShaderInt(_displayMode));
+	_renderCtrl.fgShader()->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
+	_renderCtrl.fgShader()->setUniformValue("selectionHighlighting", _selectionHighlighting);
 
 	updateEnvMapRotationMatrix();
 
-	_debugShader->bind();
-	_debugShader->setUniformValue("depthMap", 0);
+	_renderCtrl.debugShader()->bind();
+	_renderCtrl.debugShader()->setUniformValue("depthMap", 0);
 
 	_viewCtrl._viewMatrix.setToIdentity();
 	glEnable(GL_DEPTH_TEST);
@@ -1942,32 +1032,34 @@ void GLWidget::initializeGL()
 	glClearColor(0.0f, 0.0f, 0.0f, 1.f);
 
 	// --- Debug placeholder textures for TextureDebugPanel ---
-	// _debugNeutralTex: 1×1 opaque white  — used for all disabled texture slots.
-	// _debugNormalTex : 1×1 (128,128,255) — used for normal-map slots (flat tangent-space normal).
-	// _debugBlackTex  : 1×1 opaque black  — reserved; contributions are silenced via scalar uniforms,
+	// _renderCtrl.debugNeutralTex(): 1×1 opaque white  — used for all disabled texture slots.
+	// _renderCtrl.debugNormalTex() : 1×1 (128,128,255) — used for normal-map slots (flat tangent-space normal).
+	// _renderCtrl.debugBlackTex()  : 1×1 opaque black  — reserved; contributions are silenced via scalar uniforms,
 	//                   not via the texture value, so this is not used in the current override path.
 	{
-		auto makeDebugTex = [&](GLuint& texId, const GLubyte rgba[4]) {
+		auto makeDebugTex = [&](const GLubyte rgba[4]) -> GLuint {
+			GLuint texId = 0;
 			glGenTextures(1, &texId);
 			glBindTexture(GL_TEXTURE_2D, texId);
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0,
 			             GL_RGBA, GL_UNSIGNED_BYTE, rgba);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			return texId;
 		};
 
 		const GLubyte white[4]         = { 255, 255, 255, 255 };
 		const GLubyte neutralNormal[4] = { 128, 128, 255, 255 };
 		const GLubyte black[4]         = {   0,   0,   0, 255 };
 
-		makeDebugTex(_debugNeutralTex, white);
-		makeDebugTex(_debugNormalTex,  neutralNormal);
-		makeDebugTex(_debugBlackTex,   black);
+		_renderCtrl.setDebugNeutralTex(makeDebugTex(white));
+		_renderCtrl.setDebugNormalTex(makeDebugTex(neutralNormal));
+		_renderCtrl.setDebugBlackTex(makeDebugTex(black));
 
 		glBindTexture(GL_TEXTURE_2D, 0);
 	}
 
-	_openGLInitialized = true;
+	_renderCtrl.setOpenGLInitialized(true);
 
 	// Keep GLWidget's _originalParsedLights in sync with SceneGraph whenever
 	// a file's light data is added or removed (multi-model scene support).
@@ -1984,7 +1076,7 @@ void GLWidget::initializeGL()
 
 void GLWidget::resizeGL(int width, int height)
 {
-	if (!_openGLInitialized)
+	if (!_renderCtrl.isOpenGLInitialized())
 		return;
 
 	float w = (float)width;
@@ -2035,9 +1127,9 @@ void GLWidget::resizeGL(int width, int height)
 	_textRenderer->setHeight(height);
 	QMatrix4x4 projection;
 	projection.ortho(QRect(0.0f, 0.0f, static_cast<float>(w), static_cast<float>(h)));
-	_textShader->bind();
-	_textShader->setUniformValue("projection", projection);
-	_textShader->release();
+	_renderCtrl.textShader()->bind();
+	_renderCtrl.textShader()->setUniformValue("projection", projection);
+	_renderCtrl.textShader()->release();
 
 	resizeTransmissionBuffer(width, height);
 	resizeSSSBuffer(width, height);
@@ -2047,13 +1139,13 @@ void GLWidget::resizeGL(int width, int height)
 
 void GLWidget::paintGL()
 {
-	if (!_openGLInitialized)
+	if (!_renderCtrl.isOpenGLInitialized())
 		return;
 
-	QColor topColor = !_visibleSwapped ? _bgTopColor : QColor::fromRgbF(1.0f - _bgTopColor.redF(),
+	QColor topColor = !_sceneRuntime.visibleSwapped() ? _bgTopColor : QColor::fromRgbF(1.0f - _bgTopColor.redF(),
 		1.0f - _bgTopColor.greenF(), 1.0f - _bgTopColor.blueF(),
 		_bgTopColor.alphaF());
-	QColor botColor = !_visibleSwapped ? _bgBotColor : QColor::fromRgbF(1.0f - _bgBotColor.redF(),
+	QColor botColor = !_sceneRuntime.visibleSwapped() ? _bgBotColor : QColor::fromRgbF(1.0f - _bgBotColor.redF(),
 		1.0f - _bgBotColor.greenF(), 1.0f - _bgBotColor.blueF(),
 		_bgBotColor.alphaF());
 	try
@@ -2063,9 +1155,9 @@ void GLWidget::paintGL()
 		gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
 			botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _gradientStyle);
 
-		_fgShader->bind();
-		glLights->bind(_fgShader->programId());
-		_fgShader->setUniformValue("lightCount", glLights->getLightCount());
+		_renderCtrl.fgShader()->bind();
+		glLights->bind(_renderCtrl.fgShader()->programId());
+		_renderCtrl.fgShader()->setUniformValue("lightCount", glLights->getLightCount());
 
 		_viewCtrl._modelMatrix.setToIdentity();
 		if (_viewCtrl._multiViewActive)
@@ -2080,9 +1172,9 @@ void GLWidget::paintGL()
 		drawViewCube();
 
 		// Text rendering
-		if (_meshStore.size() != 0)
+		if (_sceneRuntime.meshStore().size() != 0)
 		{
-			const std::vector<int>& objectIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+			const std::vector<int>& objectIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
 			if (objectIds.size() > 0)
 				_textRenderer->RenderText(_labelNumMeshes.arg(objectIds.size()).toStdString(), 4, 4, 1, QVector3D(1.0f, 1.0f, 0.0f));
 		}
@@ -2093,15 +1185,15 @@ void GLWidget::paintGL()
 	}
 
 	// For testing rendered shadow map
-	/*_debugShader->bind();
-	_debugShader->setUniformValue("near_plane", 1.0f);
-	_debugShader->setUniformValue("far_plane", _viewCtrl._viewRange);
-	_debugShader->setUniformValue("screenSize", QVector2D(width(), height()));
-	_debugShader->setUniformValue("transmissionColorTexture", 32);
-	_debugShader->setUniformValue("transmissionDepthTexture", 33);	
+	/*_renderCtrl.debugShader()->bind();
+	_renderCtrl.debugShader()->setUniformValue("near_plane", 1.0f);
+	_renderCtrl.debugShader()->setUniformValue("far_plane", _viewCtrl._viewRange);
+	_renderCtrl.debugShader()->setUniformValue("screenSize", QVector2D(width(), height()));
+	_renderCtrl.debugShader()->setUniformValue("transmissionColorTexture", 32);
+	_renderCtrl.debugShader()->setUniformValue("transmissionDepthTexture", 33);	
 	renderQuad();*/
 
-	//_brdfShader->bind();
+	//_renderCtrl.brdfShader()->bind();
 	//renderQuad();
 }
 
@@ -2115,7 +1207,7 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 
 	// Store the folder path for later regeneration in detached contexts
-	_currentSkyboxFolder = folder;
+	_renderCtrl.setCurrentSkyboxFolder(folder);
 
 	// File pattern map: match flexible identifiers to cube map indices
 	QMap<QString, int> faceMap = {
@@ -2140,7 +1232,7 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
 	}
 
 	makeCurrent();
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _renderCtrl.environmentMap());
 
 	// Temp holders
 	QString skyboxImages[6];
@@ -2219,7 +1311,7 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
 		std::string fileName = skyboxImages[i].toStdString();
 
 		stbi_set_flip_vertically_on_load(false);
-		if (_skyBoxTextureHDRI)
+		if (_renderCtrl.skyBoxTextureHDRI())
 		{
 			data = static_cast<float*>(stbi_loadf(fileName.c_str(), &width, &height, &nrComponents, 0));
 			if (!data) goto failure;
@@ -2278,7 +1370,7 @@ bool GLWidget::loadCubemapFromSingleHDR(const QString& filePath)
 		return convertEquirectangularToCubemap(filePath);
 	}
 
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _renderCtrl.environmentMap());
 
 	int faceSize = 0;
 	QPoint faceOffsets[6];
@@ -2396,320 +1488,17 @@ bool GLWidget::loadCubemapFromSingleHDR(const QString& filePath)
 
 bool GLWidget::convertEquirectangularToCubemap(const QString& filePath)
 {
-	// 1. Load equirectangular HDR as 2D texture
-	int imgWidth, imgHeight, channels;
-	stbi_set_flip_vertically_on_load(true);
-	float* data = stbi_loadf(filePath.toStdString().c_str(), &imgWidth, &imgHeight, &channels, 0);
-
-	if (!data || imgWidth != 2 * imgHeight)
-	{
-		qWarning() << "Invalid equirectangular HDR file:" << filePath;
-		if (data) stbi_image_free(data);
-		return false;
-	}
-
-	// Validate and sanitize pixel data
-	size_t totalPixels = imgWidth * imgHeight * channels;
-	int invalidCount = 0;
-
-	for (size_t i = 0; i < totalPixels; i++)
-	{
-		if (!std::isfinite(data[i]) || data[i] < 0.0f)
-		{
-			// Replace invalid values with nearby valid pixel or small positive value
-			data[i] = (i > 0 && std::isfinite(data[i - 1])) ? data[i - 1] : 0.001f;
-			invalidCount++;
-		}
-		// Clamp extremely bright values that cause issues
-		else if (data[i] > 65504.0f)
-		{ // Half-float max
-			data[i] = 65504.0f;
-			invalidCount++;
-		}
-	}
-
-	if (invalidCount > 0)
-	{
-		qDebug() << "Fixed" << invalidCount << "invalid pixels in" << filePath;
-	}
-
-	// Create temporary 2D texture for equirectangular source
-	GLuint equirectTexture;
-	glGenTextures(1, &equirectTexture);
-	glBindTexture(GL_TEXTURE_2D, equirectTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, imgWidth, imgHeight, 0, GL_RGB, GL_FLOAT, data);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	stbi_image_free(data);
-
-	// 2. Create cubemap texture
-	// Derive face size from source: equirectangular width covers ~4 faces, so W/4 is a
-	// good face size.  Round down to the nearest power-of-two for clean mip chains and
-	// clamp to 2048 to keep GPU memory reasonable.
-	int cubeSize = 1 << static_cast<int>(std::log2(std::min(imgWidth / 4, 2048)));
-	for (int mip = 0; mip < static_cast<int>(std::log2(cubeSize)) + 1; ++mip)
-	{
-		int mipSize = cubeSize >> mip;
-	for (int i = 0; i < 6; ++i)
-	{
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB32F,
-				mipSize, mipSize, 0, GL_RGB, GL_FLOAT, nullptr);
-	}
-	}
-
-	// 3. Setup framebuffer
-	GLuint framebuffer, depthBuffer;
-	glGenFramebuffers(1, &framebuffer);
-	glGenRenderbuffers(1, &depthBuffer);
-
-	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-	glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, cubeSize, cubeSize);
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
-	
-	// 4. Render each face
-	_equirectToCubeShader->bind();
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, equirectTexture);
-	_equirectToCubeShader->setUniformValue("equirectangularMap", 0);
-
-	glViewport(0, 0, cubeSize, cubeSize);
-
-	// View matrices for each cubemap face
-	QMatrix4x4 captureViews[] = {
-		// Use QMatrix4x4::lookAt for each face direction
-		[]() { QMatrix4x4 m; m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(1,  0,  0), QVector3D(0, -1,  0)); return m; }(), // +X
-		[]() { QMatrix4x4 m; m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(-1,  0,  0), QVector3D(0, -1,  0)); return m; }(), // -X
-		[]() { QMatrix4x4 m; m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0,  1,  0), QVector3D(0,  0,  1)); return m; }(), // +Y
-		[]() { QMatrix4x4 m; m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0, -1,  0), QVector3D(0,  0, -1)); return m; }(), // -Y
-		[]() { QMatrix4x4 m; m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0,  0,  1), QVector3D(0, -1,  0)); return m; }(), // +Z
-		[]() { QMatrix4x4 m; m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0,  0, -1), QVector3D(0, -1,  0)); return m; }()  // -Z
-	};
-
-	QMatrix4x4 captureProjection;
-	captureProjection.perspective(90.0f, 1.0f, 0.1f, 10.0f);
-	_equirectToCubeShader->setUniformValue("projection", captureProjection);
-
-	for (int i = 0; i < 6; ++i)
-	{
-		_equirectToCubeShader->setUniformValue("view", captureViews[i]);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, _environmentMap, 0);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		// Render the conversion cube
-		renderConversionCube();		
-	}
-
-	// 5. Setup cubemap parameters
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
-
-	// 6. Cleanup
-	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
-	glDeleteFramebuffers(1, &framebuffer);
-	glDeleteRenderbuffers(1, &depthBuffer);
-	glDeleteTextures(1, &equirectTexture);
-
-	return true;
+	return _renderCtrl.convertEquirectToCubemap(filePath, defaultFramebufferObject());
 }
 
 
 bool GLWidget::convertEquirectangularToCubemapQuad(const QString& filePath)
 {
-	// 1. Load equirectangular HDR as 2D texture
-	int imgWidth, imgHeight, channels;
-	stbi_set_flip_vertically_on_load(true);
-	float* data = stbi_loadf(filePath.toStdString().c_str(), &imgWidth, &imgHeight, &channels, 0);
-
-	if (!data || imgWidth != 2 * imgHeight)
-	{
-		qWarning() << "Invalid equirectangular HDR file:" << filePath;
-		if (data) stbi_image_free(data);
-		return false;
-	}
-
-	// Create temporary 2D texture for equirectangular source
-	GLuint equirectTexture;
-	glGenTextures(1, &equirectTexture);
-	glBindTexture(GL_TEXTURE_2D, equirectTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, imgWidth, imgHeight, 0, GL_RGB, GL_FLOAT, data);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	stbi_image_free(data);
-
-	/// 2. Create cubemap texture - allocate mip 0 for all faces first
-	// Derive face size from source: equirectangular width covers ~4 faces, so W/4 is a
-	// good face size.  Round down to the nearest power-of-two for clean mip chains and
-	// clamp to 2048 to keep GPU memory reasonable.
-	int cubeSize = 1 << static_cast<int>(std::log2(std::min(imgWidth / 4, 2048)));
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
-
-	for (int i = 0; i < 6; ++i)
-	{
-		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB32F,
-			cubeSize, cubeSize, 0, GL_RGB, GL_FLOAT, nullptr);
-	}
-
-	// 3. Create simple full-screen quad
-	float quadVertices[] = {
-		-1.0f, -1.0f,
-		 1.0f, -1.0f,
-		 1.0f,  1.0f,
-		-1.0f,  1.0f
-	};
-
-	unsigned int quadIndices[] = {
-		0, 1, 2,
-		0, 2, 3
-	};
-
-	GLuint quadVAO, quadVBO, quadEBO;
-	glGenVertexArrays(1, &quadVAO);
-	glGenBuffers(1, &quadVBO);
-	glGenBuffers(1, &quadEBO);
-
-	glBindVertexArray(quadVAO);
-	glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
-
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, quadEBO);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(quadIndices), quadIndices, GL_STATIC_DRAW);
-
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
-
-	// 4. Setup framebuffer
-	GLuint framebuffer, depthBuffer;
-	glGenFramebuffers(1, &framebuffer);
-	glGenRenderbuffers(1, &depthBuffer);
-
-	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-	glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, cubeSize, cubeSize);
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
-
-	_equirectToCubeQuadShader->bind();
-	glViewport(0, 0, cubeSize, cubeSize);
-
-	// Bind equirectangular texture
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, equirectTexture);
-	_equirectToCubeQuadShader->setUniformValue("equirectangularMap", 0);
-
-	// 6. Render each cubemap face
-	for (int i = 0; i < 6; ++i)
-	{
-		_equirectToCubeQuadShader->setUniformValue("faceIndex", i);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-			GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, _environmentMap, 0);
-
-		GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-		if (status != GL_FRAMEBUFFER_COMPLETE)
-		{
-			qWarning() << "Framebuffer incomplete for face" << i;
-			continue;
-		}
-
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		glBindVertexArray(quadVAO);
-		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-	}
-
-	// 7. Setup cubemap parameters and generate mipmaps
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
-
-	// 8. Cleanup
-	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
-	glDeleteFramebuffers(1, &framebuffer);
-	glDeleteRenderbuffers(1, &depthBuffer);
-	glDeleteTextures(1, &equirectTexture);
-	glDeleteBuffers(1, &quadVBO);
-	glDeleteBuffers(1, &quadEBO);
-	glDeleteVertexArrays(1, &quadVAO);
-
-	return true;
+	return _renderCtrl.convertEquirectToCubemapQuad(filePath, defaultFramebufferObject());
 }
 void GLWidget::renderConversionCube()
 {
-	if (_conversionCubeVAO == 0)
-	{
-		float vertices[] = {
-			// positions          
-			-1.0f,  1.0f, -1.0f,
-			-1.0f, -1.0f, -1.0f,
-			 1.0f, -1.0f, -1.0f,
-			 1.0f, -1.0f, -1.0f,
-			 1.0f,  1.0f, -1.0f,
-			-1.0f,  1.0f, -1.0f,
-
-			-1.0f, -1.0f,  1.0f,
-			-1.0f, -1.0f, -1.0f,
-			-1.0f,  1.0f, -1.0f,
-			-1.0f,  1.0f, -1.0f,
-			-1.0f,  1.0f,  1.0f,
-			-1.0f, -1.0f,  1.0f,
-
-			 1.0f, -1.0f, -1.0f,
-			 1.0f, -1.0f,  1.0f,
-			 1.0f,  1.0f,  1.0f,
-			 1.0f,  1.0f,  1.0f,
-			 1.0f,  1.0f, -1.0f,
-			 1.0f, -1.0f, -1.0f,
-
-			-1.0f, -1.0f,  1.0f,
-			-1.0f,  1.0f,  1.0f,
-			 1.0f,  1.0f,  1.0f,
-			 1.0f,  1.0f,  1.0f,
-			 1.0f, -1.0f,  1.0f,
-			-1.0f, -1.0f,  1.0f,
-
-			-1.0f,  1.0f, -1.0f,
-			 1.0f,  1.0f, -1.0f,
-			 1.0f,  1.0f,  1.0f,
-			 1.0f,  1.0f,  1.0f,
-			-1.0f,  1.0f,  1.0f,
-			-1.0f,  1.0f, -1.0f,
-
-			-1.0f, -1.0f, -1.0f,
-			-1.0f, -1.0f,  1.0f,
-			 1.0f, -1.0f, -1.0f,
-			 1.0f, -1.0f, -1.0f,
-			-1.0f, -1.0f,  1.0f,
-			 1.0f, -1.0f,  1.0f
-		};
-
-		glGenVertexArrays(1, &_conversionCubeVAO);
-		glGenBuffers(1, &_conversionCubeVBO);
-
-		glBindBuffer(GL_ARRAY_BUFFER, _conversionCubeVBO);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-		glBindVertexArray(_conversionCubeVAO);
-		glEnableVertexAttribArray(0);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
-		glBindVertexArray(0);
-	}
-
-	glBindVertexArray(_conversionCubeVAO);
-	glDrawArrays(GL_TRIANGLES, 0, 36);
-	glBindVertexArray(0);
+	_renderCtrl.renderConversionCube();
 }
 
 QVector3D GLWidget::getLightPosition() const
@@ -2730,9 +1519,9 @@ void GLWidget::syncDefaultLightColorUniforms()
 	_diffuseLight = _defaultLightColor;
 	_specularLight = _defaultLightColor;
 
-	_fgShader->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
-	_fgShader->setUniformValue("lightSource.diffuse", _diffuseLight.toVector3D());
-	_fgShader->setUniformValue("lightSource.specular", _specularLight.toVector3D());
+	_renderCtrl.fgShader()->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
+	_renderCtrl.fgShader()->setUniformValue("lightSource.diffuse", _diffuseLight.toVector3D());
+	_renderCtrl.fgShader()->setUniformValue("lightSource.specular", _specularLight.toVector3D());
 }
 
 void GLWidget::setLightOffset(const QVector3D& offset)
@@ -2740,7 +1529,7 @@ void GLWidget::setLightOffset(const QVector3D& offset)
 	_lightOffsetX = offset.x();
 	_lightOffsetY = offset.y();
 	_lightOffsetZ = offset.z();
-	_shadowMapNeedsInitialization = true;
+	_renderCtrl.setShadowMapNeedsInitialization(true);
 }
 
 QVector4D GLWidget::getDefaultLightColor() const
@@ -2751,9 +1540,9 @@ QVector4D GLWidget::getDefaultLightColor() const
 void GLWidget::setDefaultLightColor(const QVector4D& defaultLightColor)
 {
 	_defaultLightColor = defaultLightColor;
-	_fgShader->bind();
+	_renderCtrl.fgShader()->bind();
 	syncDefaultLightColorUniforms();
-	_fgShader->release();
+	_renderCtrl.fgShader()->release();
 }
 
 QQuaternion GLWidget::cameraUpAxisConventionRotation() const
@@ -2955,7 +1744,7 @@ void GLWidget::setCameraUpAxisZUp(bool zUp, bool syncToolbar)
 	updateEnvMapRotationMatrix();
 	updateFloorPlane();
 	recalculateVisibleSceneStats(false);
-	_shadowMapNeedsInitialization = true;
+	_renderCtrl.setShadowMapNeedsInitialization(true);
 	initializeViewCubeLabels();
 
 	if (syncToolbar && _viewToolbar)
@@ -2979,8 +1768,8 @@ void GLWidget::setViewMode(ViewMode mode)
 		// On an empty scene, keep _viewCtrl._viewBoundingSphereDia at the current
 		// view range so the zoom animation is a no-op while the
 		// rotation animation still proceeds normally.
-		const std::vector<int>& visibleIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
-		if (!_meshStore.empty() && !visibleIds.empty())
+		const std::vector<int>& visibleIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
+		if (!_sceneRuntime.meshStore().empty() && !visibleIds.empty())
 		{
 			QVector3D projCenter;
 			_viewCtrl._viewBoundingSphereDia = computeFitViewRange(
@@ -3009,8 +1798,8 @@ void GLWidget::fitAll()
 	// Guard: do nothing if the scene has no visible meshes.
 	// Without this, computeFitViewRange() operates on degenerate bounds,
 	// driving _viewCtrl._viewRange to near-zero and hiding the trihedron.
-	const std::vector<int>& visibleIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
-	if (_meshStore.empty() || visibleIds.empty())
+	const std::vector<int>& visibleIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
+	if (_sceneRuntime.meshStore().empty() || visibleIds.empty())
 		return;
 
 	if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
@@ -3110,7 +1899,7 @@ void GLWidget::setAutoFitViewOnUpdate(bool update)
 void GLWidget::setSelectionHighlighting(bool highlight)
 {
 	_selectionHighlighting = highlight;
-	_fgShader->setUniformValue("selectionHighlighting", _selectionHighlighting);
+	_renderCtrl.fgShader()->setUniformValue("selectionHighlighting", _selectionHighlighting);
 	update();
 }
 
@@ -3273,8 +2062,8 @@ bool GLWidget::positionGameplayCameraForScene(GLCamera::CameraMode mode)
 		return false;
 	}
 
-	const std::vector<int>& visibleIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
-	if (_meshStore.empty() || visibleIds.empty())
+	const std::vector<int>& visibleIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
+	if (_sceneRuntime.meshStore().empty() || visibleIds.empty())
 		return false;
 
 	const QVector3D worldUp = currentWorldUpVector();
@@ -3348,8 +2137,8 @@ bool GLWidget::positionGameplayCameraForScene(GLCamera::CameraMode mode)
 
 void GLWidget::setCameraMode(GLCamera::CameraMode mode)
 {
-	const std::vector<int>& visibleIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
-	const bool hasVisibleScene = !_meshStore.empty() && !visibleIds.empty();
+	const std::vector<int>& visibleIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
+	const bool hasVisibleScene = !_sceneRuntime.meshStore().empty() && !visibleIds.empty();
 
 	if (mode == GLCamera::CameraMode::Fly || mode == GLCamera::CameraMode::FirstPerson)
 	{
@@ -3450,25 +2239,25 @@ void GLWidget::setZoomingActive(bool active)
 
 void GLWidget::setDisplayList(const std::vector<int>& ids)
 {
-	_displayedObjectsIds = ids;
-	++_runtimeVisibilityMaskRevision;
+	_sceneRuntime.displayedObjectsIds() = ids;
+	_sceneRuntime.setRuntimeVisibilityMaskRevision(_sceneRuntime.runtimeVisibilityMaskRevision() + 1);
 
 	std::vector<int> allObjectIDs;
-	for (size_t i = 0; i < _meshStore.size(); i++)
+	for (size_t i = 0; i < _sceneRuntime.meshStore().size(); i++)
 	{
 		allObjectIDs.push_back(static_cast<int>(i));
 	}
-	_hiddenObjectsIds.clear();
+	_sceneRuntime.hiddenObjectsIds().clear();
 	std::set_difference(
 		allObjectIDs.begin(), allObjectIDs.end(),
-		_displayedObjectsIds.begin(), _displayedObjectsIds.end(),
-		std::back_inserter(_hiddenObjectsIds)
+		_sceneRuntime.displayedObjectsIds().begin(), _sceneRuntime.displayedObjectsIds().end(),
+		std::back_inserter(_sceneRuntime.hiddenObjectsIds())
 	);
 
-	if (_hiddenObjectsIds.size() == 0 && _visibleSwapped)
+	if (_sceneRuntime.hiddenObjectsIds().size() == 0 && _sceneRuntime.visibleSwapped())
 	{
-		_visibleSwapped = false;
-		emit visibleSwapped(_visibleSwapped);
+		_sceneRuntime.setVisibleSwapped(false);
+		emit visibleSwapped(_sceneRuntime.visibleSwapped());
 	}
 
 	_viewCtrl._currentTranslation = _primaryCamera->getPosition();
@@ -3519,7 +2308,7 @@ void GLWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 	_viewCtrl._visibleLowestZ = -1.0f;
 	_viewCtrl._visibleHighestZ = 1.0f;
 
-	const std::vector<int>& visibleIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+	const std::vector<int>& visibleIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
 	if (updateMemorySize)
 	{
 		_displayedObjectsMemSize = 0;
@@ -3542,7 +2331,7 @@ void GLWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore.at(i);
+			SceneMesh* mesh = _sceneRuntime.meshStore().at(i);
 			if (!isMeshAnimationVisible(mesh))
 				continue;
 			if (updateMemorySize)
@@ -3601,7 +2390,7 @@ void GLWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 		{
 			try
 			{
-				TriangleMesh* mesh = _meshStore.at(i);
+				SceneMesh* mesh = _sceneRuntime.meshStore().at(i);
 				if (!isMeshAnimationVisible(mesh))
 					continue;
 				BoundingSphere ms = mesh->getBoundingSphere();
@@ -3617,9 +2406,9 @@ void GLWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 
 void GLWidget::triggerShadowRecomputation()
 {
-	if (!_fgShader)
+	if (!_renderCtrl.fgShader())
 	{
-		_shadowMapNeedsInitialization = true;
+		_renderCtrl.setShadowMapNeedsInitialization(true);
 		return;
 	}
 
@@ -3627,37 +2416,37 @@ void GLWidget::triggerShadowRecomputation()
 	_viewCtrl._viewBoundingSphereDia = boundingRadius * 2;
 
 	float lightDistance = calculateLightDistance();
-	const float coverageHint = (_shadowFrustumExtentW > 0.0f)
-		? (std::max)(_shadowFrustumExtentW, _shadowFrustumExtentH)
+	const float coverageHint = (_renderCtrl.shadowFrustumExtentW() > 0.0f)
+		? (std::max)(_renderCtrl.shadowFrustumExtentW(), _renderCtrl.shadowFrustumExtentH())
 		: -1.0f;
 	float shadowFactor = shadowMapper.calculateShadowFactor(boundingRadius, lightDistance, coverageHint);
 	shadowFactor = std::clamp(shadowFactor, 1.0f, 8.0f);
 
-	_shadowWidth = static_cast<int>(1024 * shadowFactor);
-	_shadowHeight = static_cast<int>(1024 * shadowFactor);
+	_renderCtrl.setShadowWidth(static_cast<int>(1024 * shadowFactor));
+	_renderCtrl.setShadowHeight(static_cast<int>(1024 * shadowFactor));
 
 	// Get SIZE-AWARE shadow parameters
 	auto shadowParams = shadowMapper.getShadowQualityParamsSmooth(boundingRadius);
 	float shadowSoftness = shadowMapper.calculateShadowSoftness(_viewCtrl._viewBoundingSphereDia);
 	float sizeScale = shadowMapper.calculateSizeQualityScale(boundingRadius);
 
-	_fgShader->bind();
+	_renderCtrl.fgShader()->bind();
 
-	_fgShader->setUniformValue("shadowSoftness", shadowSoftness);
+	_renderCtrl.fgShader()->setUniformValue("shadowSoftness", shadowSoftness);
 
 	// Size-aware uniforms
-	_fgShader->setUniformValue("shadowMaxKernelSize", shadowParams.maxKernelSize);
-	_fgShader->setUniformValue("shadowSoftnessScale", shadowParams.softnessScale);
-	_fgShader->setUniformValue("shadowMaxSoftnessClamp", shadowParams.maxSoftnessClamp);
-	_fgShader->setUniformValue("shadowBiasMin", shadowParams.biasMin);
-	_fgShader->setUniformValue("shadowBiasMax", shadowParams.biasMax);
-	_fgShader->setUniformValue("shadowTransitionRange", shadowParams.transitionRange);
-	_fgShader->setUniformValue("shadowGammaCorrection", shadowParams.gammaCorrection);
-	_fgShader->setUniformValue("shadowSizeScale", sizeScale);
+	_renderCtrl.fgShader()->setUniformValue("shadowMaxKernelSize", shadowParams.maxKernelSize);
+	_renderCtrl.fgShader()->setUniformValue("shadowSoftnessScale", shadowParams.softnessScale);
+	_renderCtrl.fgShader()->setUniformValue("shadowMaxSoftnessClamp", shadowParams.maxSoftnessClamp);
+	_renderCtrl.fgShader()->setUniformValue("shadowBiasMin", shadowParams.biasMin);
+	_renderCtrl.fgShader()->setUniformValue("shadowBiasMax", shadowParams.biasMax);
+	_renderCtrl.fgShader()->setUniformValue("shadowTransitionRange", shadowParams.transitionRange);
+	_renderCtrl.fgShader()->setUniformValue("shadowGammaCorrection", shadowParams.gammaCorrection);
+	_renderCtrl.fgShader()->setUniformValue("shadowSizeScale", sizeScale);
 
-	_fgShader->release();
+	_renderCtrl.fgShader()->release();
 
-	_shadowMapNeedsInitialization = true;
+	_renderCtrl.setShadowMapNeedsInitialization(true);
 	makeCurrent();
 	loadFloor();	
 }
@@ -3684,11 +2473,11 @@ QVector<QUuid> GLWidget::duplicateObjects(const std::vector<int>& ids)
 
 	for (int id : ids)
 	{
-		TriangleMesh* originalMesh = _meshStore.at(id);
+		SceneMesh* originalMesh = _sceneRuntime.meshStore().at(id);
 		if (originalMesh)
 		{
 			// Clone the mesh
-			TriangleMesh* newMesh = originalMesh->clone();
+			SceneMesh* newMesh = originalMesh->clone();
 			if (newMesh)
 			{
 				// Generate unique name with suffix
@@ -3725,7 +2514,7 @@ void GLWidget::updateBoundingBox()
 
 void GLWidget::updateFloorPlane()
 {
-	if ((!_floorPlane || !_fgShader) && (!_gridPlane || !_gridShader))
+	if ((!_floorPlane || !_renderCtrl.fgShader()) && (!_gridPlane || !_renderCtrl.gridShader()))
 		return;
 
 	// Use helper to update floor geometry
@@ -3736,9 +2525,9 @@ void GLWidget::updateFloorPlane()
 
 	_floorPlaneZ = groundPlaneZ();
 	const float groundExtent = groundPlaneExtent();
-	if (_floorPlane && _fgShader)
+	if (_floorPlane && _renderCtrl.fgShader())
 	{
-		_floorPlane->setPlane(_fgShader.get(), _floorCenter, groundExtent, groundExtent, 1, 1, _floorPlaneZ, _floorTexRepeatS, _floorTexRepeatT, floorPlaneOrientation());
+		_floorPlane->setPlane(_renderCtrl.fgShader(), _floorCenter, groundExtent, groundExtent, 1, 1, _floorPlaneZ, _floorTexRepeatS, _floorTexRepeatT, floorPlaneOrientation());
 		applyFloorPlaneMaterialSettings();
 	}
 
@@ -3767,26 +2556,26 @@ void GLWidget::updateFloorPlane()
 
 void GLWidget::syncPunctualLightUniforms(int lightCount, bool hasPunctualLights)
 {
-	if (!_fgShader)
+	if (!_renderCtrl.fgShader())
 		return;
 
-	_fgShader->bind();
-	_fgShader->setUniformValue("lightCount", lightCount);
-	_fgShader->setUniformValue("hasPunctualLights", hasPunctualLights);
+	_renderCtrl.fgShader()->bind();
+	_renderCtrl.fgShader()->setUniformValue("lightCount", lightCount);
+	_renderCtrl.fgShader()->setUniformValue("hasPunctualLights", hasPunctualLights);
 }
 
 bool GLWidget::shouldUseFallbackLightForVisibleScene() const
 {
-	const std::vector<int>& visibleIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+	const std::vector<int>& visibleIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
 	bool sawVisibleMesh = false;
 	bool sawGltfDerivedMesh = false;
 
 	for (int meshId : visibleIds)
 	{
-		if (meshId < 0 || meshId >= static_cast<int>(_meshStore.size()))
+		if (meshId < 0 || meshId >= static_cast<int>(_sceneRuntime.meshStore().size()))
 			continue;
 
-		TriangleMesh* mesh = _meshStore.at(meshId);
+		SceneMesh* mesh = _sceneRuntime.meshStore().at(meshId);
 		if (!mesh)
 			continue;
 
@@ -3816,9 +2605,9 @@ void GLWidget::updateClippingPlane()
 	float xside = _clipXFlipped || _clipXCoeff > 0 ? -1.0f : 1.0f;
 	float yside = _clipYFlipped || _clipYCoeff > 0 ? 1.0f : -1.0f;
 	float zside = _clipZFlipped || _clipZCoeff > 0 ? -1.0f : 1.0f;
-	_clippingPlaneXY->setPlane(_clippingPlaneShader.get(), _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, -_clipZCoeff * zside, _floorSize, _floorSize);
-	_clippingPlaneYZ->setPlane(_clippingPlaneShader.get(), _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, -_clipXCoeff * xside, _floorSize, _floorSize);
-	_clippingPlaneZX->setPlane(_clippingPlaneShader.get(), _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, -_clipYCoeff * yside, _floorSize, _floorSize);
+	_clippingPlaneXY->setPlane(_renderCtrl.clippingPlaneShader(), _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, -_clipZCoeff * zside, _floorSize, _floorSize);
+	_clippingPlaneYZ->setPlane(_renderCtrl.clippingPlaneShader(), _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, -_clipXCoeff * xside, _floorSize, _floorSize);
+	_clippingPlaneZX->setPlane(_renderCtrl.clippingPlaneShader(), _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, -_clipYCoeff * yside, _floorSize, _floorSize);
 	_clippingPlanesEditor->setCoefficientLimits(-_viewCtrl._boundingBox.getXSize()/2, _viewCtrl._boundingBox.getXSize()/2, 
 		-_viewCtrl._boundingBox.getYSize() / 2, _viewCtrl._boundingBox.getYSize() / 2,
 		-_viewCtrl._boundingBox.getZSize() / 2, _viewCtrl._boundingBox.getZSize() / 2);
@@ -3854,8 +2643,8 @@ void GLWidget::showExplodedViewPanel(bool show)
 		if (_explodedViewCtrl.isManualPlacementSuppressed() && !_explodedViewCtrl.manualHiddenStates().isEmpty())
 		{
 			QHash<QUuid, QVector3D> savedExplosionOffsets;
-			savedExplosionOffsets.reserve(static_cast<int>(_meshStore.size()));
-			for (TriangleMesh* mesh : _meshStore)
+			savedExplosionOffsets.reserve(static_cast<int>(_sceneRuntime.meshStore().size()));
+			for (SceneMesh* mesh : _sceneRuntime.meshStore())
 			{
 				if (!mesh)
 					continue;
@@ -3867,15 +2656,15 @@ void GLWidget::showExplodedViewPanel(bool show)
 			for (auto it = _explodedViewCtrl.manualHiddenStates().cbegin();
 			     it != _explodedViewCtrl.manualHiddenStates().cend(); ++it)
 			{
-				TriangleMesh* mesh = getMeshByUuid(it.key());
+				SceneMesh* mesh = getMeshByUuid(it.key());
 				if (!mesh)
 					continue;
 
 				const TransformState& state = it.value();
-				applyExplodedViewTransformState(mesh, state, false);
+				ExplodedViewRuntimeController::applyExplodedViewTransformState(mesh, state, false);
 			}
 
-			for (TriangleMesh* mesh : _meshStore)
+			for (SceneMesh* mesh : _sceneRuntime.meshStore())
 			{
 				if (!mesh)
 					continue;
@@ -3899,7 +2688,7 @@ void GLWidget::showExplodedViewPanel(bool show)
 			for (auto it = _explodedViewCtrl.manualOriginalStates().cbegin();
 			     it != _explodedViewCtrl.manualOriginalStates().cend(); ++it)
 			{
-				TriangleMesh* mesh = getMeshByUuid(it.key());
+				SceneMesh* mesh = getMeshByUuid(it.key());
 				if (!mesh)
 					continue;
 
@@ -3919,28 +2708,28 @@ void GLWidget::showExplodedViewPanel(bool show)
 		// This means clearing auto offsets and temporarily restoring the original
 		// mesh TRS for any staged manual placement, without discarding the staged
 		// manual pose that will be restored when the panel is shown again.
-		for (size_t i = 0; i < _meshStore.size(); ++i)
+		for (size_t i = 0; i < _sceneRuntime.meshStore().size(); ++i)
 		{
-			if (_meshStore[i])
-				_meshStore[i]->setExplosionOffset(QVector3D());
+			if (_sceneRuntime.meshStore()[i])
+				_sceneRuntime.meshStore()[i]->setExplosionOffset(QVector3D());
 		}
 
 		for (auto it = _explodedViewCtrl.manualOriginalStates().cbegin();
 		     it != _explodedViewCtrl.manualOriginalStates().cend(); ++it)
 		{
-			TriangleMesh* mesh = getMeshByUuid(it.key());
+			SceneMesh* mesh = getMeshByUuid(it.key());
 			if (!mesh)
 				continue;
 
 			const TransformState& state = it.value();
-			applyExplodedViewTransformState(mesh, state, false);
+			ExplodedViewRuntimeController::applyExplodedViewTransformState(mesh, state, false);
 		}
 
 		_explodedViewCtrl.setManualPlacementSuppressed(!_explodedViewCtrl.manualHiddenStates().isEmpty());
-		for (size_t i = 0; i < _meshStore.size(); ++i)
+		for (size_t i = 0; i < _sceneRuntime.meshStore().size(); ++i)
 		{
-			if (_meshStore[i])
-				_meshStore[i]->setSceneRenderTransformFast(_meshStore[i]->getSceneRenderTransform());
+			if (_sceneRuntime.meshStore()[i])
+				_sceneRuntime.meshStore()[i]->setSceneRenderTransformFast(_sceneRuntime.meshStore()[i]->getSceneRenderTransform());
 		}
 		update();
 	}
@@ -3957,27 +2746,27 @@ void GLWidget::updateExplosion()
     const QSet<QUuid>& assemblyUuids = _explodedViewPanel->assemblyUuids();
     if (assemblyUuids.isEmpty()) {
         _explodedViewCtrl.explodedViewManager()->reset();
-        for (size_t i = 0; i < _meshStore.size(); ++i)
+        for (size_t i = 0; i < _sceneRuntime.meshStore().size(); ++i)
         {
-            if (_meshStore[i])
+            if (_sceneRuntime.meshStore()[i])
             {
-                _meshStore[i]->setExplosionOffset(QVector3D());
-                _meshStore[i]->setSceneRenderTransformFast(_meshStore[i]->getSceneRenderTransform());
+                _sceneRuntime.meshStore()[i]->setExplosionOffset(QVector3D());
+                _sceneRuntime.meshStore()[i]->setSceneRenderTransformFast(_sceneRuntime.meshStore()[i]->getSceneRenderTransform());
             }
         }
-        _shadowMapNeedsInitialization = true;
+        _renderCtrl.setShadowMapNeedsInitialization(true);
         update();
         return;
     }
 
     // Clear any previous offsets BEFORE building centroids so that getBoundingSphere()
     // (used in the no-scene-graph fallback) returns the original non-exploded centers.
-    for (size_t i = 0; i < _meshStore.size(); ++i)
+    for (size_t i = 0; i < _sceneRuntime.meshStore().size(); ++i)
     {
-        if (_meshStore[i])
+        if (_sceneRuntime.meshStore()[i])
         {
-            _meshStore[i]->setExplosionOffset(QVector3D());
-            _meshStore[i]->setSceneRenderTransformFast(_meshStore[i]->getSceneRenderTransform());
+            _sceneRuntime.meshStore()[i]->setExplosionOffset(QVector3D());
+            _sceneRuntime.meshStore()[i]->setSceneRenderTransformFast(_sceneRuntime.meshStore()[i]->getSceneRenderTransform());
         }
     }
 
@@ -3993,7 +2782,7 @@ void GLWidget::updateExplosion()
         const auto wt = sg->evaluateWorldTransforms();
         for (const QUuid& uuid : assemblyUuids)
         {
-            TriangleMesh* mesh = getMeshByUuid(uuid);
+            SceneMesh* mesh = getMeshByUuid(uuid);
             if (!mesh) continue;
 
             const BoundingBox bb = mesh->getBoundingBox();
@@ -4014,7 +2803,7 @@ void GLWidget::updateExplosion()
         // No scene graph — fall back to bounding sphere centres.
         for (const QUuid& uuid : assemblyUuids)
         {
-            TriangleMesh* mesh = getMeshByUuid(uuid);
+            SceneMesh* mesh = getMeshByUuid(uuid);
             if (!mesh) continue;
 
             const BoundingBox bb = mesh->getBoundingBox();
@@ -4066,7 +2855,7 @@ void GLWidget::updateExplosion()
     // the exploded position for every render path (main, selection, shadow, etc.).
     for (const QUuid& uuid : assemblyUuids)
     {
-        TriangleMesh* mesh = getMeshByUuid(uuid);
+        SceneMesh* mesh = getMeshByUuid(uuid);
         if (mesh)
         {
             mesh->setExplosionOffset(_explodedViewCtrl.explodedViewManager()->offsetForMesh(uuid));
@@ -4074,17 +2863,17 @@ void GLWidget::updateExplosion()
         }
     }
 
-    _shadowMapNeedsInitialization = true;
+    _renderCtrl.setShadowMapNeedsInitialization(true);
     update();
 }
 
 // ---------------------------------------------------------------------------
 // Render wrapper: explosion offsets are baked directly into each mesh's
-// combinedRenderTransform() via TriangleMesh::_explosionOffset, so both the
+// combinedRenderTransform() via RenderableMesh::_explosionOffset, so both the
 // main render and the selection pass see the correct exploded positions
 // automatically without any per-call shader state manipulation.
 // ---------------------------------------------------------------------------
-void GLWidget::renderMeshExploded(TriangleMesh* mesh, DisplayMode mode)
+void GLWidget::renderMeshExploded(SceneMesh* mesh, DisplayMode mode)
 {
     renderMeshWithDisplayMode(mesh, mode);
 }
@@ -4320,7 +3109,7 @@ float GLWidget::groundPlaneZ()
 	const float lowestUp = _viewCtrl._cameraUpAxisZUp
 		? static_cast<float>(_viewCtrl._boundingBox.zMin())
 		: static_cast<float>(_viewCtrl._boundingBox.yMin());
-	return lowestUp - (_floorSize * _floorOffsetPercent) - computeFloorDepthBias(workspaceExtent, _floorSize);
+	return lowestUp - (_floorSize * _floorOffsetPercent) - SceneRenderController::computeFloorDepthBias(workspaceExtent, _floorSize);
 }
 
 void GLWidget::refreshNavigationOverlayStyle()
@@ -4373,17 +3162,17 @@ void GLWidget::setHatchLineColor(const QColor& color)
 void GLWidget::setHatchTexture(const QString& path)
 {
 	_hatchTexturePath = path;
-	_cappingTexture = loadTextureFromFile(_hatchTexturePath.toStdString().c_str());
+	_renderCtrl.setCappingTexture(loadTextureFromFile(_hatchTexturePath.toStdString().c_str()));
 	glActiveTexture(GL_TEXTURE6);
-	glBindTexture(GL_TEXTURE_2D, _cappingTexture);
+	glBindTexture(GL_TEXTURE_2D, _renderCtrl.cappingTexture());
 	update();
 }
 
 void GLWidget::showAxis(bool show)
 {
 	_viewCtrl._showAxis = show;
-	_fgShader->bind();
-	_fgShader->setUniformValue("showAxis", _viewCtrl._showAxis);
+	_renderCtrl.fgShader()->bind();
+	_renderCtrl.fgShader()->setUniformValue("showAxis", _viewCtrl._showAxis);
 	update();
 }
 
@@ -4418,7 +3207,7 @@ bool GLWidget::beginExplodedViewManualPlacement(const QVector<QUuid>& selectionU
 	{
 		for (const QUuid& uuid : selectionUuids)
 		{
-			TriangleMesh* mesh = getMeshByUuid(uuid);
+			SceneMesh* mesh = getMeshByUuid(uuid);
 			if (uuid.isNull() || !mesh)
 				continue;
 
@@ -4448,7 +3237,7 @@ bool GLWidget::beginExplodedViewManualPlacement(const QVector<QUuid>& selectionU
 		for (int id : selectedIds)
 		{
 			const QUuid uuid = getUuidByIndex(id);
-			TriangleMesh* mesh = getMeshByIndex(id);
+			SceneMesh* mesh = getMeshByIndex(id);
 			if (uuid.isNull() || !mesh)
 				continue;
 
@@ -4494,7 +3283,7 @@ bool GLWidget::hasExplodedViewManualTransformChanges() const
 		}
 		else
 		{
-			const TriangleMesh* mesh = getMeshByUuid(it.key());
+			const SceneMesh* mesh = getMeshByUuid(it.key());
 			if (!mesh)
 				continue;
 
@@ -4504,7 +3293,7 @@ bool GLWidget::hasExplodedViewManualTransformChanges() const
 				mesh->getExplodedViewScaling(),
 				mesh->getExplodedViewRotationQuaternion());
 		}
-		if (!transformStatesNearlyEqual(it.value(), currentState))
+		if (!ExplodedViewRuntimeController::transformStatesNearlyEqual(it.value(), currentState))
 			return true;
 	}
 
@@ -4526,7 +3315,7 @@ QSet<QUuid> GLWidget::explodedViewManualPlacementUuids() const
 		}
 		else
 		{
-			const TriangleMesh* mesh = getMeshByUuid(it.key());
+			const SceneMesh* mesh = getMeshByUuid(it.key());
 			if (!mesh)
 				continue;
 
@@ -4536,7 +3325,7 @@ QSet<QUuid> GLWidget::explodedViewManualPlacementUuids() const
 				mesh->getExplodedViewScaling(),
 				mesh->getExplodedViewRotationQuaternion());
 		}
-		if (!transformStatesNearlyEqual(it.value(), currentState))
+		if (!ExplodedViewRuntimeController::transformStatesNearlyEqual(it.value(), currentState))
 			uuids.insert(it.key());
 	}
 
@@ -4568,7 +3357,7 @@ QMap<QUuid, TransformState> GLWidget::explodedViewManualStates() const
 		}
 		else
 		{
-			const TriangleMesh* mesh = getMeshByUuid(it.key());
+			const SceneMesh* mesh = getMeshByUuid(it.key());
 			if (!mesh)
 				continue;
 
@@ -4578,7 +3367,7 @@ QMap<QUuid, TransformState> GLWidget::explodedViewManualStates() const
 				mesh->getExplodedViewScaling(),
 				mesh->getExplodedViewRotationQuaternion());
 		}
-		if (!transformStatesNearlyEqual(it.value(), currentState))
+		if (!ExplodedViewRuntimeController::transformStatesNearlyEqual(it.value(), currentState))
 			states.insert(it.key(), currentState);
 	}
 
@@ -4594,12 +3383,12 @@ void GLWidget::restoreExplodedViewManualStates(const QMap<QUuid, TransformState>
 	_explodedViewCtrl.manualOriginalStates().clear();
 	for (auto it = states.cbegin(); it != states.cend(); ++it)
 	{
-		TriangleMesh* mesh = getMeshByUuid(it.key());
+		SceneMesh* mesh = getMeshByUuid(it.key());
 		if (!mesh)
 			continue;
 
 		_explodedViewCtrl.manualOriginalStates().insert(it.key(), TransformState());
-		applyExplodedViewTransformState(mesh, it.value(), false);
+		ExplodedViewRuntimeController::applyExplodedViewTransformState(mesh, it.value(), false);
 
 		const QVector3D savedExplosionOffset = mesh->explosionOffset();
 		mesh->setExplosionOffset(QVector3D());
@@ -4608,7 +3397,7 @@ void GLWidget::restoreExplodedViewManualStates(const QMap<QUuid, TransformState>
 		mesh->setSceneRenderTransformFast(mesh->getSceneRenderTransform());
 	}
 
-	_shadowMapNeedsInitialization = true;
+	_renderCtrl.setShadowMapNeedsInitialization(true);
 	update();
 	emit explodedViewManualPlacementChanged();
 }
@@ -4629,7 +3418,7 @@ void GLWidget::setExplodedViewManualPlacementRotationDelta(const QVector3D& delt
 		return;
 
 	_explodedViewCtrl.setManualSessionRotationEuler(delta);
-	_explodedViewCtrl.setManualSessionRotationQuat(quaternionFromMeshEuler(delta));
+	_explodedViewCtrl.setManualSessionRotationQuat(MeshMathUtils::quaternionFromMeshEuler(delta));
 	applyExplodedViewManualPlacementSessionTransform();
 	emit explodedViewManualPlacementChanged();
 }
@@ -4640,7 +3429,7 @@ void GLWidget::finishExplodedViewManualPlacement()
 	changedUuids.reserve(_explodedViewCtrl.manualOriginalStates().size());
 	for (auto it = _explodedViewCtrl.manualOriginalStates().cbegin(); it != _explodedViewCtrl.manualOriginalStates().cend(); ++it)
 	{
-		TriangleMesh* mesh = getMeshByUuid(it.key());
+		SceneMesh* mesh = getMeshByUuid(it.key());
 		if (!mesh)
 			continue;
 
@@ -4649,7 +3438,7 @@ void GLWidget::finishExplodedViewManualPlacement()
 			mesh->getExplodedViewRotation(),
 			mesh->getExplodedViewScaling(),
 			mesh->getExplodedViewRotationQuaternion());
-		if (!transformStatesNearlyEqual(it.value(), currentState))
+		if (!ExplodedViewRuntimeController::transformStatesNearlyEqual(it.value(), currentState))
 			changedUuids.append(it.key());
 	}
 
@@ -4659,7 +3448,7 @@ void GLWidget::finishExplodedViewManualPlacement()
 
 	for (const QUuid& uuid : changedUuids)
 	{
-		if (TriangleMesh* mesh = getMeshByUuid(uuid))
+		if (SceneMesh* mesh = getMeshByUuid(uuid))
 		{
 			const QVector3D savedExplosionOffset = mesh->explosionOffset();
 			mesh->setExplosionOffset(QVector3D());
@@ -4670,18 +3459,18 @@ void GLWidget::finishExplodedViewManualPlacement()
 	}
 
 	const QList<int> selectedIds = _selectionManager ? _selectionManager->getSelectedIds() : QList<int>{};
-	for (TriangleMesh* mesh : _meshStore)
+	for (SceneMesh* mesh : _sceneRuntime.meshStore())
 	{
 		if (mesh)
 			mesh->deselect();
 	}
 	for (int id : selectedIds)
 	{
-		if (id >= 0 && id < static_cast<int>(_meshStore.size()) && _meshStore[id])
-			_meshStore[id]->select();
+		if (id >= 0 && id < static_cast<int>(_sceneRuntime.meshStore().size()) && _sceneRuntime.meshStore()[id])
+			_sceneRuntime.meshStore()[id]->select();
 	}
 
-	_shadowMapNeedsInitialization = true;
+	_renderCtrl.setShadowMapNeedsInitialization(true);
 	update();
 	emit explodedViewManualPlacementChanged();
 }
@@ -4689,8 +3478,8 @@ void GLWidget::finishExplodedViewManualPlacement()
 void GLWidget::clearExplodedViewManualPlacement()
 {
 	QHash<QUuid, QVector3D> savedExplosionOffsets;
-	savedExplosionOffsets.reserve(static_cast<int>(_meshStore.size()));
-	for (TriangleMesh* mesh : _meshStore)
+	savedExplosionOffsets.reserve(static_cast<int>(_sceneRuntime.meshStore().size()));
+	for (SceneMesh* mesh : _sceneRuntime.meshStore())
 	{
 		if (!mesh)
 			continue;
@@ -4702,14 +3491,14 @@ void GLWidget::clearExplodedViewManualPlacement()
 	// Restore meshes to their original states before clearing the session.
 	for (auto it = _explodedViewCtrl.manualOriginalStates().cbegin(); it != _explodedViewCtrl.manualOriginalStates().cend(); ++it)
 	{
-		TriangleMesh* mesh = getMeshByUuid(it.key());
+		SceneMesh* mesh = getMeshByUuid(it.key());
 		if (!mesh)
 			continue;
 
-		applyExplodedViewTransformState(mesh, it.value(), false);
+		ExplodedViewRuntimeController::applyExplodedViewTransformState(mesh, it.value(), false);
 	}
 
-	for (TriangleMesh* mesh : _meshStore)
+	for (SceneMesh* mesh : _sceneRuntime.meshStore())
 	{
 		if (!mesh)
 			continue;
@@ -4720,40 +3509,40 @@ void GLWidget::clearExplodedViewManualPlacement()
 
 	_explodedViewCtrl.clearManualPlacement();
 	showTransformGizmoForSelection(false);
-	_shadowMapNeedsInitialization = true;
+	_renderCtrl.setShadowMapNeedsInitialization(true);
 	update();
 	emit explodedViewManualPlacementChanged();
 }
 
 void GLWidget::showShadows(bool show)
 {
-	_shadowsEnabled = show;
-	_fgShader->bind();
-	_fgShader->setUniformValue("shadowsEnabled", _shadowsEnabled);
+	_renderCtrl.setShadowsEnabled(show);
+	_renderCtrl.fgShader()->bind();
+	_renderCtrl.fgShader()->setUniformValue("shadowsEnabled", _renderCtrl.shadowsEnabled());
 	update();
 }
 
 void GLWidget::showSelfShadows(bool show)
 {
-	_selfShadowsEnabled = show;		
-	_fgShader->bind();
-	_fgShader->setUniformValue("selfShadowsEnabled", _selfShadowsEnabled);
+	_renderCtrl.setSelfShadowsEnabled(show);		
+	_renderCtrl.fgShader()->bind();
+	_renderCtrl.fgShader()->setUniformValue("selfShadowsEnabled", _renderCtrl.selfShadowsEnabled());
 	update();
 }
 
 void GLWidget::showEnvironment(bool show)
 {
-	_envMapEnabled = show;
-	_fgShader->bind();
-	_fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
+	_renderCtrl.setEnvMapEnabled(show);
+	_renderCtrl.fgShader()->bind();
+	_renderCtrl.fgShader()->setUniformValue("envMapEnabled", _renderCtrl.envMapEnabled());
 	update();
 }
 
 void GLWidget::showSkyBox(bool show)
 {
-	_skyBoxEnabled = show;
-	_fgShader->bind();
-	_fgShader->setUniformValue("skyBoxEnabled", _skyBoxEnabled);
+	_renderCtrl.setSkyBoxEnabled(show);
+	_renderCtrl.fgShader()->bind();
+	_renderCtrl.fgShader()->setUniformValue("skyBoxEnabled", _renderCtrl.skyBoxEnabled());
 	update();
 }
 
@@ -4764,15 +3553,15 @@ void GLWidget::blurSkyBox(bool blur)
 
 void GLWidget::setSkyBoxBlurPercent(int percent)
 {
-	_skyBoxBlurPercent = std::clamp(percent, 0, 100);
+	_renderCtrl.setSkyBoxBlurPercent(std::clamp(percent, 0, 100));
 	update();
 }
 
 void GLWidget::showReflections(bool show)
 {
-	_reflectionsEnabled = show;
-	_fgShader->bind();
-	_fgShader->setUniformValue("reflectionsEnabled", _reflectionsEnabled);
+	_renderCtrl.setReflectionsEnabled(show);
+	_renderCtrl.fgShader()->bind();
+	_renderCtrl.fgShader()->setUniformValue("reflectionsEnabled", _renderCtrl.reflectionsEnabled());
 	update();
 }
 
@@ -4783,13 +3572,13 @@ void GLWidget::showFloor(bool show)
 
 void GLWidget::setGroundMode(GroundMode mode)
 {
-	if (_groundMode == mode)
+	if (_renderCtrl.groundMode() == mode)
 		return;
 
-	_groundMode = mode;
+	_renderCtrl.setGroundMode(mode);
 	updateFloorPlane();
 	update();
-	emit floorShown(_groundMode == GroundMode::Floor);
+	emit floorShown(_renderCtrl.groundMode() == GroundMode::Floor);
 }
 
 void GLWidget::setFloorTexture(QImage img)
@@ -4800,41 +3589,41 @@ void GLWidget::setFloorTexture(QImage img)
 
 void GLWidget::showFloorTexture(bool show)
 {
-	_floorTextureDisplayed = show;
+	_renderCtrl.setFloorTextureDisplayed(show);
 	syncFloorPlaneAlbedoTexture();
 }
 
-void GLWidget::addToDisplay(TriangleMesh* mesh)
+void GLWidget::addToDisplay(SceneMesh* mesh)
 {	
 	if(mesh == nullptr)
 	{
 		qDebug() << "Error: Attempted to add a null mesh to display.";
 		return;
 	}
-	_meshStore.push_back({mesh, mesh->uuid()});
-	_displayedObjectsIds.push_back(static_cast<int>(_meshStore.size() - 1));
+	_sceneRuntime.meshStore().push_back({mesh, mesh->uuid()});
+	_sceneRuntime.displayedObjectsIds().push_back(static_cast<int>(_sceneRuntime.meshStore().size() - 1));
 
-	//if(_progressiveLoadingEnabled)
+	//if(_sceneRuntime.progressiveLoadingEnabled())
 		//_viewer->updateDisplayList();	
 }
 
 void GLWidget::removeFromDisplay(int index)
 {
-	TriangleMesh* mesh = _meshStore[index];
-	_meshStore.erase(_meshStore.begin() + index);
+	SceneMesh* mesh = _sceneRuntime.meshStore()[index];
+	_sceneRuntime.meshStore().erase(_sceneRuntime.meshStore().begin() + index);
 	delete mesh;
-	if (_meshStore.size() == 0)
+	if (_sceneRuntime.meshStore().size() == 0)
 	{
-		_displayedObjectsIds.clear();
-		_hiddenObjectsIds.clear();
-		if (_visibleSwapped)
+		_sceneRuntime.displayedObjectsIds().clear();
+		_sceneRuntime.hiddenObjectsIds().clear();
+		if (_sceneRuntime.visibleSwapped())
 		{
-			_visibleSwapped = false;
-			emit visibleSwapped(_visibleSwapped);
+			_sceneRuntime.setVisibleSwapped(false);
+			emit visibleSwapped(_sceneRuntime.visibleSwapped());
 		}
 	}
 	// If display list is empty, clear punctual lights
-	if (_displayedObjectsIds.empty())
+	if (_sceneRuntime.displayedObjectsIds().empty())
 	{
 		_originalParsedLights.clear();
 		_currentRepositionedLights.clear();
@@ -4846,16 +3635,16 @@ void GLWidget::removeFromDisplay(int index)
 
 void GLWidget::centerScreen(std::vector<int> selectedIDs)
 {
-	_centerScreenObjectIDs.clear();
-	_centerScreenObjectIDs = selectedIDs;
+	_sceneRuntime.centerScreenObjectIDs().clear();
+	_sceneRuntime.centerScreenObjectIDs() = selectedIDs;
 	_viewCtrl._selectionBoundingSphere.setCenter(0, 0, 0);
 	_viewCtrl._selectionBoundingSphere.setRadius(0.0);
 	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
-		_lowResEnabled = true;
+		_renderCtrl.setLowResEnabled(true);
 	int count = 0;
-	for (int id : _centerScreenObjectIDs)
+	for (int id : _sceneRuntime.centerScreenObjectIDs())
 	{
-		TriangleMesh* mesh = _meshStore.at(id);
+		SceneMesh* mesh = _sceneRuntime.meshStore().at(id);
 		if (mesh)
 		{
 			if (count == 0)
@@ -4876,7 +3665,7 @@ void GLWidget::centerScreen(std::vector<int> selectedIDs)
 void GLWidget::select(int id)
 {
 	try {
-		_meshStore.at(id)->select();
+		_sceneRuntime.meshStore().at(id)->select();
 	}
 	catch (const std::exception& ex) {
 		std::cout << "Exception raised in GLWidget::select\n" << ex.what() << std::endl;
@@ -4886,7 +3675,7 @@ void GLWidget::select(int id)
 void GLWidget::deselect(int id)
 {
 	try {
-		_meshStore.at(id)->deselect();
+		_sceneRuntime.meshStore().at(id)->deselect();
 	}
 	catch (const std::exception& ex) {
 		std::cout << "Exception raised in GLWidget::select\n" << ex.what() << std::endl;
@@ -4895,11 +3684,11 @@ void GLWidget::deselect(int id)
 
 bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod, QString& error, bool progressiveLoading)
 {
-	_progressiveLoadingEnabled = progressiveLoading;
-	_cancelRequested = false;
-	_loadCancelled = false;
-	_pendingSceneUuids.clear();
-	const bool hadExistingMeshes = !_meshStore.empty();
+	_sceneRuntime.setProgressiveLoadingEnabled(progressiveLoading);
+	_sceneRuntime.setCancelRequested(false);
+	_sceneRuntime.setLoadCancelled(false);
+	_sceneRuntime.pendingSceneUuids().clear();
+	const bool hadExistingMeshes = !_sceneRuntime.meshStore().empty();
 	MainWindow::clearFileLoadCancel();
 	bool success = false;
 
@@ -4946,7 +3735,7 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 				error = loadingWorker->getErrorMessage();
 				if (error == "Model loading cancelled by user.")
 				{
-					_loadCancelled = true;
+					_sceneRuntime.setLoadCancelled(true);
 				}
 				waitLoop.quit();
 			},
@@ -4957,7 +3746,7 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 			&AssImpModelLoader::loadingCancelled,
 			this,
 			[this, &error]() {
-				_loadCancelled = true;
+				_sceneRuntime.setLoadCancelled(true);
 				error = "Model loading cancelled by user.";
 			},
 			Qt::QueuedConnection);
@@ -5042,46 +3831,46 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 			success = false;
 			if (error == "Model loading cancelled by user.")
 			{
-				_loadCancelled = true;
+				_sceneRuntime.setLoadCancelled(true);
 			}
 		}
 		else
 		{
 			success = true;
-			if (!_progressiveLoadingEnabled)
+			if (!_sceneRuntime.progressiveLoadingEnabled())
 			{
 				for (const AssImpMeshData& meshData : meshes)
 				{
 					SceneMesh* mesh = createMeshFromData(meshData);
 					addToDisplay(mesh);
-					_pendingSceneUuids.append(mesh->uuid());
+					_sceneRuntime.pendingSceneUuids().append(mesh->uuid());
 				}
 			}
 		}
 
-		_assimpScene = loadingWorker->getScene();
-		_globalSceneTransform = loadingWorker->getGlobalSceneTransform();
+		_sceneRuntime.setAssimpScene(loadingWorker->getScene());
+		_sceneRuntime.globalSceneTransform() = loadingWorker->getGlobalSceneTransform();
 		const bool autoOrientCameraEnabled = loadingWorker->isAutoOrientActive();
 		const SceneUpAxis sceneUpAxis = loadingWorker->sceneUpAxis();
-		if (_assimpScene)
+		if (_sceneRuntime.assimpScene())
 		{
 			// Populate the SceneGraph before the scene is deep-copied and merged,
 			// while the original aiNode* tree is still intact and unmodified.
-			if (success && !_pendingSceneUuids.isEmpty())
+			if (success && !_sceneRuntime.pendingSceneUuids().isEmpty())
 			{
 				_viewer->sceneGraph()->appendFromScene(
-					_assimpScene, fileName, _pendingSceneUuids,
-					SceneUtils::glmToAiMatrix(_globalSceneTransform),
+					_sceneRuntime.assimpScene(), fileName, _sceneRuntime.pendingSceneUuids(),
+					SceneUtils::glmToAiMatrix(_sceneRuntime.globalSceneTransform()),
 					loadingWorker->wasAutoOrientApplied(),
 					loadingWorker->wasAutoScaleApplied());
 
 				// Register per-file punctual lights (if any) for this file.
 				// setLightData() emits lightDataChanged() which triggers the
 				// PunctualLightsPanel to refresh and GLWidget to rebuild the GPU list.
-				if (!_pendingLightData.isEmpty())
+				if (!_sceneRuntime.pendingLightData().isEmpty())
 				{
-					_pendingLightData.sourceFile = fileName; // authoritative path
-					_viewer->sceneGraph()->setLightData(fileName, _pendingLightData);
+					_sceneRuntime.pendingLightData().sourceFile = fileName; // authoritative path
+					_viewer->sceneGraph()->setLightData(fileName, _sceneRuntime.pendingLightData());
 				}
 
 				// Register KHR_materials_variants data (if any) for this file.
@@ -5120,39 +3909,39 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 				if (!cd.isEmpty())
 					_viewer->sceneGraph()->setGltfCameraData(fileName, cd);
 			}
-			_pendingSceneUuids.clear();
+			_sceneRuntime.pendingSceneUuids().clear();
 
-			// Record how many meshes were in _globalScene BEFORE merging.
-			// Each newly loaded TriangleMesh has a sceneIndex relative to its
+			// Record how many meshes were in _sceneRuntime.globalScene() BEFORE merging.
+			// Each newly loaded SceneMesh has a sceneIndex relative to its
 			// own per-model aiScene (0-based).  After mergeScene() appends the
 			// new model's meshes starting at oldMeshCount, those per-model
 			// indices become stale.  We fix them up here so that every
-			// TriangleMesh in _meshStore always holds its correct position in
-			// _globalScene->mMeshes[], which syncSceneToMeshStore() relies on.
+			// SceneMesh in _sceneRuntime.meshStore() always holds its correct position in
+			// _sceneRuntime.globalScene()->mMeshes[], which syncSceneToMeshStore() relies on.
 			const unsigned int oldMeshCount =
-				_globalScene ? _globalScene->mNumMeshes : 0u;
+				_sceneRuntime.globalScene() ? _sceneRuntime.globalScene()->mNumMeshes : 0u;
 
-			aiScene* copiedScene = SceneUtils::deepCopyScene(_assimpScene);
-			SceneUtils::mergeScene(&_globalScene, copiedScene);
+			aiScene* copiedScene = SceneUtils::deepCopyScene(_sceneRuntime.assimpScene());
+			SceneUtils::mergeScene(&_sceneRuntime.globalScene(), copiedScene);
 
 			// Offset the sceneIndices of the meshes that were just added.
-			// They are the last meshes.size() entries in _meshStore because
+			// They are the last meshes.size() entries in _sceneRuntime.meshStore() because
 			// addToDisplay() always appends.
 			if (oldMeshCount > 0 && !meshes.empty())
 			{
 				const int newCount = static_cast<int>(meshes.size());
-				const int storeSize = static_cast<int>(_meshStore.size());
+				const int storeSize = static_cast<int>(_sceneRuntime.meshStore().size());
 				const int firstNew  = storeSize - newCount;
 				for (int i = firstNew; i < storeSize; ++i)
 				{
-					TriangleMesh* tm = _meshStore[i];
+					SceneMesh* tm = _sceneRuntime.meshStore()[i];
 					if (tm && tm->getSceneIndex() >= 0)
 						tm->setSceneIndex(
 							static_cast<int>(oldMeshCount) + tm->getSceneIndex());
 				}
 			}
 		}
-		_assimpScene = nullptr;
+		_sceneRuntime.setAssimpScene(nullptr);
 
 		if (success && autoOrientCameraEnabled)
 		{
@@ -5180,20 +3969,20 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 		delete loadingWorker;
 	}
 
-	if (_loadCancelled)
+	if (_sceneRuntime.loadCancelled())
 	{
-		if (!_meshStore.empty())
+		if (!_sceneRuntime.meshStore().empty())
 		{
 			success = true;
 		}
-		if (_meshStore.empty())
+		if (_sceneRuntime.meshStore().empty())
 		{
 			MainWindow::showStatusMessage(tr("Model loading cancelled"), 3000);
 		}
 		else
 		{
 			MainWindow::showStatusMessage(
-				tr("Model loading cancelled after importing %1 meshes").arg(_meshStore.size()),
+				tr("Model loading cancelled after importing %1 meshes").arg(_sceneRuntime.meshStore().size()),
 				4000);
 		}
 	}
@@ -5204,7 +3993,7 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 
 	MainWindow::setProgressValue(0);
 	MainWindow::hideProgressBar();
-	_cancelRequested = false;
+	_sceneRuntime.setCancelRequested(false);
 
 	return success;
 }
@@ -5224,7 +4013,7 @@ bool GLWidget::generateUVsForMeshes(const std::vector<int>& ids, const UVMethod&
 	{
 		try
 		{
-			SceneMesh* mesh = dynamic_cast<SceneMesh*>(_meshStore.at(id).mesh);
+			SceneMesh* mesh = dynamic_cast<SceneMesh*>(_sceneRuntime.meshStore().at(id).mesh);
 			if (mesh)
 			{								
 				success = _assimpModelLoader->regenerateUVs(mesh, uvMethod, uvConfig);
@@ -5285,8 +4074,8 @@ void GLWidget::showNodeMeshLoadingProgress(int processedNodes, int totalNodes, i
 
 void GLWidget::swapVisible(bool checked)
 {
-	_visibleSwapped = checked;
-	++_runtimeVisibilityMaskRevision;
+	_sceneRuntime.setVisibleSwapped(checked);
+	_sceneRuntime.setRuntimeVisibilityMaskRevision(_sceneRuntime.runtimeVisibilityMaskRevision() + 1);
 	recalculateVisibleSceneStats(false);
 	triggerShadowRecomputation();
 	updateFloorPlane();
@@ -5297,10 +4086,10 @@ void GLWidget::swapVisible(bool checked)
 
 void GLWidget::cancelAssImpModelLoading()
 {
-	if (_cancelRequested)
+	if (_sceneRuntime.cancelRequested())
 		return;
 
-	_cancelRequested = true;
+	_sceneRuntime.setCancelRequested(true);
 	MainWindow::requestFileLoadCancel();
 	MainWindow::setCancelButtonEnabled(false);
 	MainWindow::setCancelButtonText(tr("Cancelling..."));
@@ -5314,7 +4103,7 @@ void GLWidget::invertADSOpacityTexMap(const std::vector<int>& ids, const bool& i
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore[id];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 			mesh->invertOpacityADSMap(inverted);
 		}
 		catch (const std::exception& ex)
@@ -5330,7 +4119,7 @@ void GLWidget::setMaterialToObjects(const std::vector<int>& ids, const GLMateria
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore[id];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 			mesh->setMaterial(mat);
 			if (mat.hasTransmission() || mat.diffuseTransmissionFactor() > 0.0f)
 				setTransmissionEnabled(true);
@@ -5348,7 +4137,7 @@ void GLWidget::setTexturesToObjects(const std::vector<int>& ids, const GLMateria
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore[id];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 			GLMaterial resolved = resolveMaterialTextures(this, mat);
 			mesh->setTextureMaps(resolved);
 			mesh->invertOpacityADSMap(resolved.isOpacityMapInverted());
@@ -5381,15 +4170,15 @@ void GLWidget::synchronizeTextureCache(const GLMaterial* material, GLMaterial::T
 
 void GLWidget::clearTextureCache()
 {
-	for (auto& entry : _texCache)
+	for (auto& entry : _sceneRuntime.texCache())
 	{
 		if (entry.second.lastGPUTexture != 0)
 		{
 			glDeleteTextures(1, &entry.second.lastGPUTexture);
 		}
 	}
-	_texCache.clear();
-	_texRefCount.clear();
+	_sceneRuntime.texCache().clear();
+	_sceneRuntime.texRefCount().clear();
 }
 
 void GLWidget::setPBRAlbedoColor(const std::vector<int>& ids, const QColor& col)
@@ -5398,7 +4187,7 @@ void GLWidget::setPBRAlbedoColor(const std::vector<int>& ids, const QColor& col)
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore[id];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 			mesh->setPBRAlbedoColor(col.red() / 256.0f, col.green() / 256.0f, col.blue() / 256.0f);
 		}
 		catch (const std::exception& ex)
@@ -5414,7 +4203,7 @@ void GLWidget::setPBRMetallic(const std::vector<int>& ids, const float& val)
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore[id];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 			mesh->setPBRMetallic(val);
 		}
 		catch (const std::exception& ex)
@@ -5430,7 +4219,7 @@ void GLWidget::setPBRRoughness(const std::vector<int>& ids, const float& val)
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore[id];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 			mesh->setPBRRoughness(val);
 		}
 		catch (const std::exception& ex)
@@ -5446,7 +4235,7 @@ void GLWidget::clearPBRTexMaps(const std::vector<int>& ids)
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore[id];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 			mesh->clearAllPBRMaps();
 		}
 		catch (const std::exception& ex)
@@ -5462,7 +4251,7 @@ void GLWidget::clearPBRAlbedoTexMap(const std::vector<int>& ids)
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore[id];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 			unsigned int texId = mesh->getAlbedoPBRMap();
 			mesh->clearAlbedoPBRMap();
 			releaseTexture(texId);
@@ -5480,7 +4269,7 @@ void GLWidget::clearPBRMetallicTexMap(const std::vector<int>& ids)
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore[id];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 			unsigned int texId = mesh->getMetallicPBRMap();
 			mesh->clearMetallicPBRMap();
 			releaseTexture(texId);
@@ -5498,7 +4287,7 @@ void GLWidget::clearPBRRoughnessTexMap(const std::vector<int>& ids)
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore[id];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 			unsigned int texId = mesh->getRoughnessPBRMap();
 			mesh->clearRoughnessPBRMap();
 			releaseTexture(texId);
@@ -5516,7 +4305,7 @@ void GLWidget::clearPBRNormalTexMap(const std::vector<int>& ids)
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore[id];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 			unsigned int texId = mesh->getNormalPBRMap();
 			mesh->clearNormalPBRMap();
 			releaseTexture(texId);
@@ -5534,7 +4323,7 @@ void GLWidget::clearPBRAOTexMap(const std::vector<int>& ids)
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore[id];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 			unsigned int texId = mesh->getAOPBRMap();
 			mesh->clearAOPBRMap();
 			releaseTexture(texId);
@@ -5552,7 +4341,7 @@ void GLWidget::invertPBROpacityTexMap(const std::vector<int>& ids, const bool& i
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore[id];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 			mesh->invertOpacityPBRMap(inverted);
 		}
 		catch (const std::exception& ex)
@@ -5568,7 +4357,7 @@ void GLWidget::clearPBROpacityTexMap(const std::vector<int>& ids)
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore[id];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 			unsigned int texId = mesh->getOpacityPBRMap();
 			mesh->clearOpacityPBRMap();
 			releaseTexture(texId);
@@ -5586,7 +4375,7 @@ void GLWidget::clearPBRHeightTexMap(const std::vector<int>& ids)
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore[id];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 			unsigned int texId = mesh->getHeightPBRMap();
 			mesh->clearHeightPBRMap();
 			releaseTexture(texId);
@@ -5604,7 +4393,7 @@ void GLWidget::clearPBRTransmissionTexMap(const std::vector<int>& ids)
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore[id];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 			unsigned int texId = mesh->getTransmissionPBRMap();
 			mesh->clearTransmissionPBRMap();
 			releaseTexture(texId);
@@ -5622,7 +4411,7 @@ void GLWidget::clearPBRIORTexMap(const std::vector<int>& ids)
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore[id];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 			unsigned int texId = mesh->getIORPBRMap();
 			mesh->clearIORPBRMap();
 			releaseTexture(texId);
@@ -5641,7 +4430,7 @@ void GLWidget::clearPBRSheenColorTexMap(const std::vector<int>& ids)
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore[id];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 			unsigned int texId = mesh->getSheenColorPBRMap();
 			mesh->clearSheenColorPBRMap();
 			releaseTexture(texId);
@@ -5659,7 +4448,7 @@ void GLWidget::clearPBRSheenRoughnessTexMap(const std::vector<int>& ids)
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore[id];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 			unsigned int texId = mesh->getSheenRoughnessPBRMap();
 			mesh->clearSheenRoughnessPBRMap();
 			releaseTexture(texId);
@@ -5677,7 +4466,7 @@ void GLWidget::clearPBRClearcoatTexMap(const std::vector<int>& ids)
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore[id];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 			unsigned int texId = mesh->getClearcoatPBRMap();
 			mesh->clearClearcoatPBRMap();
 			releaseTexture(texId);
@@ -5695,7 +4484,7 @@ void GLWidget::clearPBRClearcoatRoughnessTexMap(const std::vector<int>& ids)
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore[id];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 			unsigned int texId = mesh->getClearcoatRoughnessPBRMap();
 			mesh->clearClearcoatRoughnessPBRMap();
 			releaseTexture(texId);
@@ -5713,7 +4502,7 @@ void GLWidget::clearPBRClearcoatNormalTexMap(const std::vector<int>& ids)
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore[id];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 			unsigned int texId = mesh->getClearcoatNormalPBRMap();
 			mesh->clearClearcoatNormalPBRMap();
 			releaseTexture(texId);
@@ -5731,7 +4520,7 @@ void GLWidget::setTransformation(const std::vector<int>& ids, const QVector3D& t
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore[id];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 			mesh->setTranslation(trans);
 			mesh->setRotation(rot);
 			mesh->setScaling(scale);
@@ -5759,7 +4548,7 @@ void GLWidget::resetTransformation(const std::vector<int>& ids)
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore[id];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 			mesh->resetTransformations();			
 		}
 		catch (const std::exception& ex)
@@ -5794,9 +4583,9 @@ void GLWidget::applyTransforms(const QMap<int, TransformState>& transforms, bool
 		int index = it.key();
 		const TransformState& state = it.value();
 
-		if (index >= 0 && index < static_cast<int>(_meshStore.size()))
+		if (index >= 0 && index < static_cast<int>(_sceneRuntime.meshStore().size()))
 		{
-			TriangleMesh* mesh = _meshStore[index];
+			SceneMesh* mesh = _sceneRuntime.meshStore()[index];
 			if (mesh)
 			{
 				mesh->setTranslation(state.translation);
@@ -5811,7 +4600,7 @@ void GLWidget::applyTransforms(const QMap<int, TransformState>& transforms, bool
 
 	// Check if this is a model-level transformation
 	// (all meshes are being transformed)
-	bool isModelLevelTransform = (transforms.size() == static_cast<int>(_meshStore.size()));
+	bool isModelLevelTransform = (transforms.size() == static_cast<int>(_sceneRuntime.meshStore().size()));
 
 	// Lights/cameras follow automatically: updatePunctualLights() derives the
 	// per-file user transform straight from the meshes' TRS state.
@@ -5851,112 +4640,19 @@ void GLWidget::applyTransforms(const QMap<int, TransformState>& transforms, bool
 
 void GLWidget::createShaderPrograms()
 {
-    const QString path = PathUtils::getDataDirectory() + "/";
-	// Foreground objects shader program
-	// Per fragment lighting
-	_fgShader = std::make_unique<ShaderProgram>(); _fgShader->setObjectName("_fgShader");
-    _fgShader->loadCompileAndLinkShaderFromFile(path + "shaders/main_scene.vert",
-        path + "shaders/main_scene.frag");
-	// Flat-shading variant: same vert + frag shaders, plus a geometry shader that
-	// computes the true face normal via cross(edge0,edge1) and writes it into
-	// v_flatNormal / v_reflectionFlatNormal for all three output vertices.
-	// Used for DisplayMode::FLATSHADED on GL_TRIANGLES meshes only.
-	_fgFlatShader = std::make_unique<ShaderProgram>(); _fgFlatShader->setObjectName("_fgFlatShader");
-	_fgFlatShader->loadCompileAndLinkShaderFromFile(path + "shaders/main_scene_flat.vert",
-	    path + "shaders/main_scene.frag",
-	    path + "shaders/main_scene_flat.geom");
-	// Lightweight wireframe/wireshaded wire-pass shader — transform + baseColor + optional albedo only.
-	_wireframeShader = std::make_unique<ShaderProgram>(); _wireframeShader->setObjectName("_wireframeShader");
-	_wireframeShader->loadCompileAndLinkShaderFromFile(path + "shaders/wireframe.vert",
-	    path + "shaders/wireframe.frag");
-	// Axis
-	_axisShader = std::make_unique<ShaderProgram>(); _axisShader->setObjectName("_axisShader");
-	_axisShader->loadCompileAndLinkShaderFromFile(path + "shaders/axis.vert", path + "shaders/axis.frag");
-	// Vertex Normal
-	_vertexNormalShader = std::make_unique<ShaderProgram>(); _vertexNormalShader->setObjectName("_vertexNormalShader");
-	_vertexNormalShader->loadCompileAndLinkShaderFromFile(path + "shaders/vertex_normal.vert",
-        path + "shaders/vertex_normal.frag", path + "shaders/vertex_normal.geom");
-	// Face Normal
-	_faceNormalShader = std::make_unique<ShaderProgram>(); _faceNormalShader->setObjectName("_faceNormalShader");
-	_faceNormalShader->loadCompileAndLinkShaderFromFile(path + "shaders/face_normal.vert",
-        path + "shaders/face_normal.frag", path + "shaders/face_normal.geom");
-	// Shadow mapping
-	_shadowMappingShader = std::make_unique<ShaderProgram>(); _shadowMappingShader->setObjectName("_shadowMappingShader");
-	_shadowMappingShader->loadCompileAndLinkShaderFromFile(path + "shaders/shadow_mapping_depth.vert",
-        path + "shaders/shadow_mapping_depth.frag");
-	// Sky Box
-	_skyBoxShader = std::make_unique<ShaderProgram>(); _skyBoxShader->setObjectName("_skyBoxShader");
-	_skyBoxShader->loadCompileAndLinkShaderFromFile(path + "shaders/skybox.vert", path + "shaders/skybox.frag");
-	// Grid
-	_gridShader = std::make_unique<ShaderProgram>(); _gridShader->setObjectName("_gridShader");
-	_gridShader->loadCompileAndLinkShaderFromFile(path + "shaders/grid.vert", path + "shaders/grid.frag");
-	// Irradiance Map (now uses fullscreen triangle)
-	_irradianceShader = std::make_unique<ShaderProgram>(); _irradianceShader->setObjectName("_irradianceShader");
-	_irradianceShader->loadCompileAndLinkShaderFromFile(path + "shaders/fullscreen_triangle.vert", path + "shaders/irradiance_convolution.frag");
-	// Prefilter Map (now uses fullscreen triangle)
-	_prefilterShader = std::make_unique<ShaderProgram>(); _prefilterShader->setObjectName("_prefilterShader");
-	_prefilterShader->loadCompileAndLinkShaderFromFile(path + "shaders/fullscreen_triangle.vert", path + "shaders/prefilter.frag");
-	// Sheen/Charlie Prefilter Map
-	_sheenPrefilterShader = std::make_unique<ShaderProgram>(); _sheenPrefilterShader->setObjectName("_sheenPrefilterShader");
-	_sheenPrefilterShader->loadCompileAndLinkShaderFromFile(path + "shaders/fullscreen_triangle.vert", path + "shaders/prefilter_charlie.frag");
-	// BRDF LUT Map
-	_brdfShader = std::make_unique<ShaderProgram>(); _brdfShader->setObjectName("_brdfShader");
-	_brdfShader->loadCompileAndLinkShaderFromFile(path + "shaders/brdf.vert", path + "shaders/brdf.frag");
-	// Text shader program
-	_textShader = std::make_unique<ShaderProgram>(); _textShader->setObjectName("_textShader");
-	_textShader->loadCompileAndLinkShaderFromFile(path + "shaders/text.vert", path + "shaders/text.frag");
-	// Background gradient shader program
-	_bgShader = std::make_unique<ShaderProgram>(); _bgShader->setObjectName("_bgShader");
-	_bgShader->loadCompileAndLinkShaderFromFile(path + "shaders/background.vert", path + "shaders/background.frag");
-	// Background split shader program
-	_bgSplitShader = std::make_unique<ShaderProgram>(); _bgSplitShader->setObjectName("_bgSplitShader");
-	_bgSplitShader->loadCompileAndLinkShaderFromFile(path + "shaders/splitScreen.vert", path + "shaders/splitScreen.frag");
-	// Light Cube shader program
-	_lightCubeShader = std::make_unique<ShaderProgram>(); _lightCubeShader->setObjectName("_lightCubeShader");
-	_lightCubeShader->loadCompileAndLinkShaderFromFile(path + "shaders/light_cube.vert", path + "shaders/light_cube.frag");
-	// View Cube shader program
-	_viewCubeShader = std::make_unique<ShaderProgram>(); _viewCubeShader->setObjectName("_viewCubeShader");
-	_viewCubeShader->loadCompileAndLinkShaderFromFile(path + "shaders/viewcube.vert", path + "shaders/viewcube.frag");
-	// View Cube label shader program
-	_viewCubeLabelShader = std::make_unique<ShaderProgram>(); _viewCubeLabelShader->setObjectName("_viewCubeLabelShader");
-	_viewCubeLabelShader->loadCompileAndLinkShaderFromFile(path + "shaders/viewcube_label.vert", path + "shaders/viewcube_label.frag");
-	// Clipping Plane shader program
-	_clippingPlaneShader = std::make_unique<ShaderProgram>(); _clippingPlaneShader->setObjectName("_clippingPlaneShader");
-	_clippingPlaneShader->loadCompileAndLinkShaderFromFile(path + "shaders/clipping_plane.vert", path + "shaders/clipping_plane.frag");
-	// Clipped Mesh shader program
-	_clippedMeshShader = std::make_unique<ShaderProgram>(); _clippedMeshShader->setObjectName("_clippedMeshShader");
-	_clippedMeshShader->loadCompileAndLinkShaderFromFile(path + "shaders/clipped_mesh.vert", path + "shaders/clipped_mesh.frag");
-	// Selection shader program
-	_selectionShader = std::make_unique<ShaderProgram>(); _selectionShader->setObjectName("_selectionShader");
-	_selectionShader->loadCompileAndLinkShaderFromFile(path + "shaders/selection.vert", path + "shaders/selection.frag");
-	// Equirectangular to Cube conversion shader
-	_equirectToCubeShader = std::make_unique<ShaderProgram>();
-	_equirectToCubeShader->setObjectName("_equirectToCubeShader");
-	_equirectToCubeShader->loadCompileAndLinkShaderFromFile( path + "shaders/equirect_to_cube.vert", path + "shaders/equirect_to_cube.frag");
-	// Equirectangular to Cube Quad conversion shader
-	_equirectToCubeQuadShader = std::make_unique<ShaderProgram>();
-	_equirectToCubeQuadShader->setObjectName("_equirectToCubeQuadShader");
-	_equirectToCubeQuadShader->loadCompileAndLinkShaderFromFile(path + "shaders/equirect_to_cube_quad.vert", path + "shaders/equirect_to_cube_quad.frag");
-	// Downsample shader program
-	_downsampleShader = std::make_unique<ShaderProgram>();
-	_downsampleShader->setObjectName("_downsampleShader");
-	_downsampleShader->loadCompileAndLinkShaderFromFile(path + "shaders/downsample_cubemap.vert", path + "shaders/downsample_cubemap.frag");
-
-
-	// Shadow Depth quad shader program - for debugging
-	_debugShader = std::make_unique<ShaderProgram>(); _debugShader->setObjectName("_debugShader");
-	_debugShader->loadCompileAndLinkShaderFromFile(path + "shaders/debug_quad.vert", path + "shaders/debug_quad_depth.frag");
+	const QString path = PathUtils::getDataDirectory() + "/";
+	_renderCtrl.initShaders(path);
 }
 
 void GLWidget::createCappingPlanes()
 {
     const QString path = PathUtils::getDataDirectory() + "/";
-	_clippingPlaneXY = new PlaneRenderable(_clippingPlaneShader.get(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
-	_clippingPlaneYZ = new PlaneRenderable(_clippingPlaneShader.get(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
-	_clippingPlaneZX = new PlaneRenderable(_clippingPlaneShader.get(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
-    _cappingTexture = loadTextureFromFile(QString(path + "textures/patterns/hatch_03.png").toStdString().c_str());
+	_clippingPlaneXY = new PlaneRenderable(_renderCtrl.clippingPlaneShader(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
+	_clippingPlaneYZ = new PlaneRenderable(_renderCtrl.clippingPlaneShader(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
+	_clippingPlaneZX = new PlaneRenderable(_renderCtrl.clippingPlaneShader(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
+    _renderCtrl.setCappingTexture(loadTextureFromFile(QString(path + "textures/patterns/hatch_03.png").toStdString().c_str()));
 	glActiveTexture(GL_TEXTURE6);
-	glBindTexture(GL_TEXTURE_2D, _cappingTexture);
+	glBindTexture(GL_TEXTURE_2D, _renderCtrl.cappingTexture());
 
 	// Stable sampling for any scale
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -5971,48 +4667,18 @@ void GLWidget::createCappingPlanes()
 
 void GLWidget::createLights()
 {
-	_lightCube = new CubeRenderable(_lightCubeShader.get(), 10);
-	_lightSphere = new SphereRenderable(_lightCubeShader.get(), 1, 16, 16);
+	_lightCube = new CubeRenderable(_renderCtrl.lightCubeShader(), 10);
+	_lightSphere = new SphereRenderable(_renderCtrl.lightCubeShader(), 1, 16, 16);
 }
 
 void GLWidget::createFullscreenTriangle()
 {
-	// Fullscreen triangle vertices in clip space
-	// Forms a triangle that covers entire viewport
-	const float verts[6] = {
-		-1.0f, -1.0f,  // Bottom-left
-		 3.0f, -1.0f,  // Bottom-right (extends past viewport)
-		-1.0f,  3.0f   // Top-left (extends past viewport)
-	};
-
-	glGenVertexArrays(1, &_fsTriVAO);
-	glGenBuffers(1, &_fsTriVBO);
-
-	glBindVertexArray(_fsTriVAO);
-	glBindBuffer(GL_ARRAY_BUFFER, _fsTriVBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STATIC_DRAW);
-
-	// Set up vertex attribute: 2D position at location 0
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
-
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindVertexArray(0);
-
-	_fsTriInitialized = true;
+	_renderCtrl.initFullscreenTriangle();
 }
 
 void GLWidget::drawFullscreenTriangle()
 {
-	if (!_fsTriInitialized)
-	{
-		qWarning() << "Fullscreen triangle not initialized!";
-		return;
-	}
-
-	glBindVertexArray(_fsTriVAO);
-	glDrawArrays(GL_TRIANGLES, 0, 3);
-	glBindVertexArray(0);
+	_renderCtrl.drawFullscreenTriangle();
 }
 
 void GLWidget::setIBLFaceBasis(QOpenGLShaderProgram* prog, int faceIndex)
@@ -6069,44 +4735,7 @@ void GLWidget::setIBLFaceBasis(QOpenGLShaderProgram* prog, int faceIndex)
 
 void GLWidget::ensureShadowMapResources()
 {
-	if (_shadowMap == 0 || _shadowMapNeedsInitialization)
-	{
-		if (_shadowMap != 0)
-		{
-			glDeleteTextures(1, &_shadowMap);
-			_shadowMap = 0;
-		}
-		glGenTextures(1, &_shadowMap);
-		glActiveTexture(GL_TEXTURE2);
-		glBindTexture(GL_TEXTURE_2D, _shadowMap);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, _shadowWidth, _shadowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);		
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-		float borderColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
-		glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_NONE);
-		// attach depth texture as FBO's depth buffer
-		if (_shadowMapFBO != 0)
-		{
-			glDeleteFramebuffers(1, &_shadowMapFBO);
-			_shadowMapFBO = 0;
-		}
-		glGenFramebuffers(1, &_shadowMapFBO);
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _shadowMapFBO);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, _shadowMap, 0);
-		unsigned long status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-		if (status != GL_FRAMEBUFFER_COMPLETE)
-			std::cout << "Frame buffer creation failed!" << std::endl;
-		glDrawBuffer(GL_NONE);
-		glReadBuffer(GL_NONE);
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
-		// Restore active unit: createGPUTextureFromImage() binds without setting
-		// glActiveTexture first, so if unit 2 is still active it steals the shadow
-		// map slot and shadows disappear for the rest of the frame.
-		glActiveTexture(GL_TEXTURE0);
-	}
+	_renderCtrl.ensureShadowMap(defaultFramebufferObject());
 }
 
 void GLWidget::loadFloor()
@@ -6119,7 +4748,7 @@ void GLWidget::loadFloor()
 	// Use helper to set main light position
 	updateMainLightPosition(halfObjectSize);
 
-	float floorPlaneCoeff = _meshStore.empty()
+	float floorPlaneCoeff = _sceneRuntime.meshStore().empty()
 		? -_floorSize - (_floorSize * 0.05f)
 		: groundPlaneZ();
 	_floorPlaneZ = floorPlaneCoeff;
@@ -6127,11 +4756,11 @@ void GLWidget::loadFloor()
 	const float groundExtent = groundPlaneExtent();
 	if (_floorPlane == nullptr)
 	{
-		_floorPlane = new FloorPlane(_fgShader.get(), _floorCenter, groundExtent, groundExtent, 1, 1, floorPlaneCoeff, _floorTexRepeatS, _floorTexRepeatT, floorPlaneOrientation());
+		_floorPlane = new FloorPlane(_renderCtrl.fgShader(), _floorCenter, groundExtent, groundExtent, 1, 1, floorPlaneCoeff, _floorTexRepeatS, _floorTexRepeatT, floorPlaneOrientation());
 	}
 	else
 	{
-		_floorPlane->setPlane(_fgShader.get(), _floorCenter, groundExtent, groundExtent, 1, 1, floorPlaneCoeff, _floorTexRepeatS, _floorTexRepeatT, floorPlaneOrientation());
+		_floorPlane->setPlane(_renderCtrl.fgShader(), _floorCenter, groundExtent, groundExtent, 1, 1, floorPlaneCoeff, _floorTexRepeatS, _floorTexRepeatT, floorPlaneOrientation());
 	}
 
 	// Use helper to apply common material/texture settings
@@ -6169,7 +4798,7 @@ void GLWidget::syncFloorPlaneAlbedoTexture()
 	const GLuint oldAlbedoTex = static_cast<GLuint>(material.albedoTextureId());
 	const GLuint oldDiffuseTex = static_cast<GLuint>(material.diffuseTextureId());
 
-	if (!_floorTextureDisplayed || _floorTexImage.isNull())
+	if (!_renderCtrl.floorTextureDisplayed() || _floorTexImage.isNull())
 	{
 		if (oldAlbedoTex != 0)
 		{
@@ -6284,7 +4913,7 @@ void GLWidget::updateMainLightPosition(float halfObjectSize)
 		: QVector3D(0.0f, 0.0f, -1.0f);
 	_lightPosition = _floorCenter + (lateralAxis1 + lateralAxis2) * (_floorSize * 1.25f);
 
-	if (_meshStore.empty())
+	if (_sceneRuntime.meshStore().empty())
 	{
 		setCoordinateAlongCurrentWorldUp(_lightPosition, _floorSize);
 	}
@@ -6328,7 +4957,7 @@ bool GLWidget::userModelTransformForFile(const QString& sourceFile,
 {
 	bool found = false;
 	QMatrix4x4 trsf;
-	for (TriangleMesh* mesh : _meshStore)
+	for (SceneMesh* mesh : _sceneRuntime.meshStore())
 	{
 		if (!mesh || mesh->getSourceFile() != sourceFile)
 			continue;
@@ -6518,736 +5147,36 @@ void GLWidget::loadEnvMap()
 {	
     const QString path = PathUtils::getDataDirectory() + "/";
 
-	_skyBox = new CubeRenderable(_skyBoxShader.get(), 1);
-	_skyBoxShader->bind();
-	_skyBoxShader->setUniformValue("skybox", 1);
+	_skyBox = new CubeRenderable(_renderCtrl.skyBoxShader(), 1);
+	_renderCtrl.skyBoxShader()->bind();
+	_renderCtrl.skyBoxShader()->setUniformValue("skybox", 1);
 	
 	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
-	glGenTextures(1, &_environmentMap);
+	_renderCtrl.createEnvironmentMapTexture();
 	
 	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _renderCtrl.environmentMap());
 
 	setSkyBoxTextureFolder(path + "textures/envmap/skyboxes/LDRI/@Default");	
 }
 
 void GLWidget::loadIrradianceMap()
 {
-	// Setup framebuffer for offscreen rendering.
-	// Use zero-init + scope-exit lambda so captureFBO/RBO are always freed even
-	// if an early return is added in future.
-	unsigned int captureFBO = 0;
-	unsigned int captureRBO = 0;
-	glGenFramebuffers(1, &captureFBO);
-	glGenRenderbuffers(1, &captureRBO);
-	auto cleanupFBO = [&]() {
-		glDeleteFramebuffers(1, &captureFBO);
-		glDeleteRenderbuffers(1, &captureRBO);
-	};
-
-	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
-	glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, captureRBO);
-
-	// Save GL state
-	glDisable(GL_BLEND);
-	glDisable(GL_SCISSOR_TEST);
-	glDisable(GL_STENCIL_TEST);
-	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_LEQUAL);
-	glDepthMask(GL_TRUE);
-	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	glDisable(GL_CULL_FACE);
-
-	// Create irradiance cubemap
-	if (_irradianceMap)
-		glDeleteTextures(1, &_irradianceMap);
-	glGenTextures(1, &_irradianceMap);
-	//std::cout << "GLWidget::loadIrradianceMap : _irradianceMap = " << _irradianceMap << std::endl;
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _irradianceMap);
-
-	constexpr int irradianceSize = 64;
-	for (unsigned int i = 0; i < 6; ++i)
-	{
-		if (_skyBoxTextureHDRI)
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB32F,
-				irradianceSize, irradianceSize, 0, GL_RGB, GL_FLOAT, nullptr);
-		else
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F,
-				irradianceSize, irradianceSize, 0, GL_RGB, GL_HALF_FLOAT, nullptr);
-	}
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	// Setup framebuffer for irradiance rendering
-	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
-	glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, irradianceSize, irradianceSize);
-
-	// ==== IRRADIANCE PASS: Use fullscreen triangle ====
-	_irradianceShader->bind();
-	_irradianceShader->setUniformValue("environmentMap", 1);
-	_irradianceShader->setUniformValue("resolution", QVector2D(irradianceSize, irradianceSize));
-
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
-
-	glViewport(0, 0, irradianceSize, irradianceSize);
-	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
-
-	for (unsigned int i = 0; i < 6; ++i)
-	{
-		// Bind this face to the framebuffer
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-			GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, _irradianceMap, 0);
-
-		GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-		if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
-		{
-			qWarning() << "Irradiance FBO incomplete at face" << i << "Status:" << fboStatus;
-			continue;
-		}
-
-		// Set per-face basis matrix
-		_irradianceShader->bind();
-		setIBLFaceBasis(_irradianceShader.get(), i);
-
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
-		// Draw fullscreen triangle (not the cube!)
-		drawFullscreenTriangle();
-	}
-
-	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
-
-	// ==== PREFILTER PASS: Create prefilter cubemap ====
-	if (_prefilterMap)
-		glDeleteTextures(1, &_prefilterMap);
-	glGenTextures(1, &_prefilterMap);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _prefilterMap);
-
-	constexpr int prefilterSize = 512;
-	unsigned int maxMipLevels = static_cast<unsigned int>(std::log2(prefilterSize)) + 1;
-	// Khronos uses only 5 effective LOD levels (lowestMipLevel=4 in ibl_sampler.js).
-	// LOD formula: lod = roughness * (effectiveMipLevels - 1).
-	// Roughness 0..1 maps to mips 0..4 only; tail mips (5-9) baked at roughness=1
-	// for texture completeness but are never sampled by the LOD formula.
-	constexpr unsigned int effectiveMipLevels = 5;
-	_prefilterMipLevels = effectiveMipLevels;
-
-	// Allocate all mip levels upfront (full chain for GL_LINEAR_MIPMAP_LINEAR completeness)
-	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
-	{
-		unsigned int mipSize = static_cast<unsigned int>(prefilterSize * std::pow(0.5, mip));
-		for (unsigned int i = 0; i < 6; ++i)
-		{
-			if (_skyBoxTextureHDRI)
-				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB32F,
-					mipSize, mipSize, 0, GL_RGB, GL_FLOAT, nullptr);
-			else
-				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB16F,
-					mipSize, mipSize, 0, GL_RGB, GL_HALF_FLOAT, nullptr);
-		}
-	}
-
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameterf(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAX_ANISOTROPY_EXT, _anisotropicFilteringLevel);
-
-	// Get environment map resolution for importance sampling
-	GLint envMapWidth = 512;
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
-	glGetTexLevelParameteriv(GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, GL_TEXTURE_WIDTH, &envMapWidth);
-
-	// Render each mip level with fullscreen triangle
-	_prefilterShader->bind();
-	_prefilterShader->setUniformValue("environmentMap", 1);
-	_prefilterShader->setUniformValue("environmentMapResolution", static_cast<float>(envMapWidth));
-
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
-
-	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
-
-	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
-	{
-		unsigned int mipWidth = prefilterSize * std::pow(0.5, mip);
-		unsigned int mipHeight = prefilterSize * std::pow(0.5, mip);
-
-		// Resize renderbuffer for this mip level
-		glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
-		glViewport(0, 0, mipWidth, mipHeight);
-
-		// Spread roughness 0..1 over the first effectiveMipLevels mips (matches Khronos).
-		// Tail mips (beyond effective range) get roughness=1.0 for texture completeness.
-		float roughness = (mip < effectiveMipLevels)
-			? (float)mip / (float)(effectiveMipLevels - 1)
-			: 1.0f;
-		_prefilterShader->bind();
-		_prefilterShader->setUniformValue("roughness", roughness);
-		_prefilterShader->setUniformValue("resolution", QVector2D(mipWidth, mipHeight));
-
-		for (unsigned int i = 0; i < 6; ++i)
-		{
-			// Bind this mip level of this face to framebuffer
-			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-				GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, _prefilterMap, mip);
-
-			GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-			if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
-			{
-				qWarning() << "Prefilter FBO incomplete at mip" << mip << "face" << i
-					<< "Status:" << fboStatus;
-				continue;
-			}
-
-			// Set per-face basis matrix
-			_prefilterShader->bind();
-			setIBLFaceBasis(_prefilterShader.get(), i);
-
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
-			// Draw fullscreen triangle (not the cube!)
-			drawFullscreenTriangle();
-		}
-	}
-
-	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
-
-	// ==== SHEEN PREFILTER PASS: Create Charlie prefilter cubemap ====
-	if (_sheenPrefilterMap)
-		glDeleteTextures(1, &_sheenPrefilterMap);
-	glGenTextures(1, &_sheenPrefilterMap);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _sheenPrefilterMap);
-
-	constexpr int sheenPrefilterSize = 256;
-	// Khronos-compatible sheen mip scheme: 5 effective levels (roughness 0..1 over mips 0..4).
-	// LOD formula: lod = roughness * (sheenEffectiveMipLevels - 1) = roughness * 4.
-	// At sheenRoughness=0.1 this gives lod=0.4 vs the old lod=0.8 (9 mip/textureQueryLevels).
-	// Mip 0 (roughness=0) collapses to the mirror-reflection sample, so low-roughness sheen
-	// IBL reflects the environment instead of being nearly black.
-	constexpr int sheenEffectiveMipLevels = 5;
-	const unsigned int sheenMaxMipLevels = static_cast<unsigned int>(std::log2(sheenPrefilterSize)) + 1;
-
-	for (unsigned int mip = 0; mip < sheenMaxMipLevels; ++mip)
-	{
-		unsigned int mipSize = static_cast<unsigned int>(sheenPrefilterSize * std::pow(0.5, mip));
-		for (unsigned int i = 0; i < 6; ++i)
-		{
-			if (_skyBoxTextureHDRI)
-				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB32F,
-					mipSize, mipSize, 0, GL_RGB, GL_FLOAT, nullptr);
-			else
-				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB16F,
-					mipSize, mipSize, 0, GL_RGB, GL_HALF_FLOAT, nullptr);
-		}
-	}
-
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameterf(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAX_ANISOTROPY_EXT, _anisotropicFilteringLevel);
-
-	_sheenPrefilterShader->bind();
-	_sheenPrefilterShader->setUniformValue("environmentMap", 1);
-	_sheenPrefilterShader->setUniformValue("environmentMapResolution", static_cast<float>(envMapWidth));
-
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
-	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
-
-	for (unsigned int mip = 0; mip < sheenMaxMipLevels; ++mip)
-	{
-		unsigned int mipWidth = sheenPrefilterSize * std::pow(0.5, mip);
-		unsigned int mipHeight = sheenPrefilterSize * std::pow(0.5, mip);
-
-		glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
-		glViewport(0, 0, mipWidth, mipHeight);
-
-		// Roughness for this mip: spread evenly over [0..1] for mips 0..(sheenEffectiveMipLevels-1),
-		// clamp to 1.0 for any extra mips (allocated for texture completeness, never sampled by LOD).
-		float roughness = (mip < static_cast<unsigned int>(sheenEffectiveMipLevels))
-			? static_cast<float>(mip) / static_cast<float>(sheenEffectiveMipLevels - 1)
-			: 1.0f;
-		_sheenPrefilterShader->bind();
-		_sheenPrefilterShader->setUniformValue("roughness", roughness);
-		_sheenPrefilterShader->setUniformValue("resolution", QVector2D(mipWidth, mipHeight));
-
-		for (unsigned int i = 0; i < 6; ++i)
-		{
-			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-				GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, _sheenPrefilterMap, mip);
-
-			GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-			if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
-			{
-				qWarning() << "Sheen prefilter FBO incomplete at mip" << mip << "face" << i
-					<< "Status:" << fboStatus;
-				continue;
-			}
-
-			_sheenPrefilterShader->bind();
-			setIBLFaceBasis(_sheenPrefilterShader.get(), i);
-
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-			drawFullscreenTriangle();
-		}
-	}
-	_sheenPrefilterMipLevels = sheenEffectiveMipLevels;
-
-	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
-
-	// PBR: generate a 2D LUT from the BRDF equations used.
-	// ----------------------------------------------------
-	if (_brdfLUTTexture)
-		glDeleteTextures(1, &_brdfLUTTexture);
-	glGenTextures(1, &_brdfLUTTexture);
-	//std::cout << "GLWidget::loadIrradianceMap : _brdfLUTTexture = " << _brdfLUTTexture << std::endl;
-
-	constexpr int lutTextureSize = 512;
-	// pre-allocate enough memory for the LUT texture.
-	glBindTexture(GL_TEXTURE_2D, _brdfLUTTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, lutTextureSize, lutTextureSize, 0, GL_RGB, GL_FLOAT, 0);
-	// be sure to set wrapping mode to GL_CLAMP_TO_EDGE
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	// then re-configure capture framebuffer object and render screen-space quad with BRDF shader.
-	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
-	glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, lutTextureSize, lutTextureSize);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, _brdfLUTTexture, 0);
-
-	glViewport(0, 0, lutTextureSize, lutTextureSize);
-	_brdfShader->bind();
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	renderQuad();
-
-	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
-
-	// Bind pre-computed IBL data to texture units
-	glActiveTexture(GL_TEXTURE3);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _irradianceMap);
-	glActiveTexture(GL_TEXTURE4);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _prefilterMap);
-	glActiveTexture(GL_TEXTURE5);
-	glBindTexture(GL_TEXTURE_2D, _brdfLUTTexture);
-	glActiveTexture(GL_TEXTURE7);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _sheenPrefilterMap);
-
-	auto resolveKhronosLUTPath = [](const QString& fileName) -> QString
-	{
-		const QString dataCandidate = QDir(PathUtils::getDataDirectory()).absoluteFilePath("textures/khronos/" + fileName);
-		if (QFileInfo::exists(dataCandidate))
-		{
-			return dataCandidate;
-		}
-
-		// Development fallback when running from the source tree instead of an installed app layout.
-		const QString sourceCandidate = QDir(QDir::currentPath()).absoluteFilePath("textures/khronos/" + fileName);
-		if (QFileInfo::exists(sourceCandidate))
-		{
-			return sourceCandidate;
-		}
-
-		return dataCandidate;
-	};
-
-	auto loadKhronosLUTTexture = [this, &resolveKhronosLUTPath](const QString& fileName, GLuint& textureId)
-	{
-		const QString filePath = resolveKhronosLUTPath(fileName);
-		if (filePath.isEmpty())
-		{
-			qWarning() << "Failed to resolve Khronos LUT texture:" << fileName;
-			if (textureId != 0)
-			{
-				glDeleteTextures(1, &textureId);
-				textureId = 0;
-			}
-			return;
-		}
-
-		QImage image(filePath);
-		if (image.isNull())
-		{
-			qWarning() << "Failed to load Khronos LUT texture:" << filePath;
-			if (textureId != 0)
-			{
-				glDeleteTextures(1, &textureId);
-				textureId = 0;
-			}
-			return;
-		}
-
-		QImage glImage = image.convertToFormat(QImage::Format_RGBA8888);
-		if (textureId != 0)
-			glDeleteTextures(1, &textureId);
-		glGenTextures(1, &textureId);
-		glBindTexture(GL_TEXTURE_2D, textureId);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, glImage.width(), glImage.height(), 0,
-			GL_RGBA, GL_UNSIGNED_BYTE, glImage.constBits());
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	};
-
-	if (_charlieLUTTexture == 0)
-	{
-		loadKhronosLUTTexture("lut_charlie.png", _charlieLUTTexture);
-	}
-	if (_sheenELUTTexture == 0)
-	{
-		loadKhronosLUTTexture("lut_sheen_E.png", _sheenELUTTexture);
-	}
-
-	glActiveTexture(GL_TEXTURE8);
-	glBindTexture(GL_TEXTURE_2D, _charlieLUTTexture);
-	glActiveTexture(GL_TEXTURE9);
-	glBindTexture(GL_TEXTURE_2D, _sheenELUTTexture);
-
-	// Cleanup temporary FBO
-	cleanupFBO();
+	_renderCtrl.generateIBL(defaultFramebufferObject());
 }
 
 // Helper: Load HDR file and convert to cubemap
 // Returns the created cubemap texture ID (or 0 on failure)
 GLuint GLWidget::loadPresetEnvironmentMap(const QString& hdrFilePath)
 {
-	// Load equirectangular HDR
-	int imgWidth, imgHeight, channels;
-	stbi_set_flip_vertically_on_load(true);
-	float* data = stbi_loadf(hdrFilePath.toStdString().c_str(), &imgWidth, &imgHeight, &channels, 0);
-
-	if (!data || imgWidth != 2 * imgHeight)
-	{
-		qWarning() << "Failed to load HDR file:" << hdrFilePath;
-		if (data) stbi_image_free(data);
-		return 0;
-	}
-
-	// Create temporary 2D texture for equirectangular source
-	GLuint equirectTexture;
-	glGenTextures(1, &equirectTexture);
-	glBindTexture(GL_TEXTURE_2D, equirectTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, imgWidth, imgHeight, 0, GL_RGB, GL_FLOAT, data);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	stbi_image_free(data);
-
-	// Create cubemap
-	GLuint cubemap;
-	glGenTextures(1, &cubemap);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap);
-
-	int cubeSize = 512;
-	for (int mip = 0; mip < static_cast<int>(std::log2(cubeSize)) + 1; ++mip)
-	{
-		int mipSize = cubeSize >> mip;
-		for (int i = 0; i < 6; ++i)
-		{
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB32F,
-				mipSize, mipSize, 0, GL_RGB, GL_FLOAT, nullptr);
-		}
-	}
-
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	// Setup FBO for conversion
-	GLuint framebuffer, depthBuffer;
-	glGenFramebuffers(1, &framebuffer);
-	glGenRenderbuffers(1, &depthBuffer);
-
-	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-	glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, cubeSize, cubeSize);
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
-
-	// Convert equirectangular to cubemap
-	_equirectToCubeShader->bind();
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, equirectTexture);
-	_equirectToCubeShader->setUniformValue("equirectangularMap", 0);
-
-	glViewport(0, 0, cubeSize, cubeSize);
-
-	QMatrix4x4 captureViews[] = {
-		[]() { QMatrix4x4 m; m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(1,  0,  0), QVector3D(0, -1,  0)); return m; }(),
-		[]() { QMatrix4x4 m; m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(-1,  0,  0), QVector3D(0, -1,  0)); return m; }(),
-		[]() { QMatrix4x4 m; m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0,  1,  0), QVector3D(0,  0,  1)); return m; }(),
-		[]() { QMatrix4x4 m; m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0, -1,  0), QVector3D(0,  0, -1)); return m; }(),
-		[]() { QMatrix4x4 m; m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0,  0,  1), QVector3D(0, -1,  0)); return m; }(),
-		[]() { QMatrix4x4 m; m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0,  0, -1), QVector3D(0, -1,  0)); return m; }()
-	};
-
-	QMatrix4x4 captureProjection;
-	captureProjection.perspective(90.0f, 1.0f, 0.1f, 10.0f);
-	_equirectToCubeShader->setUniformValue("projection", captureProjection);
-
-	for (int i = 0; i < 6; ++i)
-	{
-		_equirectToCubeShader->setUniformValue("view", captureViews[i]);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, cubemap, 0);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		renderConversionCube();
-	}
-
-	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
-	glDeleteFramebuffers(1, &framebuffer);
-	glDeleteRenderbuffers(1, &depthBuffer);
-	glDeleteTextures(1, &equirectTexture);
-
-	return cubemap;
+	return _renderCtrl.loadPresetEnvMap(hdrFilePath, defaultFramebufferObject());
 }
 
 // Helper: Generate irradiance and prefilter maps for a preset cubemap
 // Returns true on success
 bool GLWidget::generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradianceMap, GLuint& outPrefilterMap, GLuint& outSheenPrefilterMap)
 {
-	if (!sourceCubemap) return false;
-
-	// Setup FBO for offscreen rendering
-	unsigned int captureFBO, captureRBO;
-	glGenFramebuffers(1, &captureFBO);
-	glGenRenderbuffers(1, &captureRBO);
-
-	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
-	glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, captureRBO);
-
-	// Create irradiance map
-	if (outIrradianceMap)
-		glDeleteTextures(1, &outIrradianceMap);
-	glGenTextures(1, &outIrradianceMap);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, outIrradianceMap);
-
-	constexpr int irradianceSize = 64;
-	for (unsigned int i = 0; i < 6; ++i)
-	{
-		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB32F,
-			irradianceSize, irradianceSize, 0, GL_RGB, GL_FLOAT, nullptr);
-	}
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	// Generate irradiance
-	_irradianceShader->bind();
-	_irradianceShader->setUniformValue("environmentMap", 1);
-	_irradianceShader->setUniformValue("resolution", QVector2D(irradianceSize, irradianceSize));
-
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, sourceCubemap);
-
-	glViewport(0, 0, irradianceSize, irradianceSize);
-	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
-	glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, irradianceSize, irradianceSize);
-
-	for (unsigned int i = 0; i < 6; ++i)
-	{
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-			GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, outIrradianceMap, 0);
-
-		GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-		if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
-		{
-			qWarning() << "Irradiance FBO incomplete at face" << i;
-			continue;
-		}
-
-		_irradianceShader->bind();
-		setIBLFaceBasis(_irradianceShader.get(), i);
-
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		drawFullscreenTriangle();
-	}
-
-	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
-
-	// Create prefilter map
-	if (outPrefilterMap)
-		glDeleteTextures(1, &outPrefilterMap);
-	glGenTextures(1, &outPrefilterMap);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, outPrefilterMap);
-
-	constexpr int prefilterSize = 512;
-	unsigned int maxMipLevels = static_cast<unsigned int>(std::log2(prefilterSize)) + 1;
-	constexpr unsigned int effectiveMipLevels = 5;
-
-	// Allocate all mip levels (full chain for completeness)
-	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
-	{
-		unsigned int mipSize = static_cast<unsigned int>(prefilterSize * std::pow(0.5, mip));
-		for (unsigned int i = 0; i < 6; ++i)
-		{
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB32F,
-				mipSize, mipSize, 0, GL_RGB, GL_FLOAT, nullptr);
-		}
-	}
-
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	// Get source resolution for importance sampling
-	GLint envMapWidth = 512;
-	glBindTexture(GL_TEXTURE_CUBE_MAP, sourceCubemap);
-	glGetTexLevelParameteriv(GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, GL_TEXTURE_WIDTH, &envMapWidth);
-
-	// Render prefilter mip levels
-	_prefilterShader->bind();
-	_prefilterShader->setUniformValue("environmentMap", 1);
-	_prefilterShader->setUniformValue("environmentMapResolution", static_cast<float>(envMapWidth));
-
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, sourceCubemap);
-
-	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
-
-	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
-	{
-		unsigned int mipWidth = prefilterSize * std::pow(0.5, mip);
-		unsigned int mipHeight = prefilterSize * std::pow(0.5, mip);
-
-		glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
-		glViewport(0, 0, mipWidth, mipHeight);
-
-		float roughness = (mip < effectiveMipLevels)
-			? (float)mip / (float)(effectiveMipLevels - 1)
-			: 1.0f;
-		_prefilterShader->bind();
-		_prefilterShader->setUniformValue("roughness", roughness);
-		_prefilterShader->setUniformValue("resolution", QVector2D(mipWidth, mipHeight));
-
-		for (unsigned int i = 0; i < 6; ++i)
-		{
-			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-				GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, outPrefilterMap, mip);
-
-			GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-			if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
-			{
-				qWarning() << "Prefilter FBO incomplete at mip" << mip << "face" << i;
-				continue;
-			}
-
-			_prefilterShader->bind();
-			setIBLFaceBasis(_prefilterShader.get(), i);
-
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-			drawFullscreenTriangle();
-		}
-	}
-
-	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
-
-	// Create Charlie/sheen prefilter map
-	if (outSheenPrefilterMap)
-		glDeleteTextures(1, &outSheenPrefilterMap);
-	glGenTextures(1, &outSheenPrefilterMap);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, outSheenPrefilterMap);
-
-	constexpr int sheenPrefilterSize = 256;
-	// Same Khronos-compatible scheme as the primary environment sheen prefilter.
-	constexpr int sheenEffectiveMipLevels = 5;
-	const unsigned int sheenMaxMipLevels = static_cast<unsigned int>(std::log2(sheenPrefilterSize)) + 1;
-
-	for (unsigned int mip = 0; mip < sheenMaxMipLevels; ++mip)
-	{
-		unsigned int mipSize = static_cast<unsigned int>(sheenPrefilterSize * std::pow(0.5, mip));
-		for (unsigned int i = 0; i < 6; ++i)
-		{
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB32F,
-				mipSize, mipSize, 0, GL_RGB, GL_FLOAT, nullptr);
-		}
-	}
-
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-	_sheenPrefilterShader->bind();
-	_sheenPrefilterShader->setUniformValue("environmentMap", 1);
-	_sheenPrefilterShader->setUniformValue("environmentMapResolution", static_cast<float>(envMapWidth));
-
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, sourceCubemap);
-	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
-
-	for (unsigned int mip = 0; mip < sheenMaxMipLevels; ++mip)
-	{
-		unsigned int mipWidth = sheenPrefilterSize * std::pow(0.5, mip);
-		unsigned int mipHeight = sheenPrefilterSize * std::pow(0.5, mip);
-
-		glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
-		glViewport(0, 0, mipWidth, mipHeight);
-
-		float roughness = (mip < static_cast<unsigned int>(sheenEffectiveMipLevels))
-			? static_cast<float>(mip) / static_cast<float>(sheenEffectiveMipLevels - 1)
-			: 1.0f;
-		_sheenPrefilterShader->bind();
-		_sheenPrefilterShader->setUniformValue("roughness", roughness);
-		_sheenPrefilterShader->setUniformValue("resolution", QVector2D(mipWidth, mipHeight));
-
-		for (unsigned int i = 0; i < 6; ++i)
-		{
-			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-				GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, outSheenPrefilterMap, mip);
-
-			GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-			if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
-			{
-				qWarning() << "Sheen prefilter FBO incomplete at mip" << mip << "face" << i;
-				continue;
-			}
-
-			_sheenPrefilterShader->bind();
-			setIBLFaceBasis(_sheenPrefilterShader.get(), i);
-
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-			drawFullscreenTriangle();
-		}
-	}
-
-	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
-
-	glDeleteFramebuffers(1, &captureFBO);
-	glDeleteRenderbuffers(1, &captureRBO);
-
-	return true;
+	return _renderCtrl.generatePresetIBLMaps(sourceCubemap, outIrradianceMap, outPrefilterMap, outSheenPrefilterMap, defaultFramebufferObject());
 }
 
 GLuint GLWidget::getEnvironmentMap(int index, bool regenerate)
@@ -7255,17 +5184,17 @@ GLuint GLWidget::getEnvironmentMap(int index, bool regenerate)
 	switch(index)
 	{
 		case 0:  // ViewerIBL
-			if (regenerate && !_currentSkyboxFolder.isEmpty())
+			if (regenerate && !_renderCtrl.currentSkyboxFolder().isEmpty())
 			{
 				loadEnvMap();
 			}
-			return _environmentMap;
+			return _renderCtrl.environmentMap();
 		case 1:  // Studio
-			return _studioEnvironmentMap;
+			return _renderCtrl.studioEnvironmentMap();
 		case 2:  // Outdoor
-			return _outdoorEnvironmentMap;
+			return _renderCtrl.outdoorEnvironmentMap();
 		case 3:  // Office
-			return _officeEnvironmentMap;
+			return _renderCtrl.officeEnvironmentMap();
 		default:
 			return 0;
 	}
@@ -7276,17 +5205,17 @@ GLuint GLWidget::getIrradianceMap(int index, bool regenerate)
 	switch(index)
 	{
 		case 0:  // ViewerIBL
-			if (regenerate && !_currentSkyboxFolder.isEmpty())
+			if (regenerate && !_renderCtrl.currentSkyboxFolder().isEmpty())
 			{
 				loadIrradianceMap();
 			}
-			return _irradianceMap;
+			return _renderCtrl.irradianceMap();
 		case 1:  // Studio
-			return _studioIrradianceMap;
+			return _renderCtrl.studioIrradianceMap();
 		case 2:  // Outdoor
-			return _outdoorIrradianceMap;
+			return _renderCtrl.outdoorIrradianceMap();
 		case 3:  // Office
-			return _officeIrradianceMap;
+			return _renderCtrl.officeIrradianceMap();
 		default:
 			return 0;
 	}
@@ -7297,17 +5226,17 @@ GLuint GLWidget::getPrefilterMap(int index, bool regenerate)
 	switch(index)
 	{
 		case 0:  // ViewerIBL
-			if (regenerate && !_currentSkyboxFolder.isEmpty())
+			if (regenerate && !_renderCtrl.currentSkyboxFolder().isEmpty())
 			{
 				loadIrradianceMap();  // This creates both irradiance AND prefilter
 			}
-			return _prefilterMap;
+			return _renderCtrl.prefilterMap();
 		case 1:  // Studio
-			return _studioPrefilterMap;
+			return _renderCtrl.studioPrefilterMap();
 		case 2:  // Outdoor
-			return _outdoorPrefilterMap;
+			return _renderCtrl.outdoorPrefilterMap();
 		case 3:  // Office
-			return _officePrefilterMap;
+			return _renderCtrl.officePrefilterMap();
 		default:
 			return 0;
 	}
@@ -7318,17 +5247,17 @@ GLuint GLWidget::getSheenPrefilterMap(int index, bool regenerate)
 	switch(index)
 	{
 		case 0:  // ViewerIBL
-			if (regenerate && !_currentSkyboxFolder.isEmpty())
+			if (regenerate && !_renderCtrl.currentSkyboxFolder().isEmpty())
 			{
 				loadIrradianceMap();
 			}
-			return _sheenPrefilterMap;
+			return _renderCtrl.sheenPrefilterMap();
 		case 1:  // Studio
-			return _studioSheenPrefilterMap;
+			return _renderCtrl.studioSheenPrefilterMap();
 		case 2:  // Outdoor
-			return _outdoorSheenPrefilterMap;
+			return _renderCtrl.outdoorSheenPrefilterMap();
 		case 3:  // Office
-			return _officeSheenPrefilterMap;
+			return _renderCtrl.officeSheenPrefilterMap();
 		default:
 			return 0;
 	}
@@ -7338,17 +5267,17 @@ void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)
 {
 	QMatrix4x4 projection;
 	projection.ortho(QRect(0.0f, 0.0f, static_cast<float>(width()), static_cast<float>(height())));
-	_textShader->bind();
-	_textShader->setUniformValue("projection", projection);
-	_textShader->release();
+	_renderCtrl.textShader()->bind();
+	_renderCtrl.textShader()->setUniformValue("projection", projection);
+	_renderCtrl.textShader()->release();
 	glViewport(0, 0, width(), height());
-	if (_shadowsEnabled)
+	if (_renderCtrl.shadowsEnabled())
 		renderToShadowBuffer();
 
 	if (sceneHasVisibleSSSMaterials())
 		renderToSSSBuffer(_primaryCamera);
 
-	if (_transmissionEnabled && sceneHasVisibleTransmissionMaterials())
+	if (_renderCtrl.transmissionEnabled() && sceneHasVisibleTransmissionMaterials())
 		renderToTransmissionBuffer(_primaryCamera, topColor, botColor);
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -7363,7 +5292,7 @@ void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)
 
 void GLWidget::setCornerAxisPosition(CornerAxisPosition position)
 {
-	_viewCtrl._cornerAxisPosition = normalizeCornerAxisPosition(position);
+	_viewCtrl._cornerAxisPosition = ViewportInteractionController::normalizeCornerAxisPosition(position);
 	update();
 }
 
@@ -7377,26 +5306,26 @@ void GLWidget::applyExplodedViewTransforms(const QMap<int, TransformState>& tran
 	for (auto it = transforms.cbegin(); it != transforms.cend(); ++it)
 	{
 		const int index = it.key();
-		if (index < 0 || index >= static_cast<int>(_meshStore.size()))
+		if (index < 0 || index >= static_cast<int>(_sceneRuntime.meshStore().size()))
 			continue;
 
-		TriangleMesh* mesh = _meshStore[index];
+		SceneMesh* mesh = _sceneRuntime.meshStore()[index];
 		if (!mesh)
 			continue;
 
 		savedExplosionOffsets.insert(mesh->uuid(), mesh->explosionOffset());
 		mesh->setExplosionOffset(QVector3D());
-		applyExplodedViewTransformState(mesh, it.value(), false);
+		ExplodedViewRuntimeController::applyExplodedViewTransformState(mesh, it.value(), false);
 		mesh->fullUpdateRuntimeBounds();
 	}
 
 	for (auto it = transforms.cbegin(); it != transforms.cend(); ++it)
 	{
 		const int index = it.key();
-		if (index < 0 || index >= static_cast<int>(_meshStore.size()))
+		if (index < 0 || index >= static_cast<int>(_sceneRuntime.meshStore().size()))
 			continue;
 
-		TriangleMesh* mesh = _meshStore[index];
+		SceneMesh* mesh = _sceneRuntime.meshStore()[index];
 		if (!mesh)
 			continue;
 
@@ -7411,13 +5340,13 @@ void GLWidget::applyExplodedViewTransforms(const QMap<int, TransformState>& tran
 void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 {
 	glViewport(0, 0, width(), height());
-	if (_shadowsEnabled)
+	if (_renderCtrl.shadowsEnabled())
 		renderToShadowBuffer();
 
 	if (sceneHasVisibleSSSMaterials())
 		renderToSSSBuffer(_primaryCamera);
 
-	if (_transmissionEnabled && sceneHasVisibleTransmissionMaterials())
+	if (_renderCtrl.transmissionEnabled() && sceneHasVisibleTransmissionMaterials())
 		renderToTransmissionBuffer(_primaryCamera, topColor, botColor);
 
 	gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
@@ -7473,20 +5402,20 @@ void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 
 void GLWidget::drawFloor(const bool& drawReflection)
 {
-	TriangleMesh::resetTextureBindingCacheForCurrentContext();
+	RenderableMesh::resetTextureBindingCacheForCurrentContext();
 
 	// Per-pass uniforms: 3 that differ between passes + 2 that drawMesh() may overwrite.
 	// bind() is required here: drawMesh() ends with _prog->release() per mesh, leaving
-	// no program active; the bind before each pass restores _fgShader so the uniform
+	// no program active; the bind before each pass restores _renderCtrl.fgShader() so the uniform
 	// uploads and the matrix uploads in FloorPlane::render() reach the right program.
 	auto configureGroundPass = [this](bool reflectedPass, bool textureEnabled)
 	{
-		_fgShader->bind();
-		_fgShader->setUniformValue("sssCapture", false);
-		_fgShader->setUniformValue("envMapEnabled", false);
-		_fgShader->setUniformValue("isReflectedPass", reflectedPass);
-		_fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_BLINN_PHONG));
-		_fgShader->setUniformValue("floorTextureEnabled", textureEnabled);
+		_renderCtrl.fgShader()->bind();
+		_renderCtrl.fgShader()->setUniformValue("sssCapture", false);
+		_renderCtrl.fgShader()->setUniformValue("envMapEnabled", false);
+		_renderCtrl.fgShader()->setUniformValue("isReflectedPass", reflectedPass);
+		_renderCtrl.fgShader()->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_BLINN_PHONG));
+		_renderCtrl.fgShader()->setUniformValue("floorTextureEnabled", textureEnabled);
 	};
 
 	// Units 32/33: prevent the floor from sampling the transmission FBO while it is
@@ -7496,24 +5425,24 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	// floor rendering never has hasVolumeScattering=true so sampleCapturedSSSDiffuse
 	// is never called.
 	glActiveTexture(GL_TEXTURE0 + 32);
-	glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+	glBindTexture(GL_TEXTURE_2D, _renderCtrl.whiteTexture());
 	glActiveTexture(GL_TEXTURE0 + 33);
-	glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+	glBindTexture(GL_TEXTURE_2D, _renderCtrl.whiteTexture());
 	glActiveTexture(GL_TEXTURE0);
 
 	// Upload uniforms shared by both floor passes once; only per-pass values are
 	// re-uploaded via configureGroundPass() before each individual pass.
-	_fgShader->bind();
-	_fgShader->setUniformValue("floorRendering", true);
-	_fgShader->setUniformValue("groundMode", static_cast<int>(_groundMode));
-	_fgShader->setUniformValue("topColor", QVector4D(_bgTopColor.red(), _bgTopColor.green(), _bgTopColor.blue(), _bgTopColor.alpha()));
-	_fgShader->setUniformValue("botColor", QVector4D(_bgBotColor.red(), _bgBotColor.green(), _bgBotColor.blue(), _bgBotColor.alpha()));
-	_fgShader->setUniformValue("screenSize", QVector2D(width(), height()));
-	_fgShader->setUniformValue("screenCenter", _floorCenter);
-	_fgShader->setUniformValue("gradientStyle", _gradientStyle);
-	_fgShader->setUniformValue("floorSize", groundPlaneExtent());
-	_fgShader->setUniformValue("groundReferenceSize", _floorSize);
-	_fgShader->setUniformValue("worldUpAxis", _viewCtrl._cameraUpAxisZUp ? 2 : 1);
+	_renderCtrl.fgShader()->bind();
+	_renderCtrl.fgShader()->setUniformValue("floorRendering", true);
+	_renderCtrl.fgShader()->setUniformValue("groundMode", static_cast<int>(_renderCtrl.groundMode()));
+	_renderCtrl.fgShader()->setUniformValue("topColor", QVector4D(_bgTopColor.red(), _bgTopColor.green(), _bgTopColor.blue(), _bgTopColor.alpha()));
+	_renderCtrl.fgShader()->setUniformValue("botColor", QVector4D(_bgBotColor.red(), _bgBotColor.green(), _bgBotColor.blue(), _bgBotColor.alpha()));
+	_renderCtrl.fgShader()->setUniformValue("screenSize", QVector2D(width(), height()));
+	_renderCtrl.fgShader()->setUniformValue("screenCenter", _floorCenter);
+	_renderCtrl.fgShader()->setUniformValue("gradientStyle", _gradientStyle);
+	_renderCtrl.fgShader()->setUniformValue("floorSize", groundPlaneExtent());
+	_renderCtrl.fgShader()->setUniformValue("groundReferenceSize", _floorSize);
+	_renderCtrl.fgShader()->setUniformValue("worldUpAxis", _viewCtrl._cameraUpAxisZUp ? 2 : 1);
 
 	//https://open.gl/depthstencils
 	glEnable(GL_STENCIL_TEST);
@@ -7534,7 +5463,7 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	_floorPlane->setOpacity(0.1f);
 	_floorPlane->render();
-	// FloorPlane writes mesh-like material uniforms through _fgShader without
+	// FloorPlane writes mesh-like material uniforms through _renderCtrl.fgShader() without
 	// participating in SceneMesh's shared material-uniform cache. Invalidate
 	// that cache so subsequent scene meshes always republish their own state.
 	SceneMesh::resetSharedUniformStateCache();
@@ -7564,14 +5493,14 @@ void GLWidget::drawFloor(const bool& drawReflection)
 		model.scale(1.0f, -1.0f, 1.0f);
 	}
 
-	_fgShader->bind();
-	_fgShader->setUniformValue("sssCapture", false);
-	_fgShader->setUniformValue("modelMatrix", model);
-	TriangleMesh::setCurrentRenderContext(model, _viewCtrl._viewMatrix);
-	if (_reflectionsEnabled && drawReflection)
+	_renderCtrl.fgShader()->bind();
+	_renderCtrl.fgShader()->setUniformValue("sssCapture", false);
+	_renderCtrl.fgShader()->setUniformValue("modelMatrix", model);
+	RenderableMesh::setCurrentRenderContext(model, _viewCtrl._viewMatrix);
+	if (_renderCtrl.reflectionsEnabled() && drawReflection)
 	{
-		_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
-		drawMesh(_fgShader.get());
+		_renderCtrl.fgShader()->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
+		drawMesh(_renderCtrl.fgShader());
 	}
 
 	glStencilMask(0x00);
@@ -7580,42 +5509,42 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_FRONT);
-	configureGroundPass(false, _floorTextureDisplayed);
-	_fgShader->setProperty("globalModelMatrix", QVariant::fromValue(_viewCtrl._modelMatrix));
-	TriangleMesh::setCurrentRenderContext(_viewCtrl._modelMatrix, _viewCtrl._viewMatrix);
+	configureGroundPass(false, _renderCtrl.floorTextureDisplayed());
+	_renderCtrl.fgShader()->setProperty("globalModelMatrix", QVariant::fromValue(_viewCtrl._modelMatrix));
+	RenderableMesh::setCurrentRenderContext(_viewCtrl._modelMatrix, _viewCtrl._viewMatrix);
 	_floorPlane->setOpacity(0.95f);
 	_floorPlane->render();
-	// The final visible floor pass also mutates _fgShader material uniforms,
+	// The final visible floor pass also mutates _renderCtrl.fgShader() material uniforms,
 	// so clear the shared cache before later transparent scene draws.
 	SceneMesh::resetSharedUniformStateCache();
 	glDisable(GL_CULL_FACE);
-	_fgShader->bind();
-	_fgShader->setUniformValue("floorRendering", false);
-	_fgShader->setUniformValue("groundMode", static_cast<int>(GroundMode::None));
-	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
+	_renderCtrl.fgShader()->bind();
+	_renderCtrl.fgShader()->setUniformValue("floorRendering", false);
+	_renderCtrl.fgShader()->setUniformValue("groundMode", static_cast<int>(GroundMode::None));
+	_renderCtrl.fgShader()->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
 	glDisable(GL_BLEND);
 
-	_fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
+	_renderCtrl.fgShader()->setUniformValue("envMapEnabled", _renderCtrl.envMapEnabled());
 	glActiveTexture(GL_TEXTURE0);
 }
 
 void GLWidget::drawGrid()
 {
-	if (!_gridShader)
+	if (!_renderCtrl.gridShader())
 		return;
 
 	QMatrix4x4 viewProjection = _viewCtrl._projectionMatrix * _viewCtrl._viewMatrix;
 	QMatrix4x4 inverseViewProjection = viewProjection.inverted();
-	_gridShader->bind();
-	_gridShader->setUniformValue("inverseViewProjectionMatrix", inverseViewProjection);
-	_gridShader->setUniformValue("viewProjectionMatrix", viewProjection);
-	_gridShader->setUniformValue("cameraPos", _primaryCamera->getRenderPosition());
-	_gridShader->setUniformValue("screenCenter", _floorCenter);
-	_gridShader->setUniformValue("groundReferenceSize", _floorSize);
-	_gridShader->setUniformValue("floorSize", groundPlaneExtent());
-	_gridShader->setUniformValue("gridPlaneZ", _floorPlaneZ);
-	_gridShader->setUniformValue("worldUpAxis", _viewCtrl._cameraUpAxisZUp ? 2 : 1);
-	_gridShader->setUniformValue("opacity", 0.95f);
+	_renderCtrl.gridShader()->bind();
+	_renderCtrl.gridShader()->setUniformValue("inverseViewProjectionMatrix", inverseViewProjection);
+	_renderCtrl.gridShader()->setUniformValue("viewProjectionMatrix", viewProjection);
+	_renderCtrl.gridShader()->setUniformValue("cameraPos", _primaryCamera->getRenderPosition());
+	_renderCtrl.gridShader()->setUniformValue("screenCenter", _floorCenter);
+	_renderCtrl.gridShader()->setUniformValue("groundReferenceSize", _floorSize);
+	_renderCtrl.gridShader()->setUniformValue("floorSize", groundPlaneExtent());
+	_renderCtrl.gridShader()->setUniformValue("gridPlaneZ", _floorPlaneZ);
+	_renderCtrl.gridShader()->setUniformValue("worldUpAxis", _viewCtrl._cameraUpAxisZUp ? 2 : 1);
+	_renderCtrl.gridShader()->setUniformValue("opacity", 0.95f);
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -7625,7 +5554,7 @@ void GLWidget::drawGrid()
 
 float GLWidget::groundPlaneScaleFactor() const
 {
-	return (_groundMode == GroundMode::Grid) ? 200.0f : _floorSizeFactor;
+	return (_renderCtrl.groundMode() == GroundMode::Grid) ? 200.0f : _floorSizeFactor;
 }
 
 float GLWidget::groundPlaneExtent() const
@@ -7635,14 +5564,14 @@ float GLWidget::groundPlaneExtent() const
 
 void GLWidget::drawSkyBox()
 {
-	_skyBox->setProg(_skyBoxShader.get());
-	_skyBoxShader->bind();
-	const bool usePrefilterBlur = _skyBoxBlurPercent > 0 && _prefilterMap != 0 && _prefilterMipLevels > 0;
+	_skyBox->setProg(_renderCtrl.skyBoxShader());
+	_renderCtrl.skyBoxShader()->bind();
+	const bool usePrefilterBlur = _renderCtrl.skyBoxBlurPercent() > 0 && _renderCtrl.prefilterMap() != 0 && _renderCtrl.prefilterMipLevels() > 0;
 	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, usePrefilterBlur ? _prefilterMap : _environmentMap);
-	_skyBoxShader->setUniformValue("skybox", 1);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, usePrefilterBlur ? _renderCtrl.prefilterMap() : _renderCtrl.environmentMap());
+	_renderCtrl.skyBoxShader()->setUniformValue("skybox", 1);
 	QMatrix4x4 projection;
-	projection.perspective(_skyBoxFOV, (float)width() / (float)height(), 0.1f, 100.0f);
+	projection.perspective(_renderCtrl.skyBoxFOV(), (float)width() / (float)height(), 0.1f, 100.0f);
 	QMatrix4x4 view = _viewCtrl._viewMatrix;
 	// Remove translation
 	view.setColumn(3, QVector4D(0, 0, 0, 1));
@@ -7650,29 +5579,29 @@ void GLWidget::drawSkyBox()
 	model.rotate(cameraUpAxisConventionRotation());
 	if (!usePrefilterBlur)
 		model.rotate(90.0f, QVector3D(1.0f, 0.0f, 0.0f)); // Z-up correction for raw env map
-	model.rotate(_skyBoxZRotation, QVector3D(0.0f, 1.0f, 0.0f)); // User Z rotation (always applied)
+	model.rotate(_renderCtrl.skyBoxZRotation(), QVector3D(0.0f, 1.0f, 0.0f)); // User Z rotation (always applied)
 	float skyboxLod = 0.0f;
 	if (usePrefilterBlur)
 	{
 		// Reserve the top 10% of the old LOD range to avoid visible
 		// banding/pixelation in the blurriest prefilter mips.
-		const float t = (static_cast<float>(_skyBoxBlurPercent) / 100.0f) * 0.9f;
-		skyboxLod = std::pow(t, 1.5f) * static_cast<float>(_prefilterMipLevels - 1);
+		const float t = (static_cast<float>(_renderCtrl.skyBoxBlurPercent()) / 100.0f) * 0.9f;
+		skyboxLod = std::pow(t, 1.5f) * static_cast<float>(_renderCtrl.prefilterMipLevels() - 1);
 	}
 	_skyBox->setSceneRenderTransformFast(model);
-	_skyBoxShader->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
-	_skyBoxShader->setProperty("viewMatrix", QVariant::fromValue(view));
-	_skyBoxShader->setUniformValue("modelMatrix", model);
-	_skyBoxShader->setUniformValue("viewMatrix", view);
-	_skyBoxShader->setUniformValue("projectionMatrix", projection);
-	_skyBoxShader->setUniformValue("hdrToneMapping", _hdrToneMapping);
-	_skyBoxShader->setUniformValue("gammaCorrection", _gammaCorrection);
-	_skyBoxShader->setUniformValue("screenGamma", _screenGamma);
-	_skyBoxShader->setUniformValue("envMapExposure", _envMapExposure);
-	_skyBoxShader->setUniformValue("iblExposure", _iblExposure);
-	_skyBoxShader->setUniformValue("toneMapMode", static_cast<int>(_toneMappingMode));
-	_skyBoxShader->setUniformValue("useSkyboxLod", usePrefilterBlur);
-	_skyBoxShader->setUniformValue("skyboxLod", skyboxLod);
+	_renderCtrl.skyBoxShader()->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
+	_renderCtrl.skyBoxShader()->setProperty("viewMatrix", QVariant::fromValue(view));
+	_renderCtrl.skyBoxShader()->setUniformValue("modelMatrix", model);
+	_renderCtrl.skyBoxShader()->setUniformValue("viewMatrix", view);
+	_renderCtrl.skyBoxShader()->setUniformValue("projectionMatrix", projection);
+	_renderCtrl.skyBoxShader()->setUniformValue("hdrToneMapping", _renderCtrl.hdrToneMapping());
+	_renderCtrl.skyBoxShader()->setUniformValue("gammaCorrection", _renderCtrl.gammaCorrection());
+	_renderCtrl.skyBoxShader()->setUniformValue("screenGamma", _renderCtrl.screenGamma());
+	_renderCtrl.skyBoxShader()->setUniformValue("envMapExposure", _renderCtrl.envMapExposure());
+	_renderCtrl.skyBoxShader()->setUniformValue("iblExposure", _renderCtrl.iblExposure());
+	_renderCtrl.skyBoxShader()->setUniformValue("toneMapMode", static_cast<int>(_renderCtrl.toneMappingMode()));
+	_renderCtrl.skyBoxShader()->setUniformValue("useSkyboxLod", usePrefilterBlur);
+	_renderCtrl.skyBoxShader()->setUniformValue("skyboxLod", skyboxLod);
 	
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LEQUAL); // change depth function so depth test passes when values are equal to depth buffer's content
@@ -7687,15 +5616,15 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 	QVector3D camPos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(prog, camPos);
 	if (_displayMode == DisplayMode::FLATSHADED &&
-		prog == _fgShader.get() &&
-		_fgFlatShader && _fgFlatShader->isLinked())
+		prog == _renderCtrl.fgShader() &&
+		_renderCtrl.fgFlatShader() && _renderCtrl.fgFlatShader()->isLinked())
 	{
 		syncUniformsToFlatShader();
 	}
 
-	if (_meshStore.empty()) return;
+	if (_sceneRuntime.meshStore().empty()) return;
 
-	const std::vector<int>& objectIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+	const std::vector<int>& objectIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
 
 	// Split — applying cap-plane straddle culling during collection
 	std::vector<int> opaqueIds;
@@ -7706,7 +5635,7 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 
 	for (int id : objectIds)
 	{
-		if (TriangleMesh* mesh = _meshStore.at(id))
+		if (SceneMesh* mesh = _sceneRuntime.meshStore().at(id))
 		{
 			// Capping stencil pass: skip meshes outside frustum or that don't
 			// intersect the active cap plane — they contribute nothing to stencil.
@@ -7742,7 +5671,7 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 
 	for (int id : opaqueIds)
 	{
-		if (TriangleMesh* mesh = _meshStore.at(id))
+		if (SceneMesh* mesh = _sceneRuntime.meshStore().at(id))
 		{
 			mesh->setProg(prog);
 			//mesh->render();             // render must NOT disable depth writes here
@@ -7761,7 +5690,7 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 
 	for (auto& it : transparent)
 	{
-		if (TriangleMesh* mesh = _meshStore.at(it.second))
+		if (SceneMesh* mesh = _sceneRuntime.meshStore().at(it.second))
 		{
 			mesh->setProg(prog);
 			//mesh->render();             // render must preserve writes-off for this pass
@@ -7776,13 +5705,13 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 
 void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
 {
-	TriangleMesh::resetTextureBindingCacheForCurrentContext();
-	TriangleMesh::resetBoundProgramCacheForCurrentContext();
+	RenderableMesh::resetTextureBindingCacheForCurrentContext();
+	RenderableMesh::resetBoundProgramCacheForCurrentContext();
 
 	QVector3D camPos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(prog, camPos);
 
-	if (_meshStore.empty()) return;
+	if (_sceneRuntime.meshStore().empty()) return;
 
 	glDisable(GL_BLEND);
 	glDepthMask(GL_TRUE);
@@ -7790,8 +5719,8 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 	// Bind shader and set uniforms that are identical for every opaque mesh once,
 	// outside the loop, to avoid redundant driver calls per draw.
 	prog->bind();
-	TriangleMesh::recordProgramBindCall(true);
-	TriangleMesh::notifyProgramBound(prog);
+	RenderableMesh::recordProgramBindCall(true);
+	RenderableMesh::notifyProgramBound(prog);
 	// Suppress hover highlighting while Ctrl is held — avoids flashes during
 	// Ctrl+drag view manipulation as the pointer crosses mesh boundaries.
 	const bool ctrlHeld = QGuiApplication::queryKeyboardModifiers() & Qt::ControlModifier;
@@ -7803,10 +5732,10 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 	QOpenGLShaderProgram* flatProg = nullptr;
 	int flatSssObjectIdLocation = -1;
 	if (_displayMode == DisplayMode::FLATSHADED &&
-		_fgFlatShader && _fgFlatShader->isLinked())
+		_renderCtrl.fgFlatShader() && _renderCtrl.fgFlatShader()->isLinked())
 	{
 		syncUniformsToFlatShader();
-		flatProg = _fgFlatShader.get();
+		flatProg = _renderCtrl.fgFlatShader();
 		flatProg->setUniformValue("hoverHighlighting", hoverHighlightingEnabled);
 		flatProg->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));
 		flatSssObjectIdLocation = flatProg->uniformLocation("sssObjectId");
@@ -7814,25 +5743,25 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 	// Collect visible opaque meshes, then sort by texture signature to
 	// minimise GPU texture state changes across consecutive draw calls.
 	std::vector<std::pair<uint64_t, int>> opaque;
-	if (_runtimeVisibilityPrepared && _runtimeVisibilityRootIndex >= 0)
+	if (_sceneRuntime.runtimeVisibilityPrepared() && _sceneRuntime.runtimeVisibilityRootIndex() >= 0)
 	{
 		std::vector<int> candidateIds;
-		candidateIds.reserve((_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds).size());
-		collectVisibleMeshIdsForPass(_runtimeVisibilityRootIndex, activeClipPlaneIndex, false, candidateIds);
+		candidateIds.reserve((_sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds()).size());
+		collectVisibleMeshIdsForPass(_sceneRuntime.runtimeVisibilityRootIndex(), activeClipPlaneIndex, false, candidateIds);
 		opaque.reserve(candidateIds.size());
 		for (int id : candidateIds)
 		{
-			if (TriangleMesh* mesh = _meshStore.at(id))
+			if (SceneMesh* mesh = _sceneRuntime.meshStore().at(id))
 				opaque.emplace_back(mesh->getRenderMaterialSortKey(), id);
 		}
 	}
 	else
 	{
-		const std::vector<int>& objectIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+		const std::vector<int>& objectIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
 		opaque.reserve(objectIds.size());
 		for (int id : objectIds)
 		{
-			if (TriangleMesh* mesh = _meshStore.at(id))
+			if (SceneMesh* mesh = _sceneRuntime.meshStore().at(id))
 				if (!mesh->isTransparent() && isMeshVisible(mesh, activeClipPlaneIndex))
 					opaque.emplace_back(mesh->getRenderMaterialSortKey(), id);
 		}
@@ -7843,7 +5772,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 	// The fast path supports both static and skinned meshes; wireframe rendering
 	// intentionally uses a geometry-first contract rather than material-faithful
 	// alpha/transmission behavior.
-	const bool useWireShader = _wireframeShader && _wireframeShader->isLinked()
+	const bool useWireShader = _renderCtrl.wireframeShader() && _renderCtrl.wireframeShader()->isLinked()
 	    && activeClipPlaneIndex < 0;
 	if (_displayMode == DisplayMode::HOLLOW_MESH)
 	{
@@ -7852,29 +5781,29 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		if (useWireShader)
 		{
-			TriangleMesh::bindProgramCached(_wireframeShader.get());
-			_wireframeShader->setUniformValue("viewMatrix",       _viewCtrl._viewMatrix);
-			_wireframeShader->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
-			_wireframeShader->setUniformValue("isWireframePass",  false);
+			RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
+			_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl._viewMatrix);
+			_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
+			_renderCtrl.wireframeShader()->setUniformValue("isWireframePass",  false);
 			// Pass-level defaults: renderWireframeFast only uploads when non-default.
-			_wireframeShader->setUniformValue("hasVertexColors", false);
-			_wireframeShader->setUniformValue("hasAlbedoMap",    false);
-			_wireframeShader->setUniformValue("hasSkinning",     false);
-			_wireframeShader->setUniformValue("jointCount",      0);
+			_renderCtrl.wireframeShader()->setUniformValue("hasVertexColors", false);
+			_renderCtrl.wireframeShader()->setUniformValue("hasAlbedoMap",    false);
+			_renderCtrl.wireframeShader()->setUniformValue("hasSkinning",     false);
+			_renderCtrl.wireframeShader()->setUniformValue("jointCount",      0);
 			for (auto& [key, id] : opaque)
 			{
-				if (TriangleMesh* mesh = _meshStore.at(id))
-					mesh->renderWireframeFast(_wireframeShader.get());
+				if (SceneMesh* mesh = _sceneRuntime.meshStore().at(id))
+					mesh->renderWireframeFast(_renderCtrl.wireframeShader());
 			}
 		}
 		else
 		{
 			for (auto& [key, id] : opaque)
 			{
-				if (TriangleMesh* mesh = _meshStore.at(id))
+				if (SceneMesh* mesh = _sceneRuntime.meshStore().at(id))
 				{
 					mesh->setProg(prog);
-					TriangleMesh::bindProgramCached(prog);
+					RenderableMesh::bindProgramCached(prog);
 					prog->setUniformValue("hovered",
 						hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
 					if (sssObjectIdLocation >= 0)
@@ -7896,10 +5825,10 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		prog->setUniformValue("isWireframePass", false);
 		for (auto& [key, id] : opaque)
 		{
-			if (TriangleMesh* mesh = _meshStore.at(id))
+			if (SceneMesh* mesh = _sceneRuntime.meshStore().at(id))
 			{
 				mesh->setProg(prog);
-				TriangleMesh::bindProgramCached(prog);
+				RenderableMesh::bindProgramCached(prog);
 				prog->setUniformValue("hovered",
 					hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
 				if (sssObjectIdLocation >= 0)
@@ -7914,19 +5843,19 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		glLineWidth(1.5f);
 		if (useWireShader)
 		{
-			TriangleMesh::bindProgramCached(_wireframeShader.get());
-			_wireframeShader->setUniformValue("viewMatrix",       _viewCtrl._viewMatrix);
-			_wireframeShader->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
-			_wireframeShader->setUniformValue("isWireframePass",  true);
+			RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
+			_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl._viewMatrix);
+			_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
+			_renderCtrl.wireframeShader()->setUniformValue("isWireframePass",  true);
 			// Pass-level defaults: renderWireframeFast only uploads when non-default.
-			_wireframeShader->setUniformValue("hasVertexColors", false);
-			_wireframeShader->setUniformValue("hasAlbedoMap",    false);
-			_wireframeShader->setUniformValue("hasSkinning",     false);
-			_wireframeShader->setUniformValue("jointCount",      0);
+			_renderCtrl.wireframeShader()->setUniformValue("hasVertexColors", false);
+			_renderCtrl.wireframeShader()->setUniformValue("hasAlbedoMap",    false);
+			_renderCtrl.wireframeShader()->setUniformValue("hasSkinning",     false);
+			_renderCtrl.wireframeShader()->setUniformValue("jointCount",      0);
 			for (auto& [key, id] : opaque)
 			{
-				if (TriangleMesh* mesh = _meshStore.at(id))
-					mesh->renderWireframeFast(_wireframeShader.get());
+				if (SceneMesh* mesh = _sceneRuntime.meshStore().at(id))
+					mesh->renderWireframeFast(_renderCtrl.wireframeShader());
 			}
 		}
 		else
@@ -7934,10 +5863,10 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 			prog->setUniformValue("isWireframePass", true);
 			for (auto& [key, id] : opaque)
 			{
-				if (TriangleMesh* mesh = _meshStore.at(id))
+				if (SceneMesh* mesh = _sceneRuntime.meshStore().at(id))
 				{
 					mesh->setProg(prog);
-					TriangleMesh::bindProgramCached(prog);
+					RenderableMesh::bindProgramCached(prog);
 					prog->setUniformValue("hovered",
 						hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
 					if (sssObjectIdLocation >= 0)
@@ -7948,7 +5877,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		}
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glLineWidth(1.0f);
-		TriangleMesh::bindProgramCached(prog);
+		RenderableMesh::bindProgramCached(prog);
 		prog->setUniformValue("isWireframePass", false);
 	}
 	else if (_displayMode == DisplayMode::WIREFRAME && useWireShader)
@@ -7957,34 +5886,34 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		// No glPolygonMode needed; the feature-edge VAO draws GL_LINES primitives directly.
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		glLineWidth(1.75f);
-		TriangleMesh::bindProgramCached(_wireframeShader.get());
-		_wireframeShader->setUniformValue("viewMatrix",       _viewCtrl._viewMatrix);
-		_wireframeShader->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
-		_wireframeShader->setUniformValue("isWireframePass",  false);
-		_wireframeShader->setUniformValue("hasVertexColors", false);
-		_wireframeShader->setUniformValue("hasAlbedoMap",    false);
-		_wireframeShader->setUniformValue("hasSkinning",     false);
-		_wireframeShader->setUniformValue("jointCount",      0);
-		_wireframeShader->setUniformValue("hoverColor",    QVector3D(1.0f, 0.84f, 0.0f));
-		_wireframeShader->setUniformValue("hovered",       false);
-		_wireframeShader->setUniformValue("selectedColor", QVector3D(0.25f, 0.55f, 1.0f));
-		_wireframeShader->setUniformValue("selected",      false);
+		RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
+		_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl._viewMatrix);
+		_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
+		_renderCtrl.wireframeShader()->setUniformValue("isWireframePass",  false);
+		_renderCtrl.wireframeShader()->setUniformValue("hasVertexColors", false);
+		_renderCtrl.wireframeShader()->setUniformValue("hasAlbedoMap",    false);
+		_renderCtrl.wireframeShader()->setUniformValue("hasSkinning",     false);
+		_renderCtrl.wireframeShader()->setUniformValue("jointCount",      0);
+		_renderCtrl.wireframeShader()->setUniformValue("hoverColor",    QVector3D(1.0f, 0.84f, 0.0f));
+		_renderCtrl.wireframeShader()->setUniformValue("hovered",       false);
+		_renderCtrl.wireframeShader()->setUniformValue("selectedColor", QVector3D(0.25f, 0.55f, 1.0f));
+		_renderCtrl.wireframeShader()->setUniformValue("selected",      false);
 		{
 			const QList<int> selIds = _selectionManager->getSelectedIds();
 			for (auto& [key, id] : opaque)
 			{
-				if (TriangleMesh* mesh = _meshStore.at(id))
+				if (SceneMesh* mesh = _sceneRuntime.meshStore().at(id))
 				{
 					const bool isSel = selIds.contains(id);
-					_wireframeShader->setUniformValue("selected", isSel);
-					_wireframeShader->setUniformValue("hovered",
+					_renderCtrl.wireframeShader()->setUniformValue("selected", isSel);
+					_renderCtrl.wireframeShader()->setUniformValue("hovered",
 					    !isSel && hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
-					mesh->renderFeatureEdgesFast(_wireframeShader.get());
+					mesh->renderFeatureEdgesFast(_renderCtrl.wireframeShader());
 				}
 			}
 		}
-		_wireframeShader->setUniformValue("hovered",  false);
-		_wireframeShader->setUniformValue("selected", false);
+		_renderCtrl.wireframeShader()->setUniformValue("hovered",  false);
+		_renderCtrl.wireframeShader()->setUniformValue("selected", false);
 		glLineWidth(1.0f);
 	}
 	else if (_displayMode == DisplayMode::SHADED_WITH_EDGES && useWireShader)
@@ -7999,10 +5928,10 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		prog->setUniformValue("isWireframePass", false);
 		for (auto& [key, id] : opaque)
 		{
-			if (TriangleMesh* mesh = _meshStore.at(id))
+			if (SceneMesh* mesh = _sceneRuntime.meshStore().at(id))
 			{
 				mesh->setProg(prog);
-				TriangleMesh::bindProgramCached(prog);
+				RenderableMesh::bindProgramCached(prog);
 				prog->setUniformValue("hovered",
 					hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
 				if (sssObjectIdLocation >= 0)
@@ -8013,44 +5942,44 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		// Feature-edge overlay — no offset needed; solid was already pushed back.
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		glLineWidth(1.5f);
-		TriangleMesh::bindProgramCached(_wireframeShader.get());
-		_wireframeShader->setUniformValue("viewMatrix",       _viewCtrl._viewMatrix);
-		_wireframeShader->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
-		_wireframeShader->setUniformValue("isWireframePass",  true);
-		_wireframeShader->setUniformValue("hasVertexColors", false);
-		_wireframeShader->setUniformValue("hasAlbedoMap",    false);
-		_wireframeShader->setUniformValue("hasSkinning",     false);
-		_wireframeShader->setUniformValue("jointCount",      0);
-		_wireframeShader->setUniformValue("hoverColor",    QVector3D(1.0f, 0.84f, 0.0f));
-		_wireframeShader->setUniformValue("hovered",       false);
-		_wireframeShader->setUniformValue("selectedColor", QVector3D(0.25f, 0.55f, 1.0f));
-		_wireframeShader->setUniformValue("selected",      false);
+		RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
+		_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl._viewMatrix);
+		_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
+		_renderCtrl.wireframeShader()->setUniformValue("isWireframePass",  true);
+		_renderCtrl.wireframeShader()->setUniformValue("hasVertexColors", false);
+		_renderCtrl.wireframeShader()->setUniformValue("hasAlbedoMap",    false);
+		_renderCtrl.wireframeShader()->setUniformValue("hasSkinning",     false);
+		_renderCtrl.wireframeShader()->setUniformValue("jointCount",      0);
+		_renderCtrl.wireframeShader()->setUniformValue("hoverColor",    QVector3D(1.0f, 0.84f, 0.0f));
+		_renderCtrl.wireframeShader()->setUniformValue("hovered",       false);
+		_renderCtrl.wireframeShader()->setUniformValue("selectedColor", QVector3D(0.25f, 0.55f, 1.0f));
+		_renderCtrl.wireframeShader()->setUniformValue("selected",      false);
 		{
 			const QList<int> selIds = _selectionManager->getSelectedIds();
 			for (auto& [key, id] : opaque)
 			{
-				if (TriangleMesh* mesh = _meshStore.at(id))
+				if (SceneMesh* mesh = _sceneRuntime.meshStore().at(id))
 				{
 					const bool isSel = selIds.contains(id);
-					_wireframeShader->setUniformValue("selected", isSel);
-					_wireframeShader->setUniformValue("hovered",
+					_renderCtrl.wireframeShader()->setUniformValue("selected", isSel);
+					_renderCtrl.wireframeShader()->setUniformValue("hovered",
 					    !isSel && hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
-					mesh->renderFeatureEdgesFast(_wireframeShader.get());
+					mesh->renderFeatureEdgesFast(_renderCtrl.wireframeShader());
 				}
 			}
 		}
-		_wireframeShader->setUniformValue("hovered",  false);
-		_wireframeShader->setUniformValue("selected", false);
+		_renderCtrl.wireframeShader()->setUniformValue("hovered",  false);
+		_renderCtrl.wireframeShader()->setUniformValue("selected", false);
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		glLineWidth(1.0f);
-		TriangleMesh::bindProgramCached(prog);
+		RenderableMesh::bindProgramCached(prog);
 		prog->setUniformValue("isWireframePass", false);
 	}
 	else
 	{
 		for (auto& [key, id] : opaque)
 		{
-			if (TriangleMesh* mesh = _meshStore.at(id))
+			if (SceneMesh* mesh = _sceneRuntime.meshStore().at(id))
 			{
 				QOpenGLShaderProgram* activeProg = prog;
 				int activeSssObjectIdLocation = sssObjectIdLocation;
@@ -8060,7 +5989,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 					activeSssObjectIdLocation = flatSssObjectIdLocation;
 				}
 				mesh->setProg(activeProg);
-				TriangleMesh::bindProgramCached(activeProg);
+				RenderableMesh::bindProgramCached(activeProg);
 				activeProg->setUniformValue("hovered",
 					hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
 				if (activeSssObjectIdLocation >= 0)
@@ -8074,24 +6003,24 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 
 void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
 {
-	TriangleMesh::resetTextureBindingCacheForCurrentContext();
-	TriangleMesh::resetBoundProgramCacheForCurrentContext();
+	RenderableMesh::resetTextureBindingCacheForCurrentContext();
+	RenderableMesh::resetBoundProgramCacheForCurrentContext();
 
 	QVector3D camPos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(prog, camPos);
 
-	if (_meshStore.empty()) return;
+	if (_sceneRuntime.meshStore().empty()) return;
 
 	std::vector<std::pair<float, int>> transparent;
-	if (_runtimeVisibilityPrepared && _runtimeVisibilityRootIndex >= 0)
+	if (_sceneRuntime.runtimeVisibilityPrepared() && _sceneRuntime.runtimeVisibilityRootIndex() >= 0)
 	{
 		std::vector<int> candidateIds;
-		candidateIds.reserve((_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds).size());
-		collectVisibleMeshIdsForPass(_runtimeVisibilityRootIndex, activeClipPlaneIndex, true, candidateIds);
+		candidateIds.reserve((_sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds()).size());
+		collectVisibleMeshIdsForPass(_sceneRuntime.runtimeVisibilityRootIndex(), activeClipPlaneIndex, true, candidateIds);
 		transparent.reserve(candidateIds.size());
 		for (int id : candidateIds)
 		{
-			if (TriangleMesh* mesh = _meshStore.at(id))
+			if (SceneMesh* mesh = _sceneRuntime.meshStore().at(id))
 			{
 				const QVector3D c = mesh->getBoundingSphere().getCenter();
 				const float R = mesh->getBoundingSphere().getRadius();
@@ -8103,12 +6032,12 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 	}
 	else
 	{
-		const std::vector<int>& objectIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+		const std::vector<int>& objectIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
 		transparent.reserve(objectIds.size());
 
 		for (int id : objectIds)
 		{
-			if (TriangleMesh* mesh = _meshStore.at(id))
+			if (SceneMesh* mesh = _sceneRuntime.meshStore().at(id))
 			{
 				if (mesh->isTransparent())
 				{
@@ -8133,8 +6062,8 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 
 	// Bind once and set uniforms constant across all transparent meshes
 	prog->bind();
-	TriangleMesh::recordProgramBindCall(true);
-	TriangleMesh::notifyProgramBound(prog);
+	RenderableMesh::recordProgramBindCall(true);
+	RenderableMesh::notifyProgramBound(prog);
 	const bool ctrlHeldT = QGuiApplication::queryKeyboardModifiers() & Qt::ControlModifier;
 	const bool hoverHighlightingEnabledT = !ctrlHeldT &&
 		(_selectionManager->getHoverMode() != HoverHighlightMode::Disabled);
@@ -8144,15 +6073,15 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 	QOpenGLShaderProgram* flatProg = nullptr;
 	int flatSssObjectIdLocation = -1;
 	if (_displayMode == DisplayMode::FLATSHADED &&
-		_fgFlatShader && _fgFlatShader->isLinked())
+		_renderCtrl.fgFlatShader() && _renderCtrl.fgFlatShader()->isLinked())
 	{
 		syncUniformsToFlatShader();
-		flatProg = _fgFlatShader.get();
+		flatProg = _renderCtrl.fgFlatShader();
 		flatProg->setUniformValue("hoverHighlighting", hoverHighlightingEnabledT);
 		flatProg->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));
 		flatSssObjectIdLocation = flatProg->uniformLocation("sssObjectId");
 	}
-	const bool useWireShaderT = _wireframeShader && _wireframeShader->isLinked()
+	const bool useWireShaderT = _renderCtrl.wireframeShader() && _renderCtrl.wireframeShader()->isLinked()
 	    && activeClipPlaneIndex < 0;
 	if (_displayMode == DisplayMode::HOLLOW_MESH)
 	{
@@ -8161,19 +6090,19 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		if (useWireShaderT)
 		{
-			TriangleMesh::bindProgramCached(_wireframeShader.get());
-			_wireframeShader->setUniformValue("viewMatrix",       _viewCtrl._viewMatrix);
-			_wireframeShader->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
-			_wireframeShader->setUniformValue("isWireframePass",  false);
+			RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
+			_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl._viewMatrix);
+			_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
+			_renderCtrl.wireframeShader()->setUniformValue("isWireframePass",  false);
 			// Pass-level defaults: renderWireframeFast only uploads when non-default.
-			_wireframeShader->setUniformValue("hasVertexColors", false);
-			_wireframeShader->setUniformValue("hasAlbedoMap",    false);
-			_wireframeShader->setUniformValue("hasSkinning",     false);
-			_wireframeShader->setUniformValue("jointCount",      0);
+			_renderCtrl.wireframeShader()->setUniformValue("hasVertexColors", false);
+			_renderCtrl.wireframeShader()->setUniformValue("hasAlbedoMap",    false);
+			_renderCtrl.wireframeShader()->setUniformValue("hasSkinning",     false);
+			_renderCtrl.wireframeShader()->setUniformValue("jointCount",      0);
 			for (auto& it : transparent)
 			{
-				if (TriangleMesh* mesh = _meshStore.at(it.second))
-					mesh->renderWireframeFast(_wireframeShader.get());
+				if (SceneMesh* mesh = _sceneRuntime.meshStore().at(it.second))
+					mesh->renderWireframeFast(_renderCtrl.wireframeShader());
 			}
 		}
 		else
@@ -8181,10 +6110,10 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 			for (auto& it : transparent)
 			{
 				const int id = it.second;
-				if (TriangleMesh* mesh = _meshStore.at(id))
+				if (SceneMesh* mesh = _sceneRuntime.meshStore().at(id))
 				{
 					mesh->setProg(prog);
-					TriangleMesh::bindProgramCached(prog);
+					RenderableMesh::bindProgramCached(prog);
 					prog->setUniformValue("hovered",
 						hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
 					if (sssObjectIdLocation >= 0)
@@ -8206,11 +6135,11 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 		prog->setUniformValue("isWireframePass", false);
 		for (auto& it : transparent)
 		{
-			if (TriangleMesh* mesh = _meshStore.at(it.second))
+			if (SceneMesh* mesh = _sceneRuntime.meshStore().at(it.second))
 			{
 				const int id = it.second;
 				mesh->setProg(prog);
-				TriangleMesh::bindProgramCached(prog);
+				RenderableMesh::bindProgramCached(prog);
 				prog->setUniformValue("hovered",
 					hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
 				if (sssObjectIdLocation >= 0)
@@ -8225,19 +6154,19 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 		glLineWidth(1.5f);
 		if (useWireShaderT)
 		{
-			TriangleMesh::bindProgramCached(_wireframeShader.get());
-			_wireframeShader->setUniformValue("viewMatrix",       _viewCtrl._viewMatrix);
-			_wireframeShader->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
-			_wireframeShader->setUniformValue("isWireframePass",  true);
+			RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
+			_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl._viewMatrix);
+			_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
+			_renderCtrl.wireframeShader()->setUniformValue("isWireframePass",  true);
 			// Pass-level defaults: renderWireframeFast only uploads when non-default.
-			_wireframeShader->setUniformValue("hasVertexColors", false);
-			_wireframeShader->setUniformValue("hasAlbedoMap",    false);
-			_wireframeShader->setUniformValue("hasSkinning",     false);
-			_wireframeShader->setUniformValue("jointCount",      0);
+			_renderCtrl.wireframeShader()->setUniformValue("hasVertexColors", false);
+			_renderCtrl.wireframeShader()->setUniformValue("hasAlbedoMap",    false);
+			_renderCtrl.wireframeShader()->setUniformValue("hasSkinning",     false);
+			_renderCtrl.wireframeShader()->setUniformValue("jointCount",      0);
 			for (auto& it : transparent)
 			{
-				if (TriangleMesh* mesh = _meshStore.at(it.second))
-					mesh->renderWireframeFast(_wireframeShader.get());
+				if (SceneMesh* mesh = _sceneRuntime.meshStore().at(it.second))
+					mesh->renderWireframeFast(_renderCtrl.wireframeShader());
 			}
 		}
 		else
@@ -8246,10 +6175,10 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 			for (auto& it : transparent)
 			{
 				const int id = it.second;
-				if (TriangleMesh* mesh = _meshStore.at(id))
+				if (SceneMesh* mesh = _sceneRuntime.meshStore().at(id))
 				{
 					mesh->setProg(prog);
-					TriangleMesh::bindProgramCached(prog);
+					RenderableMesh::bindProgramCached(prog);
 					prog->setUniformValue("hovered",
 						hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
 					if (sssObjectIdLocation >= 0)
@@ -8260,42 +6189,42 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 		}
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glLineWidth(1.0f);
-		TriangleMesh::bindProgramCached(prog);
+		RenderableMesh::bindProgramCached(prog);
 		prog->setUniformValue("isWireframePass", false);
 	}
 	else if (_displayMode == DisplayMode::WIREFRAME && useWireShaderT)
 	{
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		glLineWidth(1.75f);
-		TriangleMesh::bindProgramCached(_wireframeShader.get());
-		_wireframeShader->setUniformValue("viewMatrix",       _viewCtrl._viewMatrix);
-		_wireframeShader->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
-		_wireframeShader->setUniformValue("isWireframePass",  false);
-		_wireframeShader->setUniformValue("hasVertexColors", false);
-		_wireframeShader->setUniformValue("hasAlbedoMap",    false);
-		_wireframeShader->setUniformValue("hasSkinning",     false);
-		_wireframeShader->setUniformValue("jointCount",      0);
-		_wireframeShader->setUniformValue("hoverColor",    QVector3D(1.0f, 0.84f, 0.0f));
-		_wireframeShader->setUniformValue("hovered",       false);
-		_wireframeShader->setUniformValue("selectedColor", QVector3D(0.25f, 0.55f, 1.0f));
-		_wireframeShader->setUniformValue("selected",      false);
+		RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
+		_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl._viewMatrix);
+		_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
+		_renderCtrl.wireframeShader()->setUniformValue("isWireframePass",  false);
+		_renderCtrl.wireframeShader()->setUniformValue("hasVertexColors", false);
+		_renderCtrl.wireframeShader()->setUniformValue("hasAlbedoMap",    false);
+		_renderCtrl.wireframeShader()->setUniformValue("hasSkinning",     false);
+		_renderCtrl.wireframeShader()->setUniformValue("jointCount",      0);
+		_renderCtrl.wireframeShader()->setUniformValue("hoverColor",    QVector3D(1.0f, 0.84f, 0.0f));
+		_renderCtrl.wireframeShader()->setUniformValue("hovered",       false);
+		_renderCtrl.wireframeShader()->setUniformValue("selectedColor", QVector3D(0.25f, 0.55f, 1.0f));
+		_renderCtrl.wireframeShader()->setUniformValue("selected",      false);
 		{
 			const QList<int> selIds = _selectionManager->getSelectedIds();
 			for (auto& it : transparent)
 			{
-				if (TriangleMesh* mesh = _meshStore.at(it.second))
+				if (SceneMesh* mesh = _sceneRuntime.meshStore().at(it.second))
 				{
 					const int id = it.second;
 					const bool isSel = selIds.contains(id);
-					_wireframeShader->setUniformValue("selected", isSel);
-					_wireframeShader->setUniformValue("hovered",
+					_renderCtrl.wireframeShader()->setUniformValue("selected", isSel);
+					_renderCtrl.wireframeShader()->setUniformValue("hovered",
 					    !isSel && hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
-					mesh->renderFeatureEdgesFast(_wireframeShader.get());
+					mesh->renderFeatureEdgesFast(_renderCtrl.wireframeShader());
 				}
 			}
 		}
-		_wireframeShader->setUniformValue("hovered",  false);
-		_wireframeShader->setUniformValue("selected", false);
+		_renderCtrl.wireframeShader()->setUniformValue("hovered",  false);
+		_renderCtrl.wireframeShader()->setUniformValue("selected", false);
 		glLineWidth(1.0f);
 	}
 	else if (_displayMode == DisplayMode::SHADED_WITH_EDGES && useWireShaderT)
@@ -8307,11 +6236,11 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 		prog->setUniformValue("isWireframePass", false);
 		for (auto& it : transparent)
 		{
-			if (TriangleMesh* mesh = _meshStore.at(it.second))
+			if (SceneMesh* mesh = _sceneRuntime.meshStore().at(it.second))
 			{
 				const int id = it.second;
 				mesh->setProg(prog);
-				TriangleMesh::bindProgramCached(prog);
+				RenderableMesh::bindProgramCached(prog);
 				prog->setUniformValue("hovered",
 					hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
 				if (sssObjectIdLocation >= 0)
@@ -8321,45 +6250,45 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 		}
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		glLineWidth(1.5f);
-		TriangleMesh::bindProgramCached(_wireframeShader.get());
-		_wireframeShader->setUniformValue("viewMatrix",       _viewCtrl._viewMatrix);
-		_wireframeShader->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
-		_wireframeShader->setUniformValue("isWireframePass",  true);
-		_wireframeShader->setUniformValue("hasVertexColors", false);
-		_wireframeShader->setUniformValue("hasAlbedoMap",    false);
-		_wireframeShader->setUniformValue("hasSkinning",     false);
-		_wireframeShader->setUniformValue("jointCount",      0);
-		_wireframeShader->setUniformValue("hoverColor",    QVector3D(1.0f, 0.84f, 0.0f));
-		_wireframeShader->setUniformValue("hovered",       false);
-		_wireframeShader->setUniformValue("selectedColor", QVector3D(0.25f, 0.55f, 1.0f));
-		_wireframeShader->setUniformValue("selected",      false);
+		RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
+		_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl._viewMatrix);
+		_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
+		_renderCtrl.wireframeShader()->setUniformValue("isWireframePass",  true);
+		_renderCtrl.wireframeShader()->setUniformValue("hasVertexColors", false);
+		_renderCtrl.wireframeShader()->setUniformValue("hasAlbedoMap",    false);
+		_renderCtrl.wireframeShader()->setUniformValue("hasSkinning",     false);
+		_renderCtrl.wireframeShader()->setUniformValue("jointCount",      0);
+		_renderCtrl.wireframeShader()->setUniformValue("hoverColor",    QVector3D(1.0f, 0.84f, 0.0f));
+		_renderCtrl.wireframeShader()->setUniformValue("hovered",       false);
+		_renderCtrl.wireframeShader()->setUniformValue("selectedColor", QVector3D(0.25f, 0.55f, 1.0f));
+		_renderCtrl.wireframeShader()->setUniformValue("selected",      false);
 		{
 			const QList<int> selIds = _selectionManager->getSelectedIds();
 			for (auto& it : transparent)
 			{
-				if (TriangleMesh* mesh = _meshStore.at(it.second))
+				if (SceneMesh* mesh = _sceneRuntime.meshStore().at(it.second))
 				{
 					const int id = it.second;
 					const bool isSel = selIds.contains(id);
-					_wireframeShader->setUniformValue("selected", isSel);
-					_wireframeShader->setUniformValue("hovered",
+					_renderCtrl.wireframeShader()->setUniformValue("selected", isSel);
+					_renderCtrl.wireframeShader()->setUniformValue("hovered",
 					    !isSel && hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
-					mesh->renderFeatureEdgesFast(_wireframeShader.get());
+					mesh->renderFeatureEdgesFast(_renderCtrl.wireframeShader());
 				}
 			}
 		}
-		_wireframeShader->setUniformValue("hovered",  false);
-		_wireframeShader->setUniformValue("selected", false);
+		_renderCtrl.wireframeShader()->setUniformValue("hovered",  false);
+		_renderCtrl.wireframeShader()->setUniformValue("selected", false);
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		glLineWidth(1.0f);
-		TriangleMesh::bindProgramCached(prog);
+		RenderableMesh::bindProgramCached(prog);
 		prog->setUniformValue("isWireframePass", false);
 	}
 	else
 	{
 		for (auto& it : transparent)
 		{
-			if (TriangleMesh* mesh = _meshStore.at(it.second))
+			if (SceneMesh* mesh = _sceneRuntime.meshStore().at(it.second))
 			{
 				const int id = it.second;
 				QOpenGLShaderProgram* activeProg = prog;
@@ -8370,7 +6299,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 					activeSssObjectIdLocation = flatSssObjectIdLocation;
 				}
 				mesh->setProg(activeProg);
-				TriangleMesh::bindProgramCached(activeProg);
+				RenderableMesh::bindProgramCached(activeProg);
 				activeProg->setUniformValue("hovered",
 					hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
 				if (activeSssObjectIdLocation >= 0)
@@ -8390,13 +6319,13 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 
 void GLWidget::invalidateRuntimeVisibilityHierarchy()
 {
-	_runtimeVisibilityHierarchyDirty = true;
-	_runtimeVisibilityPrepared = false;
-	_runtimeVisibilityRootIndex = -1;
-	_runtimeVisibilityMeshStoreCount = static_cast<int>(_meshStore.size());
-	_runtimeVisibilityBoundsRevision = 0;
-	_runtimeVisibilityNodes.clear();
-	_runtimeBaseVisibleMask.clear();
+	_sceneRuntime.setRuntimeVisibilityHierarchyDirty(true);
+	_sceneRuntime.setRuntimeVisibilityPrepared(false);
+	_sceneRuntime.setRuntimeVisibilityRootIndex(-1);
+	_sceneRuntime.setRuntimeVisibilityMeshStoreCount(static_cast<int>(_sceneRuntime.meshStore().size()));
+	_sceneRuntime.setRuntimeVisibilityBoundsRevision(0);
+	_sceneRuntime.runtimeVisibilityNodes().clear();
+	_sceneRuntime.runtimeBaseVisibleMask().clear();
 }
 
 int GLWidget::buildRuntimeVisibilityNodeRecursive(const SceneNode* node,
@@ -8405,24 +6334,24 @@ int GLWidget::buildRuntimeVisibilityNodeRecursive(const SceneNode* node,
 	if (!node)
 		return -1;
 
-	const int nodeIndex = _runtimeVisibilityNodes.size();
-	_runtimeVisibilityNodes.push_back(RuntimeVisibilityNode{});
-	_runtimeVisibilityNodes[nodeIndex].sceneNode = node;
-	_runtimeVisibilityNodes[nodeIndex].meshIndices.reserve(node->meshUuids.size());
+	const int nodeIndex = _sceneRuntime.runtimeVisibilityNodes().size();
+	_sceneRuntime.runtimeVisibilityNodes().push_back(RuntimeVisibilityNode{});
+	_sceneRuntime.runtimeVisibilityNodes()[nodeIndex].sceneNode = node;
+	_sceneRuntime.runtimeVisibilityNodes()[nodeIndex].meshIndices.reserve(node->meshUuids.size());
 
 	for (const QUuid& uuid : node->meshUuids)
 	{
 		const auto it = meshIndexByUuid.find(uuid);
 		if (it != meshIndexByUuid.end())
-			_runtimeVisibilityNodes[nodeIndex].meshIndices.push_back(it.value());
+			_sceneRuntime.runtimeVisibilityNodes()[nodeIndex].meshIndices.push_back(it.value());
 	}
 
-	_runtimeVisibilityNodes[nodeIndex].children.reserve(node->children.size());
+	_sceneRuntime.runtimeVisibilityNodes()[nodeIndex].children.reserve(node->children.size());
 	for (const SceneNode* child : node->children)
 	{
 		const int childIndex = buildRuntimeVisibilityNodeRecursive(child, meshIndexByUuid);
 		if (childIndex >= 0)
-			_runtimeVisibilityNodes[nodeIndex].children.push_back(childIndex);
+			_sceneRuntime.runtimeVisibilityNodes()[nodeIndex].children.push_back(childIndex);
 	}
 
 	return nodeIndex;
@@ -8430,44 +6359,44 @@ int GLWidget::buildRuntimeVisibilityNodeRecursive(const SceneNode* node,
 
 void GLWidget::rebuildRuntimeVisibilityHierarchy()
 {
-	_runtimeVisibilityNodes.clear();
-	_runtimeVisibilityRootIndex = -1;
-	_runtimeVisibilityPrepared = false;
+	_sceneRuntime.runtimeVisibilityNodes().clear();
+	_sceneRuntime.setRuntimeVisibilityRootIndex(-1);
+	_sceneRuntime.setRuntimeVisibilityPrepared(false);
 
 	if (!_viewer || !_viewer->sceneGraph())
 	{
-		_runtimeVisibilityHierarchyDirty = false;
-		_runtimeVisibilityMeshStoreCount = static_cast<int>(_meshStore.size());
-		_runtimeVisibilityBoundsRevision = 0;
+		_sceneRuntime.setRuntimeVisibilityHierarchyDirty(false);
+		_sceneRuntime.setRuntimeVisibilityMeshStoreCount(static_cast<int>(_sceneRuntime.meshStore().size()));
+		_sceneRuntime.setRuntimeVisibilityBoundsRevision(0);
 		return;
 	}
 
 	QHash<QUuid, int> meshIndexByUuid;
-	meshIndexByUuid.reserve(static_cast<int>(_meshStore.size()));
-	for (int meshIndex = 0; meshIndex < static_cast<int>(_meshStore.size()); ++meshIndex)
+	meshIndexByUuid.reserve(static_cast<int>(_sceneRuntime.meshStore().size()));
+	for (int meshIndex = 0; meshIndex < static_cast<int>(_sceneRuntime.meshStore().size()); ++meshIndex)
 	{
-		if (TriangleMesh* mesh = _meshStore[meshIndex])
+		if (SceneMesh* mesh = _sceneRuntime.meshStore()[meshIndex])
 			meshIndexByUuid.insert(mesh->uuid(), meshIndex);
 	}
 
-	_runtimeVisibilityRootIndex = buildRuntimeVisibilityNodeRecursive(
+	_sceneRuntime.setRuntimeVisibilityRootIndex(buildRuntimeVisibilityNodeRecursive(
 		_viewer->sceneGraph()->root(),
-		meshIndexByUuid);
-	_runtimeVisibilityHierarchyDirty = false;
-	_runtimeVisibilityMeshStoreCount = static_cast<int>(_meshStore.size());
-	_runtimeVisibilityBoundsRevision = 0;
+		meshIndexByUuid));
+	_sceneRuntime.setRuntimeVisibilityHierarchyDirty(false);
+	_sceneRuntime.setRuntimeVisibilityMeshStoreCount(static_cast<int>(_sceneRuntime.meshStore().size()));
+	_sceneRuntime.setRuntimeVisibilityBoundsRevision(0);
 }
 
 bool GLWidget::ensureRuntimeVisibilityHierarchy()
 {
-	if (_runtimeVisibilityHierarchyDirty ||
-	    _runtimeVisibilityMeshStoreCount != static_cast<int>(_meshStore.size()))
+	if (_sceneRuntime.runtimeVisibilityHierarchyDirty() ||
+	    _sceneRuntime.runtimeVisibilityMeshStoreCount() != static_cast<int>(_sceneRuntime.meshStore().size()))
 	{
 		rebuildRuntimeVisibilityHierarchy();
 	}
 
-	return _runtimeVisibilityRootIndex >= 0 &&
-	       _runtimeVisibilityRootIndex < _runtimeVisibilityNodes.size();
+	return _sceneRuntime.runtimeVisibilityRootIndex() >= 0 &&
+	       _sceneRuntime.runtimeVisibilityRootIndex() < _sceneRuntime.runtimeVisibilityNodes().size();
 }
 
 bool GLWidget::refreshRuntimeVisibilityNodeBounds(
@@ -8475,22 +6404,22 @@ bool GLWidget::refreshRuntimeVisibilityNodeBounds(
 	const std::vector<unsigned char>& baseVisibleMask,
 	bool refreshBounds)
 {
-	if (nodeIndex < 0 || nodeIndex >= _runtimeVisibilityNodes.size())
+	if (nodeIndex < 0 || nodeIndex >= _sceneRuntime.runtimeVisibilityNodes().size())
 		return false;
 
-	RuntimeVisibilityNode& runtimeNode = _runtimeVisibilityNodes[nodeIndex];
+	RuntimeVisibilityNode& runtimeNode = _sceneRuntime.runtimeVisibilityNodes()[nodeIndex];
 	bool boundsInitialized = false;
 	bool hasVisibleMesh = false;
 	BoundingBox bounds;
 
 	for (int meshIndex : std::as_const(runtimeNode.meshIndices))
 	{
-		if (meshIndex < 0 || meshIndex >= static_cast<int>(_meshStore.size()))
+		if (meshIndex < 0 || meshIndex >= static_cast<int>(_sceneRuntime.meshStore().size()))
 			continue;
 		if (meshIndex >= static_cast<int>(baseVisibleMask.size()) || !baseVisibleMask[meshIndex])
 			continue;
 
-		TriangleMesh* mesh = _meshStore[meshIndex];
+		SceneMesh* mesh = _sceneRuntime.meshStore()[meshIndex];
 		if (!mesh || !isMeshAnimationVisible(mesh))
 			continue;
 
@@ -8511,7 +6440,7 @@ bool GLWidget::refreshRuntimeVisibilityNodeBounds(
 		if (!refreshRuntimeVisibilityNodeBounds(childIndex, baseVisibleMask, refreshBounds))
 			continue;
 
-		const RuntimeVisibilityNode& childNode = _runtimeVisibilityNodes[childIndex];
+		const RuntimeVisibilityNode& childNode = _sceneRuntime.runtimeVisibilityNodes()[childIndex];
 		if (refreshBounds && !boundsInitialized)
 		{
 			bounds = childNode.subtreeBounds;
@@ -8533,37 +6462,37 @@ bool GLWidget::refreshRuntimeVisibilityNodeBounds(
 
 void GLWidget::refreshRuntimeVisibilityCacheForCurrentView()
 {
-	_runtimeVisibilityPrepared = false;
+	_sceneRuntime.setRuntimeVisibilityPrepared(false);
 	if (!ensureRuntimeVisibilityHierarchy())
 		return;
 
-	const std::vector<int>& visibleIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
-	_runtimeBaseVisibleMask.assign(_meshStore.size(), 0u);
+	const std::vector<int>& visibleIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
+	_sceneRuntime.runtimeBaseVisibleMask().assign(_sceneRuntime.meshStore().size(), 0u);
 	for (int meshIndex : visibleIds)
 	{
-		if (meshIndex >= 0 && meshIndex < static_cast<int>(_runtimeBaseVisibleMask.size()))
-			_runtimeBaseVisibleMask[meshIndex] = 1u;
+		if (meshIndex >= 0 && meshIndex < static_cast<int>(_sceneRuntime.runtimeBaseVisibleMask().size()))
+			_sceneRuntime.runtimeBaseVisibleMask()[meshIndex] = 1u;
 	}
 
-	const quint64 currentBoundsRevision = TriangleMesh::currentRuntimeBoundsRevision();
-	const bool refreshBounds = (_runtimeVisibilityBoundsRevision != currentBoundsRevision);
-	const bool maskChanged = (_runtimeVisibilityMaskProcessedRevision != _runtimeVisibilityMaskRevision);
+	const quint64 currentBoundsRevision = RenderableMesh::currentRuntimeBoundsRevision();
+	const bool refreshBounds = (_sceneRuntime.runtimeVisibilityBoundsRevision() != currentBoundsRevision);
+	const bool maskChanged = (_sceneRuntime.runtimeVisibilityMaskProcessedRevision() != _sceneRuntime.runtimeVisibilityMaskRevision());
 
 	if (!refreshBounds && !maskChanged)
 	{
-		_runtimeVisibilityPrepared = true;
+		_sceneRuntime.setRuntimeVisibilityPrepared(true);
 		return;
 	}
 
 	refreshRuntimeVisibilityNodeBounds(
-		_runtimeVisibilityRootIndex,
-		_runtimeBaseVisibleMask,
+		_sceneRuntime.runtimeVisibilityRootIndex(),
+		_sceneRuntime.runtimeBaseVisibleMask(),
 		refreshBounds);
 	if (refreshBounds)
-		_runtimeVisibilityBoundsRevision = currentBoundsRevision;
+		_sceneRuntime.setRuntimeVisibilityBoundsRevision(currentBoundsRevision);
 	if (maskChanged)
-		_runtimeVisibilityMaskProcessedRevision = _runtimeVisibilityMaskRevision;
-	_runtimeVisibilityPrepared = true;
+		_sceneRuntime.setRuntimeVisibilityMaskProcessedRevision(_sceneRuntime.runtimeVisibilityMaskRevision());
+	_sceneRuntime.setRuntimeVisibilityPrepared(true);
 }
 
 void GLWidget::collectVisibleMeshIdsForPass(int nodeIndex,
@@ -8571,10 +6500,10 @@ void GLWidget::collectVisibleMeshIdsForPass(int nodeIndex,
                                             bool wantTransparent,
                                             std::vector<int>& out) const
 {
-	if (nodeIndex < 0 || nodeIndex >= _runtimeVisibilityNodes.size())
+	if (nodeIndex < 0 || nodeIndex >= _sceneRuntime.runtimeVisibilityNodes().size())
 		return;
 
-	const RuntimeVisibilityNode& runtimeNode = _runtimeVisibilityNodes[nodeIndex];
+	const RuntimeVisibilityNode& runtimeNode = _sceneRuntime.runtimeVisibilityNodes()[nodeIndex];
 	if (!runtimeNode.subtreeHasVisibleMeshes)
 		return;
 	if (isBoundingBoxOutsideFrustum(runtimeNode.subtreeBounds))
@@ -8594,13 +6523,13 @@ void GLWidget::collectVisibleMeshIdsForPass(int nodeIndex,
 
 	for (int meshIndex : std::as_const(runtimeNode.meshIndices))
 	{
-		if (meshIndex < 0 || meshIndex >= static_cast<int>(_meshStore.size()))
+		if (meshIndex < 0 || meshIndex >= static_cast<int>(_sceneRuntime.meshStore().size()))
 			continue;
-		TriangleMesh* mesh = _meshStore[meshIndex];
+		SceneMesh* mesh = _sceneRuntime.meshStore()[meshIndex];
 		if (!mesh)
 			continue;
-		if (meshIndex >= static_cast<int>(_runtimeBaseVisibleMask.size()) ||
-		    !_runtimeBaseVisibleMask[meshIndex])
+		if (meshIndex >= static_cast<int>(_sceneRuntime.runtimeBaseVisibleMask().size()) ||
+		    !_sceneRuntime.runtimeBaseVisibleMask()[meshIndex])
 			continue;
 		if (!isMeshVisible(mesh, activeClipPlaneIndex))
 			continue;
@@ -8653,12 +6582,12 @@ bool GLWidget::isBoundingBoxOutsideFrustum(const BoundingBox& bb) const
 	return false;
 }
 
-bool GLWidget::isMeshOutsideFrustum(const TriangleMesh* mesh) const
+bool GLWidget::isMeshOutsideFrustum(const SceneMesh* mesh) const
 {
 	return mesh ? isBoundingBoxOutsideFrustum(mesh->getBoundingBox()) : true;
 }
 
-bool GLWidget::isMeshFullyInsideFrustum(const TriangleMesh* mesh) const
+bool GLWidget::isMeshFullyInsideFrustum(const SceneMesh* mesh) const
 {
 	const BoundingBox& bb = mesh->getBoundingBox();
 	for (int i = 0; i < 6; ++i)
@@ -8687,13 +6616,13 @@ bool GLWidget::isMeshFullyInsideFrustum(const TriangleMesh* mesh) const
 float GLWidget::computeFullyVisibleMinMeshRadius() const
 {
 	const std::vector<int>& ids =
-		_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+		_sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
 
 	float minRadius = std::numeric_limits<float>::max();
 	for (int id : ids)
 	{
-		if (id < 0 || id >= static_cast<int>(_meshStore.size())) continue;
-		const TriangleMesh* mesh = _meshStore[id];
+		if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size())) continue;
+		const SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 		if (!mesh) continue;
 		if (!isMeshAnimationVisible(mesh)) continue;   // hidden by animation
 
@@ -8762,17 +6691,17 @@ bool GLWidget::isBoundingBoxFullyClipped_Z(const BoundingBox& bb) const
 		: static_cast<float>(bb.zMin()) > tz;
 }
 
-bool GLWidget::isMeshFullyClipped_X(const TriangleMesh* mesh) const
+bool GLWidget::isMeshFullyClipped_X(const SceneMesh* mesh) const
 {
 	return mesh ? isBoundingBoxFullyClipped_X(mesh->getBoundingBox()) : true;
 }
 
-bool GLWidget::isMeshFullyClipped_Y(const TriangleMesh* mesh) const
+bool GLWidget::isMeshFullyClipped_Y(const SceneMesh* mesh) const
 {
 	return mesh ? isBoundingBoxFullyClipped_Y(mesh->getBoundingBox()) : true;
 }
 
-bool GLWidget::isMeshFullyClipped_Z(const TriangleMesh* mesh) const
+bool GLWidget::isMeshFullyClipped_Z(const SceneMesh* mesh) const
 {
 	return mesh ? isBoundingBoxFullyClipped_Z(mesh->getBoundingBox()) : true;
 }
@@ -8801,17 +6730,17 @@ bool GLWidget::isBoundingBoxFullyKept_Z(const BoundingBox& bb) const
 		: static_cast<float>(bb.zMax()) <= tz;
 }
 
-bool GLWidget::isMeshFullyKept_X(const TriangleMesh* mesh) const
+bool GLWidget::isMeshFullyKept_X(const SceneMesh* mesh) const
 {
 	return mesh ? isBoundingBoxFullyKept_X(mesh->getBoundingBox()) : false;
 }
 
-bool GLWidget::isMeshFullyKept_Y(const TriangleMesh* mesh) const
+bool GLWidget::isMeshFullyKept_Y(const SceneMesh* mesh) const
 {
 	return mesh ? isBoundingBoxFullyKept_Y(mesh->getBoundingBox()) : false;
 }
 
-bool GLWidget::isMeshFullyKept_Z(const TriangleMesh* mesh) const
+bool GLWidget::isMeshFullyKept_Z(const SceneMesh* mesh) const
 {
 	return mesh ? isBoundingBoxFullyKept_Z(mesh->getBoundingBox()) : false;
 }
@@ -8827,7 +6756,7 @@ bool GLWidget::isBoundingBoxStraddlesCapPlane(const BoundingBox& bb, int planeIn
 	}
 }
 
-bool GLWidget::isMeshStraddlesCapPlane(const TriangleMesh* mesh, int planeIndex) const
+bool GLWidget::isMeshStraddlesCapPlane(const SceneMesh* mesh, int planeIndex) const
 {
 	return mesh ? isBoundingBoxStraddlesCapPlane(mesh->getBoundingBox(), planeIndex) : false;
 }
@@ -8840,12 +6769,12 @@ bool GLWidget::isBoundingBoxInvisibleInAllClipPasses(const BoundingBox& bb) cons
 	return true;
 }
 
-bool GLWidget::isMeshInvisibleInAllClipPasses(const TriangleMesh* mesh) const
+bool GLWidget::isMeshInvisibleInAllClipPasses(const SceneMesh* mesh) const
 {
 	return mesh ? isBoundingBoxInvisibleInAllClipPasses(mesh->getBoundingBox()) : true;
 }
 
-bool GLWidget::isMeshAnimationVisible(const TriangleMesh* mesh) const
+bool GLWidget::isMeshAnimationVisible(const SceneMesh* mesh) const
 {
 	if (!mesh)
 		return false;
@@ -8856,7 +6785,7 @@ bool GLWidget::isMeshAnimationVisible(const TriangleMesh* mesh) const
 	return !_animCtrl.animatedHiddenMeshUuids().contains(mesh->uuid());
 }
 
-bool GLWidget::isMeshVisible(const TriangleMesh* mesh, int activeClipPlaneIndex) const
+bool GLWidget::isMeshVisible(const SceneMesh* mesh, int activeClipPlaneIndex) const
 {
 	if (!isMeshAnimationVisible(mesh)) return false;
 
@@ -8892,12 +6821,12 @@ bool GLWidget::isMeshVisible(const TriangleMesh* mesh, int activeClipPlaneIndex)
 
 bool GLWidget::sceneHasVisibleTransmissionMaterials() const
 {
-	const std::vector<int>& ids = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+	const std::vector<int>& ids = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
 	for (int id : ids)
 	{
-		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+		if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
 			continue;
-		const TriangleMesh* mesh = _meshStore[id];
+		const SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 		if (!mesh || !isMeshAnimationVisible(mesh))
 			continue;
 
@@ -8910,12 +6839,12 @@ bool GLWidget::sceneHasVisibleTransmissionMaterials() const
 
 bool GLWidget::sceneHasVisibleSSSMaterials() const
 {
-	const std::vector<int>& ids = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+	const std::vector<int>& ids = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
 	for (int id : ids)
 	{
-		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+		if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
 			continue;
-		const TriangleMesh* mesh = _meshStore[id];
+		const SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 		if (!mesh || !isMeshAnimationVisible(mesh))
 			continue;
 		if (mesh->getMaterial().hasVolumeScattering())
@@ -8929,7 +6858,7 @@ bool GLWidget::sceneHasVisibleSSSMaterials() const
 void GLWidget::drawMeshesWithClipping(QOpenGLShaderProgram* prog,
 	bool transparentPass)
 {
-	TriangleMesh::resetTextureBindingCacheForCurrentContext();
+	RenderableMesh::resetTextureBindingCacheForCurrentContext();
 
 	//glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::HOLLOW_MESH ? GL_LINE : GL_FILL);
 	//glLineWidth(_displayMode == DisplayMode::HOLLOW_MESH ? 1.25 : 1.0);
@@ -8991,37 +6920,37 @@ void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 	const QVector3D worldUp = currentWorldUpVector();
 	QVector3D viewDir = _primaryCamera->getViewDir();
 	bool floorVisible = QVector3D::dotProduct(viewDir, worldUp) < 0.0f;
-	bool showShadows = (_shadowsEnabled && floorVisible && !_lowResEnabled && camera == _primaryCamera);
-	const bool interactionFastPath = _lowResEnabled && (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES);
+	bool showShadows = (_renderCtrl.shadowsEnabled() && floorVisible && !_renderCtrl.lowResEnabled() && camera == _primaryCamera);
+	const bool interactionFastPath = _renderCtrl.lowResEnabled() && (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES);
 
 	prog->setUniformValue("shadowsEnabled", showShadows);
-	prog->setUniformValue("selfShadowsEnabled", _selfShadowsEnabled);
+	prog->setUniformValue("selfShadowsEnabled", _renderCtrl.selfShadowsEnabled());
 	prog->setUniformValue("interactionFastPath", interactionFastPath);
 	prog->setUniformValue("cameraPos", camPos);
 	prog->setUniformValue("cameraDir", camDir);
 	prog->setUniformValue("lightPos",
 		shaderLightPos);
-	TriangleMesh::setCurrentRenderContext(_viewCtrl._modelMatrix, camera->getViewMatrix());
+	RenderableMesh::setCurrentRenderContext(_viewCtrl._modelMatrix, camera->getViewMatrix());
 	prog->setUniformValue("modelMatrix", _viewCtrl._modelMatrix);
 	prog->setUniformValue("viewMatrix", camera->getViewMatrix());
 	prog->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
-	prog->setUniformValue("lightFarPlane", _shadowFarDist);
-	prog->setUniformValue("hdrToneMapping", _hdrToneMapping);
-	prog->setUniformValue("gammaCorrection", _gammaCorrection);
-	prog->setUniformValue("screenGamma", _screenGamma);
-	prog->setUniformValue("envMapExposure", _envMapExposure);
-	prog->setUniformValue("iblExposure", _iblExposure);
-	prog->setUniformValue("toneMapMode", static_cast<int>(_toneMappingMode));	
+	prog->setUniformValue("lightFarPlane", _renderCtrl.shadowFarDist());
+	prog->setUniformValue("hdrToneMapping", _renderCtrl.hdrToneMapping());
+	prog->setUniformValue("gammaCorrection", _renderCtrl.gammaCorrection());
+	prog->setUniformValue("screenGamma", _renderCtrl.screenGamma());
+	prog->setUniformValue("envMapExposure", _renderCtrl.envMapExposure());
+	prog->setUniformValue("iblExposure", _renderCtrl.iblExposure());
+	prog->setUniformValue("toneMapMode", static_cast<int>(_renderCtrl.toneMappingMode()));	
 	prog->setUniformValue("selectionHighlighting", _selectionHighlighting);
 
 	prog->setUniformValue("transmissionFramebufferSize",
-		QVector2D(_transmissionTextureWidth, _transmissionTextureHeight));
+		QVector2D(_renderCtrl.transmissionTextureWidth(), _renderCtrl.transmissionTextureHeight()));
 	prog->setUniformValue("sssFramebufferSize",
-		QVector2D(_sssTextureWidth, _sssTextureHeight));
+		QVector2D(_renderCtrl.sssTextureWidth(), _renderCtrl.sssTextureHeight()));
 
-	prog->setUniformValue("useDefaultLights", _useDefaultLights);
-	prog->setUniformValue("usePunctualLights", _usePunctualLights);
-	prog->setUniformValue("useIBL", _useIBL);
+	prog->setUniformValue("useDefaultLights", _renderCtrl.useDefaultLights());
+	prog->setUniformValue("usePunctualLights", _renderCtrl.usePunctualLights());
+	prog->setUniformValue("useIBL", _renderCtrl.useIBL());
 
 	prog->setUniformValue("worldUpAxis", _viewCtrl._cameraUpAxisZUp ? 2 : 1);
 
@@ -9031,7 +6960,7 @@ void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 
 // ---------------------------------------------------------------------------
 // syncUniformsToFlatShader
-// Copies every active uniform from _fgShader to _fgFlatShader using
+// Copies every active uniform from _renderCtrl.fgShader() to _renderCtrl.fgFlatShader() using
 // glGetActiveUniform / glGetUniform* / glProgramUniform*.  This is called
 // once per flat-shaded triangle-mesh draw so that the flat shader always has
 // the same per-frame and per-mesh state as the main shader without requiring
@@ -9042,10 +6971,10 @@ void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 // ---------------------------------------------------------------------------
 void GLWidget::syncUniformsToFlatShader()
 {
-    if (!_fgFlatShader || !_fgFlatShader->isLinked()) return;
+    if (!_renderCtrl.fgFlatShader() || !_renderCtrl.fgFlatShader()->isLinked()) return;
 
-    const GLuint srcProg = _fgShader->programId();
-    const GLuint dstProg = _fgFlatShader->programId();
+    const GLuint srcProg = _renderCtrl.fgShader()->programId();
+    const GLuint dstProg = _renderCtrl.fgFlatShader()->programId();
 
     GLint numUniforms = 0;
     glGetProgramiv(srcProg, GL_ACTIVE_UNIFORMS, &numUniforms);
@@ -9160,19 +7089,19 @@ void GLWidget::syncUniformsToFlatShader()
 void GLWidget::drawSectionCapping()
 {
 	// We use a lightweight shader without lighting and stuff for drawing the clipped mesh
-	_clippedMeshShader->bind();
-	_clippedMeshShader->setUniformValue("modelMatrix", _viewCtrl._modelMatrix);
-	_clippedMeshShader->setUniformValue("viewMatrix", _viewCtrl._viewMatrix);
-	_clippedMeshShader->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
+	_renderCtrl.clippedMeshShader()->bind();
+	_renderCtrl.clippedMeshShader()->setUniformValue("modelMatrix", _viewCtrl._modelMatrix);
+	_renderCtrl.clippedMeshShader()->setUniformValue("viewMatrix", _viewCtrl._viewMatrix);
+	_renderCtrl.clippedMeshShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
 	QVector3D pos = _primaryCamera->getRenderPosition();
 
-	_clippedMeshShader->setUniformValue("clipPlaneX", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(_clipXFlipped ? 1 : -1, 0, 0) + pos),
+	_renderCtrl.clippedMeshShader()->setUniformValue("clipPlaneX", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(_clipXFlipped ? 1 : -1, 0, 0) + pos),
 		(_clipXFlipped ? 1 : -1) * (pos.x() - (_clipXCoeff + _viewCtrl._boundingBox.center().getX()))));
-	_clippedMeshShader->setUniformValue("clipPlaneY", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(0, _clipYFlipped ? 1 : -1, 0) + pos),
+	_renderCtrl.clippedMeshShader()->setUniformValue("clipPlaneY", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(0, _clipYFlipped ? 1 : -1, 0) + pos),
 		(_clipYFlipped ? 1 : -1) * (pos.y() - (_clipYCoeff + _viewCtrl._boundingBox.center().getY()))));
-	_clippedMeshShader->setUniformValue("clipPlaneZ", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(0, 0, _clipZFlipped ? 1 : -1) + pos),
+	_renderCtrl.clippedMeshShader()->setUniformValue("clipPlaneZ", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(0, 0, _clipZFlipped ? 1 : -1) + pos),
 		(_clipZFlipped ? 1 : -1) * (pos.z() - (_clipZCoeff + _viewCtrl._boundingBox.center().getZ()))));
-	_clippedMeshShader->setUniformValue("clipPlane", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
+	_renderCtrl.clippedMeshShader()->setUniformValue("clipPlane", QVector4D(_viewCtrl._modelViewMatrix.map(QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
 		pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
 
 	for (int i = 0; i < 3; ++i)
@@ -9211,14 +7140,14 @@ void GLWidget::drawSectionCapping()
 		// and the model is drawn with glCullFace(GL FRONT).
 		glEnable(GL_CULL_FACE);
 		glCullFace(GL_FRONT);
-		drawMesh(_clippedMeshShader.get(), i);
+		drawMesh(_renderCtrl.clippedMeshShader(), i);
 
 		// 4) The stencil operation is then set to decrement the stencil value where the depth test passes,
 		glStencilOp(GL_KEEP, GL_KEEP, GL_DECR);
 
 		// and the model is drawn with glCullFace(GL BACK)
 		glCullFace(GL_BACK);
-		drawMesh(_clippedMeshShader.get(), i);
+		drawMesh(_renderCtrl.clippedMeshShader(), i);
 		glDisable(GL_CULL_FACE);
 
 		//At this point, the stencil buffer is 1 wherever the clipping plane is enclosed by
@@ -9242,14 +7171,14 @@ void GLWidget::drawSectionCapping()
 			QMatrix4x4 model;
 			Point P = _viewCtrl._boundingBox.center();
 
-			_clippingPlaneShader->bind();
-			_clippingPlaneShader->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
-			_clippingPlaneShader->setProperty("viewMatrix", QVariant::fromValue(_viewCtrl._viewMatrix));
-			_clippingPlaneShader->setUniformValue("viewMatrix", _viewCtrl._viewMatrix);
-			_clippingPlaneShader->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
+			_renderCtrl.clippingPlaneShader()->bind();
+			_renderCtrl.clippingPlaneShader()->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
+			_renderCtrl.clippingPlaneShader()->setProperty("viewMatrix", QVariant::fromValue(_viewCtrl._viewMatrix));
+			_renderCtrl.clippingPlaneShader()->setUniformValue("viewMatrix", _viewCtrl._viewMatrix);
+			_renderCtrl.clippingPlaneShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
 			glActiveTexture(GL_TEXTURE6);
-			glBindTexture(GL_TEXTURE_2D, _cappingTexture);
-			_clippingPlaneShader->setUniformValue("hatchMap", 6);
+			glBindTexture(GL_TEXTURE_2D, _renderCtrl.cappingTexture());
+			_renderCtrl.clippingPlaneShader()->setUniformValue("hatchMap", 6);
 			float yAng = _clipXFlipped || _clipXCoeff > 0 ? 90.0f : -90.0f;
 			float xAng = _clipYFlipped || _clipYCoeff > 0 ? 90.0f : -90.0f;
 			float zAng = _clipZFlipped || _clipZCoeff > 0 ? 0.0f : 180.0f;
@@ -9263,34 +7192,34 @@ void GLWidget::drawSectionCapping()
 			const float tilesAcross = wantTexture ? 3.0f : _hatchTiling;
 			const float worldUnitsPerTile = sceneDiag / tilesAcross;
 
-			_clippingPlaneShader->setUniformValue("worldUnitsPerTile", worldUnitsPerTile);
+			_renderCtrl.clippingPlaneShader()->setUniformValue("worldUnitsPerTile", worldUnitsPerTile);
 			// procedural hatch params (tweak to taste)
-			_clippingPlaneShader->setUniformValue("hatchThickness", _hatchThickness);
-			_clippingPlaneShader->setUniformValue("hatchIntensity", _hatchIntensity);
-			_clippingPlaneShader->setUniformValue("hatchLayers", _hatchLayers);
-			_clippingPlaneShader->setUniformValue("hatchLineColor", _hatchLineColor);			
-			_clippingPlaneShader->setUniformValue("hatchPattern", static_cast<int>(_hatchPattern));
+			_renderCtrl.clippingPlaneShader()->setUniformValue("hatchThickness", _hatchThickness);
+			_renderCtrl.clippingPlaneShader()->setUniformValue("hatchIntensity", _hatchIntensity);
+			_renderCtrl.clippingPlaneShader()->setUniformValue("hatchLayers", _hatchLayers);
+			_renderCtrl.clippingPlaneShader()->setUniformValue("hatchLineColor", _hatchLineColor);			
+			_renderCtrl.clippingPlaneShader()->setUniformValue("hatchPattern", static_cast<int>(_hatchPattern));
 			
-			_clippingPlaneShader->setUniformValue("useTexture", wantTexture);
+			_renderCtrl.clippingPlaneShader()->setUniformValue("useTexture", wantTexture);
 
 			// texture flip control: (1,1) normal; (-1,1) flip U; (1,-1) flip V			
 			QVector2D texFlip = QVector2D(wantFlipU ? -1.0f : 1.0f, wantFlipV ? -1.0f : 1.0f);
-			_clippingPlaneShader->setUniformValue("textureFlip", texFlip);
+			_renderCtrl.clippingPlaneShader()->setUniformValue("textureFlip", texFlip);
 
 			// YZ Plane			
 			model.translate(QVector3D(P.getX(), P.getY(), P.getZ()));
 			model.rotate(yAng, QVector3D(0.0f, 1.0f, 0.0f));
-			_clippingPlaneShader->bind();
+			_renderCtrl.clippingPlaneShader()->bind();
 			_clippingPlaneYZ->setSceneRenderTransformFast(model);
-			_clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.20f, 0.5f, 0.5f));			
+			_renderCtrl.clippingPlaneShader()->setUniformValue("planeColor", QVector3D(0.20f, 0.5f, 0.5f));			
 			if (_clipYZEnabled && i == 0)
 			{
 				const float xPlane = P.getX() + _clipXCoeff;
 				// Origin at plane through bbox center
-				_clippingPlaneShader->setUniformValue("hatchOrigin", QVector3D(xPlane, P.getY(), P.getZ()));
+				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchOrigin", QVector3D(xPlane, P.getY(), P.getZ()));
 				// World-space basis on the plane: U=+Y, V=+Z
-				_clippingPlaneShader->setUniformValue("uDir", QVector3D(0.f, 1.f, 0.f));
-				_clippingPlaneShader->setUniformValue("vDir", QVector3D(0.f, 0.f, 1.f));
+				_renderCtrl.clippingPlaneShader()->setUniformValue("uDir", QVector3D(0.f, 1.f, 0.f));
+				_renderCtrl.clippingPlaneShader()->setUniformValue("vDir", QVector3D(0.f, 0.f, 1.f));
 				_clippingPlaneYZ->render();
 			}
 
@@ -9298,16 +7227,16 @@ void GLWidget::drawSectionCapping()
 			model.setToIdentity();
 			model.translate(QVector3D(P.getX(), P.getY(), P.getZ()));
 			model.rotate(xAng, QVector3D(1.0f, 0.0f, 0.0f));
-			_clippingPlaneShader->bind();
+			_renderCtrl.clippingPlaneShader()->bind();
 			_clippingPlaneZX->setSceneRenderTransformFast(model);
-			_clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.5f, 0.20f, 0.5f));
+			_renderCtrl.clippingPlaneShader()->setUniformValue("planeColor", QVector3D(0.5f, 0.20f, 0.5f));
 			if (_clipZXEnabled && i == 1)
 			{
 				const float yPlane = P.getY() + _clipYCoeff;
-				_clippingPlaneShader->setUniformValue("hatchOrigin", QVector3D(P.getX(), yPlane, P.getZ()));
+				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchOrigin", QVector3D(P.getX(), yPlane, P.getZ()));
 				// U=+Z, V=+X
-				_clippingPlaneShader->setUniformValue("uDir", QVector3D(0.f, 0.f, 1.f));
-				_clippingPlaneShader->setUniformValue("vDir", QVector3D(1.f, 0.f, 0.f));
+				_renderCtrl.clippingPlaneShader()->setUniformValue("uDir", QVector3D(0.f, 0.f, 1.f));
+				_renderCtrl.clippingPlaneShader()->setUniformValue("vDir", QVector3D(1.f, 0.f, 0.f));
 				_clippingPlaneZX->render();
 			}
 
@@ -9315,16 +7244,16 @@ void GLWidget::drawSectionCapping()
 			model.setToIdentity();
 			model.translate(QVector3D(P.getX(), P.getY(), P.getZ()));
 			model.rotate(zAng, QVector3D(1.0f, 0.0f, 0.0f));
-			_clippingPlaneShader->bind();
+			_renderCtrl.clippingPlaneShader()->bind();
 			_clippingPlaneXY->setSceneRenderTransformFast(model);
-			_clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.5f, 0.5f, 0.20f));
+			_renderCtrl.clippingPlaneShader()->setUniformValue("planeColor", QVector3D(0.5f, 0.5f, 0.20f));
 			if (_clipXYEnabled && i == 2)
 			{
 				const float zPlane = P.getZ() + _clipZCoeff;
-				_clippingPlaneShader->setUniformValue("hatchOrigin", QVector3D(P.getX(), P.getY(), zPlane));
+				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchOrigin", QVector3D(P.getX(), P.getY(), zPlane));
 				// U=+X, V=+Y
-				_clippingPlaneShader->setUniformValue("uDir", QVector3D(1.f, 0.f, 0.f));
-				_clippingPlaneShader->setUniformValue("vDir", QVector3D(0.f, 1.f, 0.f));
+				_renderCtrl.clippingPlaneShader()->setUniformValue("uDir", QVector3D(1.f, 0.f, 0.f));
+				_renderCtrl.clippingPlaneShader()->setUniformValue("vDir", QVector3D(0.f, 1.f, 0.f));
 				_clippingPlaneXY->render();
 			}
 		}
@@ -9349,20 +7278,20 @@ void GLWidget::drawVertexNormals()
     if (!isVertexNormalsShown())
         return;
 
-    TriangleMesh::setCurrentRenderContext(_viewCtrl._modelMatrix, _viewCtrl._viewMatrix);
+    RenderableMesh::setCurrentRenderContext(_viewCtrl._modelMatrix, _viewCtrl._viewMatrix);
 
 	QVector3D pos = _primaryCamera->getRenderPosition();
-	setupClippingUniforms(_vertexNormalShader.get(), pos);
+	setupClippingUniforms(_renderCtrl.vertexNormalShader(), pos);
     const float normalMagnitude =
         std::max(std::max(_viewCtrl._boundingSphere.getRadius() * 0.02f, _viewCtrl._viewRange * 0.01f), 0.001f);
-    _vertexNormalShader->setUniformValue("normalMagnitude", normalMagnitude);
+    _renderCtrl.vertexNormalShader()->setUniformValue("normalMagnitude", normalMagnitude);
 
-	if (_meshStore.size() != 0)
+	if (_sceneRuntime.meshStore().size() != 0)
 	{
-		for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
+		for (int i : (_sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds()))
 		{
-			TriangleMesh* mesh = _meshStore.at(i);
-			mesh->setProg(_vertexNormalShader.get());
+			SceneMesh* mesh = _sceneRuntime.meshStore().at(i);
+			mesh->setProg(_renderCtrl.vertexNormalShader());
             mesh->render();
 		}
 	}
@@ -9373,20 +7302,20 @@ void GLWidget::drawFaceNormals()
     if (!isFaceNormalsShown())
         return;
 
-    TriangleMesh::setCurrentRenderContext(_viewCtrl._modelMatrix, _viewCtrl._viewMatrix);
+    RenderableMesh::setCurrentRenderContext(_viewCtrl._modelMatrix, _viewCtrl._viewMatrix);
 
 	QVector3D pos = _primaryCamera->getRenderPosition();
-	setupClippingUniforms(_faceNormalShader.get(), pos);
+	setupClippingUniforms(_renderCtrl.faceNormalShader(), pos);
     const float normalMagnitude =
         std::max(std::max(_viewCtrl._boundingSphere.getRadius() * 0.02f, _viewCtrl._viewRange * 0.01f), 0.001f);
-    _faceNormalShader->setUniformValue("normalMagnitude", normalMagnitude);
+    _renderCtrl.faceNormalShader()->setUniformValue("normalMagnitude", normalMagnitude);
 
-	if (_meshStore.size() != 0)
+	if (_sceneRuntime.meshStore().size() != 0)
 	{
-		for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
+		for (int i : (_sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds()))
 		{
-			TriangleMesh* mesh = _meshStore.at(i);
-			mesh->setProg(_faceNormalShader.get());
+			SceneMesh* mesh = _sceneRuntime.meshStore().at(i);
+			mesh->setProg(_renderCtrl.faceNormalShader());
             mesh->render();
 		}
 	}
@@ -9394,17 +7323,17 @@ void GLWidget::drawFaceNormals()
 
 void GLWidget::drawBoundingBoxOverlay()
 {
-    if (!isBoundingBoxShown() || !_axisShader)
+    if (!isBoundingBoxShown() || !_renderCtrl.axisShader())
         return;
 
     BoundingBox bounds;
     bool hasBounds = false;
 
     auto accumulateBounds = [this, &bounds, &hasBounds](int meshId) {
-        if (meshId < 0 || meshId >= static_cast<int>(_meshStore.size()))
+        if (meshId < 0 || meshId >= static_cast<int>(_sceneRuntime.meshStore().size()))
             return;
 
-        TriangleMesh* mesh = _meshStore.at(meshId);
+        SceneMesh* mesh = _sceneRuntime.meshStore().at(meshId);
         if (!mesh)
             return;
 
@@ -9427,7 +7356,7 @@ void GLWidget::drawBoundingBoxOverlay()
     }
     else
     {
-        for (int meshId : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
+        for (int meshId : (_sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds()))
             accumulateBounds(meshId);
     }
 
@@ -9453,13 +7382,9 @@ void GLWidget::drawBoundingBoxOverlay()
         vertices.insert(vertices.end(), { b.x(), b.y(), b.z(), color.x(), color.y(), color.z() });
     }
 
-    if (_debugOverlayBoxVAO == 0)
-        glGenVertexArrays(1, &_debugOverlayBoxVAO);
-    if (_debugOverlayBoxVBO == 0)
-        glGenBuffers(1, &_debugOverlayBoxVBO);
-
-    glBindVertexArray(_debugOverlayBoxVAO);
-    glBindBuffer(GL_ARRAY_BUFFER, _debugOverlayBoxVBO);
+    _renderCtrl.initDebugOverlayGeometry(vertices);
+    glBindVertexArray(_renderCtrl.debugOverlayBoxVAO());
+    glBindBuffer(GL_ARRAY_BUFFER, _renderCtrl.debugOverlayBoxVBO());
     glBufferData(GL_ARRAY_BUFFER,
                  static_cast<GLsizeiptr>(vertices.size() * sizeof(float)),
                  vertices.data(),
@@ -9469,14 +7394,14 @@ void GLWidget::drawBoundingBoxOverlay()
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(float), reinterpret_cast<const void*>(3 * sizeof(float)));
 
-    _axisShader->bind();
-    _axisShader->setUniformValue("modelViewMatrix", _viewCtrl._viewMatrix);
-    _axisShader->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
-    _axisShader->setUniformValue("renderCone", false);
+    _renderCtrl.axisShader()->bind();
+    _renderCtrl.axisShader()->setUniformValue("modelViewMatrix", _viewCtrl._viewMatrix);
+    _renderCtrl.axisShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
+    _renderCtrl.axisShader()->setUniformValue("renderCone", false);
     glLineWidth(2.0f);
     glDrawArrays(GL_LINES, 0, 24);
     glLineWidth(1.0f);
-    _axisShader->release();
+    _renderCtrl.axisShader()->release();
 
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
@@ -9484,10 +7409,10 @@ void GLWidget::drawBoundingBoxOverlay()
 
 void GLWidget::drawDebugOverlay(GLCamera* camera)
 {
-    if (!camera || !_debugOverlayEnabled)
+    if (!camera || !_renderCtrl.debugOverlayEnabled())
         return;
 
-    switch (_debugOverlayMode)
+    switch (_renderCtrl.debugOverlayMode())
     {
     case DebugOverlayMode::BoundingBox:
         drawBoundingBoxOverlay();
@@ -9522,62 +7447,24 @@ void GLWidget::drawAxis(GLCamera* camera)
 	_axisTextRenderer->RenderText(_labelAxisZ.toStdString(), zAxis.x(), height() - zAxis.y(), 1, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
 
 	// Axes Lines
-	if (!_axisVAO.isCreated())
-	{
-		_axisVAO.create();
-		_axisVAO.bind();
-	}
+	_renderCtrl.initAxisGeometry(axisViewRange / size);
 
-	// Vertex Buffer
-	if (!_axisVBO.isCreated())
-	{
-		_axisVBO = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-		_axisVBO.create();
-	}
-	_axisVBO.bind();
-	_axisVBO.setUsagePattern(QOpenGLBuffer::StaticDraw);
-	std::vector<float> vertices = {
-		0, 0, 0,
-		axisViewRange / size, 0, 0,
-		0, 0, 0,
-		0, axisViewRange / size, 0,
-		0, 0, 0,
-		0, 0, axisViewRange / size };
-	_axisVBO.allocate(vertices.data(), static_cast<int>(vertices.size() * sizeof(float)));
+	_renderCtrl.axisShader()->bind();
 
-	// Color Buffer
-	if (!_axisCBO.isCreated())
-	{
-		_axisCBO = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-		_axisCBO.create();
-	}
-	_axisCBO.bind();
-	_axisCBO.setUsagePattern(QOpenGLBuffer::StaticDraw);
-	std::vector<float> colors = {
-		1, 0, 0,
-		1, 0, 0,
-		0, 1, 0,
-		0, 1, 0,
-		0, 0, 1,
-		0, 0, 1 };
-	_axisCBO.allocate(colors.data(), static_cast<int>(colors.size() * sizeof(float)));
+	_renderCtrl.axisVBO().bind();
+	_renderCtrl.axisShader()->enableAttributeArray("vertexPosition");
+	_renderCtrl.axisShader()->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
 
-	_axisShader->bind();
+	_renderCtrl.axisCBO().bind();
+	_renderCtrl.axisShader()->enableAttributeArray("vertexColor");
+	_renderCtrl.axisShader()->setAttributeBuffer("vertexColor", GL_FLOAT, 0, 3);
 
-	_axisVBO.bind();
-	_axisShader->enableAttributeArray("vertexPosition");
-	_axisShader->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
+	_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", _viewCtrl._modelViewMatrix);
+	_renderCtrl.axisShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
 
-	_axisCBO.bind();
-	_axisShader->enableAttributeArray("vertexColor");
-	_axisShader->setAttributeBuffer("vertexColor", GL_FLOAT, 0, 3);
+	_renderCtrl.axisShader()->setUniformValue("renderCone", false);
 
-	_axisShader->setUniformValue("modelViewMatrix", _viewCtrl._modelViewMatrix);
-	_axisShader->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
-
-	_axisShader->setUniformValue("renderCone", false);
-
-	_axisVAO.bind();
+	_renderCtrl.axisVAO().bind();
 	glLineWidth(2.5);
 	glDrawArrays(GL_LINES, 0, 6);
 	glLineWidth(1);
@@ -9585,12 +7472,12 @@ void GLWidget::drawAxis(GLCamera* camera)
 	// Axes Cones
 	// X Axis
 	_axisCone->setParameters(axisViewRange / size / 15, axisViewRange / size / 5, 8u, 1u);
-	_axisShader->setUniformValue("renderCone", true);
+	_renderCtrl.axisShader()->setUniformValue("renderCone", true);
 	QMatrix4x4 model;
 	model.translate(axisViewRange / size, 0, 0);
 	model.rotate(90, QVector3D(0, 1.0f, 0));
-	_axisShader->setUniformValue("coneColor", QVector3D(1.0f, 0.0, 0.0));
-	_axisShader->setUniformValue("modelViewMatrix", _viewCtrl._viewMatrix * model);
+	_renderCtrl.axisShader()->setUniformValue("coneColor", QVector3D(1.0f, 0.0, 0.0));
+	_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", _viewCtrl._viewMatrix * model);
 	_axisCone->getVAO().bind();
 	glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(_axisCone->getPoints().size()), GL_UNSIGNED_INT, 0);
 	_axisCone->getVAO().release();
@@ -9599,9 +7486,9 @@ void GLWidget::drawAxis(GLCamera* camera)
 	model.setToIdentity();
 	model.translate(0, axisViewRange / size, 0);
 	model.rotate(90, QVector3D(-1.0f, 0, 0));
-	_axisShader->bind();
-	_axisShader->setUniformValue("coneColor", QVector3D(0.0, 1.0f, 0.0));
-	_axisShader->setUniformValue("modelViewMatrix", _viewCtrl._viewMatrix * model);
+	_renderCtrl.axisShader()->bind();
+	_renderCtrl.axisShader()->setUniformValue("coneColor", QVector3D(0.0, 1.0f, 0.0));
+	_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", _viewCtrl._viewMatrix * model);
 	_axisCone->getVAO().bind();
 	glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(_axisCone->getPoints().size()), GL_UNSIGNED_INT, 0);
 	_axisCone->getVAO().release();
@@ -9609,15 +7496,15 @@ void GLWidget::drawAxis(GLCamera* camera)
 	// Z Axis
 	model.setToIdentity();
 	model.translate(0, 0, axisViewRange / size);
-	_axisShader->bind();
-	_axisShader->setUniformValue("coneColor", QVector3D(0.0, 0.0, 1.0f));
-	_axisShader->setUniformValue("modelViewMatrix", _viewCtrl._viewMatrix * model);
+	_renderCtrl.axisShader()->bind();
+	_renderCtrl.axisShader()->setUniformValue("coneColor", QVector3D(0.0, 0.0, 1.0f));
+	_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", _viewCtrl._viewMatrix * model);
 	_axisCone->getVAO().bind();
 	glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(_axisCone->getPoints().size()), GL_UNSIGNED_INT, 0);
 	_axisCone->getVAO().release();
 
-	_axisVAO.release();
-	_axisShader->release();
+	_renderCtrl.axisVAO().release();
+	_renderCtrl.axisShader()->release();
 }
 
 void GLWidget::drawTransformGizmo(GLCamera* camera)
@@ -9634,7 +7521,7 @@ void GLWidget::drawTransformGizmo(GLCamera* camera)
 		? selectionSphere.getRadius()
 		: _viewCtrl._boundingSphere.getRadius();
 	const float fallbackScale = (std::max)(selectionRadius * 0.9f, 0.01f);
-	_transformGizmo->render(_axisShader.get(), _axisCone, camera, _viewCtrl._viewMatrix, _viewCtrl._projectionMatrix, fallbackScale);
+	_transformGizmo->render(_renderCtrl.axisShader(), _axisCone, camera, _viewCtrl._viewMatrix, _viewCtrl._projectionMatrix, fallbackScale);
 }
 
 BoundingSphere GLWidget::computeTransformGizmoSelectionSphere() const
@@ -9649,10 +7536,10 @@ BoundingSphere GLWidget::computeTransformGizmoSelectionSphere() const
 
 	for (int id : selectedIds)
 	{
-		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+		if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
 			continue;
 
-		TriangleMesh* mesh = _meshStore[id];
+		SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 		if (!mesh)
 			continue;
 
@@ -9702,7 +7589,7 @@ void GLWidget::applyExplodedViewManualPlacementSessionTransform()
 	for (auto it = _explodedViewCtrl.manualSessionStartStates().cbegin();
 	     it != _explodedViewCtrl.manualSessionStartStates().cend(); ++it)
 	{
-		TriangleMesh* mesh = getMeshByUuid(it.key());
+		SceneMesh* mesh = getMeshByUuid(it.key());
 		if (!mesh)
 			continue;
 
@@ -9717,21 +7604,21 @@ void GLWidget::applyExplodedViewManualPlacementSessionTransform()
 
 		const QQuaternion baseQuat = startState.hasExactRotation
 			? startState.rotationQuat.normalized()
-			: quaternionFromMeshEuler(startState.rotation);
+			: MeshMathUtils::quaternionFromMeshEuler(startState.rotation);
 		const QQuaternion exactRotationQuat =
 			(_explodedViewCtrl.manualSessionRotationQuat() * baseQuat).normalized();
 
 		QMatrix4x4 displayRotationMatrix;
 		displayRotationMatrix.setToIdentity();
 		displayRotationMatrix.rotate(exactRotationQuat);
-		const QVector3D displayRotation = extractMeshRotationFromMatrix(displayRotationMatrix);
+		const QVector3D displayRotation = MeshMathUtils::extractMeshRotationFromMatrix(displayRotationMatrix);
 
 		mesh->setExplodedViewTranslationFast(exactTranslation);
 		mesh->setExplodedViewRotationQuaternionFast(exactRotationQuat, displayRotation);
 		mesh->setExplodedViewScalingFast(startState.scale);
 	}
 
-	_shadowMapNeedsInitialization = true;
+	_renderCtrl.setShadowMapNeedsInitialization(true);
 	update();
 }
 
@@ -9854,13 +7741,13 @@ bool GLWidget::beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle,
 
 	for (int id : activeTransformGizmoSelectionIds())
 	{
-		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+		if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
 			continue;
 
-		if (TriangleMesh* mesh = _meshStore[id])
+		if (SceneMesh* mesh = _sceneRuntime.meshStore()[id])
 		{
 			_viewCtrl._transformGizmoStartStates[id] = _explodedViewCtrl.isManualPlacementActive()
-				? explodedViewTransformState(mesh)
+				? ExplodedViewRuntimeController::explodedViewTransformState(mesh)
 				: TransformState(
 					mesh->getTranslation(),
 					mesh->getRotation(),
@@ -9868,7 +7755,7 @@ bool GLWidget::beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle,
 					mesh->getRotationQuaternion());
 			_viewCtrl._transformGizmoStartCenters[id] = mesh->getBoundingSphere().getCenter();
 			_viewCtrl._transformGizmoStartMatrices[id] = _explodedViewCtrl.isManualPlacementActive()
-				? explodedViewTransformMatrix(mesh)
+				? ExplodedViewRuntimeController::explodedViewTransformMatrix(mesh)
 				: mesh->getTransformation();
 		}
 	}
@@ -9913,10 +7800,10 @@ void GLWidget::updateTransformGizmoTranslationDrag(const QPoint& pixel)
 	for (auto it = _viewCtrl._transformGizmoStartStates.begin(); it != _viewCtrl._transformGizmoStartStates.end(); ++it)
 	{
 		const int id = it.key();
-		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+		if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
 			continue;
 
-		if (TriangleMesh* mesh = _meshStore[id])
+		if (SceneMesh* mesh = _sceneRuntime.meshStore()[id])
 		{
 			const TransformState& startState = it.value();
 			// Use fast setters during drag — only updates AABB from 8 corners (O(1))
@@ -9950,7 +7837,7 @@ void GLWidget::updateTransformGizmoTranslationDrag(const QPoint& pixel)
 		emit explodedViewManualPlacementChanged();
 	}
 
-	_shadowMapNeedsInitialization = true;
+	_renderCtrl.setShadowMapNeedsInitialization(true);
 	update();
 }
 
@@ -9970,10 +7857,10 @@ void GLWidget::finishTransformGizmoTranslationDrag(bool commit)
 	for (auto it = _viewCtrl._transformGizmoStartStates.begin(); it != _viewCtrl._transformGizmoStartStates.end(); ++it)
 	{
 		const int id = it.key();
-		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+		if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
 			continue;
 
-		TriangleMesh* mesh = _meshStore[id];
+		SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 		if (!mesh)
 			continue;
 
@@ -9983,7 +7870,7 @@ void GLWidget::finishTransformGizmoTranslationDrag(bool commit)
 
 		oldStatesByUuid.insert(uuid, it.value());
 		newStatesByUuid.insert(uuid, _explodedViewCtrl.isManualPlacementActive()
-			? explodedViewTransformState(mesh)
+			? ExplodedViewRuntimeController::explodedViewTransformState(mesh)
 			: TransformState(
 				mesh->getTranslation(),
 				mesh->getRotation(),
@@ -10021,14 +7908,14 @@ void GLWidget::finishTransformGizmoTranslationDrag(bool commit)
 		for (auto it = _viewCtrl._transformGizmoStartStates.begin(); it != _viewCtrl._transformGizmoStartStates.end(); ++it)
 		{
 			const int id = it.key();
-			if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+			if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
 				continue;
 
-			if (TriangleMesh* mesh = _meshStore[id])
+			if (SceneMesh* mesh = _sceneRuntime.meshStore()[id])
 			{
 				const TransformState& startState = it.value();
 				if (_explodedViewCtrl.isManualPlacementActive())
-					applyExplodedViewTransformState(mesh, startState, false);
+					ExplodedViewRuntimeController::applyExplodedViewTransformState(mesh, startState, false);
 				else
 				{
 					mesh->setTranslation(startState.translation);
@@ -10098,13 +7985,13 @@ bool GLWidget::beginTransformGizmoScaleDrag(TransformGizmo::Handle handle, const
 
 	for (int id : activeTransformGizmoSelectionIds())
 	{
-		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+		if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
 			continue;
 
-		if (TriangleMesh* mesh = _meshStore[id])
+		if (SceneMesh* mesh = _sceneRuntime.meshStore()[id])
 		{
 			_viewCtrl._transformGizmoStartStates[id] = _explodedViewCtrl.isManualPlacementActive()
-				? explodedViewTransformState(mesh)
+				? ExplodedViewRuntimeController::explodedViewTransformState(mesh)
 				: TransformState(
 					mesh->getTranslation(),
 					mesh->getRotation(),
@@ -10112,7 +7999,7 @@ bool GLWidget::beginTransformGizmoScaleDrag(TransformGizmo::Handle handle, const
 					mesh->getRotationQuaternion());
 			_viewCtrl._transformGizmoStartCenters[id] = mesh->getBoundingSphere().getCenter();
 			_viewCtrl._transformGizmoStartMatrices[id] = _explodedViewCtrl.isManualPlacementActive()
-				? explodedViewTransformMatrix(mesh)
+				? ExplodedViewRuntimeController::explodedViewTransformMatrix(mesh)
 				: mesh->getTransformation();
 		}
 	}
@@ -10173,10 +8060,10 @@ void GLWidget::updateTransformGizmoScaleDrag(const QPoint& pixel)
 	for (auto it = _viewCtrl._transformGizmoStartStates.begin(); it != _viewCtrl._transformGizmoStartStates.end(); ++it)
 	{
 		const int id = it.key();
-		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+		if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
 			continue;
 
-		if (TriangleMesh* mesh = _meshStore[id])
+		if (SceneMesh* mesh = _sceneRuntime.meshStore()[id])
 		{
 			const TransformState& startState = it.value();
 			QVector3D scaledTranslation = startState.translation;
@@ -10221,7 +8108,7 @@ void GLWidget::updateTransformGizmoScaleDrag(const QPoint& pixel)
 		_viewer->objectTransformPanel->setScaleValues(_viewCtrl._transformGizmoCurrentScaleDelta);
 	}
 
-	_shadowMapNeedsInitialization = true;
+	_renderCtrl.setShadowMapNeedsInitialization(true);
 	update();
 }
 
@@ -10242,10 +8129,10 @@ void GLWidget::finishTransformGizmoScaleDrag(bool commit)
 	for (auto it = _viewCtrl._transformGizmoStartStates.begin(); it != _viewCtrl._transformGizmoStartStates.end(); ++it)
 	{
 		const int id = it.key();
-		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+		if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
 			continue;
 
-		TriangleMesh* mesh = _meshStore[id];
+		SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 		if (!mesh)
 			continue;
 
@@ -10278,10 +8165,10 @@ void GLWidget::finishTransformGizmoScaleDrag(bool commit)
 		for (auto it = _viewCtrl._transformGizmoStartStates.begin(); it != _viewCtrl._transformGizmoStartStates.end(); ++it)
 		{
 			const int id = it.key();
-			if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+			if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
 				continue;
 
-			if (TriangleMesh* mesh = _meshStore[id])
+			if (SceneMesh* mesh = _sceneRuntime.meshStore()[id])
 			{
 				const TransformState& startState = it.value();
 				mesh->setTranslation(startState.translation);
@@ -10330,13 +8217,13 @@ bool GLWidget::beginTransformGizmoRotationDrag(TransformGizmo::Handle handle, co
 
 	QVector3D rayOrigin;
 	QVector3D rayDir;
-	if (!convertPixelToRay(pixel, viewport, height(), camera->getViewMatrix(), camera->getProjectionMatrix(), rayOrigin, rayDir))
+	if (!ViewportInteractionController::convertPixelToRay(pixel, viewport, height(), camera->getViewMatrix(), camera->getProjectionMatrix(), rayOrigin, rayDir))
 		return false;
 
 	const BoundingSphere selectionSphere = computeTransformGizmoSelectionSphere();
 	const QVector3D pivot = selectionSphere.getCenter();
 	QVector3D hitPoint;
-	if (!intersectRayPlane(rayOrigin, rayDir, pivot, axis, hitPoint))
+	if (!ViewportInteractionController::intersectRayPlane(rayOrigin, rayDir, pivot, axis, hitPoint))
 		return false;
 
 	QVector3D startVector = hitPoint - pivot;
@@ -10366,10 +8253,10 @@ bool GLWidget::beginTransformGizmoRotationDrag(TransformGizmo::Handle handle, co
 
 	for (int id : activeTransformGizmoSelectionIds())
 	{
-		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+		if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
 			continue;
 
-		if (TriangleMesh* mesh = _meshStore[id])
+		if (SceneMesh* mesh = _sceneRuntime.meshStore()[id])
 		{
 			_viewCtrl._transformGizmoStartStates[id] = TransformState(
 				mesh->getTranslation(),
@@ -10401,11 +8288,11 @@ void GLWidget::updateTransformGizmoRotationDrag(const QPoint& pixel)
 
 	QVector3D rayOrigin;
 	QVector3D rayDir;
-	if (!convertPixelToRay(pixel, viewport, height(), camera->getViewMatrix(), camera->getProjectionMatrix(), rayOrigin, rayDir))
+	if (!ViewportInteractionController::convertPixelToRay(pixel, viewport, height(), camera->getViewMatrix(), camera->getProjectionMatrix(), rayOrigin, rayDir))
 		return;
 
 	QVector3D hitPoint;
-	if (!intersectRayPlane(rayOrigin, rayDir, _viewCtrl._transformGizmoStartPivot,
+	if (!ViewportInteractionController::intersectRayPlane(rayOrigin, rayDir, _viewCtrl._transformGizmoStartPivot,
 		_viewCtrl._transformGizmoRotationPlaneNormal, hitPoint))
 		return;
 
@@ -10429,10 +8316,10 @@ void GLWidget::updateTransformGizmoRotationDrag(const QPoint& pixel)
 	for (auto it = _viewCtrl._transformGizmoStartStates.begin(); it != _viewCtrl._transformGizmoStartStates.end(); ++it)
 	{
 		const int id = it.key();
-		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+		if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
 			continue;
 
-		if (TriangleMesh* mesh = _meshStore[id])
+		if (SceneMesh* mesh = _sceneRuntime.meshStore()[id])
 		{
 			const TransformState& startState = it.value();
 			QMatrix4x4 deltaMatrix;
@@ -10460,7 +8347,7 @@ void GLWidget::updateTransformGizmoRotationDrag(const QPoint& pixel)
 			QMatrix4x4 displayRotationMatrix;
 			displayRotationMatrix.setToIdentity();
 			displayRotationMatrix.rotate(exactRotationQuat);
-			const QVector3D displayRotation = extractMeshRotationFromMatrix(displayRotationMatrix);
+			const QVector3D displayRotation = MeshMathUtils::extractMeshRotationFromMatrix(displayRotationMatrix);
 			if (_explodedViewCtrl.isManualPlacementActive())
 			{
 				mesh->setExplodedViewTranslationFast(exactTranslation);
@@ -10494,11 +8381,11 @@ void GLWidget::updateTransformGizmoRotationDrag(const QPoint& pixel)
 		sessionRotationMatrix.setToIdentity();
 		sessionRotationMatrix.rotate(_explodedViewCtrl.manualSessionRotationQuat());
 		_explodedViewCtrl.setManualSessionRotationEuler(
-			extractMeshRotationFromMatrix(sessionRotationMatrix));
+			MeshMathUtils::extractMeshRotationFromMatrix(sessionRotationMatrix));
 		emit explodedViewManualPlacementChanged();
 	}
 
-	_shadowMapNeedsInitialization = true;
+	_renderCtrl.setShadowMapNeedsInitialization(true);
 	update();
 }
 
@@ -10518,10 +8405,10 @@ void GLWidget::finishTransformGizmoRotationDrag(bool commit)
 	for (auto it = _viewCtrl._transformGizmoStartStates.begin(); it != _viewCtrl._transformGizmoStartStates.end(); ++it)
 	{
 		const int id = it.key();
-		if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+		if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
 			continue;
 
-		TriangleMesh* mesh = _meshStore[id];
+		SceneMesh* mesh = _sceneRuntime.meshStore()[id];
 		if (!mesh)
 			continue;
 
@@ -10531,7 +8418,7 @@ void GLWidget::finishTransformGizmoRotationDrag(bool commit)
 
 		oldStatesByUuid.insert(uuid, it.value());
 		newStatesByUuid.insert(uuid, _explodedViewCtrl.isManualPlacementActive()
-			? explodedViewTransformState(mesh)
+			? ExplodedViewRuntimeController::explodedViewTransformState(mesh)
 			: TransformState(
 				mesh->getTranslation(),
 				mesh->getRotation(),
@@ -10572,14 +8459,14 @@ void GLWidget::finishTransformGizmoRotationDrag(bool commit)
 		for (auto it = _viewCtrl._transformGizmoStartStates.begin(); it != _viewCtrl._transformGizmoStartStates.end(); ++it)
 		{
 			const int id = it.key();
-			if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+			if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
 				continue;
 
-			if (TriangleMesh* mesh = _meshStore[id])
+			if (SceneMesh* mesh = _sceneRuntime.meshStore()[id])
 			{
 				const TransformState& startState = it.value();
 				if (_explodedViewCtrl.isManualPlacementActive())
-					applyExplodedViewTransformState(mesh, startState, false);
+					ExplodedViewRuntimeController::applyExplodedViewTransformState(mesh, startState, false);
 				else
 				{
 					mesh->setTranslation(startState.translation);
@@ -10647,9 +8534,9 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 
 	QMatrix4x4 textProjection;
 	textProjection.ortho(QRect(0.0f, 0.0f, static_cast<float>(axisSize), static_cast<float>(axisSize)));
-	_textShader->bind();
-	_textShader->setUniformValue("projection", textProjection);
-	_textShader->release();
+	_renderCtrl.textShader()->bind();
+	_renderCtrl.textShader()->setUniformValue("projection", textProjection);
+	_renderCtrl.textShader()->release();
 
 	// Labels
 	QVector3D xAxis(axisLength, 0, 0);
@@ -10665,20 +8552,20 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 	_axisTextRenderer->RenderText(_labelAxisZ.toStdString(), zAxis.x(), axisSize - zAxis.y(), labelScale, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
 
 	// Axes
-	if (!_axisVAO.isCreated())
+	if (!_renderCtrl.axisVAO().isCreated())
 	{
-		_axisVAO.create();
-		_axisVAO.bind();
+		_renderCtrl.axisVAO().create();
+		_renderCtrl.axisVAO().bind();
 	}
 
 	// Vertex Buffer
-	if (!_axisVBO.isCreated())
+	if (!_renderCtrl.axisVBO().isCreated())
 	{
-		_axisVBO = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-		_axisVBO.create();
+		_renderCtrl.axisVBO() = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+		_renderCtrl.axisVBO().create();
 	}
-	_axisVBO.bind();
-	_axisVBO.setUsagePattern(QOpenGLBuffer::StaticDraw);
+	_renderCtrl.axisVBO().bind();
+	_renderCtrl.axisVBO().setUsagePattern(QOpenGLBuffer::StaticDraw);
 	std::vector<float> vertices = {
 		0, 0, 0,
 		axisLength, 0, 0,
@@ -10686,16 +8573,16 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 		0, axisLength, 0,
 		0, 0, 0,
 		0, 0, axisLength };
-	_axisVBO.allocate(vertices.data(), static_cast<int>(vertices.size() * sizeof(float)));
+	_renderCtrl.axisVBO().allocate(vertices.data(), static_cast<int>(vertices.size() * sizeof(float)));
 
 	// Color Buffer
-	if (!_axisCBO.isCreated())
+	if (!_renderCtrl.axisCBO().isCreated())
 	{
-		_axisCBO = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-		_axisCBO.create();
+		_renderCtrl.axisCBO() = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+		_renderCtrl.axisCBO().create();
 	}
-	_axisCBO.bind();
-	_axisCBO.setUsagePattern(QOpenGLBuffer::StaticDraw);
+	_renderCtrl.axisCBO().bind();
+	_renderCtrl.axisCBO().setUsagePattern(QOpenGLBuffer::StaticDraw);
 	std::vector<float> colors = {
 		1, 1, 1,
 		1, 1, 1,
@@ -10703,24 +8590,24 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 		1, 1, 1,
 		1, 1, 1,
 		1, 1, 1 };
-	_axisCBO.allocate(colors.data(), static_cast<int>(colors.size() * sizeof(float)));
+	_renderCtrl.axisCBO().allocate(colors.data(), static_cast<int>(colors.size() * sizeof(float)));
 
-	_axisShader->bind();
+	_renderCtrl.axisShader()->bind();
 
-	_axisVBO.bind();
-	_axisShader->enableAttributeArray("vertexPosition");
-	_axisShader->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
+	_renderCtrl.axisVBO().bind();
+	_renderCtrl.axisShader()->enableAttributeArray("vertexPosition");
+	_renderCtrl.axisShader()->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
 
-	_axisCBO.bind();
-	_axisShader->enableAttributeArray("vertexColor");
-	_axisShader->setAttributeBuffer("vertexColor", GL_FLOAT, 0, 3);
+	_renderCtrl.axisCBO().bind();
+	_renderCtrl.axisShader()->enableAttributeArray("vertexColor");
+	_renderCtrl.axisShader()->setAttributeBuffer("vertexColor", GL_FLOAT, 0, 3);
 
-	_axisShader->setUniformValue("modelViewMatrix", mat);
-	_axisShader->setUniformValue("projectionMatrix", axisProjection);
+	_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", mat);
+	_renderCtrl.axisShader()->setUniformValue("projectionMatrix", axisProjection);
 
-	_axisShader->setUniformValue("renderCone", false);
+	_renderCtrl.axisShader()->setUniformValue("renderCone", false);
 
-	_axisVAO.bind();
+	_renderCtrl.axisVAO().bind();
 	glLineWidth(2.0);
 	glDrawArrays(GL_LINES, 0, 6);
 	glLineWidth(1);
@@ -10728,12 +8615,12 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 	// Axes Cones
 	// X Axis
 	_axisCone->setParameters(axisLength / 15.0f, axisLength / 5.0f, 8u, 1u);
-	_axisShader->setUniformValue("renderCone", true);
+	_renderCtrl.axisShader()->setUniformValue("renderCone", true);
 	mat.translate(axisLength, 0, 0);
 	mat.rotate(90, QVector3D(0, 1.0f, 0));
-	_axisShader->bind();
-	_axisShader->setUniformValue("coneColor", QVector3D(1.0f, 1.0f, 1.0f));
-	_axisShader->setUniformValue("modelViewMatrix", mat);
+	_renderCtrl.axisShader()->bind();
+	_renderCtrl.axisShader()->setUniformValue("coneColor", QVector3D(1.0f, 1.0f, 1.0f));
+	_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", mat);
 	_axisCone->getVAO().bind();
 	glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(_axisCone->getPoints().size()), GL_UNSIGNED_INT, 0);
 	_axisCone->getVAO().release();
@@ -10744,8 +8631,8 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 	mat.setRow(3, QVector4D(0, 0, 0, 1));
 	mat.translate(0, axisLength, 0);
 	mat.rotate(90, QVector3D(-1.0f, 0, 0));
-	_axisShader->bind();
-	_axisShader->setUniformValue("modelViewMatrix", mat);
+	_renderCtrl.axisShader()->bind();
+	_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", mat);
 	_axisCone->getVAO().bind();
 	glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(_axisCone->getPoints().size()), GL_UNSIGNED_INT, 0);
 	_axisCone->getVAO().release();
@@ -10755,31 +8642,31 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 	mat.setColumn(3, QVector4D(0, 0, 0, 1));
 	mat.setRow(3, QVector4D(0, 0, 0, 1));
 	mat.translate(0, 0, axisLength);
-	_axisShader->bind();
-	_axisShader->setUniformValue("modelViewMatrix", mat);
+	_renderCtrl.axisShader()->bind();
+	_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", mat);
 	_axisCone->getVAO().bind();
 	glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(_axisCone->getPoints().size()), GL_UNSIGNED_INT, 0);
 	_axisCone->getVAO().release();
 
-	_axisVAO.release();
-	_axisShader->release();
+	_renderCtrl.axisVAO().release();
+	_renderCtrl.axisShader()->release();
 
 	_axisTextRenderer->setWidth(prevTextWidth);
 	_axisTextRenderer->setHeight(prevTextHeight);
 	QMatrix4x4 projection;
 	projection.ortho(QRect(0.0f, 0.0f, static_cast<float>(width()), static_cast<float>(height())));
-	_textShader->bind();
-	_textShader->setUniformValue("projection", projection);
-	_textShader->release();
+	_renderCtrl.textShader()->bind();
+	_renderCtrl.textShader()->setUniformValue("projection", projection);
+	_renderCtrl.textShader()->release();
 
 	glViewport(0, 0, width(), height());
 }
 
 QRect GLWidget::viewCubeRect() const
 {
-	const int side = std::max(kViewCubeStyle.minViewportSize,
-		std::min(std::min(width(), height()) / 5, kViewCubeStyle.maxViewportSize));
-	const int padding = kViewCubeStyle.viewportPadding;
+	const int side = std::max(SceneRenderController::kViewCubeStyle.minViewportSize,
+		std::min(std::min(width(), height()) / 5, SceneRenderController::kViewCubeStyle.maxViewportSize));
+	const int padding = SceneRenderController::kViewCubeStyle.viewportPadding;
 	return QRect(width() - side - padding, padding, side, side);
 }
 
@@ -10810,7 +8697,7 @@ bool GLWidget::computeViewCubeRenderState(QRect& viewportRect,
 	viewRotation.setRow(3, QVector4D(0.0f, 0.0f, 0.0f, 1.0f));
 
 	viewMatrix.setToIdentity();
-	viewMatrix.translate(0.0f, 0.0f, -kViewCubeStyle.eyeDistance);
+	viewMatrix.translate(0.0f, 0.0f, -SceneRenderController::kViewCubeStyle.eyeDistance);
 	viewMatrix *= viewRotation;
 
 	projectionMatrix.setToIdentity();
@@ -10818,15 +8705,15 @@ bool GLWidget::computeViewCubeRenderState(QRect& viewportRect,
 	cubeScale = 1.0f;
 	if (_viewCtrl._projection == ViewProjection::ORTHOGRAPHIC)
 	{
-		const float orthoHalfHeight = kViewCubeStyle.orthographicHalfHeight;
+		const float orthoHalfHeight = SceneRenderController::kViewCubeStyle.orthographicHalfHeight;
 		const float orthoHalfWidth = orthoHalfHeight * aspect;
 		projectionMatrix.ortho(-orthoHalfWidth, orthoHalfWidth, -orthoHalfHeight, orthoHalfHeight, 0.1f, 10.0f);
-		cubeScale = kViewCubeStyle.orthographicScale;
+		cubeScale = SceneRenderController::kViewCubeStyle.orthographicScale;
 	}
 	else
 	{
 		projectionMatrix.perspective(26.0f, aspect, 0.1f, 10.0f);
-		cubeScale = kViewCubeStyle.perspectiveScale;
+		cubeScale = SceneRenderController::kViewCubeStyle.perspectiveScale;
 	}
 
 	modelMatrix.setToIdentity();
@@ -10924,8 +8811,8 @@ bool GLWidget::orientCameraToViewCubeNormal(const QVector3D& outwardNormal)
 		_viewCtrl._viewMode = ViewMode::NONE;
 	}
 
-	const std::vector<int>& visibleIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
-	if (!_meshStore.empty() && !visibleIds.empty())
+	const std::vector<int>& visibleIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
+	if (!_sceneRuntime.meshStore().empty() && !visibleIds.empty())
 	{
 		const QMatrix4x4 targetRotationMatrix(_viewCtrl._customViewTargetRotation.toRotationMatrix());
 		const QVector3D right = targetRotationMatrix.row(0).toVector3D().normalized();
@@ -11018,17 +8905,17 @@ void GLWidget::updateViewCubeHover(const QPoint& pixel, Qt::MouseButtons buttons
 
 void GLWidget::initializeViewCubeLabels()
 {
-	if (!_viewCubeLabelShader)
+	if (!_renderCtrl.viewCubeLabelShader())
 		return;
 
-	const auto labelFaces = buildViewCubeLabelFaces(_labelTop, _labelFront, _labelLeft,
+	const auto labelFaces = SceneRenderController::buildViewCubeLabelFaces(_labelTop, _labelFront, _labelLeft,
 		tr("Bottom"), tr("Rear"), tr("Right"), cameraUpAxisConventionRotation());
 
 	const TextureSamplerSettings samplers = {
 		GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR
 	};
 
-	for (GLuint& texture : _viewCubeLabelTextures)
+	for (GLuint& texture : _renderCtrl.viewCubeLabelTextures())
 	{
 		if (texture != 0)
 		{
@@ -11039,7 +8926,7 @@ void GLWidget::initializeViewCubeLabels()
 
 	for (int i = 0; i < static_cast<int>(labelFaces.size()); ++i)
 	{
-		QImage image(kViewCubeStyle.labelTextureSize, kViewCubeStyle.labelTextureSize, QImage::Format_RGBA8888);
+		QImage image(SceneRenderController::kViewCubeStyle.labelTextureSize, SceneRenderController::kViewCubeStyle.labelTextureSize, QImage::Format_RGBA8888);
 		image.fill(Qt::transparent);
 
 		QPainter painter(&image);
@@ -11047,20 +8934,17 @@ void GLWidget::initializeViewCubeLabels()
 		painter.setRenderHint(QPainter::TextAntialiasing, true);
 		QFont font(QStringLiteral("Arial"));
 		font.setBold(true);
-		font.setPixelSize(kViewCubeStyle.labelFontPixelSize);
+		font.setPixelSize(SceneRenderController::kViewCubeStyle.labelFontPixelSize);
 		font.setLetterSpacing(QFont::AbsoluteSpacing, 1.5);
 		painter.setFont(font);
-		painter.setPen(kViewCubeStyle.labelTextColor);
+		painter.setPen(SceneRenderController::kViewCubeStyle.labelTextColor);
 		painter.drawText(image.rect(), Qt::AlignCenter, labelFaces[i].text);
 		painter.end();
 
-		_viewCubeLabelTextures[i] = uploadDecodedTextureImage(image, samplers);
+		_renderCtrl.viewCubeLabelTextures()[i] = uploadDecodedTextureImage(image, samplers);
 	}
 
-	if (_viewCubeLabelVAO == 0)
-		glGenVertexArrays(1, &_viewCubeLabelVAO);
-	if (_viewCubeLabelVBO == 0)
-		glGenBuffers(1, &_viewCubeLabelVBO);
+	_renderCtrl.initViewCubeLabelGeometry();
 
 	const float quadVertices[] = {
 		-0.5f, -0.5f, 0.0f, 0.0f, 1.0f,
@@ -11071,8 +8955,8 @@ void GLWidget::initializeViewCubeLabels()
 		-0.5f,  0.5f, 0.0f, 0.0f, 0.0f
 	};
 
-	glBindVertexArray(_viewCubeLabelVAO);
-	glBindBuffer(GL_ARRAY_BUFFER, _viewCubeLabelVBO);
+	glBindVertexArray(_renderCtrl.viewCubeLabelVAO());
+	glBindBuffer(GL_ARRAY_BUFFER, _renderCtrl.viewCubeLabelVBO());
 	glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), reinterpret_cast<void*>(0));
@@ -11083,7 +8967,7 @@ void GLWidget::initializeViewCubeLabels()
 
 void GLWidget::drawViewCube()
 {
-	if (!_viewCtrl._showViewCubeOverride || !_viewCube || !_viewCubeShader)
+	if (!_viewCtrl._showViewCubeOverride || !_viewCube || !_renderCtrl.viewCubeShader())
 		return;
 
 	QRect viewportRect;
@@ -11129,21 +9013,21 @@ void GLWidget::drawViewCube()
 	glCullFace(GL_BACK);
 	glDepthFunc(GL_LEQUAL);
 	_viewCube->setSceneRenderTransformFast(modelMatrix);
-	_viewCube->setProg(_viewCubeShader.get());
+	_viewCube->setProg(_renderCtrl.viewCubeShader());
 
-	_viewCubeShader->bind();
-	_viewCubeShader->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
-	_viewCubeShader->setProperty("viewMatrix", QVariant::fromValue(viewMatrix));
-	_viewCubeShader->setUniformValue("viewMatrix", viewMatrix);
-	_viewCubeShader->setUniformValue("projectionMatrix", projectionMatrix);
-	_viewCubeShader->setUniformValue("lightDirView", QVector3D(0.0f, 0.0f, 1.0f));
-	_viewCubeShader->setUniformValue("baseColor", kViewCubeStyle.baseFaceColor);
-	_viewCubeShader->setUniformValue("ambientStrength", kViewCubeStyle.baseAmbient);
-	_viewCubeShader->setUniformValue("diffuseStrength", kViewCubeStyle.baseDiffuse);
+	_renderCtrl.viewCubeShader()->bind();
+	_renderCtrl.viewCubeShader()->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
+	_renderCtrl.viewCubeShader()->setProperty("viewMatrix", QVariant::fromValue(viewMatrix));
+	_renderCtrl.viewCubeShader()->setUniformValue("viewMatrix", viewMatrix);
+	_renderCtrl.viewCubeShader()->setUniformValue("projectionMatrix", projectionMatrix);
+	_renderCtrl.viewCubeShader()->setUniformValue("lightDirView", QVector3D(0.0f, 0.0f, 1.0f));
+	_renderCtrl.viewCubeShader()->setUniformValue("baseColor", SceneRenderController::kViewCubeStyle.baseFaceColor);
+	_renderCtrl.viewCubeShader()->setUniformValue("ambientStrength", SceneRenderController::kViewCubeStyle.baseAmbient);
+	_renderCtrl.viewCubeShader()->setUniformValue("diffuseStrength", SceneRenderController::kViewCubeStyle.baseDiffuse);
 	_viewCube->render();
-	_viewCubeShader->setUniformValue("baseColor", kViewCubeStyle.primaryFaceColor);
-	_viewCubeShader->setUniformValue("ambientStrength", kViewCubeStyle.primaryAmbient);
-	_viewCubeShader->setUniformValue("diffuseStrength", kViewCubeStyle.primaryDiffuse);
+	_renderCtrl.viewCubeShader()->setUniformValue("baseColor", SceneRenderController::kViewCubeStyle.primaryFaceColor);
+	_renderCtrl.viewCubeShader()->setUniformValue("ambientStrength", SceneRenderController::kViewCubeStyle.primaryAmbient);
+	_renderCtrl.viewCubeShader()->setUniformValue("diffuseStrength", SceneRenderController::kViewCubeStyle.primaryDiffuse);
 	for (int regionId = 0; regionId < _viewCube->regionCount(); ++regionId)
 	{
 		if (_viewCube->isPrimaryFaceRegion(regionId))
@@ -11154,9 +9038,9 @@ void GLWidget::drawViewCube()
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		glDisable(GL_CULL_FACE);
-		_viewCubeShader->setUniformValue("baseColor", kViewCubeStyle.hoverFaceColor);
-		_viewCubeShader->setUniformValue("ambientStrength", kViewCubeStyle.hoverAmbient);
-		_viewCubeShader->setUniformValue("diffuseStrength", kViewCubeStyle.hoverDiffuse);
+		_renderCtrl.viewCubeShader()->setUniformValue("baseColor", SceneRenderController::kViewCubeStyle.hoverFaceColor);
+		_renderCtrl.viewCubeShader()->setUniformValue("ambientStrength", SceneRenderController::kViewCubeStyle.hoverAmbient);
+		_renderCtrl.viewCubeShader()->setUniformValue("diffuseStrength", SceneRenderController::kViewCubeStyle.hoverDiffuse);
 		_viewCube->renderRegion(_viewCtrl._viewCubeHoveredRegionId);
 		glDisable(GL_BLEND);
 		if (cullWasEnabled)
@@ -11191,13 +9075,13 @@ void GLWidget::drawViewCube()
 
 void GLWidget::drawViewCubeLabels(const QMatrix4x4& viewMatrix, const QMatrix4x4& projectionMatrix, float cubeScale)
 {
-	if (!_viewCubeLabelShader || _viewCubeLabelVAO == 0)
+	if (!_renderCtrl.viewCubeLabelShader() || _renderCtrl.viewCubeLabelVAO() == 0)
 		return;
 
 	const std::array<QMatrix4x4, 6> labelTransforms = [this, cubeScale]() {
 		std::array<QMatrix4x4, 6> transforms;
-		const float offset = kViewCubeStyle.labelFaceOffset * cubeScale;
-		const float scale = kViewCubeStyle.labelFaceScale * cubeScale;
+		const float offset = SceneRenderController::kViewCubeStyle.labelFaceOffset * cubeScale;
+		const float scale = SceneRenderController::kViewCubeStyle.labelFaceScale * cubeScale;
 
 		auto faceTransform = [offset, scale](const QVector3D& center,
 			const QVector3D& right,
@@ -11211,7 +9095,7 @@ void GLWidget::drawViewCubeLabels(const QMatrix4x4& viewMatrix, const QMatrix4x4
 			return matrix;
 		};
 
-		const auto faces = buildViewCubeLabelFaces(_labelTop, _labelFront, _labelLeft,
+		const auto faces = SceneRenderController::buildViewCubeLabelFaces(_labelTop, _labelFront, _labelLeft,
 			tr("Bottom"), tr("Rear"), tr("Right"), cameraUpAxisConventionRotation());
 		for (int i = 0; i < static_cast<int>(faces.size()); ++i)
 			transforms[i] = faceTransform(QVector3D(0.0f, 0.0f, 0.0f), faces[i].right, faces[i].up, faces[i].normal);
@@ -11225,20 +9109,20 @@ void GLWidget::drawViewCubeLabels(const QMatrix4x4& viewMatrix, const QMatrix4x4
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glDisable(GL_CULL_FACE);
 
-	_viewCubeLabelShader->bind();
-	_viewCubeLabelShader->setUniformValue("viewMatrix", viewMatrix);
-	_viewCubeLabelShader->setUniformValue("projectionMatrix", projectionMatrix);
-	_viewCubeLabelShader->setUniformValue("labelTexture", 0);
+	_renderCtrl.viewCubeLabelShader()->bind();
+	_renderCtrl.viewCubeLabelShader()->setUniformValue("viewMatrix", viewMatrix);
+	_renderCtrl.viewCubeLabelShader()->setUniformValue("projectionMatrix", projectionMatrix);
+	_renderCtrl.viewCubeLabelShader()->setUniformValue("labelTexture", 0);
 
 	glActiveTexture(GL_TEXTURE0);
-	glBindVertexArray(_viewCubeLabelVAO);
+	glBindVertexArray(_renderCtrl.viewCubeLabelVAO());
 
-	for (int i = 0; i < static_cast<int>(_viewCubeLabelTextures.size()); ++i)
+	for (int i = 0; i < static_cast<int>(_renderCtrl.viewCubeLabelTextures().size()); ++i)
 	{
-		if (_viewCubeLabelTextures[i] == 0)
+		if (_renderCtrl.viewCubeLabelTextures()[i] == 0)
 			continue;
-		glBindTexture(GL_TEXTURE_2D, _viewCubeLabelTextures[i]);
-		_viewCubeLabelShader->setUniformValue("modelMatrix", labelTransforms[i]);
+		glBindTexture(GL_TEXTURE_2D, _renderCtrl.viewCubeLabelTextures()[i]);
+		_renderCtrl.viewCubeLabelShader()->setUniformValue("modelMatrix", labelTransforms[i]);
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 	}
 
@@ -11254,15 +9138,15 @@ void GLWidget::drawLights()
 {
 	QMatrix4x4 model;
 	model.translate(effectiveWorldLightPosition());
-	_lightCubeShader->bind();
+	_renderCtrl.lightCubeShader()->bind();
 	QMatrix4x4 viewMat = _viewCtrl._viewMatrix;	
-	_lightCubeShader->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
-	_lightCubeShader->setProperty("viewMatrix", QVariant::fromValue(viewMat));
-	_lightCubeShader->setUniformValue("viewMatrix", viewMat);
-	_lightCubeShader->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
-	_lightCubeShader->setUniformValue("lightColor", _diffuseLight.toVector3D());	
-	_lightCubeShader->setUniformValue("intensity", 1.0f);
-	_lightCubeShader->setUniformValue("intensityScale", 1.0f);  // Tune brightness
+	_renderCtrl.lightCubeShader()->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
+	_renderCtrl.lightCubeShader()->setProperty("viewMatrix", QVariant::fromValue(viewMat));
+	_renderCtrl.lightCubeShader()->setUniformValue("viewMatrix", viewMat);
+	_renderCtrl.lightCubeShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
+	_renderCtrl.lightCubeShader()->setUniformValue("lightColor", _diffuseLight.toVector3D());	
+	_renderCtrl.lightCubeShader()->setUniformValue("intensity", 1.0f);
+	_renderCtrl.lightCubeShader()->setUniformValue("intensityScale", 1.0f);  // Tune brightness
 	_lightCube->setSceneRenderTransformFast(model);
 	_lightCube->render();
 
@@ -11329,14 +9213,14 @@ void GLWidget::drawLights()
 				lightModel.scale(pointSpotScale);
 			}
 
-			_lightCubeShader->bind();
-			_lightCubeShader->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
-			_lightCubeShader->setProperty("viewMatrix", QVariant::fromValue(viewMat));
-			_lightCubeShader->setUniformValue("viewMatrix", viewMat);
-			_lightCubeShader->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
-			_lightCubeShader->setUniformValue("lightColor", emissiveColor);
-			_lightCubeShader->setUniformValue("intensity", 1.0f);
-			_lightCubeShader->setUniformValue("intensityScale", 1.0f);
+			_renderCtrl.lightCubeShader()->bind();
+			_renderCtrl.lightCubeShader()->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
+			_renderCtrl.lightCubeShader()->setProperty("viewMatrix", QVariant::fromValue(viewMat));
+			_renderCtrl.lightCubeShader()->setUniformValue("viewMatrix", viewMat);
+			_renderCtrl.lightCubeShader()->setUniformValue("projectionMatrix", _viewCtrl._projectionMatrix);
+			_renderCtrl.lightCubeShader()->setUniformValue("lightColor", emissiveColor);
+			_renderCtrl.lightCubeShader()->setUniformValue("intensity", 1.0f);
+			_renderCtrl.lightCubeShader()->setUniformValue("intensityScale", 1.0f);
 
 			if (lightType == LightType::Directional)
 			{
@@ -11354,24 +9238,24 @@ void GLWidget::drawLights()
 
 void GLWidget::bindIBLTextures()
 {
-	_fgShader->setUniformValue("irradianceMap", 3);
-	glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_CUBE_MAP, _irradianceMap);
-	_fgShader->setUniformValue("prefilterMap", 4);
-	glActiveTexture(GL_TEXTURE4); glBindTexture(GL_TEXTURE_CUBE_MAP, _prefilterMap);
-	_fgShader->setUniformValue("brdfLUT", 5);
-	glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_2D, _brdfLUTTexture);
-	_fgShader->setUniformValue("sheenPrefilterMap", 7);
-	glActiveTexture(GL_TEXTURE7); glBindTexture(GL_TEXTURE_CUBE_MAP, _sheenPrefilterMap);
-	_fgShader->setUniformValue("charlieLUT", 8);
-	glActiveTexture(GL_TEXTURE8); glBindTexture(GL_TEXTURE_2D, _charlieLUTTexture);
-	_fgShader->setUniformValue("sheenELUT",  9);
-	glActiveTexture(GL_TEXTURE9); glBindTexture(GL_TEXTURE_2D, _sheenELUTTexture);
+	_renderCtrl.fgShader()->setUniformValue("irradianceMap", 3);
+	glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_CUBE_MAP, _renderCtrl.irradianceMap());
+	_renderCtrl.fgShader()->setUniformValue("prefilterMap", 4);
+	glActiveTexture(GL_TEXTURE4); glBindTexture(GL_TEXTURE_CUBE_MAP, _renderCtrl.prefilterMap());
+	_renderCtrl.fgShader()->setUniformValue("brdfLUT", 5);
+	glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_2D, _renderCtrl.brdfLUTTexture());
+	_renderCtrl.fgShader()->setUniformValue("sheenPrefilterMap", 7);
+	glActiveTexture(GL_TEXTURE7); glBindTexture(GL_TEXTURE_CUBE_MAP, _renderCtrl.sheenPrefilterMap());
+	_renderCtrl.fgShader()->setUniformValue("charlieLUT", 8);
+	glActiveTexture(GL_TEXTURE8); glBindTexture(GL_TEXTURE_2D, _renderCtrl.charlieLUTTexture());
+	_renderCtrl.fgShader()->setUniformValue("sheenELUT",  9);
+	glActiveTexture(GL_TEXTURE9); glBindTexture(GL_TEXTURE_2D, _renderCtrl.sheenELUTTexture());
 	// Effective mip count for sheen LOD: lod = roughness * (sheenPrefilterMipLevels - 1)
-	int sheenMips = (_sheenPrefilterMipLevels > 0) ? (int)_sheenPrefilterMipLevels : 5;
-	_fgShader->setUniformValue("sheenPrefilterMipLevels", sheenMips);
+	int sheenMips = (_renderCtrl.sheenPrefilterMipLevels() > 0) ? (int)_renderCtrl.sheenPrefilterMipLevels() : 5;
+	_renderCtrl.fgShader()->setUniformValue("sheenPrefilterMipLevels", sheenMips);
 	// Effective mip count for GGX specular LOD: lod = roughness * (prefilterMipLevels - 1)
-	int prefilterMips = (_prefilterMipLevels > 0) ? (int)_prefilterMipLevels : 5;
-	_fgShader->setUniformValue("prefilterMipLevels", prefilterMips);
+	int prefilterMips = (_renderCtrl.prefilterMipLevels() > 0) ? (int)_renderCtrl.prefilterMipLevels() : 5;
+	_renderCtrl.fgShader()->setUniformValue("prefilterMipLevels", prefilterMips);
 }
 
 
@@ -11380,7 +9264,7 @@ void GLWidget::render(GLCamera* camera)
 	QElapsedTimer frameTimer;
 	const bool profileRendering =
 		QSettings().value(QStringLiteral("profileRenderingCheckBox"), false).toBool();
-	TriangleMesh::beginRenderDiagnosticsFrame(profileRendering);
+	RenderableMesh::beginRenderDiagnosticsFrame(profileRendering);
 	if (profileRendering)
 		frameTimer.start();
 
@@ -11411,7 +9295,7 @@ void GLWidget::render(GLCamera* camera)
 	refreshRuntimeVisibilityCacheForCurrentView();
 
 	// --- 1) Skybox ---
-	if (_skyBoxEnabled)
+	if (_renderCtrl.skyBoxEnabled())
 	{
 		glDisable(GL_DEPTH_TEST);
 		glDepthMask(GL_FALSE);
@@ -11422,27 +9306,27 @@ void GLWidget::render(GLCamera* camera)
 
 	// --- 2) Opaque meshes (with clipping) ---
 	glActiveTexture(GL_TEXTURE0 + 37);
-	glBindTexture(GL_TEXTURE_2D, _sssCaptureTexture != 0 ? _sssCaptureTexture : _whiteTexture);
+	glBindTexture(GL_TEXTURE_2D, _renderCtrl.sssCaptureTexture() != 0 ? _renderCtrl.sssCaptureTexture() : _renderCtrl.whiteTexture());
 	glActiveTexture(GL_TEXTURE0 + 38);
-	glBindTexture(GL_TEXTURE_2D, _sssDepthTexture != 0 ? _sssDepthTexture : _whiteTexture);
+	glBindTexture(GL_TEXTURE_2D, _renderCtrl.sssDepthTexture() != 0 ? _renderCtrl.sssDepthTexture() : _renderCtrl.whiteTexture());
 	glActiveTexture(GL_TEXTURE0);
 
-	_fgShader->bind();
-	TriangleMesh::recordProgramBindCall(true);
-	setCommonUniforms(_fgShader.get(), camera);	
+	_renderCtrl.fgShader()->bind();
+	RenderableMesh::recordProgramBindCall(true);
+	setCommonUniforms(_renderCtrl.fgShader(), camera);	
 	{
 		QElapsedTimer opaqueTimer;
 		if (profileRendering)
 			opaqueTimer.start();
-		drawMeshesWithClipping(_fgShader.get(), false); // opaque pass
+		drawMeshesWithClipping(_renderCtrl.fgShader(), false); // opaque pass
 		if (profileRendering)
-			TriangleMesh::recordOpaquePassCpuMs(static_cast<double>(opaqueTimer.nsecsElapsed()) / 1000000.0);
+			RenderableMesh::recordOpaquePassCpuMs(static_cast<double>(opaqueTimer.nsecsElapsed()) / 1000000.0);
 	}
-	_fgShader->release();
+	_renderCtrl.fgShader()->release();
 
 	// --- 2.5) Section caps (after opaque, before floor & transparents) ---
-	if (_cappingEnabled &&
-		!_sectionCapsSuppressedDuringInteraction &&
+	if (_renderCtrl.cappingEnabled() &&
+		!_renderCtrl.sectionCapsSuppressedDuringInteraction() &&
 		(_clipYZEnabled || _clipZXEnabled || _clipXYEnabled))
 	{
 		glEnable(GL_POLYGON_OFFSET_FILL);
@@ -11453,27 +9337,27 @@ void GLWidget::render(GLCamera* camera)
 
 	// --- 3) Ground ---
 	if (_displayMode == DisplayMode::REALSHADED &&
-		_groundMode != GroundMode::None && !_cappingEnabled &&
-		!_meshStore.empty() &&
+		_renderCtrl.groundMode() != GroundMode::None && !_renderCtrl.cappingEnabled() &&
+		!_sceneRuntime.meshStore().empty() &&
 		camera != _orthoViewsCamera)
 	{
-		if (_groundMode == GroundMode::Floor)
+		if (_renderCtrl.groundMode() == GroundMode::Floor)
 		{
 			glActiveTexture(GL_TEXTURE0 + 32);
 			glBindTexture(GL_TEXTURE_2D,
-				(camera == _primaryCamera && _transmissionColorTexture != 0) ? _transmissionColorTexture : _whiteTexture);
+				(camera == _primaryCamera && _renderCtrl.transmissionColorTexture() != 0) ? _renderCtrl.transmissionColorTexture() : _renderCtrl.whiteTexture());
 			glActiveTexture(GL_TEXTURE0 + 33);
 			glBindTexture(GL_TEXTURE_2D,
-				(camera == _primaryCamera && _transmissionDepthTexture != 0) ? _transmissionDepthTexture : _whiteTexture);
+				(camera == _primaryCamera && _renderCtrl.transmissionDepthTexture() != 0) ? _renderCtrl.transmissionDepthTexture() : _renderCtrl.whiteTexture());
 			glActiveTexture(GL_TEXTURE0);
 			QElapsedTimer floorTimer;
 			if (profileRendering)
 				floorTimer.start();
 			drawFloor();
 			if (profileRendering)
-				TriangleMesh::recordFloorPassCpuMs(static_cast<double>(floorTimer.nsecsElapsed()) / 1000000.0);
+				RenderableMesh::recordFloorPassCpuMs(static_cast<double>(floorTimer.nsecsElapsed()) / 1000000.0);
 		}
-		else if (_groundMode == GroundMode::Grid)
+		else if (_renderCtrl.groundMode() == GroundMode::Grid)
 		{
 			drawGrid();
 		}
@@ -11483,42 +9367,42 @@ void GLWidget::render(GLCamera* camera)
 	{
 		// Bind transmission texture for shader sampling
 		glActiveTexture(GL_TEXTURE0 + 32);
-		glBindTexture(GL_TEXTURE_2D, _transmissionColorTexture);
+		glBindTexture(GL_TEXTURE_2D, _renderCtrl.transmissionColorTexture());
 
 		glActiveTexture(GL_TEXTURE0 + 33);
-		glBindTexture(GL_TEXTURE_2D, _transmissionDepthTexture);
+		glBindTexture(GL_TEXTURE_2D, _renderCtrl.transmissionDepthTexture());
 	}
 
 	// --- 4) Transparent meshes (with clipping) ---
-	_fgShader->bind();
-	TriangleMesh::recordProgramBindCall(true);
-	setCommonUniforms(_fgShader.get(), camera);
+	_renderCtrl.fgShader()->bind();
+	RenderableMesh::recordProgramBindCall(true);
+	setCommonUniforms(_renderCtrl.fgShader(), camera);
 	{
 		QElapsedTimer transparentTimer;
 		if (profileRendering)
 			transparentTimer.start();
-		drawMeshesWithClipping(_fgShader.get(), true); // transparent pass
+		drawMeshesWithClipping(_renderCtrl.fgShader(), true); // transparent pass
 		if (profileRendering)
-			TriangleMesh::recordTransparentPassCpuMs(static_cast<double>(transparentTimer.nsecsElapsed()) / 1000000.0);
+			RenderableMesh::recordTransparentPassCpuMs(static_cast<double>(transparentTimer.nsecsElapsed()) / 1000000.0);
 	}
-	_fgShader->release();
+	_renderCtrl.fgShader()->release();
 
 	// --- 5) Overlays ---
     drawDebugOverlay(camera);
 	if (_viewCtrl._showAxis && _viewCtrl._userShowAxisOverride) drawAxis(camera);
 	if (_showLights) drawLights();
 	if (profileRendering)
-		TriangleMesh::recordFrameCpuMs(static_cast<double>(frameTimer.nsecsElapsed()) / 1000000.0);
-	TriangleMesh::flushRenderDiagnostics();
+		RenderableMesh::recordFrameCpuMs(static_cast<double>(frameTimer.nsecsElapsed()) / 1000000.0);
+	RenderableMesh::flushRenderDiagnostics();
 }
 
 
 
 void GLWidget::renderToShadowBuffer()
 {
-	if (!_shadowMapNeedsInitialization)
+	if (!_renderCtrl.shadowMapNeedsInitialization())
 		return;
-	_shadowMapNeedsInitialization = false;
+	_renderCtrl.setShadowMapNeedsInitialization(false);
 
 	// save current viewport
 	int viewport[4];
@@ -11527,8 +9411,8 @@ void GLWidget::renderToShadowBuffer()
 	/// Shadow Mapping
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glViewport(0, 0, _shadowWidth, _shadowHeight);
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _shadowMapFBO);
+	glViewport(0, 0, _renderCtrl.shadowWidth(), _renderCtrl.shadowHeight());
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _renderCtrl.shadowMapFBO());
 	glClear(GL_DEPTH_BUFFER_BIT);
 	glDisable(GL_CULL_FACE);
 
@@ -11559,12 +9443,12 @@ void GLWidget::renderToShadowBuffer()
 	BoundingBox skinnedBounds;
 	bool hasShadowCasterBounds = false;
 	bool hasSkinnedBounds = false;
-	const std::vector<int>& visibleIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+	const std::vector<int>& visibleIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
 	for (int i : visibleIds)
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore.at(i);
+			SceneMesh* mesh = _sceneRuntime.meshStore().at(i);
 			if (!mesh || !isMeshAnimationVisible(mesh))
 				continue;
 
@@ -11629,14 +9513,14 @@ void GLWidget::renderToShadowBuffer()
 
 	const float rawW = lsMaxX - lsMinX;
 	const float rawH = lsMaxY - lsMinY;
-	_shadowFrustumExtentW = rawW;
-	_shadowFrustumExtentH = rawH;
-	const float texelPadX = rawW / (std::max)(static_cast<float>(_shadowWidth), 1.0f) * 4.0f;
-	const float texelPadY = rawH / (std::max)(static_cast<float>(_shadowHeight), 1.0f) * 4.0f;
+	_renderCtrl.setShadowFrustumExtentW(rawW);
+	_renderCtrl.setShadowFrustumExtentH(rawH);
+	const float texelPadX = rawW / (std::max)(static_cast<float>(_renderCtrl.shadowWidth()), 1.0f) * 4.0f;
+	const float texelPadY = rawH / (std::max)(static_cast<float>(_renderCtrl.shadowHeight()), 1.0f) * 4.0f;
 	const float xyPad = (std::max)((std::max)(texelPadX, texelPadY), (std::max)(radius * 0.005f, 0.001f));
 	const float nearDist = (std::max)(0.01f, -lsMaxZ);
 	const float farDist = (std::max)(nearDist + 0.01f, -lsMinZ + radius * 1.5f);
-	_shadowFarDist = farDist;
+	_renderCtrl.setShadowFarDist(farDist);
 
 	lightProjection.ortho(
 		lsMinX - xyPad, lsMaxX + xyPad,
@@ -11645,13 +9529,13 @@ void GLWidget::renderToShadowBuffer()
 	);
 
 	_lightSpaceMatrix = lightProjection * lightView;
-	TriangleMesh::setCurrentRenderContext(_viewCtrl._modelMatrix, lightView);
+	RenderableMesh::setCurrentRenderContext(_viewCtrl._modelMatrix, lightView);
 
 	// render scene from light's point of view
-	_shadowMappingShader->bind();
-	_shadowMappingShader->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
-	_shadowMappingShader->setUniformValue("model", _viewCtrl._modelMatrix);
-	_shadowMappingShader->setProperty("globalModelMatrix", QVariant::fromValue(_viewCtrl._modelMatrix));
+	_renderCtrl.shadowMappingShader()->bind();
+	_renderCtrl.shadowMappingShader()->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
+	_renderCtrl.shadowMappingShader()->setUniformValue("model", _viewCtrl._modelMatrix);
+	_renderCtrl.shadowMappingShader()->setProperty("globalModelMatrix", QVariant::fromValue(_viewCtrl._modelMatrix));
 
 	const float fsMinX = lsMinX - xyPad;
 	const float fsMaxX = lsMaxX + xyPad;
@@ -11660,7 +9544,7 @@ void GLWidget::renderToShadowBuffer()
 	const float fsMinZ = -farDist;
 	const float fsMaxZ = -nearDist;
 
-	auto isMeshOutsideShadowVolume = [&](const TriangleMesh* mesh) -> bool
+	auto isMeshOutsideShadowVolume = [&](const SceneMesh* mesh) -> bool
 	{
 		if (!mesh)
 			return true;
@@ -11683,16 +9567,16 @@ void GLWidget::renderToShadowBuffer()
 		       centerLS.z() - radiusWithSlack > fsMaxZ;
 	};
 
-	if (_meshStore.size() != 0)
+	if (_sceneRuntime.meshStore().size() != 0)
 	{
 		for (int i : visibleIds)
 		{
 			try
 			{
-				TriangleMesh* mesh = _meshStore.at(i);
+				SceneMesh* mesh = _sceneRuntime.meshStore().at(i);
 				if (mesh && isMeshAnimationVisible(mesh) && !isMeshOutsideShadowVolume(mesh))
 				{
-					mesh->setProg(_shadowMappingShader.get());
+					mesh->setProg(_renderCtrl.shadowMappingShader());
 					mesh->getVAO().bind();					
 					mesh->renderShadow();
 					mesh->getVAO().release();
@@ -11716,7 +9600,7 @@ int GLWidget::processSelection(const QPoint& pixel)
 	int id = -1;
 
 	// Get the list of objects to render (all visible objects)
-	const auto& visibleIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+	const auto& visibleIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
 
 	if (visibleIds.empty())
 		return -1;
@@ -11794,10 +9678,10 @@ int GLWidget::processSelection(const QPoint& pixel)
 	glViewport(selVpX, selVpY, selVpW, selVpH);
 	glEnable(GL_DEPTH_TEST);
 	glDisable(GL_BLEND);
-	_selectionShader->bind();
-	_selectionShader->setUniformValue("projectionMatrix", selCamera->getProjectionMatrix());
-	_selectionShader->setProperty("globalModelMatrix", QVariant::fromValue(_viewCtrl._modelMatrix));
-	_selectionShader->setUniformValue("viewMatrix", selCamera->getViewMatrix());
+	_renderCtrl.selectionShader()->bind();
+	_renderCtrl.selectionShader()->setUniformValue("projectionMatrix", selCamera->getProjectionMatrix());
+	_renderCtrl.selectionShader()->setProperty("globalModelMatrix", QVariant::fromValue(_viewCtrl._modelMatrix));
+	_renderCtrl.selectionShader()->setUniformValue("viewMatrix", selCamera->getViewMatrix());
 
 	// Render ALL visible objects to FBO (not just ray-hit ones)
 	// This ensures color picking is a true fallback method, independent of ray test results
@@ -11805,33 +9689,33 @@ int GLWidget::processSelection(const QPoint& pixel)
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore.at(i);
+			SceneMesh* mesh = _sceneRuntime.meshStore().at(i);
 			if (mesh && isMeshAnimationVisible(mesh))
 			{
 				QColor pickColor = indexToColor(i + 1);
-				_selectionShader->bind();
+				_renderCtrl.selectionShader()->bind();
 
 				const float r = pickColor.redF();
 				const float g = pickColor.greenF();
 				const float b = pickColor.blueF();
 				const float a = pickColor.alphaF();
 
-				_selectionShader->setUniformValue("pickingColor", QVector4D(r, g, b, a));
+				_renderCtrl.selectionShader()->setUniformValue("pickingColor", QVector4D(r, g, b, a));
 				// Explosion offset is baked into combinedRenderTransform() via
-				// TriangleMesh::_explosionOffset — no extra handling needed here.
-				_selectionShader->setUniformValue("modelMatrix", mesh->combinedRenderTransform());
-				_selectionShader->setUniformValue("hasSkinning", mesh->hasSkinning());
-				_selectionShader->setUniformValue("jointCount", static_cast<int>(mesh->jointPalette().size()));
+				// RenderableMesh::_explosionOffset — no extra handling needed here.
+				_renderCtrl.selectionShader()->setUniformValue("modelMatrix", mesh->combinedRenderTransform());
+				_renderCtrl.selectionShader()->setUniformValue("hasSkinning", mesh->hasSkinning());
+				_renderCtrl.selectionShader()->setUniformValue("jointCount", static_cast<int>(mesh->jointPalette().size()));
 				if (mesh->hasSkinning() && !mesh->jointPalette().isEmpty())
 				{
 					const int maxJoints = std::min(static_cast<int>(mesh->jointPalette().size()), 128);
 					for (int jointIndex = 0; jointIndex < maxJoints; ++jointIndex)
 					{
 						const QString uniformName = QStringLiteral("jointMatrices[%1]").arg(jointIndex);
-						_selectionShader->setUniformValue(uniformName.toUtf8().constData(), mesh->jointPalette()[jointIndex]);
+						_renderCtrl.selectionShader()->setUniformValue(uniformName.toUtf8().constData(), mesh->jointPalette()[jointIndex]);
 					}
 				}
-				mesh->setProg(_selectionShader.get());
+				mesh->setProg(_renderCtrl.selectionShader());
 				mesh->getVAO().bind();
 				if (mesh->getIndices().empty())
 					glDrawArrays(mesh->getPrimitiveMode(), 0, static_cast<int>(mesh->getPoints().size() / 3));
@@ -11899,35 +9783,13 @@ int GLWidget::processSelection(const QPoint& pixel)
 
 void GLWidget::renderQuad()
 {
-	if (_quadVAO == 0)
-	{
-		float quadVertices[] = {
-			// positions        // texture Coords
-			-1.0f,  1.0f, 0.0f, 0.0f, 1.0f,
-			-1.0f, -1.0f, 0.0f, 0.0f, 0.0f,
-			1.0f,  1.0f, 0.0f, 1.0f, 1.0f,
-			1.0f, -1.0f, 0.0f, 1.0f, 0.0f,
-		};
-		// setup plane VAO
-		glGenVertexArrays(1, &_quadVAO);
-		glGenBuffers(1, &_quadVBO);
-		glBindVertexArray(_quadVAO);
-		glBindBuffer(GL_ARRAY_BUFFER, _quadVBO);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), &quadVertices, GL_STATIC_DRAW);
-		glEnableVertexAttribArray(0);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-		glEnableVertexAttribArray(1);
-		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-	}
-	glBindVertexArray(_quadVAO);
-	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-	glBindVertexArray(0);
+	_renderCtrl.renderQuad();
 }
 
-void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
+void GLWidget::renderMeshWithDisplayMode(SceneMesh* mesh, DisplayMode mode)
 {
 	QElapsedTimer meshModeTimer;
-	const bool profiling = TriangleMesh::renderDiagnosticsEnabled();
+	const bool profiling = RenderableMesh::renderDiagnosticsEnabled();
 	if (profiling)
 		meshModeTimer.start();
 
@@ -11949,18 +9811,18 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 		// ============================================
 		// FLATSHADED: Use a geometry shader to compute
 		// the true face normal for triangle meshes.
-		// Non-triangle primitives fall back to _fgShader
+		// Non-triangle primitives fall back to _renderCtrl.fgShader()
 		// (flat qualifier picks provoking-vertex normal).
 		// ============================================
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glLineWidth(1.0f);
 		glDisable(GL_POLYGON_OFFSET_FILL);
-		if (_fgFlatShader && _fgFlatShader->isLinked() &&
+		if (_renderCtrl.fgFlatShader() && _renderCtrl.fgFlatShader()->isLinked() &&
 			mesh->getPrimitiveMode() == GL_TRIANGLES &&
-			mesh->prog() == _fgShader.get())
+			mesh->prog() == _renderCtrl.fgShader())
 		{
-			TriangleMesh::bindProgramCached(_fgFlatShader.get());
-			mesh->setProg(_fgFlatShader.get());
+			RenderableMesh::bindProgramCached(_renderCtrl.fgFlatShader());
+			mesh->setProg(_renderCtrl.fgFlatShader());
 		}
 		mesh->render();
 		break;
@@ -11983,17 +9845,17 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 		glLineWidth(1.0f);
 		glEnable(GL_POLYGON_OFFSET_FILL);
 		glPolygonOffset(1.25f, 1.25f);
-		_fgShader->setUniformValue("isWireframePass", false);
+		_renderCtrl.fgShader()->setUniformValue("isWireframePass", false);
 		mesh->render();
 		glDisable(GL_POLYGON_OFFSET_FILL);
 
 		// Pass 2: All triangle edges overlay at true depth.
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glLineWidth(1.5f);
-		_fgShader->setUniformValue("isWireframePass", true);
+		_renderCtrl.fgShader()->setUniformValue("isWireframePass", true);
 		mesh->render();
 
-		_fgShader->setUniformValue("isWireframePass", false);
+		_renderCtrl.fgShader()->setUniformValue("isWireframePass", false);
 		break;
 
 		// ============================================
@@ -12023,33 +9885,33 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 	glLineWidth(1.0f);
 	glDisable(GL_POLYGON_OFFSET_FILL);
 	if (profiling)
-		TriangleMesh::recordRenderMeshWithDisplayModeCpuMs(static_cast<double>(meshModeTimer.nsecsElapsed()) / 1000000.0);
+		RenderableMesh::recordRenderMeshWithDisplayModeCpuMs(static_cast<double>(meshModeTimer.nsecsElapsed()) / 1000000.0);
 }
 
 void GLWidget::gradientBackground(float top_r, float top_g, float top_b, float top_a,
 	float bot_r, float bot_g, float bot_b, float bot_a, int gradientStyle)
 {
 	glViewport(0, 0, width(), height());
-	if (!_bgVAO.isCreated())
+	if (!_renderCtrl.bgVAO().isCreated())
 	{
-		_bgVAO.create();
+		_renderCtrl.bgVAO().create();
 	}
 
 	glDisable(GL_DEPTH_TEST);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-	_bgShader->bind();		
-	_bgShader->setUniformValue("top_color", QVector4D(top_r, top_g, top_b, top_a));
-	_bgShader->setUniformValue("bot_color", QVector4D(bot_r, bot_g, bot_b, bot_a));
-	_bgShader->setUniformValue("gradient_style", gradientStyle);  // Pass the gradient style
+	_renderCtrl.bgShader()->bind();		
+	_renderCtrl.bgShader()->setUniformValue("top_color", QVector4D(top_r, top_g, top_b, top_a));
+	_renderCtrl.bgShader()->setUniformValue("bot_color", QVector4D(bot_r, bot_g, bot_b, bot_a));
+	_renderCtrl.bgShader()->setUniformValue("gradient_style", gradientStyle);  // Pass the gradient style
 
-	_bgVAO.bind();
+	_renderCtrl.bgVAO().bind();
 	glDrawArrays(GL_TRIANGLES, 0, 3);
 
 	glEnable(GL_DEPTH_TEST);
 
-	_bgVAO.release();
-	_bgShader->release();
+	_renderCtrl.bgVAO().release();
+	_renderCtrl.bgShader()->release();
 }
 
 void GLWidget::loadBgColorSettings()
@@ -12102,18 +9964,18 @@ void GLWidget::loadBgColorSettings()
 
 void GLWidget::splitScreen()
 {
-	if (!_bgSplitVAO.isCreated())
+	if (!_renderCtrl.bgSplitVAO().isCreated())
 	{
-		_bgSplitVAO.create();
-		_bgSplitVAO.bind();
+		_renderCtrl.bgSplitVAO().create();
+		_renderCtrl.bgSplitVAO().bind();
 	}
 
-	if (!_bgSplitVBO.isCreated())
+	if (!_renderCtrl.bgSplitVBO().isCreated())
 	{
-		_bgSplitVBO = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-		_bgSplitVBO.create();
-		_bgSplitVBO.bind();
-		_bgSplitVBO.setUsagePattern(QOpenGLBuffer::StaticDraw);
+		_renderCtrl.bgSplitVBO() = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+		_renderCtrl.bgSplitVBO().create();
+		_renderCtrl.bgSplitVBO().bind();
+		_renderCtrl.bgSplitVBO().setUsagePattern(QOpenGLBuffer::StaticDraw);
 
 		static const std::vector<float> vertices = {
 			-static_cast<float>(width()) / 2,
@@ -12126,34 +9988,34 @@ void GLWidget::splitScreen()
 			static_cast<float>(height()) / 2,
 		};
 
-		_bgSplitVBO.allocate(vertices.data(), static_cast<int>(vertices.size() * sizeof(float)));
+		_renderCtrl.bgSplitVBO().allocate(vertices.data(), static_cast<int>(vertices.size() * sizeof(float)));
 
-		_bgSplitShader->bind();
-		_bgSplitShader->enableAttributeArray("vertexPosition");
-		_bgSplitShader->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 2);
+		_renderCtrl.bgSplitShader()->bind();
+		_renderCtrl.bgSplitShader()->enableAttributeArray("vertexPosition");
+		_renderCtrl.bgSplitShader()->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 2);
 
-		_bgSplitVBO.release();
+		_renderCtrl.bgSplitVBO().release();
 	}
 
 	glViewport(0, 0, width(), height());
 
 	glDisable(GL_DEPTH_TEST);
 
-	_bgSplitVAO.bind();
+	_renderCtrl.bgSplitVAO().bind();
 	glLineWidth(0.5);
 	glDrawArrays(GL_LINES, 0, 4);
 	glLineWidth(1);
 
 	glEnable(GL_DEPTH_TEST);
 
-	_bgSplitVAO.release();
-	_bgSplitShader->release();
+	_renderCtrl.bgSplitVAO().release();
+	_renderCtrl.bgSplitShader()->release();
 }
 
 void GLWidget::setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos)
 {
 	prog->bind();
-	TriangleMesh::recordProgramBindCall(true);
+	RenderableMesh::recordProgramBindCall(true);
 	if (_clipYZEnabled || _clipZXEnabled || _clipXYEnabled || !(_clipDX == 0 && _clipDY == 0 && _clipDZ == 0))
 	{
 		prog->setUniformValue("sectionActive", true);
@@ -12346,7 +10208,7 @@ SceneMesh* GLWidget::createMeshFromData(const AssImpMeshData& meshData)
 	// (copy assignment operator at line 6506 doesn't call updateConsistency)
 	resolvedMaterial.updateConsistency();
 
-	auto* mesh = new SceneMesh(_fgShader.get(),
+	auto* mesh = new SceneMesh(_renderCtrl.fgShader(),
 		meshData.name,
 		meshData.vertices,
 		meshData.indices,
@@ -12448,12 +10310,12 @@ void GLWidget::syncFileNodeTransforms(const QString& sourceFile)
 		if (!node)
 			return;
 
-		runtime.defaultNodeTransformsByUuid.insert(node->nodeUuid, decomposeNodeTransform(node->localTransform));
+		runtime.defaultNodeTransformsByUuid.insert(node->nodeUuid, AnimationRuntimeController::decomposeNodeTransform(node->localTransform));
 		if (!node->name.isEmpty() && !runtime.nodeUuidByName.contains(node->name))
 			runtime.nodeUuidByName.insert(node->name, node->nodeUuid);
 		for (const QUuid& uuid : node->meshUuids)
 		{
-			if (TriangleMesh* mesh = getMeshByUuid(uuid))
+			if (SceneMesh* mesh = getMeshByUuid(uuid))
 			{
 				if (evaluatedWorlds.meshWorldByUuid.contains(uuid))
 					mesh->setSceneRenderTransform(evaluatedWorlds.meshWorldByUuid.value(uuid));
@@ -12778,8 +10640,8 @@ void GLWidget::refreshAnimationMaterialState(const QString& sourceFile)
 
 	runtime.defaultMeshMaterials.clear();
 
-	const std::vector<TriangleMesh*>& meshes = getMeshStore();
-	for (TriangleMesh* mesh : meshes)
+	const std::vector<SceneMesh*>& meshes = getMeshStore();
+	for (SceneMesh* mesh : meshes)
 	{
 		if (!mesh || mesh->getSourceFile() != sourceFile)
 			continue;
@@ -12836,7 +10698,7 @@ void GLWidget::resetAnimationPose(const QString& sourceFile)
 	const RuntimeAnimationFileState runtime = _animCtrl.runtimeAnimationsByFile().value(sourceFile);
 	const bool needsRuntimeNodeTransforms =
 		runtime.data.hasNodeAnimations || runtime.data.hasSkinning;
-	const std::vector<TriangleMesh*>& meshes = getMeshStore();
+	const std::vector<SceneMesh*>& meshes = getMeshStore();
 
 	if (needsRuntimeNodeTransforms)
 	{
@@ -12846,11 +10708,11 @@ void GLWidget::resetAnimationPose(const QString& sourceFile)
 			if (!node)
 				return;
 
-			const QMatrix4x4 local = aiToQMatrix(node->localTransform);
+			const QMatrix4x4 local = AnimationRuntimeController::aiToQMatrix(node->localTransform);
 			const QMatrix4x4 world = parentWorld * local;
 			for (const QUuid& uuid : node->meshUuids)
 			{
-				if (TriangleMesh* mesh = getMeshByUuid(uuid))
+				if (SceneMesh* mesh = getMeshByUuid(uuid))
 				{
 					if (!mesh->hasSkinning())
 						mesh->setSceneRenderTransformFast(world);
@@ -12869,7 +10731,7 @@ void GLWidget::resetAnimationPose(const QString& sourceFile)
 
 	for (auto it = runtime.defaultMeshMaterials.constBegin(); it != runtime.defaultMeshMaterials.constEnd(); ++it)
 	{
-		if (TriangleMesh* mesh = getMeshByUuid(it.key()))
+		if (SceneMesh* mesh = getMeshByUuid(it.key()))
 		{
 			if (mesh->hasMorphTargets())
 				mesh->resetMorphTargets();
@@ -12877,7 +10739,7 @@ void GLWidget::resetAnimationPose(const QString& sourceFile)
 		}
 	}
 
-	for (TriangleMesh* mesh : meshes)
+	for (SceneMesh* mesh : meshes)
 	{
 		if (!mesh || mesh->getSourceFile() != sourceFile || !mesh->hasMorphTargets())
 			continue;
@@ -12993,10 +10855,10 @@ void GLWidget::updateAnimatedMeshState(const QString& sourceFile,
 		if (!node)
 			return;
 
-		const QMatrix4x4 world = worldTransformsByNodeUuid.value(node->nodeUuid, aiToQMatrix(node->localTransform));
+		const QMatrix4x4 world = worldTransformsByNodeUuid.value(node->nodeUuid, AnimationRuntimeController::aiToQMatrix(node->localTransform));
 		for (const QUuid& uuid : node->meshUuids)
 		{
-			if (TriangleMesh* mesh = getMeshByUuid(uuid))
+			if (SceneMesh* mesh = getMeshByUuid(uuid))
 			{
 				if (!mesh->hasSkinning())
 				{
@@ -13009,9 +10871,9 @@ void GLWidget::updateAnimatedMeshState(const QString& sourceFile,
 					const QMatrix4x4 meshWorldInverse = world.inverted();
 					for (const GltfSkinJoint& joint : mesh->skinJoints())
 					{
-						const QUuid jointNodeUuid = resolveRuntimeNodeUuid(runtime, -1, joint.nodeName);
+						const QUuid jointNodeUuid = AnimationRuntimeController::resolveRuntimeNodeUuid(runtime, -1, joint.nodeName);
 						const QMatrix4x4 jointWorld = worldTransformsByNodeUuid.value(jointNodeUuid, world);
-						palette.append(meshWorldInverse * jointWorld * aiToQMatrix(joint.inverseBindMatrix));
+						palette.append(meshWorldInverse * jointWorld * AnimationRuntimeController::aiToQMatrix(joint.inverseBindMatrix));
 					}
 					mesh->setJointPalette(palette);
 					mesh->setSceneRenderTransformFast(world);
@@ -13057,7 +10919,7 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 	const GltfAnimationClip& clip = runtime.data.clips[clipIndex];
 	const auto resolveChannelNodeUuid = [&](const GltfAnimationChannel& channel) -> QUuid
 	{
-		return resolveRuntimeNodeUuid(runtime, channel.targetNodeIndex, channel.targetNodeName);
+		return AnimationRuntimeController::resolveRuntimeNodeUuid(runtime, channel.targetNodeIndex, channel.targetNodeName);
 	};
 	QHash<QUuid, bool> nodeAffectsShadowCache;
 	std::function<bool(const QUuid&)> nodeAffectsShadow = [&](const QUuid& nodeUuid) -> bool
@@ -13113,10 +10975,10 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 
 					if (channel.pointerProperty == GltfAnimationPointerProperty::BaseColorFactor)
 					{
-						const QVector4D vec4Value = sampleVec4Keys(channel.vec4Keys,
+						const QVector4D vec4Value = AnimationUtils::sampleVec4Keys(channel.vec4Keys,
 							timeSeconds,
 							QVector4D(materialIt.value().albedoColor(), materialIt.value().opacity()));
-						applyMaterialFactorPointerValue(materialIt.value(),
+						AnimationRuntimeController::applyMaterialFactorPointerValue(materialIt.value(),
 							channel.pointerProperty,
 							vec4Value);
 						continue;
@@ -13124,11 +10986,11 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 
 					const QVector2D vec2Value = channel.pointerProperty == GltfAnimationPointerProperty::Rotation
 						? QVector2D()
-						: sampleVec2Keys(channel.vec2Keys, timeSeconds, QVector2D());
+						: AnimationUtils::sampleVec2Keys(channel.vec2Keys, timeSeconds, QVector2D());
 					const float scalarValue = channel.pointerProperty == GltfAnimationPointerProperty::Rotation
-						? sampleFloatKeys(channel.floatKeys, timeSeconds, 0.0f)
+						? AnimationUtils::sampleFloatKeys(channel.floatKeys, timeSeconds, 0.0f)
 						: 0.0f;
-					applyTexturePointerValue(materialIt.value(),
+					AnimationRuntimeController::applyTexturePointerValue(materialIt.value(),
 						channel.textureTarget,
 						channel.pointerProperty,
 						vec2Value,
@@ -13139,11 +11001,11 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 			{
 				if (channel.targetNodeIndex >= 0)
 				{
-					const QUuid resolvedNodeUuid = resolveRuntimeNodeUuid(runtime, channel.targetNodeIndex);
+					const QUuid resolvedNodeUuid = AnimationRuntimeController::resolveRuntimeNodeUuid(runtime, channel.targetNodeIndex);
 					animationAffectsShadowCasters =
 						animationAffectsShadowCasters || nodeAffectsShadow(resolvedNodeUuid);
 					sampledNodeVisibility.insert(channel.targetNodeIndex,
-						sampleBoolKeys(channel.boolKeys,
+						AnimationUtils::sampleBoolKeys(channel.boolKeys,
 							timeSeconds,
 							sampledNodeVisibility.value(channel.targetNodeIndex, true)));
 				}
@@ -13170,13 +11032,13 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 			switch (channel.targetPath)
 			{
 			case GltfAnimationTargetPath::Translation:
-				meshTransform.translation = sampleVec3Keys(channel.vec3Keys, timeSeconds, meshTransform.translation);
+				meshTransform.translation = AnimationUtils::sampleVec3Keys(channel.vec3Keys, timeSeconds, meshTransform.translation);
 				break;
 			case GltfAnimationTargetPath::Rotation:
-				meshTransform.rotation = sampleQuatKeys(channel.quatKeys, timeSeconds, meshTransform.rotation);
+				meshTransform.rotation = AnimationUtils::sampleQuatKeys(channel.quatKeys, timeSeconds, meshTransform.rotation);
 				break;
 			case GltfAnimationTargetPath::Scale:
-				meshTransform.scale = sampleVec3Keys(channel.vec3Keys, timeSeconds,
+				meshTransform.scale = AnimationUtils::sampleVec3Keys(channel.vec3Keys, timeSeconds,
 					meshTransform.scale.isNull() ? QVector3D(1.0f, 1.0f, 1.0f) : meshTransform.scale);
 				break;
 			case GltfAnimationTargetPath::Weights:
@@ -13208,17 +11070,17 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 		switch (channel.targetPath)
 		{
 		case GltfAnimationTargetPath::Translation:
-			node.translation = sampleVec3Keys(channel.vec3Keys, timeSeconds, node.translation);
+			node.translation = AnimationUtils::sampleVec3Keys(channel.vec3Keys, timeSeconds, node.translation);
 			break;
 		case GltfAnimationTargetPath::Rotation:
-			node.rotation = sampleQuatKeys(channel.quatKeys, timeSeconds, node.rotation);
+			node.rotation = AnimationUtils::sampleQuatKeys(channel.quatKeys, timeSeconds, node.rotation);
 			break;
 		case GltfAnimationTargetPath::Scale:
-			node.scale = sampleVec3Keys(channel.vec3Keys, timeSeconds, node.scale);
+			node.scale = AnimationUtils::sampleVec3Keys(channel.vec3Keys, timeSeconds, node.scale);
 			break;
 		case GltfAnimationTargetPath::Weights:
 			sampledMorphWeightsByUuid.insert(resolvedNodeUuid,
-				sampleWeightKeys(channel.weightKeys, timeSeconds, sampledMorphWeightsByUuid.value(resolvedNodeUuid)));
+				AnimationUtils::sampleWeightKeys(channel.weightKeys, timeSeconds, sampledMorphWeightsByUuid.value(resolvedNodeUuid)));
 			continue;
 		case GltfAnimationTargetPath::Pointer:
 			continue;
@@ -13226,8 +11088,8 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 		sampled.insert(resolvedNodeUuid, node);
 	}
 
-	const std::vector<TriangleMesh*>& meshes = getMeshStore();
-	for (TriangleMesh* mesh : meshes)
+	const std::vector<SceneMesh*>& meshes = getMeshStore();
+	for (SceneMesh* mesh : meshes)
 	{
 		if (!mesh || mesh->getSourceFile() != sourceFile || !mesh->hasMorphTargets())
 			continue;
@@ -13268,8 +11130,8 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 				return;
 
 			const RuntimeNodeTransform nodeTransform =
-				sampled.value(node->nodeUuid, decomposeNodeTransform(node->localTransform));
-			const QMatrix4x4 local = composeNodeTransform(nodeTransform);
+				sampled.value(node->nodeUuid, AnimationRuntimeController::decomposeNodeTransform(node->localTransform));
+			const QMatrix4x4 local = AnimationRuntimeController::composeNodeTransform(nodeTransform);
 			const QMatrix4x4 world = parentWorld * local;
 			worldTransformsByNodeUuid.insert(node->nodeUuid, world);
 
@@ -13284,13 +11146,13 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 
 		for (auto meshIt = sampledMeshTransforms.cbegin(); meshIt != sampledMeshTransforms.cend(); ++meshIt)
 		{
-			TriangleMesh* mesh = getMeshByUuid(meshIt.key());
+			SceneMesh* mesh = getMeshByUuid(meshIt.key());
 			const SceneNode* ownerNode = mesh ? _viewer->sceneGraph()->findNodeForMesh(meshIt.key()) : nullptr;
 			if (!mesh || !ownerNode || mesh->getSourceFile() != sourceFile)
 				continue;
 
 			const QMatrix4x4 ownerWorld = worldTransformsByNodeUuid.value(ownerNode->nodeUuid,
-				aiToQMatrix(ownerNode->localTransform));
+				AnimationRuntimeController::aiToQMatrix(ownerNode->localTransform));
 			QMatrix4x4 meshLocal;
 			meshLocal.translate(meshIt->translation);
 			meshLocal.rotate(meshIt->rotation);
@@ -13328,7 +11190,7 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 		// produces are in model-space.  For lights we need world-space positions
 		// that match _originalParsedLights (which already have importCorrection
 		// baked in by AssImpModelLoader), so we pre-compose the correction here.
-		const QMatrix4x4 importCorrection = aiToQMatrix(fileNode->localTransform);
+		const QMatrix4x4 importCorrection = AnimationRuntimeController::aiToQMatrix(fileNode->localTransform);
 
 		if (!runtime.data.lightBindings.isEmpty() &&
 			fileLightCount == static_cast<int>(runtime.data.lightBindings.size()))
@@ -13350,7 +11212,7 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 				bool hasWorldTransform = false;
 				if (binding.nodeIndex >= 0 && runtime.nodeUuidByIndex.contains(binding.nodeIndex))
 				{
-					const QUuid nodeUuid = resolveRuntimeNodeUuid(runtime, binding.nodeIndex);
+					const QUuid nodeUuid = AnimationRuntimeController::resolveRuntimeNodeUuid(runtime, binding.nodeIndex);
 					if (worldTransformsByNodeUuid.contains(nodeUuid))
 					{
 						modelSpaceWorld = worldTransformsByNodeUuid.value(nodeUuid);
@@ -13359,7 +11221,7 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 				}
 				else if (!binding.nodeName.isEmpty())
 				{
-					const QUuid nodeUuid = resolveRuntimeNodeUuid(runtime, -1, binding.nodeName);
+					const QUuid nodeUuid = AnimationRuntimeController::resolveRuntimeNodeUuid(runtime, -1, binding.nodeName);
 					if (!nodeUuid.isNull() && worldTransformsByNodeUuid.contains(nodeUuid))
 					{
 						modelSpaceWorld = worldTransformsByNodeUuid.value(nodeUuid);
@@ -13403,7 +11265,7 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 			if (_animCtrl.activeGltfCameraIndex() < camData.cameras.size())
 			{
 				const GltfCameraEntry& cam = camData.cameras[_animCtrl.activeGltfCameraIndex()];
-				const QUuid cameraNodeUuid = resolveRuntimeNodeUuid(runtime, cam.nodeIndex, cam.nodeName);
+				const QUuid cameraNodeUuid = AnimationRuntimeController::resolveRuntimeNodeUuid(runtime, cam.nodeIndex, cam.nodeName);
 				if (!cameraNodeUuid.isNull() && worldTransformsByNodeUuid.contains(cameraNodeUuid))
 				{
 					const QMatrix4x4& world = worldTransformsByNodeUuid.value(cameraNodeUuid);
@@ -13504,11 +11366,11 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 	}
 	for (auto it = animatedMaterials.constBegin(); it != animatedMaterials.constEnd(); ++it)
 	{
-		if (TriangleMesh* mesh = getMeshByUuid(it.key()))
+		if (SceneMesh* mesh = getMeshByUuid(it.key()))
 			mesh->setMaterial(it.value());
 	}
 	if (animationAffectsShadowCasters)
-		_shadowMapNeedsInitialization = true;
+		_renderCtrl.setShadowMapNeedsInitialization(true);
 	update();
 }
 
@@ -13519,7 +11381,7 @@ void GLWidget::onMeshBatchReady(const std::vector<AssImpMeshData>& batch)
 	{
 		SceneMesh* mesh = createMeshFromData(meshData);
 		addToDisplay(mesh);
-		_pendingSceneUuids.append(mesh->uuid());
+		_sceneRuntime.pendingSceneUuids().append(mesh->uuid());
 	}
 	_viewer->updateDisplayList();
 }
@@ -13615,7 +11477,7 @@ GLuint GLWidget::createGPUTextureFromImage(const QImage& image, const TextureSam
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, samplers.wrapT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, samplers.minFilter);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, samplers.magFilter);
-	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, _anisotropicFilteringLevel);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, _renderCtrl.anisotropicFilteringLevel());
 
 	return textureID;
 }
@@ -13685,8 +11547,8 @@ unsigned int GLWidget::getOrCreateTextureCached(
 		return 0;
 	}
 
-	auto it = _texCache.find(cacheKey);
-	if (it != _texCache.end())
+	auto it = _sceneRuntime.texCache().find(cacheKey);
+	if (it != _sceneRuntime.texCache().end())
 	{
 		CachedTextureEntry& entry = it->second;
 		if (entry.lastGPUTexture != 0 && entry.lastSamplerSettings == samplers)
@@ -13703,7 +11565,7 @@ unsigned int GLWidget::getOrCreateTextureCached(
 			{
 				entry.lastGPUTexture = newTexID;
 				entry.lastSamplerSettings = samplers;
-				_texRefCount[newTexID] = 1;
+				_sceneRuntime.texRefCount()[newTexID] = 1;
 				return newTexID;
 			}
 		}
@@ -13723,8 +11585,8 @@ unsigned int GLWidget::getOrCreateTextureCached(
 	newEntry.imageWidth = image.width();
 	newEntry.imageHeight = image.height();
 
-	_texCache[cacheKey] = newEntry;
-	_texRefCount[texID] = 1;
+	_sceneRuntime.texCache()[cacheKey] = newEntry;
+	_sceneRuntime.texRefCount()[texID] = 1;
 	return texID;
 }
 
@@ -13741,8 +11603,8 @@ unsigned int GLWidget::getOrLoadKtx2TextureCached(
 	const QString cacheKey = QStringLiteral("ktx2://%1::%2")
 		.arg(path, QString::fromStdString(mapType));
 
-	auto it = _texCache.find(cacheKey);
-	if (it != _texCache.end())
+	auto it = _sceneRuntime.texCache().find(cacheKey);
+	if (it != _sceneRuntime.texCache().end())
 	{
 		CachedTextureEntry& entry = it->second;
 		if (entry.lastGPUTexture != 0 && entry.lastSamplerSettings == samplers)
@@ -13758,10 +11620,10 @@ unsigned int GLWidget::getOrLoadKtx2TextureCached(
 		return 0;
 	}
 
-	CachedTextureEntry& entry = _texCache[cacheKey];
+	CachedTextureEntry& entry = _sceneRuntime.texCache()[cacheKey];
 	entry.lastGPUTexture = texID;
 	entry.lastSamplerSettings = samplers;
-	_texRefCount[texID] = 1;
+	_sceneRuntime.texRefCount()[texID] = 1;
 	return texID;
 }
 
@@ -13771,10 +11633,10 @@ unsigned int GLWidget::getOrLoadTextureCached(
 {
 	if (path.isEmpty()) return 0;
 
-	auto it = _texCache.find(path);
+	auto it = _sceneRuntime.texCache().find(path);
 
 	// Cache hit - image exists
-	if (it != _texCache.end())
+	if (it != _sceneRuntime.texCache().end())
 	{
 		CachedTextureEntry& entry = it->second;
 
@@ -13802,7 +11664,7 @@ unsigned int GLWidget::getOrLoadTextureCached(
 
 				entry.lastGPUTexture = newTexID;
 				entry.lastSamplerSettings = samplers;
-				_texRefCount[newTexID] = 1;
+				_sceneRuntime.texRefCount()[newTexID] = 1;
 				return newTexID;
 			}
 		}
@@ -13828,8 +11690,8 @@ unsigned int GLWidget::getOrLoadTextureCached(
 	newEntry.imageWidth = newEntry.image.width();
 	newEntry.imageHeight = newEntry.image.height();
 
-	_texCache[path] = newEntry;
-	_texRefCount[texID] = 1;
+	_sceneRuntime.texCache()[path] = newEntry;
+	_sceneRuntime.texRefCount()[texID] = 1;
 
 	return texID;
 }
@@ -13837,25 +11699,25 @@ unsigned int GLWidget::getOrLoadTextureCached(
 void GLWidget::retainTexture(unsigned int texId)
 {
 	if (texId == 0) return;
-	auto it = _texRefCount.find(texId);
-	if (it != _texRefCount.end()) it->second++;
-	else _texRefCount[texId] = 1;
+	auto it = _sceneRuntime.texRefCount().find(texId);
+	if (it != _sceneRuntime.texRefCount().end()) it->second++;
+	else _sceneRuntime.texRefCount()[texId] = 1;
 }
 
 void GLWidget::releaseTexture(unsigned int texId)
 {
 	if (texId == 0) return;
-	auto it = _texRefCount.find(texId);
-	if (it == _texRefCount.end()) return;
+	auto it = _sceneRuntime.texRefCount().find(texId);
+	if (it == _sceneRuntime.texRefCount().end()) return;
 	if (--(it->second) <= 0)
 	{
 		// remove from path map too
-		for (auto pit = _texCache.begin(); pit != _texCache.end(); )
+		for (auto pit = _sceneRuntime.texCache().begin(); pit != _sceneRuntime.texCache().end(); )
 		{
-			if (pit->second.lastGPUTexture == texId) pit = _texCache.erase(pit); else ++pit;
+			if (pit->second.lastGPUTexture == texId) pit = _sceneRuntime.texCache().erase(pit); else ++pit;
 		}
 		glDeleteTextures(1, &texId);
-		_texRefCount.erase(texId);
+		_sceneRuntime.texRefCount().erase(texId);
 	}
 }
 
@@ -14044,231 +11906,29 @@ GLMaterial GLWidget::resolveMaterialTextures(GLWidget* w, const GLMaterial& src)
 
 void GLWidget::initTransmissionBuffer()
 {
-	// Called once during widget initialization (e.g., in initializeGL or constructor)
-	_transmissionTextureWidth = width();
-	_transmissionTextureHeight = height();
-
-	if (_transmissionFBO != 0)
-		glDeleteFramebuffers(1, &_transmissionFBO);
-	if (_transmissionColorTexture != 0)
-		glDeleteTextures(1, &_transmissionColorTexture);
-	if (_transmissionDepthTexture != 0)
-		glDeleteTextures(1, &_transmissionDepthTexture);
-
-	// Create FBO
-	glGenFramebuffers(1, &_transmissionFBO);
-	glBindFramebuffer(GL_FRAMEBUFFER, _transmissionFBO);
-
-	// --- Create COLOR texture (RGBA32F for precision) ---
-	glGenTextures(1, &_transmissionColorTexture);
-	glBindTexture(GL_TEXTURE_2D, _transmissionColorTexture);
-	// Allocate storage with mipmaps
-	// Calculate number of mip levels: log2(max(width, height)) + 1
-	int maxDim = std::max(_transmissionTextureWidth, _transmissionTextureHeight);
-	int numMips = (int)std::floor(std::log2(maxDim)) + 1;
-
-	// Allocate texture storage with mipmaps
-	glTexStorage2D(GL_TEXTURE_2D, numMips, GL_RGBA32F,
-		_transmissionTextureWidth, _transmissionTextureHeight);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, numMips - 1);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-		GL_TEXTURE_2D, _transmissionColorTexture, 0);
-
-	// --- Create DEPTH texture (DEPTH32F) ---
-	glGenTextures(1, &_transmissionDepthTexture);
-	glBindTexture(GL_TEXTURE_2D, _transmissionDepthTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F,
-		_transmissionTextureWidth, _transmissionTextureHeight,
-		0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
-		GL_TEXTURE_2D, _transmissionDepthTexture, 0);
-
-	GLenum drawBuffers[] = { GL_COLOR_ATTACHMENT0 };
-	glDrawBuffers(1, drawBuffers);
-
-	// --- Verify FBO is complete ---
-	GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-	if (status != GL_FRAMEBUFFER_COMPLETE)
-	{
-		qWarning() << "Transmission FBO incomplete! Status:" << status;
-	}
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glBindTexture(GL_TEXTURE_2D, 0);
+	_renderCtrl.initTransmissionBuffer(width(), height());
 }
 
 void GLWidget::resizeTransmissionBuffer(int width, int height)
 {
-	// Called from resizeGL() whenever window size changes
-	if (_transmissionTextureWidth == width && _transmissionTextureHeight == height)
-		return; // No resize needed
-
-	_transmissionTextureWidth = width;
-	_transmissionTextureHeight = height;
-
-	initTransmissionBuffer();
+	_renderCtrl.initTransmissionBuffer(width, height);
 }
 
 void GLWidget::createWhiteTexture()
 {
-	unsigned char white[] = { 255, 255, 255, 255 };
-	glGenTextures(1, &_whiteTexture);
-	glBindTexture(GL_TEXTURE_2D, _whiteTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, white);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	_renderCtrl.initWhiteTexture();
 }
 
 void GLWidget::generateCubemapMipmaps(GLuint cubemapTexture)
 {
-	// Calculate mip count based on environment map resolution
-	// Query actual cubemap resolution at runtime
-	GLint baseSize = 0;
-	glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
-	glGetTextureLevelParameteriv(cubemapTexture, 0, GL_TEXTURE_WIDTH, &baseSize);
-
-	int maxMipLevels = static_cast<int>(std::log2(baseSize)) + 1;
-
-	// Create temporary FBO for rendering to mip levels
-	GLuint mipmapFBO;
-	GLuint mipmapRBO;
-	glGenFramebuffers(1, &mipmapFBO);
-	glGenRenderbuffers(1, &mipmapRBO);
-
-	glBindFramebuffer(GL_FRAMEBUFFER, mipmapFBO);
-	glBindRenderbuffer(GL_RENDERBUFFER, mipmapRBO);
-
-	// Setup projection matrix (90 degree FOV for cubemap, 1:1 aspect ratio)
-	QMatrix4x4 captureProjection;
-	captureProjection.perspective(90.0f, 1.0f, 0.1f, 10.0f);
-
-	// Setup view matrices for each cubemap face (must match environment capture order)
-	QMatrix4x4 captureViews[] = {
-		// +X face
-		[]() {
-			QMatrix4x4 m;
-			m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(1.0f, 0.0f, 0.0f), QVector3D(0.0f, -1.0f, 0.0f));
-			return m;
-		}(),
-			// -X face
-			[]() {
-				QMatrix4x4 m;
-				m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(-1.0f, 0.0f, 0.0f), QVector3D(0.0f, -1.0f, 0.0f));
-				return m;
-			}(),
-				// +Y face
-				[]() {
-					QMatrix4x4 m;
-					m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0.0f, 1.0f, 0.0f), QVector3D(0.0f, 0.0f, 1.0f));
-					return m;
-				}(),
-					// -Y face
-					[]() {
-						QMatrix4x4 m;
-						m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0.0f, -1.0f, 0.0f), QVector3D(0.0f, 0.0f, -1.0f));
-						return m;
-					}(),
-						// +Z face
-						[]() {
-							QMatrix4x4 m;
-							m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0.0f, 0.0f, 1.0f), QVector3D(0.0f, -1.0f, 0.0f));
-							return m;
-						}(),
-							// -Z face
-							[]() {
-								QMatrix4x4 m;
-								m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0.0f, 0.0f, -1.0f), QVector3D(0.0f, -1.0f, 0.0f));
-								return m;
-							}()
-	};
-
-	_skyBox->setProg(_downsampleShader.get());
-
-	// Bind shader and set static uniforms
-	_downsampleShader->bind();
-	_downsampleShader->setUniformValue("projection", captureProjection);
-
-	// Bind source cubemap to texture unit 0
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
-	_downsampleShader->setUniformValue("sourceMap", 0);
-
-	// Generate each mip level
-	for (int mip = 1; mip < maxMipLevels; ++mip)
-	{
-		int mipSize = baseSize >> mip;  // Bitshift divide by 2^mip
-
-		// Resize renderbuffer for depth attachment
-		glBindRenderbuffer(GL_RENDERBUFFER, mipmapRBO);
-		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipSize, mipSize);
-
-		// Set viewport to target mip size
-		glViewport(0, 0, mipSize, mipSize);
-
-		// Set which source mip level to sample from
-		_downsampleShader->setUniformValue("currentMipLevel", mip - 1);
-
-		// Render to all 6 faces of this mip level
-		for (int face = 0; face < 6; ++face)
-		{
-			// Attach this mip level of this face to framebuffer
-			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-				GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, cubemapTexture, mip);
-
-			// Verify framebuffer is complete
-			GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-			if (status != GL_FRAMEBUFFER_COMPLETE)
-			{
-				qWarning() << "Framebuffer incomplete at mip" << mip << "face" << face;
-				continue;
-			}
-
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-			// Set view matrix for this face
-			_downsampleShader->setUniformValue("view", captureViews[face]);
-
-			// Render the cube
-			_skyBox->render();
-		}
-	}
-
-	// Restore state - MORE AGGRESSIVE
-	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
-	glBindRenderbuffer(GL_RENDERBUFFER, 0);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
-	glBindTexture(GL_TEXTURE_2D, 0);
-	glActiveTexture(GL_TEXTURE0);
-	glUseProgram(0);
-
-	// Reset viewport to current widget size
-	glViewport(0, 0, width(), height());
-
-	// Force rebind environment map to ensure it's in correct state
-	glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
+	_renderCtrl.generateCubemapMipmaps(cubemapTexture, width(), height(), defaultFramebufferObject());
 }
 
 QString GLWidget::generateUniqueMeshName(const QString& baseName)
 {
 	// Check if base name already exists
 	bool nameExists = false;
-	for (const TriangleMesh* mesh : _meshStore)
+	for (const SceneMesh* mesh : _sceneRuntime.meshStore())
 	{
 		if (mesh->getName() == baseName)
 		{
@@ -14290,7 +11950,7 @@ QString GLWidget::generateUniqueMeshName(const QString& baseName)
 		uniqueName = QString("%1 (%2)").arg(baseName).arg(counter);
 
 		bool exists = false;
-		for (const TriangleMesh* mesh : _meshStore)
+		for (const SceneMesh* mesh : _sceneRuntime.meshStore())
 		{
 			if (mesh->getName() == uniqueName)
 			{
@@ -14310,7 +11970,7 @@ QString GLWidget::generateUniqueMeshName(const QString& baseName)
 
 void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topColor, const QColor& botColor)
 {
-	if (!_transmissionEnabled)
+	if (!_renderCtrl.transmissionEnabled())
 		return;
 
 	resizeTransmissionBuffer(width(), height());
@@ -14327,8 +11987,8 @@ void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topCol
 	glDisable(GL_STENCIL_TEST);
 
 	// --- BIND FBO ---
-	glBindFramebuffer(GL_FRAMEBUFFER, _transmissionFBO);
-	glViewport(0, 0, _transmissionTextureWidth, _transmissionTextureHeight);
+	glBindFramebuffer(GL_FRAMEBUFFER, _renderCtrl.transmissionFBO());
+	glViewport(0, 0, _renderCtrl.transmissionTextureWidth(), _renderCtrl.transmissionTextureHeight());
 
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -14340,7 +12000,7 @@ void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topCol
 	_viewCtrl._modelViewMatrix = _viewCtrl._viewMatrix * _viewCtrl._modelMatrix;
 
 	// --- RENDER 1: BACKGROUND (gradient or skybox) ---
-	if (_skyBoxEnabled)
+	if (_renderCtrl.skyBoxEnabled())
 	{
 		glDisable(GL_DEPTH_TEST);
 		glDepthMask(GL_FALSE);
@@ -14363,24 +12023,24 @@ void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topCol
 	// Units 32/33: prevent feedback — the transmission FBO is currently the render target,
 	// so bind white instead of the real transmission textures.
 	glActiveTexture(GL_TEXTURE0 + 32);
-	glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+	glBindTexture(GL_TEXTURE_2D, _renderCtrl.whiteTexture());
 	glActiveTexture(GL_TEXTURE0 + 33);
-	glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+	glBindTexture(GL_TEXTURE_2D, _renderCtrl.whiteTexture());
 	// Units 37/38: SSS irradiance/depth from the SSS capture pass.
 	glActiveTexture(GL_TEXTURE0 + 37);
-	glBindTexture(GL_TEXTURE_2D, _sssCaptureTexture != 0 ? _sssCaptureTexture : _whiteTexture);
+	glBindTexture(GL_TEXTURE_2D, _renderCtrl.sssCaptureTexture() != 0 ? _renderCtrl.sssCaptureTexture() : _renderCtrl.whiteTexture());
 	glActiveTexture(GL_TEXTURE0 + 38);
-	glBindTexture(GL_TEXTURE_2D, _sssDepthTexture != 0 ? _sssDepthTexture : _whiteTexture);
+	glBindTexture(GL_TEXTURE_2D, _renderCtrl.sssDepthTexture() != 0 ? _renderCtrl.sssDepthTexture() : _renderCtrl.whiteTexture());
 	glActiveTexture(GL_TEXTURE0);
 
-	_fgShader->bind();
-	setCommonUniforms(_fgShader.get(), _primaryCamera);
-	drawMeshesWithClipping(_fgShader.get(), false); // opaque pass only
-	_fgShader->release();
+	_renderCtrl.fgShader()->bind();
+	setCommonUniforms(_renderCtrl.fgShader(), _primaryCamera);
+	drawMeshesWithClipping(_renderCtrl.fgShader(), false); // opaque pass only
+	_renderCtrl.fgShader()->release();
 
 	// --- RENDER 3: SECTION CAPS ---
-	if (_cappingEnabled &&
-		!_sectionCapsSuppressedDuringInteraction &&
+	if (_renderCtrl.cappingEnabled() &&
+		!_renderCtrl.sectionCapsSuppressedDuringInteraction() &&
 		(_clipYZEnabled || _clipZXEnabled || _clipXYEnabled))
 	{
 		glEnable(GL_POLYGON_OFFSET_FILL);
@@ -14391,29 +12051,29 @@ void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topCol
 
 	// --- RENDER 4: GROUND ---
 	if (_displayMode == DisplayMode::REALSHADED &&
-		_groundMode != GroundMode::None && !_cappingEnabled &&
-		!_meshStore.empty() &&
+		_renderCtrl.groundMode() != GroundMode::None && !_renderCtrl.cappingEnabled() &&
+		!_sceneRuntime.meshStore().empty() &&
 		camera != _orthoViewsCamera)
 	{
-		if (_groundMode == GroundMode::Floor)
+		if (_renderCtrl.groundMode() == GroundMode::Floor)
 		{
 			// Avoid sampling from the transmission render target while it is bound
 			// as the current framebuffer color attachment.
 			glActiveTexture(GL_TEXTURE0 + 32);
-			glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+			glBindTexture(GL_TEXTURE_2D, _renderCtrl.whiteTexture());
 			glActiveTexture(GL_TEXTURE0 + 33);
-			glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+			glBindTexture(GL_TEXTURE_2D, _renderCtrl.whiteTexture());
 			glActiveTexture(GL_TEXTURE0);
 			drawFloor(false);
 		}
-		else if (_groundMode == GroundMode::Grid)
+		else if (_renderCtrl.groundMode() == GroundMode::Grid)
 		{
 			drawGrid();
 		}
 	}
 
 	// IMPORTANT: After rendering, generate mipmaps
-	glBindTexture(GL_TEXTURE_2D, _transmissionColorTexture);
+	glBindTexture(GL_TEXTURE_2D, _renderCtrl.transmissionColorTexture());
 	glHint(GL_GENERATE_MIPMAP_HINT, GL_NICEST);
 	glGenerateMipmap(GL_TEXTURE_2D);
 	glBindTexture(GL_TEXTURE_2D, 0);
@@ -14425,9 +12085,9 @@ void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topCol
 
 // ============================================================================
 // SSS capture pass
-// Renders only hasVolumeScattering meshes into _sssFBO with sssCapture=true,
+// Renders only hasVolumeScattering meshes into _renderCtrl.sssFBO() with sssCapture=true,
 // which makes the shader output raw linear diffuse irradiance.
-// The result in _sssCaptureTexture feeds the blur passes in Sequence 4.
+// The result in _renderCtrl.sssCaptureTexture() feeds the blur passes in Sequence 4.
 // ============================================================================
 
 void GLWidget::renderToSSSBuffer(GLCamera* camera)
@@ -14449,8 +12109,8 @@ void GLWidget::renderToSSSBuffer(GLCamera* camera)
 	glDisable(GL_STENCIL_TEST);
 
 	// --- BIND FBO ---
-	glBindFramebuffer(GL_FRAMEBUFFER, _sssFBO);
-	glViewport(0, 0, _sssTextureWidth, _sssTextureHeight);
+	glBindFramebuffer(GL_FRAMEBUFFER, _renderCtrl.sssFBO());
+	glViewport(0, 0, _renderCtrl.sssTextureWidth(), _renderCtrl.sssTextureHeight());
 
 	// Black background — non-SSS pixels are discarded by the shader so nothing
 	// writes to them; black is the correct additive identity for the blur.
@@ -14466,20 +12126,20 @@ void GLWidget::renderToSSSBuffer(GLCamera* camera)
 	// Bind white dummy textures on the SSS sampler slots (units 37/38) so the shader's
 	// sampleCapturedSSSDiffuse() sees a valid, neutral value during the capture pass itself.
 	glActiveTexture(GL_TEXTURE0 + 37);
-	glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+	glBindTexture(GL_TEXTURE_2D, _renderCtrl.whiteTexture());
 	glActiveTexture(GL_TEXTURE0 + 38);
-	glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+	glBindTexture(GL_TEXTURE_2D, _renderCtrl.whiteTexture());
 	glActiveTexture(GL_TEXTURE0);
 
 	// --- RENDER: SSS opaque meshes only ---
 	// sssCapture=true makes the shader discard non-SSS fragments and output
 	// raw linear diffuse (baseDirectDiffuse + baseDiffuseIBL) for SSS ones.
-	_fgShader->bind();
-	setCommonUniforms(_fgShader.get(), camera);
-	_fgShader->setUniformValue("sssCapture", true);
-	drawMeshesWithClipping(_fgShader.get(), false); // opaque pass only
-	_fgShader->setUniformValue("sssCapture", false); // reset before release
-	_fgShader->release();
+	_renderCtrl.fgShader()->bind();
+	setCommonUniforms(_renderCtrl.fgShader(), camera);
+	_renderCtrl.fgShader()->setUniformValue("sssCapture", true);
+	drawMeshesWithClipping(_renderCtrl.fgShader(), false); // opaque pass only
+	_renderCtrl.fgShader()->setUniformValue("sssCapture", false); // reset before release
+	_renderCtrl.fgShader()->release();
 
 	// No mipmaps needed — the blur passes sample at full resolution.
 
@@ -14490,129 +12150,31 @@ void GLWidget::renderToSSSBuffer(GLCamera* camera)
 
 void GLWidget::cleanupTransmissionBuffer()
 {
-	if (_transmissionFBO != 0)
-	{
-		glDeleteFramebuffers(1, &_transmissionFBO);
-		_transmissionFBO = 0;
-	}
-	if (_transmissionColorTexture != 0)
-	{
-		glDeleteTextures(1, &_transmissionColorTexture);
-		_transmissionColorTexture = 0;
-	}
-	if (_transmissionDepthTexture != 0)
-	{
-		glDeleteTextures(1, &_transmissionDepthTexture);
-		_transmissionDepthTexture = 0;
-	}
+	_renderCtrl.cleanupTransmissionBuffer();
 }
 
 // ============================================================================
 // SSS (Subsurface Scattering) Buffer
 // Two-FBO ping-pong layout:
-//   _sssFBO    + _sssCaptureTexture  — capture pass output / V-blur output
-//   _sssBlurFBO + _sssBlurTexture    — H-blur output / V-blur input
+//   _renderCtrl.sssFBO()    + _renderCtrl.sssCaptureTexture()  — capture pass output / V-blur output
+//   _renderCtrl.sssBlurFBO() + _renderCtrl.sssBlurTexture()    — H-blur output / V-blur input
 // Both are RGBA16F (no mipmaps needed — they are blur intermediates).
-// _sssDepthTexture is shared by the capture FBO for correct depth occlusion.
+// _renderCtrl.sssDepthTexture() is shared by the capture FBO for correct depth occlusion.
 // ============================================================================
 
 void GLWidget::initSSSBuffer()
 {
-	_sssTextureWidth  = width();
-	_sssTextureHeight = height();
-
-	// Clean up any pre-existing resources first
-	if (_sssFBO != 0)            { glDeleteFramebuffers(1, &_sssFBO);            _sssFBO            = 0; }
-	if (_sssCaptureTexture != 0) { glDeleteTextures(1, &_sssCaptureTexture);     _sssCaptureTexture = 0; }
-	if (_sssDepthTexture != 0)   { glDeleteTextures(1, &_sssDepthTexture);       _sssDepthTexture   = 0; }
-	if (_sssBlurFBO != 0)        { glDeleteFramebuffers(1, &_sssBlurFBO);        _sssBlurFBO        = 0; }
-	if (_sssBlurTexture != 0)    { glDeleteTextures(1, &_sssBlurTexture);        _sssBlurTexture    = 0; }
-
-	// ---- Capture FBO --------------------------------------------------------
-	glGenFramebuffers(1, &_sssFBO);
-	glBindFramebuffer(GL_FRAMEBUFFER, _sssFBO);
-
-	// Color: RGBA16F — SSS diffuse capture, no mipmaps (blur input)
-	glGenTextures(1, &_sssCaptureTexture);
-	glBindTexture(GL_TEXTURE_2D, _sssCaptureTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F,
-		_sssTextureWidth, _sssTextureHeight,
-		0, GL_RGBA, GL_FLOAT, nullptr);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-		GL_TEXTURE_2D, _sssCaptureTexture, 0);
-
-	// Depth: DEPTH32F — correct occlusion ordering during the capture pass
-	glGenTextures(1, &_sssDepthTexture);
-	glBindTexture(GL_TEXTURE_2D, _sssDepthTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F,
-		_sssTextureWidth, _sssTextureHeight,
-		0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
-		GL_TEXTURE_2D, _sssDepthTexture, 0);
-
-	{
-		GLenum drawBufs[] = { GL_COLOR_ATTACHMENT0 };
-		glDrawBuffers(1, drawBufs);
-		GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-		if (status != GL_FRAMEBUFFER_COMPLETE)
-			qWarning() << "SSS capture FBO incomplete! Status:" << status;
-	}
-
-	// ---- Blur FBO -----------------------------------------------------------
-	// No depth attachment needed — blur passes are fullscreen quads.
-	glGenFramebuffers(1, &_sssBlurFBO);
-	glBindFramebuffer(GL_FRAMEBUFFER, _sssBlurFBO);
-
-	glGenTextures(1, &_sssBlurTexture);
-	glBindTexture(GL_TEXTURE_2D, _sssBlurTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F,
-		_sssTextureWidth, _sssTextureHeight,
-		0, GL_RGBA, GL_FLOAT, nullptr);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-		GL_TEXTURE_2D, _sssBlurTexture, 0);
-
-	{
-		GLenum drawBufs[] = { GL_COLOR_ATTACHMENT0 };
-		glDrawBuffers(1, drawBufs);
-		GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-		if (status != GL_FRAMEBUFFER_COMPLETE)
-			qWarning() << "SSS blur FBO incomplete! Status:" << status;
-	}
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glBindTexture(GL_TEXTURE_2D, 0);
+	_renderCtrl.initSSSBuffer(width(), height());
 }
 
 void GLWidget::resizeSSSBuffer(int width, int height)
 {
-	if (_sssTextureWidth == width && _sssTextureHeight == height)
-		return;
-
-	_sssTextureWidth  = width;
-	_sssTextureHeight = height;
-
-	initSSSBuffer();
+	_renderCtrl.initSSSBuffer(width, height);
 }
 
 void GLWidget::cleanupSSSBuffer()
 {
-	if (_sssFBO != 0)            { glDeleteFramebuffers(1, &_sssFBO);            _sssFBO            = 0; }
-	if (_sssCaptureTexture != 0) { glDeleteTextures(1, &_sssCaptureTexture);     _sssCaptureTexture = 0; }
-	if (_sssDepthTexture != 0)   { glDeleteTextures(1, &_sssDepthTexture);       _sssDepthTexture   = 0; }
-	if (_sssBlurFBO != 0)        { glDeleteFramebuffers(1, &_sssBlurFBO);        _sssBlurFBO        = 0; }
-	if (_sssBlurTexture != 0)    { glDeleteTextures(1, &_sssBlurTexture);        _sssBlurTexture    = 0; }
+	_renderCtrl.cleanupSSSBuffer();
 }
 
 void GLWidget::checkAndStopTimers()
@@ -14661,7 +12223,7 @@ void GLWidget::checkAndStopTimers()
 
 void GLWidget::disableLowRes()
 {
-	_lowResEnabled = false;
+	_renderCtrl.setLowResEnabled(false);
 	update();
 }
 
@@ -14672,18 +12234,18 @@ void GLWidget::disableSectionCapsInteractionSuppression()
 
 void GLWidget::setSectionCapsInteractionSuppressed(bool suppressed)
 {
-	bool actual = suppressed && _dynamicCappingEnabled;
-	if (_sectionCapsSuppressedDuringInteraction == actual)
+	bool actual = suppressed && _renderCtrl.dynamicCappingEnabled();
+	if (_renderCtrl.sectionCapsSuppressedDuringInteraction() == actual)
 		return;
 
-	_sectionCapsSuppressedDuringInteraction = actual;
+	_renderCtrl.setSectionCapsSuppressedDuringInteraction(actual);
 	update();
 }
 
 void GLWidget::setSectionCapsDynamicEnabled(bool enabled)
 {
-	_dynamicCappingEnabled = enabled;
-	if (!enabled && _sectionCapsSuppressedDuringInteraction)
+	_renderCtrl.setDynamicCappingEnabled(enabled);
+	if (!enabled && _renderCtrl.sectionCapsSuppressedDuringInteraction())
 		setSectionCapsInteractionSuppressed(false);
 }
 
@@ -14861,7 +12423,7 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 		}
 	}
 
-	_lowResEnabled = false;
+	_renderCtrl.setLowResEnabled(false);
 	if (!_viewCtrl._viewRotating && !_viewCtrl._viewPanning && !_viewCtrl._viewZooming)
 	{
 		setCursor(QCursor(Qt::ArrowCursor));
@@ -14880,7 +12442,7 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 	{
 		if (_inertiaTimer) _inertiaTimer->start();
 	}
-	else if (_sectionCapsSuppressedDuringInteraction)
+	else if (_renderCtrl.sectionCapsSuppressedDuringInteraction())
 	{
 		QTimer::singleShot(100, this, &GLWidget::disableSectionCapsInteractionSuppression);
 	}
@@ -14940,7 +12502,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		else if (((e->modifiers() & Qt::ControlModifier) || _viewCtrl._viewRotating) && !isGltfCameraActive())
 		{
 			if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
-				_lowResEnabled = true;
+				_renderCtrl.setLowResEnabled(true);
 			setSectionCapsInteractionSuppressed(true);
 			QPoint rotate = _viewCtrl._leftButtonPoint - downPoint;
 
@@ -15010,7 +12572,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	else if (((e->buttons() == Qt::RightButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewCtrl._viewPanning)) && !isGltfCameraActive())
 	{
 		if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
-			_lowResEnabled = true;
+			_renderCtrl.setLowResEnabled(true);
 		setSectionCapsInteractionSuppressed(true);
 		QVector3D OP = get3dTranslationVectorFromMousePoints(downPoint, _viewCtrl._rightButtonPoint);
 		_primaryCamera->move(OP.x(), OP.y(), OP.z());
@@ -15034,7 +12596,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	else if (((e->buttons() == Qt::MiddleButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewCtrl._viewZooming)) && !isGltfCameraActive())
 	{
 		if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
-			_lowResEnabled = true;
+			_renderCtrl.setLowResEnabled(true);
 		setSectionCapsInteractionSuppressed(true);
 		// Zoom
 		if (downPoint.x() > _viewCtrl._middleButtonPoint.x() || downPoint.y() < _viewCtrl._middleButtonPoint.y()) {
@@ -15085,7 +12647,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	}
 	else
 	{
-		_lowResEnabled = false;
+		_renderCtrl.setLowResEnabled(false);
 	}
 
 	updateViewCubeHover(e->pos(), e->buttons());
@@ -15200,7 +12762,7 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 		return;
 
 	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
-		_lowResEnabled = true;
+		_renderCtrl.setLowResEnabled(true);
 	setSectionCapsInteractionSuppressed(true);
 
 	if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
@@ -15298,11 +12860,11 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
 		if (event->modifiers() & Qt::ShiftModifier)
 			_viewer->showOnlySelectedItems();
 		else
-			_visibleSwapped ? _viewer->showSelectedItems() : _viewer->hideSelectedItems();
+			_sceneRuntime.visibleSwapped() ? _viewer->showSelectedItems() : _viewer->hideSelectedItems();
 	}
 	else if (key == Qt::Key_S && (event->modifiers() & Qt::AltModifier))
 	{
-		swapVisible(!_visibleSwapped);
+		swapVisible(!_sceneRuntime.visibleSwapped());
 	}
 	else
 		_keys.insert(key);
@@ -15471,7 +13033,7 @@ void GLWidget::animateViewChange()
 {
 	setSectionCapsInteractionSuppressed(true);
 	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
-		_lowResEnabled = true;
+		_renderCtrl.setLowResEnabled(true);
 	if (_viewCtrl._customViewAnimationActive)
 	{
 		animateToRotation(_viewCtrl._customViewTargetRotation);
@@ -15522,7 +13084,7 @@ void GLWidget::animateFitAll()
 {
 	setSectionCapsInteractionSuppressed(true);
 	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
-		_lowResEnabled = true;
+		_renderCtrl.setLowResEnabled(true);
 
 	setZoomAndPan(_viewCtrl._viewBoundingSphereDia, -_viewCtrl._currentTranslation + _viewCtrl._boundingSphere.getCenter());
 	//fitBoxToScreen(_viewCtrl._boundingBox);
@@ -15534,7 +13096,7 @@ void GLWidget::animateWindowZoom()
 {
 	setSectionCapsInteractionSuppressed(true);
 	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
-		_lowResEnabled = true;
+		_renderCtrl.setLowResEnabled(true);
 	setZoomAndPan(_viewCtrl._currentViewRange / _viewCtrl._rubberBandZoomRatio, _viewCtrl._rubberBandPan);
 	resizeGL(width(), height());
 }
@@ -15960,7 +13522,7 @@ unsigned int GLWidget::loadTextureFromFile(
 		GLfloat maxAniso = 0.0f;
 		glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAniso);
 
-		GLfloat aniso = qMin(_anisotropicFilteringLevel, maxAniso);
+		GLfloat aniso = qMin(_renderCtrl.anisotropicFilteringLevel(), maxAniso);
 
 		glTexParameterf(
 			GL_TEXTURE_2D,
@@ -15975,7 +13537,7 @@ unsigned int GLWidget::loadTextureFromFile(
 
 QList<int> GLWidget::sweepSelect(const QPoint& pixel, bool addToSelection)
 {
-	const auto& ids = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+	const auto& ids = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
 
 	// Check if there's actually a rubber band with non-null geometry (actual drag)
 	bool hasRubberBand = !ids.empty() && _rubberBand && !_rubberBand->geometry().isNull();
@@ -16002,7 +13564,7 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel, bool addToSelection)
 
 	for (int i : ids) // Iterate through each ID in the 'ids' collection.
 	{
-		TriangleMesh* mesh = _meshStore.at(i);
+		SceneMesh* mesh = _sceneRuntime.meshStore().at(i);
 
 		BoundingSphere sphere = mesh->getBoundingSphere();
 		QVector3D center = sphere.getCenter();
@@ -16116,7 +13678,7 @@ std::vector<QVector3D> GLWidget::collectVisibleCorners() const
 {
 	constexpr int MAX_SAMPLES_PER_MESH = 1024;
 
-	const auto& ids = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+	const auto& ids = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
 	std::vector<QVector3D> points;
 	points.reserve(ids.size() * MAX_SAMPLES_PER_MESH);
 
@@ -16124,7 +13686,7 @@ std::vector<QVector3D> GLWidget::collectVisibleCorners() const
 	{
 		try
 		{
-			TriangleMesh* mesh = _meshStore.at(i);
+			SceneMesh* mesh = _sceneRuntime.meshStore().at(i);
 			const std::vector<float>& pts = mesh->getTrsfPoints();
 			const int nVerts = static_cast<int>(pts.size()) / 3;
 
@@ -16164,7 +13726,7 @@ std::vector<QVector3D> GLWidget::collectVisibleCorners() const
         {
             try
             {
-                TriangleMesh* mesh = _meshStore.at(i);
+                SceneMesh* mesh = _sceneRuntime.meshStore().at(i);
                 if (!mesh)
                     continue;
 
@@ -16637,13 +14199,13 @@ void GLWidget::showLights(bool showLights)
 
 void GLWidget::useDefaultLights(bool useDefaultLights)
 {
-	_useDefaultLights = useDefaultLights;	
+	_renderCtrl.setUseDefaultLights(useDefaultLights);	
 	update();
 }
 
 void GLWidget::usePunctualLights(bool usePunctualLights)
 {
-	_usePunctualLights = usePunctualLights;
+	_renderCtrl.setUsePunctualLights(usePunctualLights);
 	update();
 }
 
@@ -16657,58 +14219,58 @@ void GLWidget::applyEnabledLightList(const std::vector<GPULight>& enabledLights)
 
 void GLWidget::useIBL(bool useIBL)
 {
-	_useIBL = useIBL;
+	_renderCtrl.setUseIBL(useIBL);
 	update();
 }
 
 float GLWidget::getScreenGamma() const
 {
-	return _screenGamma;
+	return _renderCtrl.screenGamma();
 }
 
 void GLWidget::setScreenGamma(double screenGamma)
 {
-	_screenGamma = static_cast<float>(screenGamma);
+	_renderCtrl.setScreenGamma(static_cast<float>(screenGamma));
 	update();
 }
 
 void GLWidget::setHDRToneMappingMode(HDRToneMapMode mode)
 {
-	_toneMappingMode = mode;
+	_renderCtrl.setToneMappingMode(mode);
 	update();
 }
 
 void GLWidget::setEnvMapExposure(double exposure)
 {
-	_envMapExposure = pow(2.0f, exposure);
+	_renderCtrl.setEnvMapExposure(pow(2.0f, exposure));
 	update();
 }
 
 void GLWidget::setIBLExposure(double exposure)
 {
-	_iblExposure = pow(2.0f, exposure);
+	_renderCtrl.setIblExposure(pow(2.0f, exposure));
 	update();
 }
 
 bool GLWidget::getGammaCorrection() const
 {
-	return _gammaCorrection;
+	return _renderCtrl.gammaCorrection();
 }
 
 void GLWidget::enableGammaCorrection(bool gammaCorrection)
 {
-	_gammaCorrection = gammaCorrection;
+	_renderCtrl.setGammaCorrection(gammaCorrection);
 	update();
 }
 
 bool GLWidget::getHdrToneMapping() const
 {
-	return _hdrToneMapping;
+	return _renderCtrl.hdrToneMapping();
 }
 
 void GLWidget::enableHDRToneMapping(bool hdrToneMapping)
 {
-	_hdrToneMapping = hdrToneMapping;
+	_renderCtrl.setHdrToneMapping(hdrToneMapping);
 	update();
 }
 
@@ -16720,17 +14282,17 @@ RenderingMode GLWidget::getRenderingMode() const
 void GLWidget::setRenderingMode(const RenderingMode& renderingMode)
 {
 	_renderingMode = renderingMode;
-	_fgShader->bind();
-	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
+	_renderCtrl.fgShader()->bind();
+	_renderCtrl.fgShader()->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
 
 	// Mark textures as dirty to ensure they are reloaded
-	for (auto mesh : _meshStore)
+	for (auto mesh : _sceneRuntime.meshStore())
 	{
 		mesh->markTexturesDirty();
 		mesh->markUniformsDirty();
 	}
 
-	_fgShader->release();
+	_renderCtrl.fgShader()->release();
 	update();
 	emit renderingModeChanged(static_cast<int>(_renderingMode));
 }
@@ -16758,7 +14320,7 @@ void GLWidget::setFloorOffsetPercent(double value)
 
 void GLWidget::setSkyBoxFOV(double fov)
 {
-	_skyBoxFOV = static_cast<float>(fov);
+	_renderCtrl.setSkyBoxFOV(static_cast<float>(fov));
 	update();
 }
 
@@ -16775,17 +14337,17 @@ void GLWidget::setSkyBoxZRotation(int index)
 	// Map combo index to Y-axis rotation angle (OpenGL Y = world Z-up)
 	// X+ → 0°, X- → 180°, Y-Z+ → 90°, Y+ → 270°
 	static constexpr float angles[] = { 0.0f, 180.0f, 90.0f, 270.0f };
-	_skyBoxZRotation = angles[index % 4];
+	_renderCtrl.setSkyBoxZRotation(angles[index % 4]);
 	updateEnvMapRotationMatrix();
 	update();
 }
 
 void GLWidget::updateEnvMapRotationMatrix()
 {
-	// _fgShader is null before initializeGL() — the call from the constructor
+	// _renderCtrl.fgShader() is null before initializeGL() — the call from the constructor
 	// (settings-based setCameraUpAxisZUp) is a no-op; initializeGL() picks up
 	// the correct state at line 1729 after createShaderPrograms().
-	if (!_fgShader)
+	if (!_renderCtrl.fgShader())
 		return;
 
 	// Build Ry(-theta) · Rx(-90°) using Qt post-multiply (M = M*R):
@@ -16801,16 +14363,16 @@ void GLWidget::updateEnvMapRotationMatrix()
 	// the OUTER, so that Ry acts in cubemap (Y-up) space, not raw Z-up space.
 	// Reversing the order would tilt the sky axis as the environment rotates.
 	QMatrix4x4 envMapRot;
-	envMapRot.rotate(-_skyBoxZRotation, 0, 1, 0); // Qt post-mul: M = Ry(-theta)
+	envMapRot.rotate(-_renderCtrl.skyBoxZRotation(), 0, 1, 0); // Qt post-mul: M = Ry(-theta)
 	envMapRot.rotate(-90.0f, 1, 0, 0);            // Qt post-mul: M = Ry(-theta) · Rx(-90°)
 	envMapRot.rotate(cameraUpAxisConventionRotation().inverted());
-	_fgShader->bind();
-	_fgShader->setUniformValue("envMapRotationMatrix", envMapRot.toGenericMatrix<3, 3>());
+	_renderCtrl.fgShader()->bind();
+	_renderCtrl.fgShader()->setUniformValue("envMapRotationMatrix", envMapRot.toGenericMatrix<3, 3>());
 }
 
 void GLWidget::setSkyBoxTextureHDRI(bool hdrSet)
 {
-	_skyBoxTextureHDRI = hdrSet;
+	_renderCtrl.setSkyBoxTextureHDRI(hdrSet);
 	update();
 }
 
@@ -16870,12 +14432,12 @@ BoundingSphere GLWidget::getBoundingSphere() const
 
 std::vector<int> GLWidget::getDisplayedObjectsIds() const
 {
-	return _displayedObjectsIds;
+	return _sceneRuntime.displayedObjectsIds();
 }
 
 bool GLWidget::isVisibleSwapped() const
 {
-	return _visibleSwapped;
+	return _sceneRuntime.visibleSwapped();
 }
 
 void GLWidget::setShowFaceNormals(bool showFaceNormals)
@@ -16885,7 +14447,7 @@ void GLWidget::setShowFaceNormals(bool showFaceNormals)
         setDebugOverlayMode(DebugOverlayMode::FaceNormals);
         setDebugOverlayEnabled(true);
     }
-    else if (_debugOverlayMode == DebugOverlayMode::FaceNormals)
+    else if (_renderCtrl.debugOverlayMode() == DebugOverlayMode::FaceNormals)
     {
         setDebugOverlayEnabled(false);
     }
@@ -16893,12 +14455,12 @@ void GLWidget::setShowFaceNormals(bool showFaceNormals)
 
 bool GLWidget::isFaceNormalsShown() const
 {
-    return _debugOverlayEnabled && _debugOverlayMode == DebugOverlayMode::FaceNormals;
+    return _renderCtrl.debugOverlayEnabled() && _renderCtrl.debugOverlayMode() == DebugOverlayMode::FaceNormals;
 }
 
 bool GLWidget::isVertexNormalsShown() const
 {
-    return _debugOverlayEnabled && _debugOverlayMode == DebugOverlayMode::VertexNormals;
+    return _renderCtrl.debugOverlayEnabled() && _renderCtrl.debugOverlayMode() == DebugOverlayMode::VertexNormals;
 }
 
 void GLWidget::setShowVertexNormals(bool showVertexNormals)
@@ -16908,7 +14470,7 @@ void GLWidget::setShowVertexNormals(bool showVertexNormals)
         setDebugOverlayMode(DebugOverlayMode::VertexNormals);
         setDebugOverlayEnabled(true);
     }
-    else if (_debugOverlayMode == DebugOverlayMode::VertexNormals)
+    else if (_renderCtrl.debugOverlayMode() == DebugOverlayMode::VertexNormals)
     {
         setDebugOverlayEnabled(false);
     }
@@ -16916,7 +14478,7 @@ void GLWidget::setShowVertexNormals(bool showVertexNormals)
 
 bool GLWidget::isBoundingBoxShown() const
 {
-    return _debugOverlayEnabled && _debugOverlayMode == DebugOverlayMode::BoundingBox;
+    return _renderCtrl.debugOverlayEnabled() && _renderCtrl.debugOverlayMode() == DebugOverlayMode::BoundingBox;
 }
 
 void GLWidget::setShowBoundingBox(bool showBoundingBox)
@@ -16926,7 +14488,7 @@ void GLWidget::setShowBoundingBox(bool showBoundingBox)
         setDebugOverlayMode(DebugOverlayMode::BoundingBox);
         setDebugOverlayEnabled(true);
     }
-    else if (_debugOverlayMode == DebugOverlayMode::BoundingBox)
+    else if (_renderCtrl.debugOverlayMode() == DebugOverlayMode::BoundingBox)
     {
         setDebugOverlayEnabled(false);
     }
@@ -16934,41 +14496,41 @@ void GLWidget::setShowBoundingBox(bool showBoundingBox)
 
 DebugOverlayMode GLWidget::debugOverlayMode() const
 {
-    return _debugOverlayMode;
+    return _renderCtrl.debugOverlayMode();
 }
 
 void GLWidget::setDebugOverlayMode(DebugOverlayMode mode)
 {
-    _debugOverlayMode = mode;
+    _renderCtrl.setDebugOverlayMode(mode);
 
     const bool requestedModeAvailable =
-        (_debugOverlayMode == DebugOverlayMode::BoundingBox && _debugBoundingBoxAvailable) ||
-        (_debugOverlayMode == DebugOverlayMode::VertexNormals && _debugVertexNormalsAvailable) ||
-        (_debugOverlayMode == DebugOverlayMode::FaceNormals && _debugFaceNormalsAvailable);
+        (_renderCtrl.debugOverlayMode() == DebugOverlayMode::BoundingBox && _renderCtrl.debugBoundingBoxAvailable()) ||
+        (_renderCtrl.debugOverlayMode() == DebugOverlayMode::VertexNormals && _renderCtrl.debugVertexNormalsAvailable()) ||
+        (_renderCtrl.debugOverlayMode() == DebugOverlayMode::FaceNormals && _renderCtrl.debugFaceNormalsAvailable());
 
     if (!requestedModeAvailable)
     {
-        if (_debugBoundingBoxAvailable)
-            _debugOverlayMode = DebugOverlayMode::BoundingBox;
-        else if (_debugVertexNormalsAvailable)
-            _debugOverlayMode = DebugOverlayMode::VertexNormals;
-        else if (_debugFaceNormalsAvailable)
-            _debugOverlayMode = DebugOverlayMode::FaceNormals;
+        if (_renderCtrl.debugBoundingBoxAvailable())
+            _renderCtrl.setDebugOverlayMode(DebugOverlayMode::BoundingBox);
+        else if (_renderCtrl.debugVertexNormalsAvailable())
+            _renderCtrl.setDebugOverlayMode(DebugOverlayMode::VertexNormals);
+        else if (_renderCtrl.debugFaceNormalsAvailable())
+            _renderCtrl.setDebugOverlayMode(DebugOverlayMode::FaceNormals);
     }
 
-    _showBoundingBox = _debugOverlayEnabled && _debugOverlayMode == DebugOverlayMode::BoundingBox;
-    _showVertexNormals = _debugOverlayEnabled && _debugOverlayMode == DebugOverlayMode::VertexNormals;
-    _showFaceNormals = _debugOverlayEnabled && _debugOverlayMode == DebugOverlayMode::FaceNormals;
+    _renderCtrl.setShowBoundingBox(_renderCtrl.debugOverlayEnabled() && _renderCtrl.debugOverlayMode() == DebugOverlayMode::BoundingBox);
+    _renderCtrl.setShowVertexNormals(_renderCtrl.debugOverlayEnabled() && _renderCtrl.debugOverlayMode() == DebugOverlayMode::VertexNormals);
+    _renderCtrl.setShowFaceNormals(_renderCtrl.debugOverlayEnabled() && _renderCtrl.debugOverlayMode() == DebugOverlayMode::FaceNormals);
 
     if (_viewToolbar)
     {
         DebugOverlayActions action = DebugOverlayActions::BOUNDING_BOX;
-        if (_debugOverlayMode == DebugOverlayMode::VertexNormals)
+        if (_renderCtrl.debugOverlayMode() == DebugOverlayMode::VertexNormals)
             action = DebugOverlayActions::VERTEX_NORMALS;
-        else if (_debugOverlayMode == DebugOverlayMode::FaceNormals)
+        else if (_renderCtrl.debugOverlayMode() == DebugOverlayMode::FaceNormals)
             action = DebugOverlayActions::FACE_NORMALS;
 
-        _viewToolbar->setDebugOverlayState(action, _debugOverlayEnabled);
+        _viewToolbar->setDebugOverlayState(action, _renderCtrl.debugOverlayEnabled());
     }
 
     update();
@@ -16976,13 +14538,13 @@ void GLWidget::setDebugOverlayMode(DebugOverlayMode mode)
 
 bool GLWidget::isDebugOverlayEnabled() const
 {
-    return _debugOverlayEnabled;
+    return _renderCtrl.debugOverlayEnabled();
 }
 
 void GLWidget::setDebugOverlayEnabled(bool enabled)
 {
     const bool hasAnyOverlay =
-        _debugBoundingBoxAvailable || _debugVertexNormalsAvailable || _debugFaceNormalsAvailable;
+        _renderCtrl.debugBoundingBoxAvailable() || _renderCtrl.debugVertexNormalsAvailable() || _renderCtrl.debugFaceNormalsAvailable();
 
     if (!hasAnyOverlay)
         enabled = false;
@@ -16990,35 +14552,35 @@ void GLWidget::setDebugOverlayEnabled(bool enabled)
     if (enabled)
     {
         const bool currentModeAvailable =
-            (_debugOverlayMode == DebugOverlayMode::BoundingBox && _debugBoundingBoxAvailable) ||
-            (_debugOverlayMode == DebugOverlayMode::VertexNormals && _debugVertexNormalsAvailable) ||
-            (_debugOverlayMode == DebugOverlayMode::FaceNormals && _debugFaceNormalsAvailable);
+            (_renderCtrl.debugOverlayMode() == DebugOverlayMode::BoundingBox && _renderCtrl.debugBoundingBoxAvailable()) ||
+            (_renderCtrl.debugOverlayMode() == DebugOverlayMode::VertexNormals && _renderCtrl.debugVertexNormalsAvailable()) ||
+            (_renderCtrl.debugOverlayMode() == DebugOverlayMode::FaceNormals && _renderCtrl.debugFaceNormalsAvailable());
 
         if (!currentModeAvailable)
         {
-            if (_debugBoundingBoxAvailable)
-                _debugOverlayMode = DebugOverlayMode::BoundingBox;
-            else if (_debugVertexNormalsAvailable)
-                _debugOverlayMode = DebugOverlayMode::VertexNormals;
+            if (_renderCtrl.debugBoundingBoxAvailable())
+                _renderCtrl.setDebugOverlayMode(DebugOverlayMode::BoundingBox);
+            else if (_renderCtrl.debugVertexNormalsAvailable())
+                _renderCtrl.setDebugOverlayMode(DebugOverlayMode::VertexNormals);
             else
-                _debugOverlayMode = DebugOverlayMode::FaceNormals;
+                _renderCtrl.setDebugOverlayMode(DebugOverlayMode::FaceNormals);
         }
     }
 
-    _debugOverlayEnabled = enabled;
-    _showBoundingBox = _debugOverlayEnabled && _debugOverlayMode == DebugOverlayMode::BoundingBox;
-    _showVertexNormals = _debugOverlayEnabled && _debugOverlayMode == DebugOverlayMode::VertexNormals;
-    _showFaceNormals = _debugOverlayEnabled && _debugOverlayMode == DebugOverlayMode::FaceNormals;
+    _renderCtrl.setDebugOverlayEnabled(enabled);
+    _renderCtrl.setShowBoundingBox(_renderCtrl.debugOverlayEnabled() && _renderCtrl.debugOverlayMode() == DebugOverlayMode::BoundingBox);
+    _renderCtrl.setShowVertexNormals(_renderCtrl.debugOverlayEnabled() && _renderCtrl.debugOverlayMode() == DebugOverlayMode::VertexNormals);
+    _renderCtrl.setShowFaceNormals(_renderCtrl.debugOverlayEnabled() && _renderCtrl.debugOverlayMode() == DebugOverlayMode::FaceNormals);
 
     if (_viewToolbar)
     {
         DebugOverlayActions action = DebugOverlayActions::BOUNDING_BOX;
-        if (_debugOverlayMode == DebugOverlayMode::VertexNormals)
+        if (_renderCtrl.debugOverlayMode() == DebugOverlayMode::VertexNormals)
             action = DebugOverlayActions::VERTEX_NORMALS;
-        else if (_debugOverlayMode == DebugOverlayMode::FaceNormals)
+        else if (_renderCtrl.debugOverlayMode() == DebugOverlayMode::FaceNormals)
             action = DebugOverlayActions::FACE_NORMALS;
 
-        _viewToolbar->setDebugOverlayState(action, _debugOverlayEnabled);
+        _viewToolbar->setDebugOverlayState(action, _renderCtrl.debugOverlayEnabled());
     }
 
     update();
@@ -17026,48 +14588,48 @@ void GLWidget::setDebugOverlayEnabled(bool enabled)
 
 void GLWidget::setDebugOverlayAvailability(bool boundingBox, bool vertexNormals, bool faceNormals)
 {
-    _debugBoundingBoxAvailable = boundingBox;
-    _debugVertexNormalsAvailable = vertexNormals;
-    _debugFaceNormalsAvailable = faceNormals;
+    _renderCtrl.setDebugBoundingBoxAvailable(boundingBox);
+    _renderCtrl.setDebugVertexNormalsAvailable(vertexNormals);
+    _renderCtrl.setDebugFaceNormalsAvailable(faceNormals);
 
     const bool hasAnyOverlay = boundingBox || vertexNormals || faceNormals;
     if (!hasAnyOverlay)
     {
-        _debugOverlayEnabled = false;
+        _renderCtrl.setDebugOverlayEnabled(false);
     }
     else
     {
         const bool currentModeAvailable =
-            (_debugOverlayMode == DebugOverlayMode::BoundingBox && _debugBoundingBoxAvailable) ||
-            (_debugOverlayMode == DebugOverlayMode::VertexNormals && _debugVertexNormalsAvailable) ||
-            (_debugOverlayMode == DebugOverlayMode::FaceNormals && _debugFaceNormalsAvailable);
+            (_renderCtrl.debugOverlayMode() == DebugOverlayMode::BoundingBox && _renderCtrl.debugBoundingBoxAvailable()) ||
+            (_renderCtrl.debugOverlayMode() == DebugOverlayMode::VertexNormals && _renderCtrl.debugVertexNormalsAvailable()) ||
+            (_renderCtrl.debugOverlayMode() == DebugOverlayMode::FaceNormals && _renderCtrl.debugFaceNormalsAvailable());
 
         if (!currentModeAvailable)
         {
-            if (_debugBoundingBoxAvailable)
-                _debugOverlayMode = DebugOverlayMode::BoundingBox;
-            else if (_debugVertexNormalsAvailable)
-                _debugOverlayMode = DebugOverlayMode::VertexNormals;
+            if (_renderCtrl.debugBoundingBoxAvailable())
+                _renderCtrl.setDebugOverlayMode(DebugOverlayMode::BoundingBox);
+            else if (_renderCtrl.debugVertexNormalsAvailable())
+                _renderCtrl.setDebugOverlayMode(DebugOverlayMode::VertexNormals);
             else
-                _debugOverlayMode = DebugOverlayMode::FaceNormals;
+                _renderCtrl.setDebugOverlayMode(DebugOverlayMode::FaceNormals);
         }
     }
 
-    _showBoundingBox = _debugOverlayEnabled && _debugOverlayMode == DebugOverlayMode::BoundingBox;
-    _showVertexNormals = _debugOverlayEnabled && _debugOverlayMode == DebugOverlayMode::VertexNormals;
-    _showFaceNormals = _debugOverlayEnabled && _debugOverlayMode == DebugOverlayMode::FaceNormals;
+    _renderCtrl.setShowBoundingBox(_renderCtrl.debugOverlayEnabled() && _renderCtrl.debugOverlayMode() == DebugOverlayMode::BoundingBox);
+    _renderCtrl.setShowVertexNormals(_renderCtrl.debugOverlayEnabled() && _renderCtrl.debugOverlayMode() == DebugOverlayMode::VertexNormals);
+    _renderCtrl.setShowFaceNormals(_renderCtrl.debugOverlayEnabled() && _renderCtrl.debugOverlayMode() == DebugOverlayMode::FaceNormals);
 
     if (_viewToolbar)
     {
         _viewToolbar->setDebugOverlayModesAvailable(boundingBox, vertexNormals, faceNormals);
 
         DebugOverlayActions action = DebugOverlayActions::BOUNDING_BOX;
-        if (_debugOverlayMode == DebugOverlayMode::VertexNormals)
+        if (_renderCtrl.debugOverlayMode() == DebugOverlayMode::VertexNormals)
             action = DebugOverlayActions::VERTEX_NORMALS;
-        else if (_debugOverlayMode == DebugOverlayMode::FaceNormals)
+        else if (_renderCtrl.debugOverlayMode() == DebugOverlayMode::FaceNormals)
             action = DebugOverlayActions::FACE_NORMALS;
 
-        _viewToolbar->setDebugOverlayState(action, _debugOverlayEnabled);
+        _viewToolbar->setDebugOverlayState(action, _renderCtrl.debugOverlayEnabled());
     }
 
     update();
@@ -17090,16 +14652,16 @@ void GLWidget::setDisplayMode(DisplayMode mode)
 	if (_viewToolbar)
 		_viewToolbar->setDefaultDisplayModeAction(static_cast<DisplayModeActions>(_displayMode));
 
-	_fgShader->bind();
-	_fgShader->setUniformValue("displayMode", displayModeShaderInt(_displayMode));
-	_fgShader->release();
+	_renderCtrl.fgShader()->bind();
+	_renderCtrl.fgShader()->setUniformValue("displayMode", displayModeShaderInt(_displayMode));
+	_renderCtrl.fgShader()->release();
 	emit displayModeChanged(static_cast<int>(_displayMode));
 }
 
 void GLWidget::setTransmissionEnabled(const bool& enabled)
 {
-	_transmissionEnabled = enabled;
-	if (_transmissionEnabled)
+	_renderCtrl.setTransmissionEnabled(enabled);
+	if (_renderCtrl.transmissionEnabled())
 		initTransmissionBuffer();
 	update();
 }
@@ -17213,7 +14775,7 @@ void GLWidget::showContextMenu(const QPoint& pos)
 		QMenu contextMenu;
 		SceneTreeWidget* treeWidgetModel = _viewer->getTreeModel();
 		if (treeWidgetModel->hasMeshSelection() &&
-			(_visibleSwapped ? _hiddenObjectsIds.size() != 0 : _displayedObjectsIds.size() != 0))
+			(_sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds().size() != 0 : _sceneRuntime.displayedObjectsIds().size() != 0))
 		{
 			contextMenu.addAction(tr("Center Screen"), _viewer, &ModelViewer::centerScreen);
 			QList<QUuid> selUuids = treeWidgetModel->selectedMeshUuids();
@@ -17225,11 +14787,11 @@ void GLWidget::showContextMenu(const QPoint& pos)
 					contextMenu.addAction(tr("Center Object List"), this, &GLWidget::centerDisplayList);
 			}
 			contextMenu.addSeparator();
-			if (_visibleSwapped)
+			if (_sceneRuntime.visibleSwapped())
 				contextMenu.addAction(tr("Show"), _viewer, &ModelViewer::showSelectedItems);
 			else
 				contextMenu.addAction(tr("Hide"), _viewer, &ModelViewer::hideSelectedItems);
-			if (_displayedObjectsIds.size() > 1)
+			if (_sceneRuntime.displayedObjectsIds().size() > 1)
 				contextMenu.addAction(tr("Show Only"), _viewer, &ModelViewer::showOnlySelectedItems);
 			contextMenu.addSeparator();
 			contextMenu.addAction(tr("Transformations"), _viewer, &ModelViewer::showTransformationsPage);
@@ -17246,7 +14808,7 @@ void GLWidget::showContextMenu(const QPoint& pos)
 		else
 		{
 			QAction* action = nullptr;
-			if ((!_visibleSwapped && _displayedObjectsIds.size() != 0) || (_visibleSwapped && _hiddenObjectsIds.size() != 0))
+			if ((!_sceneRuntime.visibleSwapped() && _sceneRuntime.displayedObjectsIds().size() != 0) || (_sceneRuntime.visibleSwapped() && _sceneRuntime.hiddenObjectsIds().size() != 0))
 			{				
 				action = contextMenu.addAction(QIcon(":/icons/res/fit-all.png"), tr("Fit All"), this, &GLWidget::fitAll);
 				action->setShortcut(QKeySequence(Qt::Key_F));
@@ -17292,22 +14854,22 @@ void GLWidget::showContextMenu(const QPoint& pos)
 				contextMenu.addSeparator();
 			}			
 
-			if (_hiddenObjectsIds.size() != 0)
+			if (_sceneRuntime.hiddenObjectsIds().size() != 0)
 			{
 				action = contextMenu.addAction(QIcon(":/icons/res/showall.png"), tr("Show All"), _viewer, &ModelViewer::showAllItems);
 				action->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_A));
 			}
-			if (_displayedObjectsIds.size() != 0)
+			if (_sceneRuntime.displayedObjectsIds().size() != 0)
 			{
 				action = contextMenu.addAction(QIcon(":/icons/res/hideall.png"), tr("Hide All"), _viewer, &ModelViewer::hideAllItems);
 				action->setShortcut(QKeySequence(Qt::ALT | Qt::Key_A));
 			}
-			if (_hiddenObjectsIds.size() != 0)
+			if (_sceneRuntime.hiddenObjectsIds().size() != 0)
 			{
 				action = contextMenu.addAction(QIcon(":/icons/res/swapvisible.png"), tr("Swap Visible"));
 				action->setCheckable(true);
 				action->setShortcut(QKeySequence(Qt::ALT | Qt::Key_S));
-				action->setChecked(_visibleSwapped);				
+				action->setChecked(_sceneRuntime.visibleSwapped());				
 				connect(action, &QAction::triggered, this, [this](bool enabled) {
 					swapVisible(enabled);
 					});
@@ -17966,24 +15528,24 @@ bool GLWidget::uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& meshes)
 {
     makeCurrent();
 
-    if (!_fgShader)
+    if (!_renderCtrl.fgShader())
     {
         update();
         QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
         makeCurrent();
     }
-    if (!_fgShader)
+    if (!_renderCtrl.fgShader())
         return false;
 
-    for (TriangleMesh* m : _meshStore)
+    for (SceneMesh* m : _sceneRuntime.meshStore())
         delete m;
-    _meshStore.clear();
-    _displayedObjectsIds.clear();
-    _hiddenObjectsIds.clear();
-    if (_visibleSwapped)
+    _sceneRuntime.meshStore().clear();
+    _sceneRuntime.displayedObjectsIds().clear();
+    _sceneRuntime.hiddenObjectsIds().clear();
+    if (_sceneRuntime.visibleSwapped())
     {
-        _visibleSwapped = false;
-        emit visibleSwapped(_visibleSwapped);
+        _sceneRuntime.setVisibleSwapped(false);
+        emit visibleSwapped(_sceneRuntime.visibleSwapped());
     }
 
     const int totalMeshes = meshes.size();
@@ -17994,7 +15556,7 @@ bool GLWidget::uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& meshes)
     {
         const PreparedMvfMesh& pm = meshes[i];
 
-        SceneMesh* mesh = new SceneMesh(_fgShader.get(), pm.name,
+        SceneMesh* mesh = new SceneMesh(_renderCtrl.fgShader(), pm.name,
                                           {}, {}, {}, pm.material, false, pm.primitiveMode);
         mesh->setUuid(pm.uuid);
         mesh->setSceneIndex(pm.sceneIndex);
@@ -18059,7 +15621,7 @@ bool GLWidget::uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& meshes)
     }
 
     updateView();
-    return !_meshStore.empty();
+    return !_sceneRuntime.meshStore().empty();
 }
 
 // ---------------------------------------------------------------------------
@@ -18069,15 +15631,15 @@ void GLWidget::clearMeshStore()
 {
     makeCurrent();
 
-    for (TriangleMesh* m : _meshStore)
+    for (SceneMesh* m : _sceneRuntime.meshStore())
         delete m;
-    _meshStore.clear();
-    _displayedObjectsIds.clear();
-    _hiddenObjectsIds.clear();
-    if (_visibleSwapped)
+    _sceneRuntime.meshStore().clear();
+    _sceneRuntime.displayedObjectsIds().clear();
+    _sceneRuntime.hiddenObjectsIds().clear();
+    if (_sceneRuntime.visibleSwapped())
     {
-        _visibleSwapped = false;
-        emit visibleSwapped(_visibleSwapped);
+        _sceneRuntime.setVisibleSwapped(false);
+        emit visibleSwapped(_sceneRuntime.visibleSwapped());
     }
 }
 
@@ -18089,7 +15651,7 @@ void GLWidget::uploadOneMvfMesh(const PreparedMvfMesh& pm)
     makeCurrent();
 
     // Create mesh on main thread (GL context required)
-    SceneMesh* mesh = new SceneMesh(_fgShader.get(), pm.name,
+    SceneMesh* mesh = new SceneMesh(_renderCtrl.fgShader(), pm.name,
                                       {}, {}, {}, pm.material, false, pm.primitiveMode);
     mesh->setUuid(pm.uuid);
     mesh->setSceneIndex(pm.sceneIndex);
@@ -18138,7 +15700,7 @@ void GLWidget::uploadOneMvfMesh(const PreparedMvfMesh& pm)
 
     // Add to display list and track in pending UUIDs (like AssImp's onMeshBatchReady)
     addToDisplay(mesh);
-    _pendingSceneUuids.append(mesh->uuid());
+    _sceneRuntime.pendingSceneUuids().append(mesh->uuid());
 }
 
 // ---------------------------------------------------------------------------
@@ -18154,7 +15716,7 @@ bool GLWidget::loadMvfMeshes(const Mvf::Document& document,
 
 void GLWidget::setParsedLights(const GltfLightData& lightData)
 {
-    _pendingLightData = lightData;
+    _sceneRuntime.pendingLightData() = lightData;
 
     // If this model carries no punctual lights, leave the existing GPU light
     // state intact.  Another model already loaded may have punctual lights
@@ -18243,7 +15805,7 @@ void GLWidget::onSceneLightDataChanged()
 //
 // Emissive is the exception: it is purely additive, so a white replacement
 // drives full-strength emission via the scalar factor.  Unit 12 therefore
-// gets _debugBlackTex instead of white, which silences ADS directly
+// gets _renderCtrl.debugBlackTex() instead of white, which silences ADS directly
 // (matEmissive = sample(black) = vec3(0)).  Scalar uniforms are also zeroed
 // so PBR (emissiveStrength) is suppressed without relying on a bool override.
 //
@@ -18257,7 +15819,7 @@ void GLWidget::onSceneLightDataChanged()
 // ---------------------------------------------------------------------------
 namespace
 {
-void setScalarOverridesForUnit(TriangleMesh* mesh, int unit)
+void setScalarOverridesForUnit(SceneMesh* mesh, int unit)
 {
 	switch (unit)
 	{
@@ -18275,7 +15837,7 @@ void setScalarOverridesForUnit(TriangleMesh* mesh, int unit)
 	}
 }
 
-void clearScalarOverridesForUnit(TriangleMesh* mesh, int unit)
+void clearScalarOverridesForUnit(SceneMesh* mesh, int unit)
 {
 	switch (unit)
 	{
@@ -18292,10 +15854,10 @@ void clearScalarOverridesForUnit(TriangleMesh* mesh, int unit)
 
 void GLWidget::setDebugTextureEnabled(int meshId, int unitIndex, bool enabled)
 {
-	if (meshId < 0 || meshId >= static_cast<int>(_meshStore.size()) || !_meshStore[meshId])
+	if (meshId < 0 || meshId >= static_cast<int>(_sceneRuntime.meshStore().size()) || !_sceneRuntime.meshStore()[meshId])
 		return;
 
-	TriangleMesh* mesh = _meshStore[meshId];
+	SceneMesh* mesh = _sceneRuntime.meshStore()[meshId];
 
 	if (enabled)
 	{
@@ -18311,8 +15873,8 @@ void GLWidget::setDebugTextureEnabled(int meshId, int unitIndex, bool enabled)
 		// All other units get neutral white (1,1,1).
 		const bool isNormalUnit   = (unitIndex == 13 || unitIndex == 20);
 		const bool isEmissiveUnit = (unitIndex == 12);
-		const GLuint replaceTex = isNormalUnit   ? _debugNormalTex :
-		                          isEmissiveUnit ? _debugBlackTex  : _debugNeutralTex;
+		const GLuint replaceTex = isNormalUnit   ? _renderCtrl.debugNormalTex() :
+		                          isEmissiveUnit ? _renderCtrl.debugBlackTex()  : _renderCtrl.debugNeutralTex();
 		mesh->setDebugTextureOverride(unitIndex, replaceTex);
 		setScalarOverridesForUnit(mesh, unitIndex);
 	}
@@ -18321,23 +15883,23 @@ void GLWidget::setDebugTextureEnabled(int meshId, int unitIndex, bool enabled)
 
 void GLWidget::clearDebugTextureOverrides(int meshId)
 {
-	if (meshId >= 0 && meshId < static_cast<int>(_meshStore.size()) && _meshStore[meshId])
-		_meshStore[meshId]->clearAllDebugTextureOverrides();
+	if (meshId >= 0 && meshId < static_cast<int>(_sceneRuntime.meshStore().size()) && _sceneRuntime.meshStore()[meshId])
+		_sceneRuntime.meshStore()[meshId]->clearAllDebugTextureOverrides();
 	update();
 }
 
 void GLWidget::clearAllDebugOverrides(int meshId)
 {
-	if (meshId >= 0 && meshId < static_cast<int>(_meshStore.size()) && _meshStore[meshId])
+	if (meshId >= 0 && meshId < static_cast<int>(_sceneRuntime.meshStore().size()) && _sceneRuntime.meshStore()[meshId])
 	{
-		TriangleMesh* mesh = _meshStore[meshId];
+		SceneMesh* mesh = _sceneRuntime.meshStore()[meshId];
 		mesh->clearAllDebugTextureOverrides();
 		mesh->clearAllDebugUniformOverrides();
 		// Re-write the current global channel so debugChannelOutput stays consistent
 		// after the override map was wiped.  If the panel is closing, the caller
 		// follows up with setGlobalDebugChannel(0) which resets all meshes.
 		mesh->setDebugUniformOverride("debugChannelOutput",
-		    QVariant::fromValue<int>(_globalDebugChannel));
+		    QVariant::fromValue<int>(_renderCtrl.globalDebugChannel()));
 		mesh->markUniformsDirty();
 	}
 	update();
@@ -18355,9 +15917,9 @@ void GLWidget::applyDebugTextureState(int meshId,
                                        const QSet<int>& enabledUnits,
                                        const QSet<int>& allUnits)
 {
-	if (meshId < 0 || meshId >= static_cast<int>(_meshStore.size()) || !_meshStore[meshId])
+	if (meshId < 0 || meshId >= static_cast<int>(_sceneRuntime.meshStore().size()) || !_sceneRuntime.meshStore()[meshId])
 		return;
-	TriangleMesh* mesh = _meshStore[meshId];
+	SceneMesh* mesh = _sceneRuntime.meshStore()[meshId];
 
 	// All textures active → clear all per-mesh overrides; no replacements needed.
 	if (enabledUnits == allUnits)
@@ -18384,8 +15946,8 @@ void GLWidget::applyDebugTextureState(int meshId,
 		{
 			const bool isNormalUnit   = (unit == 13 || unit == 20);
 			const bool isEmissiveUnit = (unit == 12);
-			const GLuint replaceTex = isNormalUnit   ? _debugNormalTex :
-			                          isEmissiveUnit ? _debugBlackTex  : _debugNeutralTex;
+			const GLuint replaceTex = isNormalUnit   ? _renderCtrl.debugNormalTex() :
+			                          isEmissiveUnit ? _renderCtrl.debugBlackTex()  : _renderCtrl.debugNeutralTex();
 			mesh->setDebugTextureOverride(unit, replaceTex);
 			setScalarOverridesForUnit(mesh, unit);
 		}
@@ -18398,13 +15960,13 @@ void GLWidget::applyDebugTextureState(int meshId,
 // setGlobalDebugChannel
 // ---------------------------------------------------------------------------
 // Activates or clears single-channel isolation for the channel dropdown.
-// Applied to every mesh in _meshStore — no mesh selection required.
+// Applied to every mesh in _sceneRuntime.meshStore() — no mesh selection required.
 // channelId == 0 restores normal rendering on all meshes.
 void GLWidget::setGlobalDebugChannel(int channelId)
 {
-	_globalDebugChannel = channelId;
+	_renderCtrl.setGlobalDebugChannel(channelId);
 	makeCurrent();
-	for (TriangleMesh* mesh : _meshStore)
+	for (SceneMesh* mesh : _sceneRuntime.meshStore())
 	{
 		if (!mesh) continue;
 		if (channelId != 0)
@@ -18533,10 +16095,10 @@ const QMap<QString, ExtOverrideDef>& extensionOverrideDefs()
 
 void GLWidget::setDebugExtensionEnabled(int meshId, const QString& extensionKey, bool enabled)
 {
-	if (meshId < 0 || meshId >= static_cast<int>(_meshStore.size()) || !_meshStore[meshId])
+	if (meshId < 0 || meshId >= static_cast<int>(_sceneRuntime.meshStore().size()) || !_sceneRuntime.meshStore()[meshId])
 		return;
 
-	TriangleMesh* mesh = _meshStore[meshId];
+	SceneMesh* mesh = _sceneRuntime.meshStore()[meshId];
 	const auto& defs = extensionOverrideDefs();
 	auto it = defs.constFind(extensionKey);
 	if (it == defs.constEnd())
@@ -18570,7 +16132,7 @@ void GLWidget::setDebugExtensionEnabled(int meshId, const QString& extensionKey,
 		for (int unit : def.textureUnits)
 		{
 			const bool isNormalUnit = (unit == 13 || unit == 20);
-			mesh->setDebugTextureOverride(unit, isNormalUnit ? _debugNormalTex : _debugNeutralTex);
+			mesh->setDebugTextureOverride(unit, isNormalUnit ? _renderCtrl.debugNormalTex() : _renderCtrl.debugNeutralTex());
 		}
 	}
 	update();
@@ -18578,10 +16140,10 @@ void GLWidget::setDebugExtensionEnabled(int meshId, const QString& extensionKey,
 
 void GLWidget::clearDebugExtensionOverrides(int meshId)
 {
-	if (meshId < 0 || meshId >= static_cast<int>(_meshStore.size()) || !_meshStore[meshId])
+	if (meshId < 0 || meshId >= static_cast<int>(_sceneRuntime.meshStore().size()) || !_sceneRuntime.meshStore()[meshId])
 		return;
 
-	TriangleMesh* mesh = _meshStore[meshId];
+	SceneMesh* mesh = _sceneRuntime.meshStore()[meshId];
 	mesh->clearAllDebugUniformOverrides();
 	mesh->markUniformsDirty();
 	update();
@@ -18589,14 +16151,14 @@ void GLWidget::clearDebugExtensionOverrides(int meshId)
 
 // ---------------------------------------------------------------------------
 // requestTextureReadback
-// Reads back every per-mesh texture slot for the given _meshStore index and
+// Reads back every per-mesh texture slot for the given _sceneRuntime.meshStore() index and
 // emits textureReadbackReady() with one TextureSlotInfo per slot.
 // Inactive slots (textureId == 0) are included with isActive = false and a
 // null thumbnail so the debug panel can show a placeholder if desired.
 // ---------------------------------------------------------------------------
 void GLWidget::requestTextureReadback(int meshId)
 {
-	if (meshId < 0 || meshId >= static_cast<int>(_meshStore.size()) || !_meshStore[meshId])
+	if (meshId < 0 || meshId >= static_cast<int>(_sceneRuntime.meshStore().size()) || !_sceneRuntime.meshStore()[meshId])
 	{
 		emit textureReadbackReady({}, {});
 		return;
@@ -18604,11 +16166,11 @@ void GLWidget::requestTextureReadback(int meshId)
 
 	makeCurrent();
 
-	TriangleMesh*    mesh    = _meshStore[meshId];
+	SceneMesh*    mesh    = _sceneRuntime.meshStore()[meshId];
 	const GLMaterial& mat    = mesh->getMaterial();
 	const QString    meshName = mesh->getName();
 
-	// baseColorTex mirrors the logic in TriangleMesh::setupTextures() so the
+	// baseColorTex mirrors the logic in RenderableMesh::setupTextures() so the
 	// debug panel shows what is actually bound on unit 10.
 	const GLuint baseColorTex = mat.hasAlbedoMap()
 		? static_cast<GLuint>(mat.albedoTextureId())

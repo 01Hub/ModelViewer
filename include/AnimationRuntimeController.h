@@ -4,7 +4,10 @@
 #include "GLLights.h"
 #include "GLMaterial.h"
 
+#include <assimp/matrix4x4.h>
+
 #include <QElapsedTimer>
+#include <QMatrix4x4>
 #include <QMultiHash>
 #include <QSet>
 #include <QString>
@@ -12,7 +15,9 @@
 #include <QTimer>
 #include <QUuid>
 #include <QVector>
+#include <QVector2D>
 #include <QVector3D>
+#include <QVector4D>
 #include <vector>
 
 // ---------------------------------------------------------------------------
@@ -117,6 +122,24 @@ public:
 
     // Clears all animation-driven light and mesh visibility state (e.g. on scene reset).
     void clearAllAnimatedState();
+
+    // ---- Static helpers ----------------------------------------------------
+    static QMatrix4x4           aiToQMatrix(const aiMatrix4x4& m);
+    static RuntimeNodeTransform decomposeNodeTransform(const aiMatrix4x4& matrix);
+    static QMatrix4x4           composeNodeTransform(const RuntimeNodeTransform& tr);
+    static QUuid                resolveRuntimeNodeUuid(const RuntimeAnimationFileState& runtime,
+                                                        int targetNodeIndex,
+                                                        const QString& fallbackNodeName = {});
+
+    static void applyTexturePointerValue(GLMaterial& material,
+                                          GltfAnimationTextureTarget textureTarget,
+                                          GltfAnimationPointerProperty property,
+                                          const QVector2D& vec2Value,
+                                          float scalarValue);
+
+    static void applyMaterialFactorPointerValue(GLMaterial& material,
+                                                 GltfAnimationPointerProperty property,
+                                                 const QVector4D& vec4Value);
 
 private:
     // Playback

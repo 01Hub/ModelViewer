@@ -235,8 +235,8 @@ private:
 	// Called when the inner sub-tab selection changes.
 	void onInnerNavTabChanged(int index);
 
-	void checkAndRenameModel(TriangleMesh* mesh, const QString& name);
-	QString computeUniqueName(TriangleMesh* exclude, const QString& name) const;
+	void checkAndRenameModel(SceneMesh* mesh, const QString& name);
+	QString computeUniqueName(SceneMesh* exclude, const QString& name) const;
 	bool checkForActiveSelection();
 	Mvf::MVFPackage buildMVFPackage() const;
 			

@@ -1,6 +1,9 @@
 #pragma once
 
 #include "AssemblyRelationGraph.h"
+#include "RenderableMesh.h"
+
+class SceneMesh;
 #include "TransformCommand.h"
 
 #include <QMap>
@@ -94,6 +97,14 @@ public:
 
     // Clears the full manual placement session (active flag + all session state).
     void clearManualPlacement();
+
+    // ---- Static transform helpers ------------------------------------------
+    static bool         transformStatesNearlyEqual(const TransformState& a, const TransformState& b);
+    static TransformState explodedViewTransformState(const SceneMesh* mesh);
+    static QMatrix4x4   explodedViewTransformMatrix(const SceneMesh* mesh);
+    static void         applyExplodedViewTransformState(SceneMesh* mesh,
+                                                         const TransformState& state,
+                                                         bool fast);
 
 private:
     // Manager

@@ -1,19 +1,19 @@
 #include "MeshProperties.h"
-#include "RenderableMesh.h"
+#include "SceneMesh.h"
 #include <iostream>
 
-MeshProperties::MeshProperties(TriangleMesh* mesh, QObject* parent) : QObject(parent), _mesh(mesh), _density(1000.0f)
+MeshProperties::MeshProperties(SceneMesh* mesh, QObject* parent) : QObject(parent), _mesh(mesh), _density(1000.0f)
 {
 	_meshPoints = _mesh->getTrsfPoints();
 	calculateSurfaceAreaAndVolume();
 }
 
-TriangleMesh* MeshProperties::mesh() const
+SceneMesh* MeshProperties::mesh() const
 {
 	return _mesh;
 }
 
-void MeshProperties::setMesh(TriangleMesh* mesh)
+void MeshProperties::setMesh(SceneMesh* mesh)
 {
 	_mesh = mesh;
 	_meshPoints.clear();

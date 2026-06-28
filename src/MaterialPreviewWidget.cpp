@@ -775,7 +775,7 @@ void MaterialPreviewWidget::paintGL()
 	applyEnvPreset(_currentEnv, _profile);
 
 	// Bind BRDF LUT (always available from main viewer)
-	// MaterialPreviewWidget has its own GL context, so texture units don't conflict with main GLWidget/TriangleMesh
+	// MaterialPreviewWidget has its own GL context, so texture units don't conflict with main GLWidget/SceneMesh
 	GLuint brdfLut = 0;
 	if (_glWidget)
 		brdfLut = _glWidget->getBrdfLUT();

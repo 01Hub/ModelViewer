@@ -140,7 +140,7 @@ QString sourceFileForNode(SceneNode* node)
 
 bool buildMeshCaptureMotion(GLWidget* glWidget,
                             SceneNode* ownerNode,
-                            TriangleMesh* mesh,
+                            SceneMesh* mesh,
                             bool includeAutoPose,
                             bool includeManualPose,
                             MeshCaptureMotion& out)
@@ -1772,7 +1772,7 @@ QString ExplodedViewPanel::displayLabelForMeshUuid(const QUuid& uuid) const
 
     if (_glWidget)
     {
-        if (TriangleMesh* mesh = _glWidget->getMeshByUuid(uuid))
+        if (SceneMesh* mesh = _glWidget->getMeshByUuid(uuid))
         {
             const QString meshName = mesh->getName();
             if (!meshName.trimmed().isEmpty())
@@ -2126,7 +2126,7 @@ bool ExplodedViewPanel::buildCurrentCapturedExplosionStep(CapturedExplosionStep&
 
     for (const QUuid& meshUuid : captureUuids)
     {
-        TriangleMesh* mesh = _glWidget->getMeshByUuid(meshUuid);
+        SceneMesh* mesh = _glWidget->getMeshByUuid(meshUuid);
         SceneNode* ownerNode = _sceneGraph->findNodeForMesh(meshUuid);
         if (!mesh || !ownerNode)
             continue;
@@ -2186,7 +2186,7 @@ bool ExplodedViewPanel::buildCurrentCapturedExplosionStep(CapturedExplosionStep&
                     continue;
                 }
 
-                TriangleMesh* subtreeMesh = _glWidget->getMeshByUuid(subtreeMeshUuid);
+                SceneMesh* subtreeMesh = _glWidget->getMeshByUuid(subtreeMeshUuid);
                 SceneNode* subtreeOwnerNode = _sceneGraph->findNodeForMesh(subtreeMeshUuid);
                 MeshCaptureMotion subtreeMotion;
                 if (buildMeshCaptureMotion(_glWidget,
@@ -2258,7 +2258,7 @@ bool ExplodedViewPanel::buildCurrentCapturedExplosionStep(CapturedExplosionStep&
                 if (!inferMeshChildLocalEndTransform(worlds, motion, meshEndTransform))
                     continue;
 
-                TriangleMesh* mesh = _glWidget->getMeshByUuid(motion.meshUuid);
+                SceneMesh* mesh = _glWidget->getMeshByUuid(motion.meshUuid);
                 CapturedTransformTrack track;
                 track.targetKind = GltfAnimationBindingTargetKind::Mesh;
                 track.meshUuid = motion.meshUuid;
@@ -3492,7 +3492,7 @@ bool ExplodedViewPanel::ensureDraftPreviewSession()
         const QList<QUuid> meshUuids = _sceneGraph->collectMeshUuids(fileNode);
         for (const QUuid& meshUuid : meshUuids)
         {
-            TriangleMesh* mesh = _glWidget->getMeshByUuid(meshUuid);
+            SceneMesh* mesh = _glWidget->getMeshByUuid(meshUuid);
             if (!mesh || _draftPreviewMeshStates.contains(meshUuid))
                 continue;
 
@@ -3527,7 +3527,7 @@ bool ExplodedViewPanel::ensureDraftPreviewSession()
 
     for (auto it = _draftPreviewMeshStates.begin(); it != _draftPreviewMeshStates.end(); ++it)
     {
-        if (TriangleMesh* mesh = _glWidget->getMeshByUuid(it.key()))
+        if (SceneMesh* mesh = _glWidget->getMeshByUuid(it.key()))
         {
             mesh->setExplosionOffset(QVector3D());
             mesh->resetExplodedViewTransformations();
@@ -3557,7 +3557,7 @@ void ExplodedViewPanel::stopDraftPreview(bool restoreScene)
     {
         for (auto it = _draftPreviewMeshStates.cbegin(); it != _draftPreviewMeshStates.cend(); ++it)
         {
-            TriangleMesh* mesh = _glWidget->getMeshByUuid(it.key());
+            SceneMesh* mesh = _glWidget->getMeshByUuid(it.key());
             if (!mesh)
                 continue;
 
@@ -3878,7 +3878,7 @@ void ExplodedViewPanel::applyDraftPreviewPose(double timeSeconds)
             const QMatrix4x4 world = parentWorld * localMatrix;
             for (const QUuid& meshUuid : node->meshUuids)
             {
-                if (TriangleMesh* mesh = _glWidget->getMeshByUuid(meshUuid))
+                if (SceneMesh* mesh = _glWidget->getMeshByUuid(meshUuid))
                 {
                     mesh->setExplosionOffset(QVector3D());
                     if (sampledByMesh.contains(meshUuid))

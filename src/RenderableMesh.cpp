@@ -2,6 +2,7 @@
 #include "Point.h"
 #include "TriangleBaldwinWeber.h"
 #include "RenderableMesh.h"
+#include "SceneMesh.h"
 #include "TriangleMollerTrumbore.h"
 #include "Utils.h"
 #include "Logger.h"
@@ -2006,7 +2007,7 @@ QOpenGLVertexArrayObject& RenderableMesh::getVAO()
 
 unsigned long long RenderableMesh::memorySize() const
 {
-	return _memorySize + sizeof(TriangleMesh);
+	return _memorySize + sizeof(SceneMesh);
 }
 
 

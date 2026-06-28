@@ -12,7 +12,7 @@
 // Intentionally free of GL resources, transform state, and material data.
 // Owns the CPU-side data that ties a mesh back to its origin asset; all other
 // systems (animation, export, variant switching) query this to correlate a
-// live TriangleMesh with its source scene entry.
+// live SceneMesh with its source scene entry.
 class MeshImportAdaptor
 {
 public:

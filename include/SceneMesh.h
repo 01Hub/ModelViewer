@@ -4,10 +4,10 @@
 #include <vector>
 #include <initializer_list>
 
-#include "DeformableMesh.h"
-// GLMaterial, Vertex, MorphTargetData — transitive via DeformableMesh.h → TriangleMesh.h
+#include "RenderableMesh.h"
+// GLMaterial, Vertex, MorphTargetData — transitive via RenderableMesh.h
 
-class SceneMesh : public DeformableMesh
+class SceneMesh : public RenderableMesh
 {
 public:
 
@@ -15,7 +15,7 @@ public:
 	// Constructor
 	SceneMesh(QOpenGLShaderProgram* shader, QString name, std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<GLMaterial::Texture> textures, GLMaterial material, bool skipOptimization = false, GLenum primitiveMode = GL_TRIANGLES);
 	~SceneMesh();
-	virtual TriangleMesh* clone();
+	virtual SceneMesh* clone();
 	void setProg(QOpenGLShaderProgram* prog) override;
 	void render();
 	void renderWireframeFast(QOpenGLShaderProgram* wireProg) override;
@@ -49,7 +49,11 @@ public:
 	const std::vector<float>& getOccEdgeSegments()    const { return _importState.occEdgeSegments(); }
 	const std::vector<int>&   getOccEdgeBoundaries()  const { return _importState.occEdgeBoundaries(); }
 
-	// hasMorphTargets(), getMorphTargets(), defaultMorphWeights() — now on TriangleMesh base
+	// ---- Morph-target overrides (fields live in SceneMesh until DeformableGeometry wiring) ----
+	bool hasMorphTargets() const override { return !_morphTargets.isEmpty(); }
+	QVector<float> defaultMorphWeights() const override { return _defaultMorphWeights; }
+	const QVector<MorphTargetData>& getMorphTargets() const override { return _morphTargets; }
+
 	void applyMorphWeights(const QVector<float>& weights) override;
 	void resetMorphTargets() override;
 
@@ -122,18 +126,24 @@ private:
 	void syncTexturesFromMaterialIfNeeded();
 	GLuint createGLTextureFromFile(const QString& path, bool& outHasAlpha);
 
+protected:
+	// ---- Interleaved CPU geometry (owned here until DeformableGeometry* composition) ---
+	std::vector<Vertex> _vertices;
+	std::vector<Vertex> _baseVertices;
+
+	// ---- Morph-target data (static after load) ----------------------------------
+	QVector<MorphTargetData> _morphTargets;
+	QVector<float>           _defaultMorphWeights;
+
 private:
 	/*  Mesh Data  */
-	// _vertices, _baseVertices → DeformableMesh (protected, Phase 12a)
-	// _morphTargets, _defaultMorphWeights → DeformableMesh (protected, Phase 12a)
-	// _indices → TriangleMesh (protected, Phase 4b) — AssImpMesh uses the inherited field directly
+	// _indices → RenderableMesh (protected) — SceneMesh uses the inherited field directly
 	// Reference alias into _materialState.textures() — same zero-churn pattern
-	// as GLMaterial& _material in TriangleMesh. Initialised in the constructor
+	// as GLMaterial& _material in SceneMesh. Initialised in the constructor
 	// init-list; all existing _textures.xxx call sites remain unchanged.
 	std::vector<GLMaterial::Texture>& _textures;
 
-	// Reference alias into _animState.currentMorphWeights() (Phase 6).
-	// All existing _currentMorphWeights call sites in AssImpMesh.cpp compile unchanged.
+	// Reference alias into _animState.currentMorphWeights() — avoids churn at call sites.
 	QVector<float>& _currentMorphWeights;
 
 	// State caching

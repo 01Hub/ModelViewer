@@ -3,9 +3,14 @@
 #include "RenderEnums.h"
 #include "ShaderProgram.h"
 
+#include <QColor>
 #include <QOpenGLBuffer>
+#include <QOpenGLFunctions_4_5_Core>
+#include <QOpenGLShaderProgram>
 #include <QOpenGLVertexArrayObject>
+#include <QQuaternion>
 #include <QString>
+#include <QVector3D>
 
 #include <array>
 #include <memory>
@@ -14,23 +19,404 @@
 // ---------------------------------------------------------------------------
 // SceneRenderController
 //
-// Groups all GPU render-pipeline state that was previously scattered through
-// GLWidget's private section: shader programs, IBL/environment maps, shadow
-// map, transmission and SSS buffers, utility render geometry, and the render
-// settings flags that gate each pass.
+// Owns all GPU render-pipeline state: shader programs, IBL/environment maps,
+// shadow map, transmission and SSS buffers, utility render geometry, and the
+// render settings flags that gate each pass.
 //
-// GLWidget embeds one instance and aliases every field via reference members
-// so all existing call sites in GLWidget.cpp compile unchanged.
-//
-// Introduced in Phase 10 of the mesh/render/runtime separation refactor.
-//
-// Fields use plain `unsigned int` for GL resource handles so this header
-// needs no GL headers; the aliases in GLWidget.h carry the original GLuint
-// type where callers expect it.
+// Public API:
+//   - Lifecycle: initialize(), cleanupGLResources()
+//   - Shader init: initShaders(shaderPath)
+//   - Geometry init: initFullscreenTriangle(), initWhiteTexture(),
+//                    initAxisGeometry(extent),
+//                    initDebugOverlayGeometry(vertices),
+//                    initViewCubeLabelGeometry()
+//   - FBO management: initTransmissionBuffer(), cleanupTransmissionBuffer(),
+//                     initSSSBuffer(), cleanupSSSBuffer(),
+//                     ensureShadowMap(defaultFBO)
+//   - IBL pipeline: generateIBL(), convertEquirectToCubemap(), etc.
+//   - Draw helpers: drawFullscreenTriangle(), renderQuad(), renderConversionCube()
+//   - Accessors: typed getters/setters for all render state
+//   - Static helpers: ViewCubeStyle, buildViewCubeLabelFaces(), computeFloorDepthBias()
 // ---------------------------------------------------------------------------
-class SceneRenderController
+class SceneRenderController : public QOpenGLFunctions_4_5_Core
 {
 public:
+    // ---- Lifecycle ---------------------------------------------------------
+    bool initialize();
+
+    // Deletes all owned GL resources. Must be called while a GL context is
+    // current (typically from GLWidget's destructor after makeCurrent()).
+    void cleanupGLResources();
+
+    // ---- Shader init -------------------------------------------------------
+    void initShaders(const QString& shaderPath);
+
+    // ---- Geometry init -----------------------------------------------------
+    void initFullscreenTriangle();
+    void initWhiteTexture();
+
+    // Creates / updates the axis-widget geometry buffers with the given half-extent.
+    void initAxisGeometry(float extent);
+
+    // Creates / reallocates the debug overlay bounding-box VAO/VBO with given vertex data.
+    void initDebugOverlayGeometry(const std::vector<float>& vertices);
+
+    // Creates the ViewCube label quad VAO/VBO (geometry only; textures uploaded by caller).
+    void initViewCubeLabelGeometry();
+
+    // Calls glGenTextures and stores the result in _environmentMap.
+    void createEnvironmentMapTexture();
+
+    // ---- FBO init / resize -------------------------------------------------
+    void initTransmissionBuffer(int width, int height);
+    void cleanupTransmissionBuffer();
+    void initSSSBuffer(int width, int height);
+    void cleanupSSSBuffer();
+
+    // ---- Shadow map --------------------------------------------------------
+    void ensureShadowMap(GLuint defaultFBO);
+
+    // ---- Draw helpers ------------------------------------------------------
+    void drawFullscreenTriangle();
+    void renderQuad();
+    void renderConversionCube();
+
+    // ---- IBL pipeline ------------------------------------------------------
+    void   generateIBL(GLuint defaultFBO);
+    bool   convertEquirectToCubemap(const QString& filePath, GLuint defaultFBO);
+    bool   convertEquirectToCubemapQuad(const QString& filePath, GLuint defaultFBO);
+    GLuint loadPresetEnvMap(const QString& hdrFilePath, GLuint defaultFBO);
+    bool   generatePresetIBLMaps(GLuint sourceCubemap,
+                                  GLuint& outIrradianceMap,
+                                  GLuint& outPrefilterMap,
+                                  GLuint& outSheenPrefilterMap,
+                                  GLuint defaultFBO);
+    void   generateCubemapMipmaps(GLuint cubemapTexture,
+                                   int viewportWidth, int viewportHeight,
+                                   GLuint defaultFBO);
+
+    // ========================================================================
+    // Accessors
+    // ========================================================================
+
+    // ---- Shader programs ---------------------------------------------------
+    ShaderProgram* bgShader()               const { return _bgShader.get(); }
+    ShaderProgram* bgSplitShader()          const { return _bgSplitShader.get(); }
+    ShaderProgram* fgShader()               const { return _fgShader.get(); }
+    ShaderProgram* fgFlatShader()           const { return _fgFlatShader.get(); }
+    ShaderProgram* wireframeShader()        const { return _wireframeShader.get(); }
+    ShaderProgram* axisShader()             const { return _axisShader.get(); }
+    ShaderProgram* vertexNormalShader()     const { return _vertexNormalShader.get(); }
+    ShaderProgram* faceNormalShader()       const { return _faceNormalShader.get(); }
+    ShaderProgram* shadowMappingShader()    const { return _shadowMappingShader.get(); }
+    ShaderProgram* skyBoxShader()           const { return _skyBoxShader.get(); }
+    ShaderProgram* gridShader()             const { return _gridShader.get(); }
+    ShaderProgram* irradianceShader()       const { return _irradianceShader.get(); }
+    ShaderProgram* prefilterShader()        const { return _prefilterShader.get(); }
+    ShaderProgram* sheenPrefilterShader()   const { return _sheenPrefilterShader.get(); }
+    ShaderProgram* brdfShader()             const { return _brdfShader.get(); }
+    ShaderProgram* lightCubeShader()        const { return _lightCubeShader.get(); }
+    ShaderProgram* viewCubeShader()         const { return _viewCubeShader.get(); }
+    ShaderProgram* viewCubeLabelShader()    const { return _viewCubeLabelShader.get(); }
+    ShaderProgram* clippingPlaneShader()    const { return _clippingPlaneShader.get(); }
+    ShaderProgram* clippedMeshShader()      const { return _clippedMeshShader.get(); }
+    ShaderProgram* selectionShader()        const { return _selectionShader.get(); }
+    ShaderProgram* equirectToCubeShader()   const { return _equirectToCubeShader.get(); }
+    ShaderProgram* equirectToCubeQuadShader() const { return _equirectToCubeQuadShader.get(); }
+    ShaderProgram* downsampleShader()       const { return _downsampleShader.get(); }
+    ShaderProgram* textShader()             const { return _textShader.get(); }
+    ShaderProgram* debugShader()            const { return _debugShader.get(); }
+
+    // ---- IBL / environment maps --------------------------------------------
+    GLuint environmentMap()           const { return _environmentMap; }
+    void   setEnvironmentMap(GLuint t)      { _environmentMap = t; }
+
+    GLuint irradianceMap()            const { return _irradianceMap; }
+    void   setIrradianceMap(GLuint t)       { _irradianceMap = t; }
+
+    GLuint prefilterMap()             const { return _prefilterMap; }
+    void   setPrefilterMap(GLuint t)        { _prefilterMap = t; }
+
+    GLuint sheenPrefilterMap()        const { return _sheenPrefilterMap; }
+    void   setSheenPrefilterMap(GLuint t)   { _sheenPrefilterMap = t; }
+
+    unsigned int prefilterMipLevels()       const { return _prefilterMipLevels; }
+    unsigned int sheenPrefilterMipLevels()  const { return _sheenPrefilterMipLevels; }
+
+    GLuint brdfLUTTexture()           const { return _brdfLUTTexture; }
+    void   setBrdfLUTTexture(GLuint t)      { _brdfLUTTexture = t; }
+
+    GLuint charlieLUTTexture()        const { return _charlieLUTTexture; }
+    void   setCharlieLUTTexture(GLuint t)   { _charlieLUTTexture = t; }
+
+    GLuint sheenELUTTexture()         const { return _sheenELUTTexture; }
+    void   setSheenELUTTexture(GLuint t)    { _sheenELUTTexture = t; }
+
+    const QString& currentSkyboxFolder() const { return _currentSkyboxFolder; }
+    void setCurrentSkyboxFolder(const QString& f) { _currentSkyboxFolder = f; }
+
+    // Preset environment maps
+    GLuint studioEnvironmentMap()               const { return _studioEnvironmentMap; }
+    void   setStudioEnvironmentMap(GLuint t)          { _studioEnvironmentMap = t; }
+    GLuint studioIrradianceMap()               const { return _studioIrradianceMap; }
+    void   setStudioIrradianceMap(GLuint t)           { _studioIrradianceMap = t; }
+    GLuint studioPrefilterMap()                const { return _studioPrefilterMap; }
+    void   setStudioPrefilterMap(GLuint t)            { _studioPrefilterMap = t; }
+    GLuint studioSheenPrefilterMap()           const { return _studioSheenPrefilterMap; }
+    void   setStudioSheenPrefilterMap(GLuint t)       { _studioSheenPrefilterMap = t; }
+
+    GLuint outdoorEnvironmentMap()             const { return _outdoorEnvironmentMap; }
+    void   setOutdoorEnvironmentMap(GLuint t)         { _outdoorEnvironmentMap = t; }
+    GLuint outdoorIrradianceMap()              const { return _outdoorIrradianceMap; }
+    void   setOutdoorIrradianceMap(GLuint t)          { _outdoorIrradianceMap = t; }
+    GLuint outdoorPrefilterMap()               const { return _outdoorPrefilterMap; }
+    void   setOutdoorPrefilterMap(GLuint t)           { _outdoorPrefilterMap = t; }
+    GLuint outdoorSheenPrefilterMap()          const { return _outdoorSheenPrefilterMap; }
+    void   setOutdoorSheenPrefilterMap(GLuint t)      { _outdoorSheenPrefilterMap = t; }
+
+    GLuint officeEnvironmentMap()              const { return _officeEnvironmentMap; }
+    void   setOfficeEnvironmentMap(GLuint t)          { _officeEnvironmentMap = t; }
+    GLuint officeIrradianceMap()               const { return _officeIrradianceMap; }
+    void   setOfficeIrradianceMap(GLuint t)           { _officeIrradianceMap = t; }
+    GLuint officePrefilterMap()                const { return _officePrefilterMap; }
+    void   setOfficePrefilterMap(GLuint t)            { _officePrefilterMap = t; }
+    GLuint officeSheenPrefilterMap()           const { return _officeSheenPrefilterMap; }
+    void   setOfficeSheenPrefilterMap(GLuint t)       { _officeSheenPrefilterMap = t; }
+
+    GLuint skyboxFBO()         const { return _skyboxFBO; }
+    GLuint skyboxDepthBuffer() const { return _skyboxDepthBuffer; }
+
+    // ---- Shadow map --------------------------------------------------------
+    GLuint       shadowMap()           const { return _shadowMap; }
+    GLuint       shadowMapFBO()        const { return _shadowMapFBO; }
+    unsigned int shadowWidth()         const { return _shadowWidth; }
+    void         setShadowWidth(unsigned int w)  { _shadowWidth = w; }
+    unsigned int shadowHeight()        const { return _shadowHeight; }
+    void         setShadowHeight(unsigned int h) { _shadowHeight = h; }
+    float        shadowFarDist()       const { return _shadowFarDist; }
+    void         setShadowFarDist(float d)   { _shadowFarDist = d; }
+    float        shadowFrustumExtentW() const { return _shadowFrustumExtentW; }
+    void         setShadowFrustumExtentW(float e) { _shadowFrustumExtentW = e; }
+    float        shadowFrustumExtentH() const { return _shadowFrustumExtentH; }
+    void         setShadowFrustumExtentH(float e) { _shadowFrustumExtentH = e; }
+    bool         shadowMapNeedsInitialization() const { return _shadowMapNeedsInitialization; }
+    void         setShadowMapNeedsInitialization(bool v) { _shadowMapNeedsInitialization = v; }
+
+    // ---- Transmission buffer -----------------------------------------------
+    GLuint transmissionFBO()              const { return _transmissionFBO; }
+    GLuint transmissionColorTexture()     const { return _transmissionColorTexture; }
+    GLuint transmissionDepthTexture()     const { return _transmissionDepthTexture; }
+    int    transmissionTextureWidth()     const { return _transmissionTextureWidth; }
+    int    transmissionTextureHeight()    const { return _transmissionTextureHeight; }
+    int    transmissionMipLevels()        const { return _transmissionMipLevels; }
+    bool   transmissionEnabled()          const { return _transmissionEnabled; }
+    void   setTransmissionEnabled(bool v)       { _transmissionEnabled = v; }
+
+    // ---- SSS buffer --------------------------------------------------------
+    GLuint sssFBO()            const { return _sssFBO; }
+    GLuint sssCaptureTexture() const { return _sssCaptureTexture; }
+    GLuint sssDepthTexture()   const { return _sssDepthTexture; }
+    GLuint sssBlurFBO()        const { return _sssBlurFBO; }
+    GLuint sssBlurTexture()    const { return _sssBlurTexture; }
+    int    sssTextureWidth()   const { return _sssTextureWidth; }
+    int    sssTextureHeight()  const { return _sssTextureHeight; }
+    bool   sssEnabled()        const { return _sssEnabled; }
+    void   setSssEnabled(bool v)     { _sssEnabled = v; }
+
+    // ---- Debug / utility textures ------------------------------------------
+    GLuint debugNeutralTex()     const { return _debugNeutralTex; }
+    void   setDebugNeutralTex(GLuint t)  { _debugNeutralTex = t; }
+    GLuint debugNormalTex()      const { return _debugNormalTex; }
+    void   setDebugNormalTex(GLuint t)   { _debugNormalTex = t; }
+    GLuint debugBlackTex()       const { return _debugBlackTex; }
+    void   setDebugBlackTex(GLuint t)    { _debugBlackTex = t; }
+    int    globalDebugChannel()  const { return _globalDebugChannel; }
+    void   setGlobalDebugChannel(int ch) { _globalDebugChannel = ch; }
+    GLuint whiteTexture()        const { return _whiteTexture; }
+
+    // ---- Utility render geometry -------------------------------------------
+    // Mutable references allow glGen*/glDelete* and direct VAO/VBO calls.
+    GLuint& debugOverlayBoxVAO() { return _debugOverlayBoxVAO; }
+    GLuint  debugOverlayBoxVAO() const { return _debugOverlayBoxVAO; }
+    GLuint& debugOverlayBoxVBO() { return _debugOverlayBoxVBO; }
+
+    QOpenGLVertexArrayObject& bgVAO()      { return _bgVAO; }
+    QOpenGLVertexArrayObject& bgSplitVAO() { return _bgSplitVAO; }
+    QOpenGLBuffer&            bgSplitVBO() { return _bgSplitVBO; }
+
+    QOpenGLVertexArrayObject& axisVAO() { return _axisVAO; }
+    QOpenGLBuffer&            axisVBO() { return _axisVBO; }
+    QOpenGLBuffer&            axisCBO() { return _axisCBO; }
+
+    GLuint conversionCubeVAO() const { return _conversionCubeVAO; }
+    GLuint quadVAO()           const { return _quadVAO; }
+    GLuint fsTriVAO()          const { return _fsTriVAO; }
+
+    // ---- ViewCube label textures/geometry ----------------------------------
+    std::array<unsigned int, 6>&       viewCubeLabelTextures()       { return _viewCubeLabelTextures; }
+    const std::array<unsigned int, 6>& viewCubeLabelTextures() const { return _viewCubeLabelTextures; }
+    GLuint viewCubeLabelVAO() const { return _viewCubeLabelVAO; }
+    GLuint viewCubeLabelVBO() const { return _viewCubeLabelVBO; }
+
+    // ---- Capping -----------------------------------------------------------
+    bool   cappingEnabled()       const { return _cappingEnabled; }
+    void   setCappingEnabled(bool v)    { _cappingEnabled = v; }
+    GLuint cappingTexture()       const { return _cappingTexture; }
+    void   setCappingTexture(GLuint t)  { _cappingTexture = t; }
+
+    // ---- Render settings ---------------------------------------------------
+    bool isOpenGLInitialized() const { return _openGLInitialized; }
+    void setOpenGLInitialized(bool v) { _openGLInitialized = v; }
+
+    bool       envMapEnabled()           const { return _envMapEnabled; }
+    void       setEnvMapEnabled(bool v)        { _envMapEnabled = v; }
+
+    bool       shadowsEnabled()          const { return _shadowsEnabled; }
+    void       setShadowsEnabled(bool v)       { _shadowsEnabled = v; }
+
+    bool       selfShadowsEnabled()      const { return _selfShadowsEnabled; }
+    void       setSelfShadowsEnabled(bool v)   { _selfShadowsEnabled = v; }
+
+    bool       reflectionsEnabled()      const { return _reflectionsEnabled; }
+    void       setReflectionsEnabled(bool v)   { _reflectionsEnabled = v; }
+
+    GroundMode groundMode()              const { return _groundMode; }
+    void       setGroundMode(GroundMode m)     { _groundMode = m; }
+
+    bool       floorTextureDisplayed()   const { return _floorTextureDisplayed; }
+    void       setFloorTextureDisplayed(bool v) { _floorTextureDisplayed = v; }
+
+    bool       skyBoxEnabled()           const { return _skyBoxEnabled; }
+    void       setSkyBoxEnabled(bool v)        { _skyBoxEnabled = v; }
+
+    int        skyBoxBlurPercent()       const { return _skyBoxBlurPercent; }
+    void       setSkyBoxBlurPercent(int p)     { _skyBoxBlurPercent = p; }
+
+    const std::vector<QString>& skyBoxFaces() const { return _skyBoxFaces; }
+    void setSkyBoxFaces(const std::vector<QString>& f) { _skyBoxFaces = f; }
+
+    float      skyBoxFOV()               const { return _skyBoxFOV; }
+    void       setSkyBoxFOV(float v)           { _skyBoxFOV = v; }
+
+    float      skyBoxZRotation()         const { return _skyBoxZRotation; }
+    void       setSkyBoxZRotation(float v)     { _skyBoxZRotation = v; }
+
+    bool       skyBoxTextureHDRI()       const { return _skyBoxTextureHDRI; }
+    void       setSkyBoxTextureHDRI(bool v)    { _skyBoxTextureHDRI = v; }
+
+    bool       gammaCorrection()         const { return _gammaCorrection; }
+    void       setGammaCorrection(bool v)      { _gammaCorrection = v; }
+
+    float      screenGamma()             const { return _screenGamma; }
+    void       setScreenGamma(float v)         { _screenGamma = v; }
+
+    bool       hdrToneMapping()          const { return _hdrToneMapping; }
+    void       setHdrToneMapping(bool v)       { _hdrToneMapping = v; }
+
+    HDRToneMapMode toneMappingMode()     const { return _toneMappingMode; }
+    void setToneMappingMode(HDRToneMapMode m)  { _toneMappingMode = m; }
+
+    float      envMapExposure()          const { return _envMapExposure; }
+    void       setEnvMapExposure(float v)      { _envMapExposure = v; }
+
+    float      iblExposure()             const { return _iblExposure; }
+    void       setIblExposure(float v)         { _iblExposure = v; }
+
+    bool       lowResEnabled()           const { return _lowResEnabled; }
+    void       setLowResEnabled(bool v)        { _lowResEnabled = v; }
+
+    bool       sectionCapsSuppressedDuringInteraction() const { return _sectionCapsSuppressedDuringInteraction; }
+    void       setSectionCapsSuppressedDuringInteraction(bool v) { _sectionCapsSuppressedDuringInteraction = v; }
+
+    bool       dynamicCappingEnabled()   const { return _dynamicCappingEnabled; }
+    void       setDynamicCappingEnabled(bool v) { _dynamicCappingEnabled = v; }
+
+    float      anisotropicFilteringLevel() const { return _anisotropicFilteringLevel; }
+    void       setAnisotropicFilteringLevel(float v) { _anisotropicFilteringLevel = v; }
+
+    bool       useDefaultLights()        const { return _useDefaultLights; }
+    void       setUseDefaultLights(bool v)     { _useDefaultLights = v; }
+
+    bool       usePunctualLights()       const { return _usePunctualLights; }
+    void       setUsePunctualLights(bool v)    { _usePunctualLights = v; }
+
+    bool       useIBL()                  const { return _useIBL; }
+    void       setUseIBL(bool v)               { _useIBL = v; }
+
+    // ---- Debug overlay -----------------------------------------------------
+    bool           showVertexNormals()        const { return _showVertexNormals; }
+    void           setShowVertexNormals(bool v)     { _showVertexNormals = v; }
+
+    bool           showFaceNormals()          const { return _showFaceNormals; }
+    void           setShowFaceNormals(bool v)       { _showFaceNormals = v; }
+
+    bool           showBoundingBox()          const { return _showBoundingBox; }
+    void           setShowBoundingBox(bool v)       { _showBoundingBox = v; }
+
+    bool           debugOverlayEnabled()      const { return _debugOverlayEnabled; }
+    void           setDebugOverlayEnabled(bool v)   { _debugOverlayEnabled = v; }
+
+    DebugOverlayMode debugOverlayMode()       const { return _debugOverlayMode; }
+    void setDebugOverlayMode(DebugOverlayMode m)    { _debugOverlayMode = m; }
+
+    bool           debugBoundingBoxAvailable()      const { return _debugBoundingBoxAvailable; }
+    void           setDebugBoundingBoxAvailable(bool v)   { _debugBoundingBoxAvailable = v; }
+
+    bool           debugVertexNormalsAvailable()    const { return _debugVertexNormalsAvailable; }
+    void           setDebugVertexNormalsAvailable(bool v) { _debugVertexNormalsAvailable = v; }
+
+    bool           debugFaceNormalsAvailable()      const { return _debugFaceNormalsAvailable; }
+    void           setDebugFaceNormalsAvailable(bool v)   { _debugFaceNormalsAvailable = v; }
+
+    // ========================================================================
+    // ViewCube / floor static helpers
+    // ========================================================================
+
+    struct ViewCubeStyle
+    {
+        QVector3D baseFaceColor         = QVector3D(0.92f, 0.92f, 0.92f);
+        QVector3D primaryFaceColor      = QVector3D(0.90f, 0.76f, 0.10f);
+        QVector3D hoverFaceColor        = QVector3D(0.74f, 0.96f, 0.18f);
+        QColor    labelTextColor        = QColor(60, 60, 60, 235);
+        float     baseAmbient           = 0.45f;
+        float     baseDiffuse           = 0.55f;
+        float     primaryAmbient        = 0.38f;
+        float     primaryDiffuse        = 0.62f;
+        float     hoverAmbient          = 0.75f;
+        float     hoverDiffuse          = 0.25f;
+        float     perspectiveScale      = 0.90f;
+        float     orthographicScale     = 1.12f;
+        float     orthographicHalfHeight = 1.2f;
+        float     eyeDistance           = 3.6f;
+        int       minViewportSize       = 96;
+        int       maxViewportSize       = 160;
+        int       viewportPadding       = 18;
+        int       labelTextureSize      = 256;
+        int       labelFontPixelSize    = 76;
+        float     labelFaceOffset       = 0.501f;
+        float     labelFaceScale        = 0.68f;
+    };
+
+    struct ViewCubeLabelFace
+    {
+        QString   text;
+        QVector3D right;
+        QVector3D up;
+        QVector3D normal;
+    };
+
+    static const ViewCubeStyle kViewCubeStyle;
+
+    static std::array<ViewCubeLabelFace, 6> buildViewCubeLabelFaces(
+        const QString& top, const QString& front, const QString& left,
+        const QString& bottom, const QString& rear, const QString& right,
+        const QQuaternion& axisRotation);
+
+    static float computeFloorDepthBias(float workspaceExtent, float floorSize);
+
+private:
+    static void setIBLFaceBasis(QOpenGLShaderProgram* prog, int faceIndex);
+
     // ---- Shader programs ---------------------------------------------------
     std::unique_ptr<ShaderProgram> _bgShader;
     std::unique_ptr<ShaderProgram> _bgSplitShader;
@@ -71,7 +457,6 @@ public:
     unsigned int _sheenELUTTexture      = 0;
     QString      _currentSkyboxFolder;
 
-    // Preset environment maps (index 1=Studio, 2=Outdoor, 3=Office)
     unsigned int _studioEnvironmentMap      = 0;
     unsigned int _studioIrradianceMap       = 0;
     unsigned int _studioPrefilterMap        = 0;
@@ -109,7 +494,7 @@ public:
     int          _transmissionMipLevels     = 0;
     bool         _transmissionEnabled       = true;
 
-    // ---- SSS (subsurface scattering) buffer --------------------------------
+    // ---- SSS buffer --------------------------------------------------------
     unsigned int _sssFBO            = 0;
     unsigned int _sssCaptureTexture = 0;
     unsigned int _sssDepthTexture   = 0;
@@ -184,7 +569,7 @@ public:
     bool         _usePunctualLights                  = false;
     bool         _useIBL                             = true;
 
-    // ---- Debug overlay display flags ---------------------------------------
+    // ---- Debug overlay -----------------------------------------------------
     bool             _showVertexNormals          = false;
     bool             _showFaceNormals            = false;
     bool             _showBoundingBox            = false;

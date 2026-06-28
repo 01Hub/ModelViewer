@@ -15,7 +15,7 @@ ApplyMaterialCommand::ApplyMaterialCommand(ModelViewer* viewer,
     // Capture old materials before applying new
     for (const QUuid& uuid : meshUuids)
     {
-        TriangleMesh* mesh = _glWidget->getMeshByUuid(uuid);
+        SceneMesh* mesh = _glWidget->getMeshByUuid(uuid);
         if (mesh)
         {
             // Store complete material state for undo
@@ -74,7 +74,7 @@ void ApplyMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materia
             continue;
         }
 
-        TriangleMesh* mesh = _glWidget->getMeshByIndex(index);
+        SceneMesh* mesh = _glWidget->getMeshByIndex(index);
         if (!mesh)
             continue;
 

@@ -1229,7 +1229,7 @@ QTreeWidgetItem* SceneTreeWidget::makeMeshLeaf(const QUuid& uuid)
     QString name;
     if (_glWidget)
     {
-        TriangleMesh* mesh = _glWidget->getMeshByUuid(uuid);
+        SceneMesh* mesh = _glWidget->getMeshByUuid(uuid);
         if (mesh) name = mesh->getName();
     }
     if (name.isEmpty())

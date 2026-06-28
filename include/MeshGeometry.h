@@ -48,7 +48,7 @@ public:
     const std::vector<float>&        texCoords()  const { return _texCoords; }
 
 protected:
-    // GL_TRIANGLES = 4; default matches historical TriangleMesh behaviour.
+    // GL_TRIANGLES = 4; default matches historical SceneMesh behaviour.
     unsigned int _primitiveMode = 4;
 
     float _sMax = 1.0f;

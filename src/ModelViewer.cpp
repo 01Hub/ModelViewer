@@ -264,7 +264,7 @@ QVector3D computeSelectionCog(GLWidget* widget, const std::vector<int>& ids)
 	int count = 0;
 	for (int id : ids)
 	{
-		TriangleMesh* mesh = widget ? widget->getMeshByIndex(id) : nullptr;
+		SceneMesh* mesh = widget ? widget->getMeshByIndex(id) : nullptr;
 		if (!mesh)
 			continue;
 
@@ -726,8 +726,8 @@ void ModelViewer::setListRow(int index)
 		return;
 	}
 
-	std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
-	TriangleMesh* mesh = meshes.at(index);
+	std::vector<SceneMesh*> meshes = _glWidget->getMeshStore();
+	SceneMesh* mesh = meshes.at(index);
 
 	// Build new selection set
 	QSet<int> newSelection;
@@ -808,7 +808,7 @@ void ModelViewer::setTransformation()
 
 		for (int id : ids)
 		{
-			TriangleMesh* mesh = _glWidget->getMeshByIndex(id);
+			SceneMesh* mesh = _glWidget->getMeshByIndex(id);
 			if (!mesh)
 				continue;
 
@@ -940,7 +940,7 @@ void ModelViewer::updateTransformationValues()
 				return;
 			}
 
-			TriangleMesh* mesh = _glWidget->getMeshByUuid(selected.at(0));
+			SceneMesh* mesh = _glWidget->getMeshByUuid(selected.at(0));
 			if (mesh)
 			{
 				QVector3D trans = mesh->getTranslation();
@@ -1746,8 +1746,8 @@ void ModelViewer::applyVariant(const QString& sourceFile, int variantIndex)
 	if (!_glWidget || !_sceneGraph)
 		return;
 
-	const std::vector<TriangleMesh*>& meshes = _glWidget->getMeshStore();
-	for (TriangleMesh* mesh : meshes)
+	const std::vector<SceneMesh*>& meshes = _glWidget->getMeshStore();
+	for (SceneMesh* mesh : meshes)
 	{
 		if (!mesh || mesh->getSourceFile() != sourceFile)
 			continue;
@@ -2059,7 +2059,7 @@ QSet<QUuid> ModelViewer::scanStackForReferencedUuids()
 void ModelViewer::updateDisplayList()
 {
 	_glWidget->setTransmissionEnabled(false);
-	for (TriangleMesh* mesh : _glWidget->getMeshStore())
+	for (SceneMesh* mesh : _glWidget->getMeshStore())
 	{
 		const GLMaterial& mat = mesh->getMaterial();
 		if (mat.hasTransmission() || mat.diffuseTransmissionFactor() > 0.0f)
@@ -2822,7 +2822,7 @@ void ModelViewer::validateVariantData()
 	if (files.isEmpty())
 		return;
 
-	const std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
+	const std::vector<SceneMesh*> meshes = _glWidget->getMeshStore();
 
 	for (const QString& sourceFile : files)
 	{
@@ -2831,7 +2831,7 @@ void ModelViewer::validateVariantData()
 		// command are unregistered from the graph immediately but may linger
 		// in the store until the deferred cleanup pass runs.
 		const bool hasLiveMesh = std::any_of(meshes.begin(), meshes.end(),
-			[&](TriangleMesh* m)
+			[&](SceneMesh* m)
 			{
 				return m
 				    && m->getSourceFile() == sourceFile
@@ -2852,11 +2852,11 @@ void ModelViewer::validateAnimationData()
 	if (files.isEmpty())
 		return;
 
-	const std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
+	const std::vector<SceneMesh*> meshes = _glWidget->getMeshStore();
 	for (const QString& sourceFile : files)
 	{
 		const bool hasLiveMesh = std::any_of(meshes.begin(), meshes.end(),
-			[&](TriangleMesh* mesh)
+			[&](SceneMesh* mesh)
 			{
 				return mesh
 					&& mesh->getSourceFile() == sourceFile
@@ -2879,12 +2879,12 @@ void ModelViewer::validateCameraData()
 		return;
 
 	const QStringList files = _sceneGraph->filesWithGltfCameras();
-	const std::vector<TriangleMesh*>& meshes = _glWidget->getMeshStore();
+	const std::vector<SceneMesh*>& meshes = _glWidget->getMeshStore();
 
 	for (const QString& sourceFile : files)
 	{
 		const bool hasLiveMesh = std::any_of(meshes.cbegin(), meshes.cend(),
-			[&](TriangleMesh* mesh)
+			[&](SceneMesh* mesh)
 			{
 				return mesh
 					&& mesh->getSourceFile() == sourceFile
@@ -2908,12 +2908,12 @@ void ModelViewer::validateLightData()
 		return;
 
 	const QStringList files = _sceneGraph->filesWithLights();
-	const std::vector<TriangleMesh*>& meshes = _glWidget->getMeshStore();
+	const std::vector<SceneMesh*>& meshes = _glWidget->getMeshStore();
 
 	for (const QString& sourceFile : files)
 	{
 		const bool hasLiveMesh = std::any_of(meshes.cbegin(), meshes.cend(),
-			[&](TriangleMesh* mesh)
+			[&](SceneMesh* mesh)
 			{
 				return mesh
 					&& mesh->getSourceFile() == sourceFile
@@ -3047,10 +3047,10 @@ void ModelViewer::pasteIntoSelectedNode(const SceneNode* targetNode)
 
 			for (const QUuid& srcUuid : cn.meshUuids)
 			{
-				TriangleMesh* original = _glWidget->getMeshByUuid(srcUuid);
+				SceneMesh* original = _glWidget->getMeshByUuid(srcUuid);
 				if (!original) continue;
 
-				TriangleMesh* clone = original->clone();
+				SceneMesh* clone = original->clone();
 				clone->setName(_glWidget->generateUniqueMeshName(original->getName()));
 				_glWidget->addToDisplay(clone);
 
@@ -3071,10 +3071,10 @@ void ModelViewer::pasteIntoSelectedNode(const SceneNode* targetNode)
 		{
 			if (entry.isLeaf)
 			{
-				TriangleMesh* original = _glWidget->getMeshByUuid(entry.leafUuid);
+				SceneMesh* original = _glWidget->getMeshByUuid(entry.leafUuid);
 				if (!original) continue;
 
-				TriangleMesh* clone = original->clone();
+				SceneMesh* clone = original->clone();
 				clone->setName(_glWidget->generateUniqueMeshName(original->getName()));
 				_glWidget->addToDisplay(clone);
 
@@ -3138,11 +3138,11 @@ void ModelViewer::duplicateSelectedItems()
 		if (!ownerNode)
 			continue;
 
-		TriangleMesh* original = _glWidget->getMeshByUuid(srcUuid);
+		SceneMesh* original = _glWidget->getMeshByUuid(srcUuid);
 		if (!original)
 			continue;
 
-		TriangleMesh* clone = original->clone();
+		SceneMesh* clone = original->clone();
 		clone->setName(_glWidget->generateUniqueMeshName(original->getName()));
 		_glWidget->addToDisplay(clone);
 
@@ -3385,14 +3385,14 @@ void ModelViewer::displaySelectedMeshInfo()
 	std::vector<int> selected = getSelectedIDs();
 	if (selected.size() != 0)
 	{
-		std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
+		std::vector<SceneMesh*> meshes = _glWidget->getMeshStore();
 		QString name;
 		size_t points = 0, triangles = 0;
 		unsigned long long rawmem = 0;
 		float surfArea = 0, volume = 0;
 		QVector3D centerOfMass;
 		float weight = 0, density = 0;
-		TriangleMesh* mesh = nullptr;
+		SceneMesh* mesh = nullptr;
 		BoundingBox bbox;
 		size_t selectionCount = selected.size();
 		if (selectionCount > 1)
@@ -3553,7 +3553,7 @@ void ModelViewer::handleTreeWidgetSelectionChanged()
 
 void ModelViewer::handleTreeWidgetMeshRenamed(const QUuid& uuid, const QString& newName)
 {
-	TriangleMesh* mesh = _glWidget->getMeshByUuid(uuid);
+	SceneMesh* mesh = _glWidget->getMeshByUuid(uuid);
 	if (!mesh) return;
 
 	// Capture old name before any mutation so the command can restore it.
@@ -3569,15 +3569,15 @@ void ModelViewer::handleTreeWidgetMeshRenamed(const QUuid& uuid, const QString& 
 	    tr("Rename \"%1\" to \"%2\"").arg(oldName, finalName)));
 }
 
-void ModelViewer::checkAndRenameModel(TriangleMesh* mesh, const QString& name)
+void ModelViewer::checkAndRenameModel(SceneMesh* mesh, const QString& name)
 {
 	bool duplicate = false;
 	QString finalName = name;
 	int dupCnt = 1;
-	std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
+	std::vector<SceneMesh*> meshes = _glWidget->getMeshStore();
 	do
 	{
-		for (TriangleMesh* msh : meshes)
+		for (SceneMesh* msh : meshes)
 		{
 			if (msh->getName() == finalName)
 			{
@@ -3594,7 +3594,7 @@ void ModelViewer::checkAndRenameModel(TriangleMesh* mesh, const QString& name)
 	updateDisplayList();
 }
 
-QString ModelViewer::computeUniqueName(TriangleMesh* exclude, const QString& name) const
+QString ModelViewer::computeUniqueName(SceneMesh* exclude, const QString& name) const
 {
 	// Return a version of 'name' that does not collide with any existing mesh
 	// name, skipping 'exclude' (the mesh being renamed) so it doesn't conflict
@@ -3602,11 +3602,11 @@ QString ModelViewer::computeUniqueName(TriangleMesh* exclude, const QString& nam
 	bool    duplicate = false;
 	QString finalName = name;
 	int     dupCnt    = 1;
-	const std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
+	const std::vector<SceneMesh*> meshes = _glWidget->getMeshStore();
 	do
 	{
 		duplicate = false;
-		for (TriangleMesh* msh : meshes)
+		for (SceneMesh* msh : meshes)
 		{
 			if (msh == exclude) continue;
 			if (msh->getName() == finalName)
@@ -3759,7 +3759,7 @@ void ModelViewer::onFileExport()
 	if (!selectedSourceFile.isEmpty())
 		allowedSourceFiles << selectedSourceFile;
 
-	auto resolver = [this](const QUuid& uuid) -> TriangleMesh* {
+	auto resolver = [this](const QUuid& uuid) -> SceneMesh* {
 		return _glWidget->getMeshByUuid(uuid);
 	};
 
@@ -3780,10 +3780,10 @@ void ModelViewer::onFileExport()
 	// Keeping ALL meshes when only a subset was exported causes a count mismatch in
 	// AssImpMeshExporter::exportScene(), which triggers an incorrect fallback path
 	// and can produce malformed texture image entries in GLB output.
-	std::vector<TriangleMesh*> allMeshes = _glWidget->getMeshStore();
-	std::vector<TriangleMesh*> triMeshes;
+	std::vector<SceneMesh*> allMeshes = _glWidget->getMeshStore();
+	std::vector<SceneMesh*> triMeshes;
 	triMeshes.reserve(allMeshes.size());
-	for (TriangleMesh* m : allMeshes)
+	for (SceneMesh* m : allMeshes)
 	{
 		if (allowedSourceFiles.isEmpty() || allowedSourceFiles.contains(m->getSourceFile()))
 			triMeshes.push_back(m);
@@ -5004,7 +5004,7 @@ bool ModelViewer::saveToFile(const QString& fileName)
 		const GLMaterial* panelMat = Ui_ModelViewer::predefinedMaterialsPanel->material();
 		if (panelMat && _glWidget)
 		{
-			TriangleMesh* mesh = _glWidget->getMeshByUuid(_currentEditingMeshUuid);
+			SceneMesh* mesh = _glWidget->getMeshByUuid(_currentEditingMeshUuid);
 			if (mesh)
 			{
 				_glWidget->makeCurrent();
@@ -5461,7 +5461,7 @@ void ModelViewer::editMeshMaterial()
 		return;
 
 	// Get the mesh and its material
-	TriangleMesh* mesh = _glWidget->getMeshByUuid(meshUuid);
+	SceneMesh* mesh = _glWidget->getMeshByUuid(meshUuid);
 	if (!mesh)
 		return;
 

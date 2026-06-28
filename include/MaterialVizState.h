@@ -59,14 +59,14 @@ public:
     // Raw textures loaded from the source asset (by AssImpMesh). Used to build
     // the optimised PrecomputedTexture binding cache during render setup.
     // AssImpMesh keeps a reference alias _textures → this vector for zero
-    // call-site churn (same pattern as GLMaterial& _material in TriangleMesh).
+    // call-site churn (same pattern as GLMaterial& _material in SceneMesh).
     const std::vector<GLMaterial::Texture>& textures() const { return _textures; }
     std::vector<GLMaterial::Texture>&       textures()       { return _textures; }
     void setTextures(std::vector<GLMaterial::Texture> t)     { _textures = std::move(t); }
 
     // ---- ADS (Phong/Blinn-Phong) texture map GL IDs ---------------------
     // Separate from the PBR texture IDs stored in GLMaterial; set via
-    // setDiffuseADSMap() / clearDiffuseADSMap() etc. on TriangleMesh.
+    // setDiffuseADSMap() / clearDiffuseADSMap() etc. on SceneMesh.
     unsigned int& diffuseADSMap()  { return _diffuseADSMap; }
     unsigned int& specularADSMap() { return _specularADSMap; }
     unsigned int& emissiveADSMap() { return _emissiveADSMap; }
