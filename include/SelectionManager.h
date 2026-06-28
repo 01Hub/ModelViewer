@@ -71,9 +71,7 @@ public:
     // State setters (for sync with GLWidget after sweep selection)
     void setSelectedIds(const QList<int>& selectedIds) {
         _selectedMeshIds = selectedIds;
-        if (!selectedIds.isEmpty()) {
-            emit selectionChanged(_selectedMeshIds);
-        }
+        emit selectionChanged(_selectedMeshIds);
     }
 
     // Sync selection state without emitting signal (used by sweep selection to avoid feedback loops)

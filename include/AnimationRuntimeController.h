@@ -36,6 +36,12 @@
 class AnimationRuntimeController
 {
 public:
+    struct LightOrigin
+    {
+        QString file;
+        int     index = -1;
+    };
+
     // ---- Stable per-node runtime transform ---------------------------------
     struct RuntimeNodeTransform
     {
@@ -123,6 +129,16 @@ public:
     // Clears all animation-driven light and mesh visibility state (e.g. on scene reset).
     void clearAllAnimatedState();
 
+    // ---- Light runtime state -----------------------------------------------
+    std::vector<GPULight>&       originalParsedLights()            { return _originalParsedLights; }
+    const std::vector<GPULight>& originalParsedLights() const      { return _originalParsedLights; }
+
+    std::vector<GPULight>&       currentRepositionedLights()       { return _currentRepositionedLights; }
+    const std::vector<GPULight>& currentRepositionedLights() const { return _currentRepositionedLights; }
+
+    QVector<LightOrigin>&        lightFileIndexMap()               { return _lightFileIndexMap; }
+    const QVector<LightOrigin>&  lightFileIndexMap() const         { return _lightFileIndexMap; }
+
     // ---- Static helpers ----------------------------------------------------
     static QMatrix4x4           aiToQMatrix(const aiMatrix4x4& m);
     static RuntimeNodeTransform decomposeNodeTransform(const aiMatrix4x4& matrix);
@@ -162,6 +178,11 @@ private:
     std::vector<GPULight> _animatedParsedLights;
     QString               _animatedLightVisibilitySourceFile;
     QVector<bool>         _animatedLightVisibilityMask;
+
+    // Light runtime baseline / merged state
+    std::vector<GPULight> _originalParsedLights;
+    std::vector<GPULight> _currentRepositionedLights;
+    QVector<LightOrigin>  _lightFileIndexMap;
 
     // Mesh visibility animation
     QString     _animatedMeshVisibilitySourceFile;

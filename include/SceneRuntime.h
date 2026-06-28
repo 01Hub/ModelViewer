@@ -86,6 +86,10 @@ public:
 	// ---- Mesh store --------------------------------------------------------
 	std::vector<SceneMeshRecord>&       meshStore()            { return _meshStore; }
 	const std::vector<SceneMeshRecord>& meshStore()      const { return _meshStore; }
+	SceneMeshRecord&       meshRecordAt(size_t index)         { return _meshStore.at(index); }
+	const SceneMeshRecord& meshRecordAt(size_t index)   const { return _meshStore.at(index); }
+	SceneMesh*             meshAt(size_t index)               { return _meshStore.at(index).mesh; }
+	const SceneMesh*       meshAt(size_t index)         const { return _meshStore.at(index).mesh; }
 
 	std::vector<int>&       displayedObjectsIds()              { return _displayedObjectsIds; }
 	const std::vector<int>& displayedObjectsIds()        const { return _displayedObjectsIds; }

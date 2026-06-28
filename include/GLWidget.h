@@ -320,21 +320,21 @@ public:
 	QVector3D getLightOffset() const { return QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ); }
 	void setLightOffset(const QVector3D& offset);
 
-	std::vector<GPULight> getParsedLights() const { return _originalParsedLights; }
+	std::vector<GPULight> getParsedLights() const { return _animCtrl.originalParsedLights(); }
 
 	// Returns the current repositioned lights (what the user sees after slider/auto-rotate
-	// adjustments). Falls back to _originalParsedLights if repositioning hasn't run yet.
+	// adjustments). Falls back to the parsed baseline if repositioning hasn't run yet.
 	std::vector<GPULight> getRepositionedLights() const
 	{
-		return _currentRepositionedLights.empty() ? _originalParsedLights
-		                                           : _currentRepositionedLights;
+		return _animCtrl.currentRepositionedLights().empty() ? _animCtrl.originalParsedLights()
+		                                                     : _animCtrl.currentRepositionedLights();
 	}
 
-	// Maps flat index i in _originalParsedLights / _currentRepositionedLights to
+	// Maps flat index i in the parsed/repositioned light arrays to
 	// { sourceFile, lightIndex } in SceneGraph::_lightDataByFile.
 	// Public so MVF serialisation in ModelViewer can build per-file light sections.
-	struct LightOrigin { QString file; int index; };
-	QVector<LightOrigin> getLightFileIndexMap() const { return _lightFileIndexMap; }
+	using LightOrigin = AnimationRuntimeController::LightOrigin;
+	QVector<LightOrigin> getLightFileIndexMap() const { return _animCtrl.lightFileIndexMap(); }
 
 	float getFloorSize() const { return _floorSize; }
 
@@ -522,7 +522,7 @@ public:
 	                   const QByteArray& imageChunk);
 	void setParsedLights(const GltfLightData& lights);
 
-	/// Rebuilds _originalParsedLights from all SceneGraph-registered light data.
+	/// Rebuilds the parsed light baseline from all SceneGraph-registered light data.
 	/// Connected to SceneGraph::lightDataChanged to stay current on model add/remove.
 	void onSceneLightDataChanged();
 
@@ -1014,7 +1014,6 @@ private:
 
 	QRubberBand* _rubberBand;
 	QRubberBand* _selectRect;
-	QList<int> _selectedIDs;
 	QTimer* _inertiaTimer = nullptr;
 
 	// Selection manager instance (owns all selection logic and state)
@@ -1129,15 +1128,6 @@ private:
 	AdaptiveShadowMapper shadowMapper;
 
 	std::unique_ptr<GLLights> glLights;
-	// _pendingLightData → SceneRuntime (Phase 5)
-	std::vector<GPULight> _originalParsedLights;       // GPU list extracted from _pendingLightData; used for animation/repositioning
-	std::vector<GPULight> _currentRepositionedLights;  // Working copy (ALL lights; gizmo rendering uses this)
-
-	// Maps flat index i in _originalParsedLights / _currentRepositionedLights
-	// → { sourceFile, lightIndex } in SceneGraph::_lightDataByFile.
-	// Used by updatePunctualLights() to honour per-light enabled flags without
-	// re-uploading ALL lights and discarding the user's checkbox state.
-	QVector<LightOrigin> _lightFileIndexMap;
 	float _originalBoundingRadius = 1.0f;
 	// _animatedLight* / _animatedMesh* → AnimationRuntimeController (Phase 8)
 

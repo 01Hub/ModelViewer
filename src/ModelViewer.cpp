@@ -4501,7 +4501,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		{
 			// Wrap flat MVF light list into a GltfLightData with unnamed entries.
 			// Source file is not tracked per-light in the MVF format yet, so the
-			// panel won't show these; they still render correctly via _originalParsedLights.
+			// panel won't show these; they still render correctly via the parsed light baseline.
 			{
 				GltfLightData ld;
 				for (const GPULight& gl : result.lights)
