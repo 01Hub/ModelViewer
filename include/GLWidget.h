@@ -235,7 +235,7 @@ public:
 	// picked up when the same file is imported again.
 	void clearAnimationRuntimeForFile(const QString& sourceFile);
 	void seekAnimation(double timeSeconds);
-	void setAnimationLooping(bool looping);
+	void setAnimationLooping(bool looping) { _animCtrl.setLooping(looping); emit animationStateChanged(); }
 	void setAnimationPlaybackSpeed(double speed);
 	void syncRuntimeNodeTransforms(const QString& sourceFile);
 	void refreshAnimationMaterialState(const QString& sourceFile);

@@ -104,6 +104,12 @@ public:
     QElapsedTimer& animationElapsed()    { return _animationElapsed; }
 
     void resetPlayback();
+    // Start playback: set playing flag, restart elapsed timer, start timer.
+    void resumePlayback();
+    // Stop playback: clear playing flag, stop timer.
+    void pausePlayback();
+    // Clamp speed to [0.25, 4.0], store it, and restart elapsed if playing.
+    void applyPlaybackSpeed(double speed);
 
     // ---- Per-file animation data -------------------------------------------
     QHash<QString, RuntimeAnimationFileState>&       runtimeAnimationsByFile()       { return _runtimeAnimationsByFile; }

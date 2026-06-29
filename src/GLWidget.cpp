@@ -8934,16 +8934,8 @@ void GLWidget::syncRuntimeNodeTransforms(const QString& sourceFile)
 
 void GLWidget::setAnimationPlaying(bool playing)
 {
-	_animCtrl.setPlaying(playing);
-	if (_animCtrl.isPlaying())
-	{
-		_animCtrl.animationElapsed().restart();
-		_animCtrl.animationTimer()->start();
-	}
-	else
-	{
-		_animCtrl.animationTimer()->stop();
-	}
+	if (playing) _animCtrl.resumePlayback();
+	else         _animCtrl.pausePlayback();
 	emit animationStateChanged();
 }
 
@@ -8957,17 +8949,9 @@ void GLWidget::seekAnimation(double timeSeconds)
 	emit animationStateChanged();
 }
 
-void GLWidget::setAnimationLooping(bool looping)
-{
-	_animCtrl.setLooping(looping);
-	emit animationStateChanged();
-}
-
 void GLWidget::setAnimationPlaybackSpeed(double speed)
 {
-	_animCtrl.setPlaybackSpeed(std::clamp(speed, 0.25, 4.0));
-	if (_animCtrl.isPlaying())
-		_animCtrl.animationElapsed().restart();
+	_animCtrl.applyPlaybackSpeed(speed);
 	emit animationStateChanged();
 }
 

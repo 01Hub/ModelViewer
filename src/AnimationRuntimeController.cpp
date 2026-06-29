@@ -2,6 +2,7 @@
 #include "AnimationUtils.h"
 #include "SceneGraph.h"
 
+#include <algorithm>
 #include <assimp/matrix4x4.h>
 #include <assimp/quaternion.h>
 #include <assimp/vector3.h>
@@ -23,6 +24,26 @@ void AnimationRuntimeController::resetPlayback()
     _activeAnimationClip = -1;
     _animationCurrentTimeSeconds = 0.0;
     _animationPlaying = false;
+}
+
+void AnimationRuntimeController::resumePlayback()
+{
+    _animationPlaying = true;
+    _animationElapsed.restart();
+    _animationTimer->start();
+}
+
+void AnimationRuntimeController::pausePlayback()
+{
+    _animationPlaying = false;
+    _animationTimer->stop();
+}
+
+void AnimationRuntimeController::applyPlaybackSpeed(double speed)
+{
+    _animationPlaybackSpeed = std::clamp(speed, 0.25, 4.0);
+    if (_animationPlaying)
+        _animationElapsed.restart();
 }
 
 void AnimationRuntimeController::setActiveGltfCamera(const QString& file, int index)
