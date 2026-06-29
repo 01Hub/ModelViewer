@@ -7,6 +7,7 @@
 #include "SceneGraph.h"
 #include "ConeRenderable.h"
 #include "CubeRenderable.h"
+#include "CoordinateSystemHelper.h"
 #include "FloorPlane.h"
 #include "GltfCameraData.h"
 #include "GLWidget.h"
@@ -390,18 +391,6 @@ _floorPlane(nullptr),
 	_viewCtrl.setRubberBandZoomRatio(0.5f);
 
 	_viewCtrl.setScaleFrac(1.0f);
-
-	_xTran = 0.0f;
-	_yTran = 0.0f;
-	_zTran = 0.0f;
-
-	_xRot = 0.0f;
-	_yRot = 0.0f;
-	_zRot = 0.0f;
-
-	_xScale = 1.0f;
-	_yScale = 1.0f;
-	_zScale = 1.0f;
 
 	_displayedObjectsMemSize = 0;
 	_sceneRuntime.setVisibleSwapped(false);
@@ -1522,117 +1511,9 @@ void GLWidget::setDefaultLightColor(const QVector4D& defaultLightColor)
 	_renderCtrl.fgShader()->release();
 }
 
-QQuaternion GLWidget::cameraUpAxisConventionRotation() const
-{
-	return _viewCtrl.cameraUpAxisZUp()
-		? QQuaternion()
-		: QQuaternion::fromAxisAndAngle(QVector3D(1.0f, 0.0f, 0.0f), -90.0f);
-}
-
-namespace
-{
-void orthonormalizeViewBasis(const QVector3D& viewDirection,
-	const QVector3D& upHint,
-	QVector3D& viewDir,
-	QVector3D& upDir,
-	QVector3D& rightDir)
-{
-	viewDir = viewDirection.normalized();
-	rightDir = QVector3D::crossProduct(viewDir, upHint).normalized();
-	if (rightDir.lengthSquared() <= 1.0e-8f)
-		rightDir = QVector3D::crossProduct(viewDir, QVector3D(1.0f, 0.0f, 0.0f)).normalized();
-	if (rightDir.lengthSquared() <= 1.0e-8f)
-		rightDir = QVector3D::crossProduct(viewDir, QVector3D(0.0f, 1.0f, 0.0f)).normalized();
-	upDir = QVector3D::crossProduct(rightDir, viewDir).normalized();
-}
-
-void canonicalStandardViewBasis(ViewMode mode, QVector3D& viewDir, QVector3D& upDir, QVector3D& rightDir)
-{
-	QVector3D viewDirection;
-	QVector3D upHint;
-	switch (mode)
-	{
-	case ViewMode::TOP:
-		viewDirection = QVector3D(0.0f, 0.0f, -1.0f);
-		upHint = QVector3D(0.0f, 1.0f, 0.0f);
-		break;
-	case ViewMode::BOTTOM:
-		viewDirection = QVector3D(0.0f, 0.0f, 1.0f);
-		upHint = QVector3D(0.0f, -1.0f, 0.0f);
-		break;
-	case ViewMode::FRONT:
-		viewDirection = QVector3D(0.0f, 1.0f, 0.0f);
-		upHint = QVector3D(0.0f, 0.0f, 1.0f);
-		break;
-	case ViewMode::BACK:
-		viewDirection = QVector3D(0.0f, -1.0f, 0.0f);
-		upHint = QVector3D(0.0f, 0.0f, 1.0f);
-		break;
-	case ViewMode::LEFT:
-		viewDirection = QVector3D(1.0f, 0.0f, 0.0f);
-		upHint = QVector3D(0.0f, 0.0f, 1.0f);
-		break;
-	case ViewMode::RIGHT:
-		viewDirection = QVector3D(-1.0f, 0.0f, 0.0f);
-		upHint = QVector3D(0.0f, 0.0f, 1.0f);
-		break;
-	case ViewMode::ISOMETRIC:
-		viewDirection = QVector3D(-1.0f, 1.0f, -1.0f);
-		upHint = QVector3D(-1.0f, 1.0f, 0.0f);
-		break;
-	case ViewMode::DIMETRIC:
-		viewDirection = QVector3D(-2.0f, 2.0f, -1.0f);
-		upHint = QVector3D(-1.0f, 1.0f, 0.0f);
-		break;
-	case ViewMode::TRIMETRIC:
-		viewDirection = QVector3D(-0.486f, 0.732f, -0.477f);
-		upHint = QVector3D(-0.363f, 0.568f, 1.243f);
-		break;
-	default:
-		viewDirection = QVector3D(0.0f, 0.0f, -1.0f);
-		upHint = QVector3D(0.0f, 1.0f, 0.0f);
-		break;
-	}
-
-	orthonormalizeViewBasis(viewDirection, upHint, viewDir, upDir, rightDir);
-}
-}
-
-QVector3D GLWidget::transformVectorForCameraUpAxis(const QVector3D& vector) const
-{
-	return cameraUpAxisConventionRotation().rotatedVector(vector);
-}
-
-void GLWidget::standardViewBasis(ViewMode mode, QVector3D& viewDir, QVector3D& upDir, QVector3D& rightDir) const
-{
-	canonicalStandardViewBasis(mode, viewDir, upDir, rightDir);
-
-	const QQuaternion axisRotation = cameraUpAxisConventionRotation();
-	viewDir = axisRotation.rotatedVector(viewDir).normalized();
-	upDir = axisRotation.rotatedVector(upDir).normalized();
-	rightDir = axisRotation.rotatedVector(rightDir).normalized();
-}
-
-QQuaternion GLWidget::standardViewRotation(ViewMode mode) const
-{
-	QVector3D viewDir;
-	QVector3D upDir;
-	QVector3D rightDir;
-	standardViewBasis(mode, viewDir, upDir, rightDir);
-
-	QMatrix4x4 targetMatrix;
-	targetMatrix.setToIdentity();
-	targetMatrix.setRow(0, QVector4D(rightDir, 0.0f));
-	targetMatrix.setRow(1, QVector4D(upDir, 0.0f));
-	targetMatrix.setRow(2, QVector4D(-viewDir, 0.0f));
-	return QQuaternion::fromRotationMatrix(targetMatrix.toGenericMatrix<3, 3>()).normalized();
-}
-
 void GLWidget::syncCameraWorldUp()
 {
-	const QVector3D worldUp = _viewCtrl.cameraUpAxisZUp()
-		? QVector3D(0.0f, 0.0f, 1.0f)
-		: QVector3D(0.0f, 1.0f, 0.0f);
+	const QVector3D worldUp = CoordinateSystemHelper::currentWorldUpVector(_viewCtrl.cameraUpAxisZUp());
 
 	if (_primaryCamera)
 		_primaryCamera->setWorldUpVector(worldUp);
@@ -1650,7 +1531,7 @@ void GLWidget::rotateCurrentCameraAroundWorldX(float degrees)
 
 	// Re-derive right and up from the rotated view direction and the current world-up
 	// so the orbit camera carries no spurious roll into the new convention.
-	const QVector3D worldUp = currentWorldUpVector();
+	const QVector3D worldUp = CoordinateSystemHelper::currentWorldUpVector(_viewCtrl.cameraUpAxisZUp());
 	QVector3D correctedRight = QVector3D::crossProduct(rotatedViewDir, worldUp).normalized();
 	if (correctedRight.lengthSquared() < 1e-6f)
 	{
@@ -1675,25 +1556,20 @@ void GLWidget::rotateCurrentCameraAroundWorldX(float degrees)
 	update();
 }
 
-bool GLWidget::sceneUpAxisIsZUp(SceneUpAxis sceneUpAxis) const
-{
-	return sceneUpAxis == SceneUpAxis::ZUp;
-}
-
 QString GLWidget::sceneUpAxisLabel(SceneUpAxis sceneUpAxis) const
 {
-	return sceneUpAxisIsZUp(sceneUpAxis) ? tr("Z-Up") : tr("Y-Up");
+	return CoordinateSystemHelper::sceneUpAxisIsZUp(sceneUpAxis) ? tr("Z-Up") : tr("Y-Up");
 }
 
 void GLWidget::applyAutoOrientCameraConvention(SceneUpAxis sceneUpAxis)
 {
-	setCameraUpAxisZUp(sceneUpAxisIsZUp(sceneUpAxis));
+	setCameraUpAxisZUp(CoordinateSystemHelper::sceneUpAxisIsZUp(sceneUpAxis));
 }
 
 void GLWidget::warnOnConflictingImportedSceneUpAxis(const QString& fileName, SceneUpAxis sceneUpAxis)
 {
 	const QString importedAxis = sceneUpAxisLabel(sceneUpAxis);
-	const QString activeAxis = _viewCtrl.cameraUpAxisZUp() ? tr("Z-Up") : tr("Y-Up");
+		const QString activeAxis = _viewCtrl.cameraUpAxisZUp() ? tr("Z-Up") : tr("Y-Up");
 	const QString importedFileName = QFileInfo(fileName).fileName();
 
 	QMessageBox::warning(
@@ -1735,7 +1611,7 @@ void GLWidget::setViewMode(ViewMode mode)
 	{
 		_keyboardNavTimer->stop();
 
-		const QQuaternion q = standardViewRotation(mode);
+		const QQuaternion q = CoordinateSystemHelper::standardViewRotation(_viewCtrl.cameraUpAxisZUp(), mode);
 		const QMatrix4x4  m(q.toRotationMatrix());
 
 		// Compute fit + projected visual centre from the *target* orientation so
@@ -2041,7 +1917,7 @@ bool GLWidget::positionGameplayCameraForScene(GLCamera::CameraMode mode)
 	if (_sceneRuntime.meshStore().empty() || visibleIds.empty())
 		return false;
 
-	const QVector3D worldUp = currentWorldUpVector();
+	const QVector3D worldUp = CoordinateSystemHelper::currentWorldUpVector(_viewCtrl.cameraUpAxisZUp());
 	const QVector3D center = _viewCtrl.boundingSphere().getCenter();
 	const float radius = std::max(_viewCtrl.boundingSphere().getRadius(), 0.001f);
 
@@ -2490,11 +2366,28 @@ void GLWidget::updateFloorPlane()
 	// Use helper to set main light position (now consistent with loadFloor)
 	updateMainLightPosition(halfObjectSize);
 
-	_floorPlaneZ = groundPlaneZ();
-	const float groundExtent = groundPlaneExtent();
+	_floorPlaneZ = CoordinateSystemHelper::groundPlaneZ(
+		_viewCtrl.boundingBox(),
+		_viewCtrl.cameraUpAxisZUp(),
+		_floorSize,
+		_floorOffsetPercent,
+		SceneRenderController::computeFloorDepthBias(
+			static_cast<float>(std::max({
+				_viewCtrl.boundingBox().getXSize(),
+				_viewCtrl.boundingBox().getYSize(),
+				_viewCtrl.boundingBox().getZSize()
+			})),
+			_floorSize));
+	const float groundExtent = CoordinateSystemHelper::groundPlaneExtent(
+		_floorSize,
+		_floorSizeFactor,
+		_renderCtrl.groundMode());
 	if (_floorPlane && _renderCtrl.fgShader())
 	{
-		_floorPlane->setPlane(_renderCtrl.fgShader(), _floorCenter, groundExtent, groundExtent, 1, 1, _floorPlaneZ, _floorTexRepeatS, _floorTexRepeatT, floorPlaneOrientation());
+		_floorPlane->setPlane(
+			_renderCtrl.fgShader(), _floorCenter, groundExtent, groundExtent, 1, 1,
+			_floorPlaneZ, _floorTexRepeatS, _floorTexRepeatT,
+			CoordinateSystemHelper::floorPlaneOrientation(_viewCtrl.cameraUpAxisZUp()));
 		applyFloorPlaneMaterialSettings();
 	}
 
@@ -3066,19 +2959,6 @@ void GLWidget::applyOverlayPanelStyle(QWidget* wrapper, const QString& objectNam
 			animationsPanel->refreshDetachedOverlayTheme();
 		}
 	}
-}
-
-float GLWidget::groundPlaneZ()
-{
-	const float workspaceExtent = static_cast<float>(std::max({
-		_viewCtrl.boundingBox().getXSize(),
-		_viewCtrl.boundingBox().getYSize(),
-		_viewCtrl.boundingBox().getZSize()
-	}));
-	const float lowestUp = _viewCtrl.cameraUpAxisZUp()
-		? static_cast<float>(_viewCtrl.boundingBox().zMin())
-		: static_cast<float>(_viewCtrl.boundingBox().yMin());
-	return lowestUp - (_floorSize * _floorOffsetPercent) - SceneRenderController::computeFloorDepthBias(workspaceExtent, _floorSize);
 }
 
 void GLWidget::refreshNavigationOverlayStyle()
@@ -3937,7 +3817,7 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 
 		if (success && autoOrientCameraEnabled)
 		{
-			const bool sceneIsZUp = sceneUpAxisIsZUp(sceneUpAxis);
+			const bool sceneIsZUp = CoordinateSystemHelper::sceneUpAxisIsZUp(sceneUpAxis);
 			if (!hadExistingMeshes)
 			{
 				applyAutoOrientCameraConvention(sceneUpAxis);
@@ -4341,17 +4221,37 @@ void GLWidget::loadFloor()
 
 	float floorPlaneCoeff = _sceneRuntime.meshStore().empty()
 		? -_floorSize - (_floorSize * 0.05f)
-		: groundPlaneZ();
+		: CoordinateSystemHelper::groundPlaneZ(
+			_viewCtrl.boundingBox(),
+			_viewCtrl.cameraUpAxisZUp(),
+			_floorSize,
+			_floorOffsetPercent,
+			SceneRenderController::computeFloorDepthBias(
+				static_cast<float>(std::max({
+					_viewCtrl.boundingBox().getXSize(),
+					_viewCtrl.boundingBox().getYSize(),
+					_viewCtrl.boundingBox().getZSize()
+				})),
+				_floorSize));
 	_floorPlaneZ = floorPlaneCoeff;
 
-	const float groundExtent = groundPlaneExtent();
+	const float groundExtent = CoordinateSystemHelper::groundPlaneExtent(
+		_floorSize,
+		_floorSizeFactor,
+		_renderCtrl.groundMode());
 	if (_floorPlane == nullptr)
 	{
-		_floorPlane = new FloorPlane(_renderCtrl.fgShader(), _floorCenter, groundExtent, groundExtent, 1, 1, floorPlaneCoeff, _floorTexRepeatS, _floorTexRepeatT, floorPlaneOrientation());
+		_floorPlane = new FloorPlane(
+			_renderCtrl.fgShader(), _floorCenter, groundExtent, groundExtent, 1, 1,
+			floorPlaneCoeff, _floorTexRepeatS, _floorTexRepeatT,
+			CoordinateSystemHelper::floorPlaneOrientation(_viewCtrl.cameraUpAxisZUp()));
 	}
 	else
 	{
-		_floorPlane->setPlane(_renderCtrl.fgShader(), _floorCenter, groundExtent, groundExtent, 1, 1, floorPlaneCoeff, _floorTexRepeatS, _floorTexRepeatT, floorPlaneOrientation());
+		_floorPlane->setPlane(
+			_renderCtrl.fgShader(), _floorCenter, groundExtent, groundExtent, 1, 1,
+			floorPlaneCoeff, _floorTexRepeatS, _floorTexRepeatT,
+			CoordinateSystemHelper::floorPlaneOrientation(_viewCtrl.cameraUpAxisZUp()));
 	}
 
 	// Use helper to apply common material/texture settings
@@ -4457,34 +4357,11 @@ void GLWidget::syncFloorPlaneAlbedoTexture()
 	_floorPlane->setMaterial(material);
 }
 
-Plane::Orientation GLWidget::floorPlaneOrientation() const
-{
-	return _viewCtrl.cameraUpAxisZUp() ? Plane::Orientation::XY_ZNormal : Plane::Orientation::XZ_YNormal;
-}
-
-QVector3D GLWidget::currentWorldUpVector() const
-{
-	return _viewCtrl.cameraUpAxisZUp()
-		? QVector3D(0.0f, 0.0f, 1.0f)
-		: QVector3D(0.0f, 1.0f, 0.0f);
-}
-
-float GLWidget::coordinateAlongCurrentWorldUp(const QVector3D& point) const
-{
-	return _viewCtrl.cameraUpAxisZUp() ? point.z() : point.y();
-}
-
-void GLWidget::setCoordinateAlongCurrentWorldUp(QVector3D& point, float value) const
-{
-	if (_viewCtrl.cameraUpAxisZUp())
-		point.setZ(value);
-	else
-		point.setY(value);
-}
-
 QVector3D GLWidget::effectiveWorldLightOffset() const
 {
-	return transformVectorForCameraUpAxis(QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
+	return CoordinateSystemHelper::transformVectorForCameraUpAxis(
+		_viewCtrl.cameraUpAxisZUp(),
+		QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 }
 
 QVector3D GLWidget::effectiveWorldLightPosition() const
@@ -4494,24 +4371,31 @@ QVector3D GLWidget::effectiveWorldLightPosition() const
 
 void GLWidget::updateMainLightPosition(float halfObjectSize)
 {
-	const QVector3D lateralAxis1 = transformVectorForCameraUpAxis(QVector3D(1.0f, 0.0f, 0.0f)).normalized();
+	const QVector3D lateralAxis1 = CoordinateSystemHelper::transformVectorForCameraUpAxis(
+		_viewCtrl.cameraUpAxisZUp(),
+		QVector3D(1.0f, 0.0f, 0.0f)).normalized();
 	// Z-up: (1,0,0)+(0,1,0) → light at X+Y+ corner, height in Z  (illuminates X+/Y+/Z+ faces)
 	// Y-up: (1,0,0)+(0,0,-1) → light at X+Z- corner, height in Y.
 	// This preserves the original isometric "shadow falls in front" feel after
 	// rotating the viewer convention from Z-up to Y-up.
 	const QVector3D lateralAxis2 = _viewCtrl.cameraUpAxisZUp()
-		? transformVectorForCameraUpAxis(QVector3D(0.0f, 1.0f, 0.0f)).normalized()
+		? CoordinateSystemHelper::transformVectorForCameraUpAxis(
+			_viewCtrl.cameraUpAxisZUp(),
+			QVector3D(0.0f, 1.0f, 0.0f)).normalized()
 		: QVector3D(0.0f, 0.0f, -1.0f);
 	_lightPosition = _floorCenter + (lateralAxis1 + lateralAxis2) * (_floorSize * 1.25f);
 
 	if (_sceneRuntime.meshStore().empty())
 	{
-		setCoordinateAlongCurrentWorldUp(_lightPosition, _floorSize);
+		CoordinateSystemHelper::setCoordinateAlongCurrentWorldUp(
+			_viewCtrl.cameraUpAxisZUp(), _lightPosition, _floorSize);
 	}
 	else
 	{
-		float highestUp = coordinateAlongCurrentWorldUp(_viewCtrl.boundingSphere().getCenter()) + _viewCtrl.boundingSphere().getRadius();
-		setCoordinateAlongCurrentWorldUp(_lightPosition,
+		float highestUp = CoordinateSystemHelper::coordinateAlongCurrentWorldUp(
+			_viewCtrl.cameraUpAxisZUp(),
+			_viewCtrl.boundingSphere().getCenter()) + _viewCtrl.boundingSphere().getRadius();
+		CoordinateSystemHelper::setCoordinateAlongCurrentWorldUp(_viewCtrl.cameraUpAxisZUp(), _lightPosition,
 			highestUp + halfObjectSize * 5.0f + (_floorSize * _floorOffsetPercent));
 	}
 }
@@ -4949,7 +4833,8 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	_renderCtrl.fgShader()->setUniformValue("screenSize", QVector2D(width(), height()));
 	_renderCtrl.fgShader()->setUniformValue("screenCenter", _floorCenter);
 	_renderCtrl.fgShader()->setUniformValue("gradientStyle", _gradientStyle);
-	_renderCtrl.fgShader()->setUniformValue("floorSize", groundPlaneExtent());
+	_renderCtrl.fgShader()->setUniformValue("floorSize",
+		CoordinateSystemHelper::groundPlaneExtent(_floorSize, _floorSizeFactor, _renderCtrl.groundMode()));
 	_renderCtrl.fgShader()->setUniformValue("groundReferenceSize", _floorSize);
 	_renderCtrl.fgShader()->setUniformValue("worldUpAxis", _viewCtrl.cameraUpAxisZUp() ? 2 : 1);
 
@@ -5050,7 +4935,8 @@ void GLWidget::drawGrid()
 	_renderCtrl.gridShader()->setUniformValue("cameraPos", _primaryCamera->getRenderPosition());
 	_renderCtrl.gridShader()->setUniformValue("screenCenter", _floorCenter);
 	_renderCtrl.gridShader()->setUniformValue("groundReferenceSize", _floorSize);
-	_renderCtrl.gridShader()->setUniformValue("floorSize", groundPlaneExtent());
+	_renderCtrl.gridShader()->setUniformValue("floorSize",
+		CoordinateSystemHelper::groundPlaneExtent(_floorSize, _floorSizeFactor, _renderCtrl.groundMode()));
 	_renderCtrl.gridShader()->setUniformValue("gridPlaneZ", _floorPlaneZ);
 	_renderCtrl.gridShader()->setUniformValue("worldUpAxis", _viewCtrl.cameraUpAxisZUp() ? 2 : 1);
 	_renderCtrl.gridShader()->setUniformValue("opacity", 0.95f);
@@ -5059,16 +4945,6 @@ void GLWidget::drawGrid()
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	drawFullscreenTriangle();
 	glDisable(GL_BLEND);
-}
-
-float GLWidget::groundPlaneScaleFactor() const
-{
-	return (_renderCtrl.groundMode() == GroundMode::Grid) ? 200.0f : _floorSizeFactor;
-}
-
-float GLWidget::groundPlaneExtent() const
-{
-	return _floorSize * groundPlaneScaleFactor();
 }
 
 void GLWidget::drawSkyBox()
@@ -5085,7 +4961,7 @@ void GLWidget::drawSkyBox()
 	// Remove translation
 	view.setColumn(3, QVector4D(0, 0, 0, 1));
 	QMatrix4x4 model;
-	model.rotate(cameraUpAxisConventionRotation());
+	model.rotate(CoordinateSystemHelper::cameraUpAxisConventionRotation(_viewCtrl.cameraUpAxisZUp()));
 	if (!usePrefilterBlur)
 		model.rotate(90.0f, QVector3D(1.0f, 0.0f, 0.0f)); // Z-up correction for raw env map
 	model.rotate(_renderCtrl.skyBoxZRotation(), QVector3D(0.0f, 1.0f, 0.0f)); // User Z rotation (always applied)
@@ -6405,7 +6281,7 @@ void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 	prog->setUniformValue("inverseProjectionMatrix", projMatrix.inverted());
 	prog->setUniformValue("viewportMatrix", _viewCtrl.viewportMatrix());
 
-	const QVector3D worldUp = currentWorldUpVector();
+	const QVector3D worldUp = CoordinateSystemHelper::currentWorldUpVector(_viewCtrl.cameraUpAxisZUp());
 	QVector3D viewDir = _primaryCamera->getViewDir();
 	bool floorVisible = QVector3D::dotProduct(viewDir, worldUp) < 0.0f;
 	bool showShadows = (_renderCtrl.shadowsEnabled() && floorVisible && !_renderCtrl.lowResEnabled() && camera == _primaryCamera);
@@ -8189,51 +8065,51 @@ bool GLWidget::orientCameraToViewCubeNormal(const QVector3D& outwardNormal)
 		return (normalizedNormal - axis).lengthSquared() <= 1.0e-6f;
 	};
 
-	const QVector3D topNormal = transformVectorForCameraUpAxis(QVector3D(0.0f, 0.0f, 1.0f));
-	const QVector3D bottomNormal = transformVectorForCameraUpAxis(QVector3D(0.0f, 0.0f, -1.0f));
-	const QVector3D frontNormal = transformVectorForCameraUpAxis(QVector3D(0.0f, -1.0f, 0.0f));
-	const QVector3D rearNormal = transformVectorForCameraUpAxis(QVector3D(0.0f, 1.0f, 0.0f));
-	const QVector3D leftNormal = transformVectorForCameraUpAxis(QVector3D(-1.0f, 0.0f, 0.0f));
-	const QVector3D rightNormal = transformVectorForCameraUpAxis(QVector3D(1.0f, 0.0f, 0.0f));
+	const QVector3D topNormal = CoordinateSystemHelper::transformVectorForCameraUpAxis(_viewCtrl.cameraUpAxisZUp(), QVector3D(0.0f, 0.0f, 1.0f));
+	const QVector3D bottomNormal = CoordinateSystemHelper::transformVectorForCameraUpAxis(_viewCtrl.cameraUpAxisZUp(), QVector3D(0.0f, 0.0f, -1.0f));
+	const QVector3D frontNormal = CoordinateSystemHelper::transformVectorForCameraUpAxis(_viewCtrl.cameraUpAxisZUp(), QVector3D(0.0f, -1.0f, 0.0f));
+	const QVector3D rearNormal = CoordinateSystemHelper::transformVectorForCameraUpAxis(_viewCtrl.cameraUpAxisZUp(), QVector3D(0.0f, 1.0f, 0.0f));
+	const QVector3D leftNormal = CoordinateSystemHelper::transformVectorForCameraUpAxis(_viewCtrl.cameraUpAxisZUp(), QVector3D(-1.0f, 0.0f, 0.0f));
+	const QVector3D rightNormal = CoordinateSystemHelper::transformVectorForCameraUpAxis(_viewCtrl.cameraUpAxisZUp(), QVector3D(1.0f, 0.0f, 0.0f));
 
 	if (isAxisNormal(topNormal))
 	{
-		_viewCtrl.setCustomViewTargetRotation(standardViewRotation(ViewMode::TOP));
+		_viewCtrl.setCustomViewTargetRotation(CoordinateSystemHelper::standardViewRotation(_viewCtrl.cameraUpAxisZUp(), ViewMode::TOP));
 		_viewCtrl.setViewMode(ViewMode::TOP);
 		if (_viewToolbar)
 			_viewToolbar->setDefaultStandardViewAction(StandardViewActions::TOP);
 	}
 	else if (isAxisNormal(bottomNormal))
 	{
-		_viewCtrl.setCustomViewTargetRotation(standardViewRotation(ViewMode::BOTTOM));
+		_viewCtrl.setCustomViewTargetRotation(CoordinateSystemHelper::standardViewRotation(_viewCtrl.cameraUpAxisZUp(), ViewMode::BOTTOM));
 		_viewCtrl.setViewMode(ViewMode::BOTTOM);
 		if (_viewToolbar)
 			_viewToolbar->setDefaultStandardViewAction(StandardViewActions::BOTTOM);
 	}
 	else if (isAxisNormal(frontNormal))
 	{
-		_viewCtrl.setCustomViewTargetRotation(standardViewRotation(ViewMode::FRONT));
+		_viewCtrl.setCustomViewTargetRotation(CoordinateSystemHelper::standardViewRotation(_viewCtrl.cameraUpAxisZUp(), ViewMode::FRONT));
 		_viewCtrl.setViewMode(ViewMode::FRONT);
 		if (_viewToolbar)
 			_viewToolbar->setDefaultStandardViewAction(StandardViewActions::FRONT);
 	}
 	else if (isAxisNormal(rearNormal))
 	{
-		_viewCtrl.setCustomViewTargetRotation(standardViewRotation(ViewMode::BACK));
+		_viewCtrl.setCustomViewTargetRotation(CoordinateSystemHelper::standardViewRotation(_viewCtrl.cameraUpAxisZUp(), ViewMode::BACK));
 		_viewCtrl.setViewMode(ViewMode::BACK);
 		if (_viewToolbar)
 			_viewToolbar->setDefaultStandardViewAction(StandardViewActions::REAR);
 	}
 	else if (isAxisNormal(leftNormal))
 	{
-		_viewCtrl.setCustomViewTargetRotation(standardViewRotation(ViewMode::LEFT));
+		_viewCtrl.setCustomViewTargetRotation(CoordinateSystemHelper::standardViewRotation(_viewCtrl.cameraUpAxisZUp(), ViewMode::LEFT));
 		_viewCtrl.setViewMode(ViewMode::LEFT);
 		if (_viewToolbar)
 			_viewToolbar->setDefaultStandardViewAction(StandardViewActions::LEFT);
 	}
 	else if (isAxisNormal(rightNormal))
 	{
-		_viewCtrl.setCustomViewTargetRotation(standardViewRotation(ViewMode::RIGHT));
+		_viewCtrl.setCustomViewTargetRotation(CoordinateSystemHelper::standardViewRotation(_viewCtrl.cameraUpAxisZUp(), ViewMode::RIGHT));
 		_viewCtrl.setViewMode(ViewMode::RIGHT);
 		if (_viewToolbar)
 			_viewToolbar->setDefaultStandardViewAction(StandardViewActions::RIGHT);
@@ -8364,8 +8240,10 @@ void GLWidget::initializeViewCubeLabels()
 	if (!_renderCtrl.viewCubeLabelShader())
 		return;
 
-	const auto labelFaces = SceneRenderController::buildViewCubeLabelFaces(_labelTop, _labelFront, _labelLeft,
-		tr("Bottom"), tr("Rear"), tr("Right"), cameraUpAxisConventionRotation());
+	const auto labelFaces = SceneRenderController::buildViewCubeLabelFaces(
+		_labelTop, _labelFront, _labelLeft,
+		tr("Bottom"), tr("Rear"), tr("Right"),
+		CoordinateSystemHelper::cameraUpAxisConventionRotation(_viewCtrl.cameraUpAxisZUp()));
 
 	const TextureSamplerSettings samplers = {
 		GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR
@@ -8551,8 +8429,10 @@ void GLWidget::drawViewCubeLabels(const QMatrix4x4& viewMatrix, const QMatrix4x4
 			return matrix;
 		};
 
-		const auto faces = SceneRenderController::buildViewCubeLabelFaces(_labelTop, _labelFront, _labelLeft,
-			tr("Bottom"), tr("Rear"), tr("Right"), cameraUpAxisConventionRotation());
+		const auto faces = SceneRenderController::buildViewCubeLabelFaces(
+			_labelTop, _labelFront, _labelLeft,
+			tr("Bottom"), tr("Rear"), tr("Right"),
+			CoordinateSystemHelper::cameraUpAxisConventionRotation(_viewCtrl.cameraUpAxisZUp()));
 		for (int i = 0; i < static_cast<int>(faces.size()); ++i)
 			transforms[i] = faceTransform(QVector3D(0.0f, 0.0f, 0.0f), faces[i].right, faces[i].up, faces[i].normal);
 
@@ -8865,7 +8745,7 @@ void GLWidget::renderToShadowBuffer()
 
 	// Light looks at scene center
 	QVector3D lightDir = center;
-	QVector3D lightUp = currentWorldUpVector();
+	QVector3D lightUp = CoordinateSystemHelper::currentWorldUpVector(_viewCtrl.cameraUpAxisZUp());
 	if (std::abs(QVector3D::dotProduct((lightDir - lightPos).normalized(), lightUp)) > 0.98f)
 	{
 		// Light direction nearly collinear with world-up: pick the least-aligned world axis
@@ -12850,7 +12730,7 @@ float GLWidget::computeSharedOrthographicMultiViewRange(
 		QVector3D viewDir;
 		QVector3D upDir;
 		QVector3D rightDir;
-		standardViewBasis(viewMode, viewDir, upDir, rightDir);
+		CoordinateSystemHelper::standardViewBasis(_viewCtrl.cameraUpAxisZUp(), viewMode, viewDir, upDir, rightDir);
 		sharedRange = std::max(
 			sharedRange,
 			computeOrthographicFitViewRangeForViewport(
@@ -12872,7 +12752,7 @@ void GLWidget::configureOrthoSubviewCamera(
 	QVector3D viewDir;
 	QVector3D upDir;
 	QVector3D rightDir;
-	standardViewBasis(viewMode, viewDir, upDir, rightDir);
+	CoordinateSystemHelper::standardViewBasis(_viewCtrl.cameraUpAxisZUp(), viewMode, viewDir, upDir, rightDir);
 
 	_orthoViewsCamera->setScreenSize(viewportWidth, viewportHeight);
 	_orthoViewsCamera->setViewRange(sharedViewRange);
@@ -13353,7 +13233,7 @@ void GLWidget::updateEnvMapRotationMatrix()
 	QMatrix4x4 envMapRot;
 	envMapRot.rotate(-_renderCtrl.skyBoxZRotation(), 0, 1, 0); // Qt post-mul: M = Ry(-theta)
 	envMapRot.rotate(-90.0f, 1, 0, 0);            // Qt post-mul: M = Ry(-theta) · Rx(-90°)
-	envMapRot.rotate(cameraUpAxisConventionRotation().inverted());
+	envMapRot.rotate(CoordinateSystemHelper::cameraUpAxisConventionRotation(_viewCtrl.cameraUpAxisZUp()).inverted());
 	_renderCtrl.fgShader()->bind();
 	_renderCtrl.fgShader()->setUniformValue("envMapRotationMatrix", envMapRot.toGenericMatrix<3, 3>());
 }
@@ -13652,97 +13532,6 @@ void GLWidget::setTransmissionEnabled(const bool& enabled)
 	if (_renderCtrl.transmissionEnabled())
 		initTransmissionBuffer();
 	update();
-}
-
-float GLWidget::getZScale() const
-{
-	return _zScale;
-}
-
-void GLWidget::setZScale(const float& zScale)
-{
-	_zScale = zScale;
-}
-
-float GLWidget::getYScale() const
-{
-	return _yScale;
-}
-
-void GLWidget::setYScale(const float& yScale)
-{
-	_yScale = yScale;
-}
-
-float GLWidget::getXScale() const
-{
-	return _xScale;
-}
-
-void GLWidget::setXScale(const float& xScale)
-{
-	_xScale = xScale;
-}
-
-float GLWidget::getZRot() const
-{
-	return _zRot;
-}
-
-void GLWidget::setZRot(const float& zRot)
-{
-	_zRot = zRot;
-}
-
-float GLWidget::getYRot() const
-{
-	return _yRot;
-}
-
-void GLWidget::setYRot(const float& yRot)
-{
-	_yRot = yRot;
-}
-
-float GLWidget::getXRot() const
-{
-	return _xRot;
-}
-
-void GLWidget::setXRot(const float& xRot)
-{
-	_xRot = xRot;
-}
-
-float GLWidget::getZTran() const
-{
-	return _zTran;
-}
-
-void GLWidget::setZTran(const float& zTran)
-{
-	_zTran = zTran;
-}
-
-float GLWidget::getYTran() const
-{
-	return _yTran;
-}
-
-void GLWidget::setYTran(const float& yTran)
-{
-	_yTran = yTran;
-}
-
-
-float GLWidget::getXTran() const
-{
-	return _xTran;
-}
-
-void GLWidget::setXTran(const float& xTran)
-{
-	_xTran = xTran;
 }
 
 float GLWidget::highestModelZ()

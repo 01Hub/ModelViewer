@@ -257,33 +257,6 @@ public:
 	int     activeGltfCameraIndex() const { return _animCtrl.activeGltfCameraIndex(); }
 
 public:
-	float getXTran() const;
-	void setXTran(const float& xTran);
-
-	float getYTran() const;
-	void setYTran(const float& yTran);
-
-	float getZTran() const;
-	void setZTran(const float& zTran);
-
-	float getXRot() const;
-	void setXRot(const float& xRot);
-
-	float getYRot() const;
-	void setYRot(const float& yRot);
-
-	float getZRot() const;
-	void setZRot(const float& zRot);
-
-	float getXScale() const;
-	void setXScale(const float& xScale);
-
-	float getYScale() const;
-	void setYScale(const float& yScale);
-
-	float getZScale() const;
-	void setZScale(const float& zScale);
-
 	QVector4D getDefaultLightColor() const;
 	void setDefaultLightColor(const QVector4D& defaultLightColor);
 
@@ -670,10 +643,6 @@ private:
 	void loadGrid();
 	void applyFloorPlaneMaterialSettings();
 	void syncFloorPlaneAlbedoTexture();
-	Plane::Orientation floorPlaneOrientation() const;
-	QVector3D currentWorldUpVector() const;
-	float coordinateAlongCurrentWorldUp(const QVector3D& point) const;
-	void setCoordinateAlongCurrentWorldUp(QVector3D& point, float value) const;
 	QVector3D effectiveWorldLightOffset() const;
 	QVector3D effectiveWorldLightPosition() const;
 	void updateMainLightPosition(float halfObjectSize);
@@ -781,19 +750,13 @@ private:
 
 	void gradientBackground(float top_r, float top_g, float top_b, float top_a,
 		float bot_r, float bot_g, float bot_b, float bot_a, int gradientStyle);
-	QQuaternion cameraUpAxisConventionRotation() const;
-	QVector3D transformVectorForCameraUpAxis(const QVector3D& vector) const;
-	void standardViewBasis(ViewMode mode, QVector3D& viewDir, QVector3D& upDir, QVector3D& rightDir) const;
-	QQuaternion standardViewRotation(ViewMode mode) const;
 	void syncCameraWorldUp();
 	void rotateCurrentCameraAroundWorldX(float degrees);
-	bool sceneUpAxisIsZUp(SceneUpAxis sceneUpAxis) const;
 	QString sceneUpAxisLabel(SceneUpAxis sceneUpAxis) const;
 	void applyAutoOrientCameraConvention(SceneUpAxis sceneUpAxis);
 	void warnOnConflictingImportedSceneUpAxis(const QString& fileName, SceneUpAxis sceneUpAxis);
 
 	void loadBgColorSettings();
-	float groundPlaneZ();
 	QRect viewCubeRect() const;
 	QRect viewCubeScreenRect() const;
 	void initializeViewCubeLabels();
@@ -945,9 +908,6 @@ private:
 	void generateCubemapMipmaps(GLuint cubemapTexture);
 
 	void setSectionCapsInteractionSuppressed(bool suppressed);
-	float groundPlaneScaleFactor() const;
-	float groundPlaneExtent() const;
-
 private:
 	SceneRuntime _sceneRuntime;
 
@@ -998,18 +958,6 @@ private:
 	unsigned int _selectionRBO = 0;        // Color render buffer
 	unsigned int _selectionDBO = 0;        // Depth render buffer
 
-
-	float _xTran;
-	float _yTran;
-	float _zTran;
-
-	float _xRot;
-	float _yRot;
-	float _zRot;
-
-	float _xScale;
-	float _yScale;
-	float _zScale;
 
 	QVector4D _defaultLightColor;
 	QVector4D _ambientLight;
