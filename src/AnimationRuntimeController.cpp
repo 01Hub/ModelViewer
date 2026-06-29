@@ -1,4 +1,5 @@
 #include "AnimationRuntimeController.h"
+#include "AnimationUtils.h"
 #include "SceneGraph.h"
 
 #include <assimp/matrix4x4.h>
@@ -198,6 +199,209 @@ std::vector<GPULight> AnimationRuntimeController::buildUploadLights(
             uploadLights.push_back(_currentRepositionedLights[i]);
     }
     return uploadLights;
+}
+
+AnimationRuntimeController::AnimationSampleResult AnimationRuntimeController::sampleClip(
+    const RuntimeAnimationFileState& runtime,
+    const GltfAnimationClip& clip,
+    double timeSeconds,
+    const SceneGraph* sg) const
+{
+    AnimationSampleResult result;
+    result.nodeTransforms = runtime.defaultNodeTransformsByUuid;
+    result.morphWeights = runtime.defaultNodeMorphWeightsByUuid;
+    result.animatedMaterials = runtime.defaultMeshMaterials;
+
+    for (const GltfAnimationNodeVisibilityState& nodeState : runtime.data.nodeVisibilityStates)
+        result.nodeVisibility.insert(nodeState.nodeIndex, nodeState.defaultVisible);
+
+    const auto resolveChannelNodeUuid = [&](const GltfAnimationChannel& channel) -> QUuid
+    {
+        return AnimationRuntimeController::resolveRuntimeNodeUuid(
+            runtime,
+            channel.targetNodeIndex,
+            channel.targetNodeName);
+    };
+
+    QHash<QUuid, bool> nodeAffectsShadowCache;
+    std::function<bool(const QUuid&)> nodeAffectsShadow = [&](const QUuid& nodeUuid) -> bool
+    {
+        if (nodeUuid.isNull() || !sg)
+            return false;
+        if (nodeAffectsShadowCache.contains(nodeUuid))
+            return nodeAffectsShadowCache.value(nodeUuid);
+
+        const SceneNode* node = sg->findNodeByUuid(nodeUuid);
+        if (!node)
+        {
+            nodeAffectsShadowCache.insert(nodeUuid, false);
+            return false;
+        }
+
+        std::function<bool(const SceneNode*)> hasMeshInSubtree = [&](const SceneNode* current) -> bool
+        {
+            if (!current)
+                return false;
+            if (!current->meshUuids.isEmpty())
+                return true;
+            for (const SceneNode* child : current->children)
+            {
+                if (hasMeshInSubtree(child))
+                    return true;
+            }
+            return false;
+        };
+
+        const bool affects = hasMeshInSubtree(node);
+        nodeAffectsShadowCache.insert(nodeUuid, affects);
+        return affects;
+    };
+
+    for (const GltfAnimationChannel& channel : clip.channels)
+    {
+        if (channel.targetPath == GltfAnimationTargetPath::Pointer)
+        {
+            if (channel.pointerTargetKind == GltfAnimationPointerTargetKind::MaterialTextureTransform)
+            {
+                if (channel.targetMaterialIndex < 0)
+                    continue;
+
+                const QList<QUuid> affectedMeshes = runtime.meshUuidsByMaterialIndex.values(channel.targetMaterialIndex);
+                for (const QUuid& meshUuid : affectedMeshes)
+                {
+                    auto materialIt = result.animatedMaterials.find(meshUuid);
+                    if (materialIt == result.animatedMaterials.end())
+                        continue;
+
+                    if (channel.pointerProperty == GltfAnimationPointerProperty::BaseColorFactor)
+                    {
+                        const QVector4D vec4Value = AnimationUtils::sampleVec4Keys(
+                            channel.vec4Keys,
+                            timeSeconds,
+                            QVector4D(materialIt.value().albedoColor(), materialIt.value().opacity()));
+                        AnimationRuntimeController::applyMaterialFactorPointerValue(
+                            materialIt.value(),
+                            channel.pointerProperty,
+                            vec4Value);
+                        continue;
+                    }
+
+                    const QVector2D vec2Value = channel.pointerProperty == GltfAnimationPointerProperty::Rotation
+                        ? QVector2D()
+                        : AnimationUtils::sampleVec2Keys(channel.vec2Keys, timeSeconds, QVector2D());
+                    const float scalarValue = channel.pointerProperty == GltfAnimationPointerProperty::Rotation
+                        ? AnimationUtils::sampleFloatKeys(channel.floatKeys, timeSeconds, 0.0f)
+                        : 0.0f;
+                    AnimationRuntimeController::applyTexturePointerValue(
+                        materialIt.value(),
+                        channel.textureTarget,
+                        channel.pointerProperty,
+                        vec2Value,
+                        scalarValue);
+                }
+            }
+            else if (channel.pointerTargetKind == GltfAnimationPointerTargetKind::NodeVisibility)
+            {
+                if (channel.targetNodeIndex >= 0)
+                {
+                    const QUuid resolvedNodeUuid = AnimationRuntimeController::resolveRuntimeNodeUuid(
+                        runtime,
+                        channel.targetNodeIndex);
+                    result.affectsShadowCasters =
+                        result.affectsShadowCasters || nodeAffectsShadow(resolvedNodeUuid);
+                    result.nodeVisibility.insert(
+                        channel.targetNodeIndex,
+                        AnimationUtils::sampleBoolKeys(
+                            channel.boolKeys,
+                            timeSeconds,
+                            result.nodeVisibility.value(channel.targetNodeIndex, true)));
+                }
+            }
+            continue;
+        }
+
+        if (channel.targetKind == GltfAnimationBindingTargetKind::Mesh)
+        {
+            if (channel.targetMeshUuid.isNull())
+                continue;
+
+            if (channel.targetPath == GltfAnimationTargetPath::Translation ||
+                channel.targetPath == GltfAnimationTargetPath::Rotation ||
+                channel.targetPath == GltfAnimationTargetPath::Scale ||
+                channel.targetPath == GltfAnimationTargetPath::Weights)
+            {
+                result.affectsShadowCasters = true;
+            }
+
+            RuntimeNodeTransform meshTransform = result.meshTransforms.value(channel.targetMeshUuid);
+            if (meshTransform.rotation.isNull())
+                meshTransform.rotation = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
+            switch (channel.targetPath)
+            {
+            case GltfAnimationTargetPath::Translation:
+                meshTransform.translation = AnimationUtils::sampleVec3Keys(
+                    channel.vec3Keys, timeSeconds, meshTransform.translation);
+                break;
+            case GltfAnimationTargetPath::Rotation:
+                meshTransform.rotation = AnimationUtils::sampleQuatKeys(
+                    channel.quatKeys, timeSeconds, meshTransform.rotation);
+                break;
+            case GltfAnimationTargetPath::Scale:
+                meshTransform.scale = AnimationUtils::sampleVec3Keys(
+                    channel.vec3Keys,
+                    timeSeconds,
+                    meshTransform.scale.isNull() ? QVector3D(1.0f, 1.0f, 1.0f) : meshTransform.scale);
+                break;
+            case GltfAnimationTargetPath::Weights:
+            case GltfAnimationTargetPath::Pointer:
+                continue;
+            }
+            if (meshTransform.scale.isNull())
+                meshTransform.scale = QVector3D(1.0f, 1.0f, 1.0f);
+            result.meshTransforms.insert(channel.targetMeshUuid, meshTransform);
+            continue;
+        }
+
+        const QUuid resolvedNodeUuid = resolveChannelNodeUuid(channel);
+        if (resolvedNodeUuid.isNull())
+            continue;
+
+        if ((channel.targetPath == GltfAnimationTargetPath::Translation ||
+             channel.targetPath == GltfAnimationTargetPath::Rotation ||
+             channel.targetPath == GltfAnimationTargetPath::Scale ||
+             channel.targetPath == GltfAnimationTargetPath::Weights) &&
+            (runtime.data.hasSkinning || nodeAffectsShadow(resolvedNodeUuid)))
+        {
+            result.affectsShadowCasters = true;
+        }
+
+        RuntimeNodeTransform node = result.nodeTransforms.value(resolvedNodeUuid);
+        switch (channel.targetPath)
+        {
+        case GltfAnimationTargetPath::Translation:
+            node.translation = AnimationUtils::sampleVec3Keys(channel.vec3Keys, timeSeconds, node.translation);
+            break;
+        case GltfAnimationTargetPath::Rotation:
+            node.rotation = AnimationUtils::sampleQuatKeys(channel.quatKeys, timeSeconds, node.rotation);
+            break;
+        case GltfAnimationTargetPath::Scale:
+            node.scale = AnimationUtils::sampleVec3Keys(channel.vec3Keys, timeSeconds, node.scale);
+            break;
+        case GltfAnimationTargetPath::Weights:
+            result.morphWeights.insert(
+                resolvedNodeUuid,
+                AnimationUtils::sampleWeightKeys(
+                    channel.weightKeys,
+                    timeSeconds,
+                    result.morphWeights.value(resolvedNodeUuid)));
+            continue;
+        case GltfAnimationTargetPath::Pointer:
+            continue;
+        }
+        result.nodeTransforms.insert(resolvedNodeUuid, node);
+    }
+
+    return result;
 }
 
 // ---------------------------------------------------------------------------

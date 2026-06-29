@@ -10131,6 +10131,298 @@ void GLWidget::updateAnimatedMeshState(const QString& sourceFile,
 		applyToMeshes(child);
 }
 
+void GLWidget::applyNodeTransformsToMeshes(
+	const QString& sourceFile,
+	const AnimationRuntimeController::RuntimeAnimationFileState& runtime,
+	AnimationRuntimeController::AnimationSampleResult& result,
+	SceneNode* fileNode)
+{
+	if (!fileNode || !(runtime.data.hasNodeAnimations || runtime.data.hasSkinning))
+		return;
+
+	std::function<void(SceneNode*, const QMatrix4x4&)> evalNode =
+		[&](SceneNode* node, const QMatrix4x4& parentWorld)
+	{
+		if (!node)
+			return;
+
+		const RuntimeNodeTransform nodeTransform =
+			result.nodeTransforms.value(node->nodeUuid, AnimationRuntimeController::decomposeNodeTransform(node->localTransform));
+		const QMatrix4x4 local = AnimationRuntimeController::composeNodeTransform(nodeTransform);
+		const QMatrix4x4 world = parentWorld * local;
+		result.worldTransforms.insert(node->nodeUuid, world);
+
+		for (SceneNode* child : node->children)
+			evalNode(child, world);
+	};
+
+	for (SceneNode* child : fileNode->children)
+		evalNode(child, QMatrix4x4());
+
+	updateAnimatedMeshState(sourceFile, result.worldTransforms);
+
+	for (auto meshIt = result.meshTransforms.cbegin(); meshIt != result.meshTransforms.cend(); ++meshIt)
+	{
+		SceneMesh* mesh = getMeshByUuid(meshIt.key());
+		const SceneNode* ownerNode = mesh ? _viewer->sceneGraph()->findNodeForMesh(meshIt.key()) : nullptr;
+		if (!mesh || !ownerNode || mesh->getSourceFile() != sourceFile)
+			continue;
+
+		const QMatrix4x4 ownerWorld = result.worldTransforms.value(ownerNode->nodeUuid,
+			AnimationRuntimeController::aiToQMatrix(ownerNode->localTransform));
+		QMatrix4x4 meshLocal;
+		meshLocal.translate(meshIt->translation);
+		meshLocal.rotate(meshIt->rotation);
+		meshLocal.scale(meshIt->scale);
+		mesh->setSceneRenderTransformFast(ownerWorld * meshLocal);
+	}
+}
+
+void GLWidget::applyMorphTargetWeights(
+	const QString& sourceFile,
+	const AnimationRuntimeController::AnimationSampleResult& result)
+{
+	const std::vector<SceneMesh*>& meshes = getMeshStore();
+	for (SceneMesh* mesh : meshes)
+	{
+		if (!mesh || mesh->getSourceFile() != sourceFile || !mesh->hasMorphTargets())
+			continue;
+
+		const SceneNode* ownerNode = _viewer->sceneGraph()->findNodeForMesh(mesh->uuid());
+		if (!ownerNode)
+		{
+			mesh->resetMorphTargets();
+			continue;
+		}
+
+		const SceneNode* lookupNode = ownerNode;
+		if (ownerNode->parent
+			&& ownerNode->name.endsWith(QStringLiteral("_node"))
+			&& ownerNode->parent->name == ownerNode->name.left(ownerNode->name.length() - 5))
+		{
+			lookupNode = ownerNode->parent;
+		}
+		const QVector<float> weights = result.morphWeights.value(lookupNode->nodeUuid);
+		if (!weights.isEmpty())
+			mesh->applyMorphWeights(weights);
+		else
+			mesh->resetMorphTargets();
+	}
+}
+
+void GLWidget::applyAnimatedMaterialChanges(const AnimationRuntimeController::AnimationSampleResult& result)
+{
+	for (auto it = result.animatedMaterials.constBegin(); it != result.animatedMaterials.constEnd(); ++it)
+	{
+		if (SceneMesh* mesh = getMeshByUuid(it.key()))
+			mesh->setMaterial(it.value());
+	}
+}
+
+void GLWidget::applyAnimatedMeshVisibility(
+	const QString& sourceFile,
+	const AnimationRuntimeController::RuntimeAnimationFileState& runtime,
+	const AnimationRuntimeController::AnimationSampleResult& result,
+	SceneNode* fileNode)
+{
+	if (!fileNode || runtime.data.nodeVisibilityStates.isEmpty())
+	{
+		clearAnimatedMeshVisibilityState(sourceFile);
+		return;
+	}
+
+	QHash<int, bool> effectiveCache;
+	std::function<bool(int)> evalVisible = [&](int nodeIndex) -> bool
+	{
+		if (effectiveCache.contains(nodeIndex))
+			return effectiveCache.value(nodeIndex);
+		if (nodeIndex < 0 || nodeIndex >= runtime.data.nodeVisibilityStates.size())
+			return true;
+
+		const GltfAnimationNodeVisibilityState& nodeState = runtime.data.nodeVisibilityStates[nodeIndex];
+		const bool localVisible = result.nodeVisibility.value(nodeIndex, nodeState.defaultVisible);
+		const bool effectiveVisible = localVisible &&
+			(nodeState.parentNodeIndex < 0 || evalVisible(nodeState.parentNodeIndex));
+		effectiveCache.insert(nodeIndex, effectiveVisible);
+		return effectiveVisible;
+	};
+
+	QSet<QUuid> hiddenMeshUuids;
+	std::function<void(SceneNode*)> collectHidden = [&](SceneNode* node)
+	{
+		if (!node)
+			return;
+
+		const int nodeIndex = runtime.nodeIndexByUuid.value(node->nodeUuid, -1);
+		const bool visible = nodeIndex < 0 ? true : evalVisible(nodeIndex);
+		if (!visible)
+		{
+			for (const QUuid& uuid : node->meshUuids)
+				hiddenMeshUuids.insert(uuid);
+		}
+
+		for (SceneNode* child : node->children)
+			collectHidden(child);
+	};
+
+	for (SceneNode* child : fileNode->children)
+		collectHidden(child);
+	setAnimatedMeshVisibilityState(sourceFile, hiddenMeshUuids);
+}
+
+void GLWidget::applyAnimatedLightTransforms(
+	const QString& sourceFile,
+	const AnimationRuntimeController::RuntimeAnimationFileState& runtime,
+	AnimationRuntimeController::AnimationSampleResult& result,
+	SceneNode* fileNode)
+{
+	if (fileNode && (runtime.data.hasNodeAnimations || runtime.data.hasSkinning))
+	{
+		int fileLightOffset = 0;
+		int fileLightCount = static_cast<int>(_animCtrl.originalParsedLights().size());
+		if (!_animCtrl.lightFileIndexMap().isEmpty())
+		{
+			int foundOffset = -1, foundCount = 0;
+			for (int k = 0; k < _animCtrl.lightFileIndexMap().size(); ++k)
+			{
+				if (_animCtrl.lightFileIndexMap()[k].file == sourceFile)
+				{
+					if (foundCount == 0)
+						foundOffset = k;
+					++foundCount;
+				}
+			}
+			if (foundOffset >= 0)
+			{
+				fileLightOffset = foundOffset;
+				fileLightCount = foundCount;
+			}
+		}
+
+		const QMatrix4x4 importCorrection = AnimationRuntimeController::aiToQMatrix(fileNode->localTransform);
+
+		if (!runtime.data.lightBindings.isEmpty() &&
+			fileLightCount == static_cast<int>(runtime.data.lightBindings.size()))
+		{
+			std::vector<GPULight> animatedLights = _animCtrl.originalParsedLights();
+			bool resolvedAnyAnimatedLightTransform = false;
+			for (const GltfAnimationLightBinding& binding : runtime.data.lightBindings)
+			{
+				const int globalIndex = fileLightOffset + binding.parsedLightIndex;
+				if (binding.parsedLightIndex < 0 ||
+					globalIndex >= static_cast<int>(animatedLights.size()))
+				{
+					continue;
+				}
+
+				QMatrix4x4 modelSpaceWorld;
+				bool hasWorldTransform = false;
+				if (binding.nodeIndex >= 0 && runtime.nodeUuidByIndex.contains(binding.nodeIndex))
+				{
+					const QUuid nodeUuid = AnimationRuntimeController::resolveRuntimeNodeUuid(runtime, binding.nodeIndex);
+					if (result.worldTransforms.contains(nodeUuid))
+					{
+						modelSpaceWorld = result.worldTransforms.value(nodeUuid);
+						hasWorldTransform = true;
+					}
+				}
+				else if (!binding.nodeName.isEmpty())
+				{
+					const QUuid nodeUuid = AnimationRuntimeController::resolveRuntimeNodeUuid(runtime, -1, binding.nodeName);
+					if (!nodeUuid.isNull() && result.worldTransforms.contains(nodeUuid))
+					{
+						modelSpaceWorld = result.worldTransforms.value(nodeUuid);
+						hasWorldTransform = true;
+					}
+				}
+
+				if (!hasWorldTransform)
+					continue;
+
+				const QMatrix4x4 worldSpace = importCorrection * modelSpaceWorld;
+				GPULight& light = animatedLights[globalIndex];
+				light.position = glm::vec3(worldSpace(0, 3), worldSpace(1, 3), worldSpace(2, 3));
+
+				const QVector3D localDir(0.0f, 0.0f, -1.0f);
+				const QVector3D worldDir = (worldSpace.mapVector(localDir)).normalized();
+				light.direction = glm::vec3(worldDir.x(), worldDir.y(), worldDir.z());
+				resolvedAnyAnimatedLightTransform = true;
+			}
+			if (resolvedAnyAnimatedLightTransform)
+				setAnimatedLightTransformState(sourceFile, animatedLights);
+			else
+				clearAnimatedLightTransformState(sourceFile);
+		}
+		else
+		{
+			clearAnimatedLightTransformState(sourceFile);
+		}
+	}
+	else
+	{
+		clearAnimatedLightTransformState(sourceFile);
+	}
+
+	if (!runtime.data.lightBindings.isEmpty())
+	{
+		QVector<bool> visibleByParsedLight(runtime.data.lightBindings.size(), true);
+		QHash<int, bool> effectiveCache;
+		std::function<bool(int)> evalVisible = [&](int nodeIndex) -> bool
+		{
+			if (effectiveCache.contains(nodeIndex))
+				return effectiveCache.value(nodeIndex);
+			if (nodeIndex < 0 || nodeIndex >= runtime.data.nodeVisibilityStates.size())
+				return true;
+
+			const GltfAnimationNodeVisibilityState& nodeState = runtime.data.nodeVisibilityStates[nodeIndex];
+			const bool localVisible = result.nodeVisibility.value(nodeIndex, nodeState.defaultVisible);
+			const bool effectiveVisible = localVisible &&
+				(nodeState.parentNodeIndex < 0 || evalVisible(nodeState.parentNodeIndex));
+			effectiveCache.insert(nodeIndex, effectiveVisible);
+			return effectiveVisible;
+		};
+
+		for (const GltfAnimationLightBinding& binding : runtime.data.lightBindings)
+		{
+			if (binding.parsedLightIndex >= 0 && binding.parsedLightIndex < visibleByParsedLight.size())
+				visibleByParsedLight[binding.parsedLightIndex] = evalVisible(binding.nodeIndex);
+		}
+		setAnimatedLightVisibilityState(sourceFile, visibleByParsedLight);
+	}
+	else
+	{
+		clearAnimatedLightVisibilityState(sourceFile);
+	}
+}
+
+void GLWidget::applyAnimatedCamera(
+	const QString& sourceFile,
+	const AnimationRuntimeController::RuntimeAnimationFileState& runtime,
+	const AnimationRuntimeController::AnimationSampleResult& result)
+{
+	if (_animCtrl.activeGltfCameraFile() != sourceFile || _animCtrl.activeGltfCameraIndex() < 0 || !_primaryCamera)
+		return;
+
+	const GltfCameraData camData = _viewer->sceneGraph()->gltfCameraDataForFile(sourceFile);
+	if (_animCtrl.activeGltfCameraIndex() >= camData.cameras.size())
+		return;
+
+	const GltfCameraEntry& cam = camData.cameras[_animCtrl.activeGltfCameraIndex()];
+	const QUuid cameraNodeUuid = AnimationRuntimeController::resolveRuntimeNodeUuid(runtime, cam.nodeIndex, cam.nodeName);
+	if (cameraNodeUuid.isNull() || !result.worldTransforms.contains(cameraNodeUuid))
+		return;
+
+	const QMatrix4x4& world = result.worldTransforms.value(cameraNodeUuid);
+	const QVector3D worldPos(world(0, 3), world(1, 3), world(2, 3));
+	const QVector3D worldDir = world.mapVector(QVector3D(0.0f, 0.0f, -1.0f)).normalized();
+	const QVector3D worldUp = world.mapVector(QVector3D(0.0f, 1.0f, 0.0f)).normalized();
+	GltfCameraEntry runtimeCam = cam;
+	runtimeCam.worldPosition = worldPos;
+	runtimeCam.worldDirection = worldDir;
+	runtimeCam.worldUp = worldUp;
+	applyGltfCameraEntryTransform(runtimeCam);
+}
+
 void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, double timeSeconds)
 {
 	if (!_viewer || !_viewer->sceneGraph())
@@ -10151,466 +10443,17 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 	if (!fileNode)
 		return;
 
-	QHash<QUuid, RuntimeNodeTransform> sampled = runtime.defaultNodeTransformsByUuid;
-	QHash<QUuid, RuntimeNodeTransform> sampledMeshTransforms;
-	QHash<QUuid, QVector<float>> sampledMorphWeightsByUuid = runtime.defaultNodeMorphWeightsByUuid;
-	QHash<QUuid, GLMaterial> animatedMaterials = runtime.defaultMeshMaterials;
-	QHash<int, bool> sampledNodeVisibility;
-	for (const GltfAnimationNodeVisibilityState& nodeState : runtime.data.nodeVisibilityStates)
-		sampledNodeVisibility.insert(nodeState.nodeIndex, nodeState.defaultVisible);
 	const GltfAnimationClip& clip = runtime.data.clips[clipIndex];
-	const auto resolveChannelNodeUuid = [&](const GltfAnimationChannel& channel) -> QUuid
-	{
-		return AnimationRuntimeController::resolveRuntimeNodeUuid(runtime, channel.targetNodeIndex, channel.targetNodeName);
-	};
-	QHash<QUuid, bool> nodeAffectsShadowCache;
-	std::function<bool(const QUuid&)> nodeAffectsShadow = [&](const QUuid& nodeUuid) -> bool
-	{
-		if (nodeUuid.isNull())
-			return false;
-		if (nodeAffectsShadowCache.contains(nodeUuid))
-			return nodeAffectsShadowCache.value(nodeUuid);
-
-		const SceneNode* node = sceneGraph->findNodeByUuid(nodeUuid);
-		if (!node)
-		{
-			nodeAffectsShadowCache.insert(nodeUuid, false);
-			return false;
-		}
-
-		std::function<bool(const SceneNode*)> hasMeshInSubtree = [&](const SceneNode* current) -> bool
-		{
-			if (!current)
-				return false;
-			// Camera/helper nodes can animate without affecting casters. Only
-			// nodes that own a mesh subtree should invalidate the shadow map.
-			if (!current->meshUuids.isEmpty())
-				return true;
-			for (const SceneNode* child : current->children)
-			{
-				if (hasMeshInSubtree(child))
-					return true;
-			}
-			return false;
-		};
-
-		const bool affects = hasMeshInSubtree(node);
-		nodeAffectsShadowCache.insert(nodeUuid, affects);
-		return affects;
-	};
-	bool animationAffectsShadowCasters = false;
-	for (const GltfAnimationChannel& channel : clip.channels)
-	{
-		if (channel.targetPath == GltfAnimationTargetPath::Pointer)
-		{
-			if (channel.pointerTargetKind == GltfAnimationPointerTargetKind::MaterialTextureTransform)
-			{
-				if (channel.targetMaterialIndex < 0)
-					continue;
-
-				const QList<QUuid> affectedMeshes = runtime.meshUuidsByMaterialIndex.values(channel.targetMaterialIndex);
-				for (const QUuid& meshUuid : affectedMeshes)
-				{
-					auto materialIt = animatedMaterials.find(meshUuid);
-					if (materialIt == animatedMaterials.end())
-						continue;
-
-					if (channel.pointerProperty == GltfAnimationPointerProperty::BaseColorFactor)
-					{
-						const QVector4D vec4Value = AnimationUtils::sampleVec4Keys(channel.vec4Keys,
-							timeSeconds,
-							QVector4D(materialIt.value().albedoColor(), materialIt.value().opacity()));
-						AnimationRuntimeController::applyMaterialFactorPointerValue(materialIt.value(),
-							channel.pointerProperty,
-							vec4Value);
-						continue;
-					}
-
-					const QVector2D vec2Value = channel.pointerProperty == GltfAnimationPointerProperty::Rotation
-						? QVector2D()
-						: AnimationUtils::sampleVec2Keys(channel.vec2Keys, timeSeconds, QVector2D());
-					const float scalarValue = channel.pointerProperty == GltfAnimationPointerProperty::Rotation
-						? AnimationUtils::sampleFloatKeys(channel.floatKeys, timeSeconds, 0.0f)
-						: 0.0f;
-					AnimationRuntimeController::applyTexturePointerValue(materialIt.value(),
-						channel.textureTarget,
-						channel.pointerProperty,
-						vec2Value,
-						scalarValue);
-				}
-			}
-				else if (channel.pointerTargetKind == GltfAnimationPointerTargetKind::NodeVisibility)
-			{
-				if (channel.targetNodeIndex >= 0)
-				{
-					const QUuid resolvedNodeUuid = AnimationRuntimeController::resolveRuntimeNodeUuid(runtime, channel.targetNodeIndex);
-					animationAffectsShadowCasters =
-						animationAffectsShadowCasters || nodeAffectsShadow(resolvedNodeUuid);
-					sampledNodeVisibility.insert(channel.targetNodeIndex,
-						AnimationUtils::sampleBoolKeys(channel.boolKeys,
-							timeSeconds,
-							sampledNodeVisibility.value(channel.targetNodeIndex, true)));
-				}
-			}
-			continue;
-		}
-
-		if (channel.targetKind == GltfAnimationBindingTargetKind::Mesh)
-		{
-			if (channel.targetMeshUuid.isNull())
-				continue;
-
-			if (channel.targetPath == GltfAnimationTargetPath::Translation ||
-				channel.targetPath == GltfAnimationTargetPath::Rotation ||
-				channel.targetPath == GltfAnimationTargetPath::Scale ||
-				channel.targetPath == GltfAnimationTargetPath::Weights)
-			{
-				animationAffectsShadowCasters = true;
-			}
-
-			RuntimeNodeTransform meshTransform = sampledMeshTransforms.value(channel.targetMeshUuid);
-			if (meshTransform.rotation.isNull())
-				meshTransform.rotation = QQuaternion(1.0f, 0.0f, 0.0f, 0.0f);
-			switch (channel.targetPath)
-			{
-			case GltfAnimationTargetPath::Translation:
-				meshTransform.translation = AnimationUtils::sampleVec3Keys(channel.vec3Keys, timeSeconds, meshTransform.translation);
-				break;
-			case GltfAnimationTargetPath::Rotation:
-				meshTransform.rotation = AnimationUtils::sampleQuatKeys(channel.quatKeys, timeSeconds, meshTransform.rotation);
-				break;
-			case GltfAnimationTargetPath::Scale:
-				meshTransform.scale = AnimationUtils::sampleVec3Keys(channel.vec3Keys, timeSeconds,
-					meshTransform.scale.isNull() ? QVector3D(1.0f, 1.0f, 1.0f) : meshTransform.scale);
-				break;
-			case GltfAnimationTargetPath::Weights:
-			case GltfAnimationTargetPath::Pointer:
-				continue;
-			}
-			if (meshTransform.scale.isNull())
-				meshTransform.scale = QVector3D(1.0f, 1.0f, 1.0f);
-			sampledMeshTransforms.insert(channel.targetMeshUuid, meshTransform);
-			continue;
-		}
-
-		const QUuid resolvedNodeUuid = resolveChannelNodeUuid(channel);
-		if (resolvedNodeUuid.isNull())
-			continue;
-		// Skinned clips are a special case: joint nodes usually do not own meshes
-		// directly, but their TRS still deforms skinned vertices and must refresh
-		// shadows every tick.
-		if ((channel.targetPath == GltfAnimationTargetPath::Translation ||
-		     channel.targetPath == GltfAnimationTargetPath::Rotation ||
-		     channel.targetPath == GltfAnimationTargetPath::Scale ||
-		     channel.targetPath == GltfAnimationTargetPath::Weights) &&
-		    (runtime.data.hasSkinning || nodeAffectsShadow(resolvedNodeUuid)))
-		{
-			animationAffectsShadowCasters = true;
-		}
-
-		RuntimeNodeTransform node = sampled.value(resolvedNodeUuid);
-		switch (channel.targetPath)
-		{
-		case GltfAnimationTargetPath::Translation:
-			node.translation = AnimationUtils::sampleVec3Keys(channel.vec3Keys, timeSeconds, node.translation);
-			break;
-		case GltfAnimationTargetPath::Rotation:
-			node.rotation = AnimationUtils::sampleQuatKeys(channel.quatKeys, timeSeconds, node.rotation);
-			break;
-		case GltfAnimationTargetPath::Scale:
-			node.scale = AnimationUtils::sampleVec3Keys(channel.vec3Keys, timeSeconds, node.scale);
-			break;
-		case GltfAnimationTargetPath::Weights:
-			sampledMorphWeightsByUuid.insert(resolvedNodeUuid,
-				AnimationUtils::sampleWeightKeys(channel.weightKeys, timeSeconds, sampledMorphWeightsByUuid.value(resolvedNodeUuid)));
-			continue;
-		case GltfAnimationTargetPath::Pointer:
-			continue;
-		}
-		sampled.insert(resolvedNodeUuid, node);
-	}
-
-	const std::vector<SceneMesh*>& meshes = getMeshStore();
-	for (SceneMesh* mesh : meshes)
-	{
-		if (!mesh || mesh->getSourceFile() != sourceFile || !mesh->hasMorphTargets())
-			continue;
-
-		const SceneNode* ownerNode = _viewer->sceneGraph()->findNodeForMesh(mesh->uuid());
-		if (!ownerNode)
-		{
-			mesh->resetMorphTargets();
-			continue;
-		}
-
-		// Assimp appends "_node" to mesh-owning nodes on glTF/GLB re-import when the
-		// node name matches the mesh name (e.g. node "AnimatedMorphCube" becomes a
-		// parent and "AnimatedMorphCube_node" is the actual mesh-owning child).
-		// The morph-weight animation channel targets the parent, so resolve via
-		// the same parent-node logic used in defaultNodeMorphWeightsByUuid init.
-		const SceneNode* lookupNode = ownerNode;
-		if (ownerNode->parent
-		    && ownerNode->name.endsWith(QStringLiteral("_node"))
-		    && ownerNode->parent->name == ownerNode->name.left(ownerNode->name.length() - 5))
-		{
-			lookupNode = ownerNode->parent;
-		}
-		const QVector<float> weights = sampledMorphWeightsByUuid.value(lookupNode->nodeUuid);
-		if (!weights.isEmpty())
-			mesh->applyMorphWeights(weights);
-		else
-			mesh->resetMorphTargets();
-	}
-
-	if (runtime.data.hasNodeAnimations || runtime.data.hasSkinning)
-	{
-		QHash<QUuid, QMatrix4x4> worldTransformsByNodeUuid;
-		std::function<void(SceneNode*, const QMatrix4x4&)> evalNode =
-			[&](SceneNode* node, const QMatrix4x4& parentWorld)
-		{
-			if (!node)
-				return;
-
-			const RuntimeNodeTransform nodeTransform =
-				sampled.value(node->nodeUuid, AnimationRuntimeController::decomposeNodeTransform(node->localTransform));
-			const QMatrix4x4 local = AnimationRuntimeController::composeNodeTransform(nodeTransform);
-			const QMatrix4x4 world = parentWorld * local;
-			worldTransformsByNodeUuid.insert(node->nodeUuid, world);
-
-			for (SceneNode* child : node->children)
-				evalNode(child, world);
-		};
-
-		for (SceneNode* child : fileNode->children)
-			evalNode(child, QMatrix4x4());
-
-		updateAnimatedMeshState(sourceFile, worldTransformsByNodeUuid);
-
-		for (auto meshIt = sampledMeshTransforms.cbegin(); meshIt != sampledMeshTransforms.cend(); ++meshIt)
-		{
-			SceneMesh* mesh = getMeshByUuid(meshIt.key());
-			const SceneNode* ownerNode = mesh ? _viewer->sceneGraph()->findNodeForMesh(meshIt.key()) : nullptr;
-			if (!mesh || !ownerNode || mesh->getSourceFile() != sourceFile)
-				continue;
-
-			const QMatrix4x4 ownerWorld = worldTransformsByNodeUuid.value(ownerNode->nodeUuid,
-				AnimationRuntimeController::aiToQMatrix(ownerNode->localTransform));
-			QMatrix4x4 meshLocal;
-			meshLocal.translate(meshIt->translation);
-			meshLocal.rotate(meshIt->rotation);
-			meshLocal.scale(meshIt->scale);
-			mesh->setSceneRenderTransformFast(ownerWorld * meshLocal);
-		}
-
-		// Determine how many lights belong to sourceFile and where they sit in
-		// _animCtrl.originalParsedLights().  _animCtrl.lightFileIndexMap() is populated by
-		// onSceneLightDataChanged() and covers the multi-model case; fall back to
-		// the whole vector when there is only one file loaded (map still empty).
-		int fileLightOffset = 0;
-		int fileLightCount  = static_cast<int>(_animCtrl.originalParsedLights().size()); // fallback
-		if (!_animCtrl.lightFileIndexMap().isEmpty())
-		{
-			int foundOffset = -1, foundCount = 0;
-			for (int k = 0; k < _animCtrl.lightFileIndexMap().size(); ++k)
-			{
-				if (_animCtrl.lightFileIndexMap()[k].file == sourceFile)
-				{
-					if (foundCount == 0) foundOffset = k;
-					++foundCount;
-				}
-			}
-			if (foundOffset >= 0)
-			{
-				fileLightOffset = foundOffset;
-				fileLightCount  = foundCount;
-			}
-		}
-
-		// importCorrection is stored as fileNode->localTransform.  evalNode()
-		// starts from identity (so the rendering path can apply fileNode's
-		// transform separately for meshes), which means the world matrices it
-		// produces are in model-space.  For lights we need world-space positions
-		// that match _animCtrl.originalParsedLights() (which already have importCorrection
-		// baked in by AssImpModelLoader), so we pre-compose the correction here.
-		const QMatrix4x4 importCorrection = AnimationRuntimeController::aiToQMatrix(fileNode->localTransform);
-
-		if (!runtime.data.lightBindings.isEmpty() &&
-			fileLightCount == static_cast<int>(runtime.data.lightBindings.size()))
-		{
-			std::vector<GPULight> animatedLights = _animCtrl.originalParsedLights();
-			bool resolvedAnyAnimatedLightTransform = false;
-			for (const GltfAnimationLightBinding& binding : runtime.data.lightBindings)
-			{
-				// binding.parsedLightIndex is file-relative; map it to the global
-				// index inside animatedLights (which mirrors _animCtrl.originalParsedLights()).
-				const int globalIndex = fileLightOffset + binding.parsedLightIndex;
-				if (binding.parsedLightIndex < 0 ||
-					globalIndex >= static_cast<int>(animatedLights.size()))
-				{
-					continue;
-				}
-
-				QMatrix4x4 modelSpaceWorld;
-				bool hasWorldTransform = false;
-				if (binding.nodeIndex >= 0 && runtime.nodeUuidByIndex.contains(binding.nodeIndex))
-				{
-					const QUuid nodeUuid = AnimationRuntimeController::resolveRuntimeNodeUuid(runtime, binding.nodeIndex);
-					if (worldTransformsByNodeUuid.contains(nodeUuid))
-					{
-						modelSpaceWorld = worldTransformsByNodeUuid.value(nodeUuid);
-						hasWorldTransform = true;
-					}
-				}
-				else if (!binding.nodeName.isEmpty())
-				{
-					const QUuid nodeUuid = AnimationRuntimeController::resolveRuntimeNodeUuid(runtime, -1, binding.nodeName);
-					if (!nodeUuid.isNull() && worldTransformsByNodeUuid.contains(nodeUuid))
-					{
-						modelSpaceWorld = worldTransformsByNodeUuid.value(nodeUuid);
-						hasWorldTransform = true;
-					}
-				}
-
-				if (!hasWorldTransform)
-					continue;
-
-				// Apply importCorrection so the resulting position is in the same
-				// coordinate space as _animCtrl.originalParsedLights() (world space).
-				const QMatrix4x4 worldSpace = importCorrection * modelSpaceWorld;
-
-				GPULight& light = animatedLights[globalIndex];
-				light.position = glm::vec3(worldSpace(0, 3), worldSpace(1, 3), worldSpace(2, 3));
-
-				const QVector3D localDir(0.0f, 0.0f, -1.0f);
-				const QVector3D worldDir = (worldSpace.mapVector(localDir)).normalized();
-				light.direction = glm::vec3(worldDir.x(), worldDir.y(), worldDir.z());
-				resolvedAnyAnimatedLightTransform = true;
-			}
-			if (resolvedAnyAnimatedLightTransform)
-				setAnimatedLightTransformState(sourceFile, animatedLights);
-			else
-				clearAnimatedLightTransformState(sourceFile);
-		}
-		else
-		{
-			clearAnimatedLightTransformState(sourceFile);
-		}
-
-		// Per-frame glTF camera update: when node animations are present the
-		// camera's hosting node moves every frame.  Read its current world
-		// transform from worldTransforms and drive the primary camera so that
-		// animated cameras (e.g. the firefly-chasing cameras in
-		// DiffuseTransmissionPlant) stay in sync with the animation timeline.
-		if (_animCtrl.activeGltfCameraFile() == sourceFile && _animCtrl.activeGltfCameraIndex() >= 0 && _primaryCamera)
-		{
-			const GltfCameraData camData = _viewer->sceneGraph()->gltfCameraDataForFile(sourceFile);
-			if (_animCtrl.activeGltfCameraIndex() < camData.cameras.size())
-			{
-				const GltfCameraEntry& cam = camData.cameras[_animCtrl.activeGltfCameraIndex()];
-				const QUuid cameraNodeUuid = AnimationRuntimeController::resolveRuntimeNodeUuid(runtime, cam.nodeIndex, cam.nodeName);
-				if (!cameraNodeUuid.isNull() && worldTransformsByNodeUuid.contains(cameraNodeUuid))
-				{
-					const QMatrix4x4& world = worldTransformsByNodeUuid.value(cameraNodeUuid);
-					// Position = translation column of the world matrix.
-					const QVector3D worldPos(world(0, 3), world(1, 3), world(2, 3));
-					// glTF cameras look along local -Z; +Y is up.
-					const QVector3D worldDir   = world.mapVector(QVector3D(0.0f, 0.0f, -1.0f)).normalized();
-					const QVector3D worldUp    = world.mapVector(QVector3D(0.0f, 1.0f,  0.0f)).normalized();
-					GltfCameraEntry runtimeCam = cam;
-					runtimeCam.worldPosition = worldPos;
-					runtimeCam.worldDirection = worldDir;
-					runtimeCam.worldUp = worldUp;
-					applyGltfCameraEntryTransform(runtimeCam);
-				}
-			}
-		}
-	}
-	else
-	{
-		clearAnimatedLightTransformState(sourceFile);
-	}
-
-	if (!runtime.data.lightBindings.isEmpty())
-	{
-		QVector<bool> visibleByParsedLight(runtime.data.lightBindings.size(), true);
-		QHash<int, bool> effectiveCache;
-		std::function<bool(int)> evalVisible = [&](int nodeIndex) -> bool
-		{
-			if (effectiveCache.contains(nodeIndex))
-				return effectiveCache.value(nodeIndex);
-			if (nodeIndex < 0 || nodeIndex >= runtime.data.nodeVisibilityStates.size())
-				return true;
-
-			const GltfAnimationNodeVisibilityState& nodeState = runtime.data.nodeVisibilityStates[nodeIndex];
-			const bool localVisible = sampledNodeVisibility.value(nodeIndex, nodeState.defaultVisible);
-			const bool effectiveVisible = localVisible &&
-				(nodeState.parentNodeIndex < 0 || evalVisible(nodeState.parentNodeIndex));
-			effectiveCache.insert(nodeIndex, effectiveVisible);
-			return effectiveVisible;
-		};
-
-		for (const GltfAnimationLightBinding& binding : runtime.data.lightBindings)
-		{
-			if (binding.parsedLightIndex >= 0 && binding.parsedLightIndex < visibleByParsedLight.size())
-				visibleByParsedLight[binding.parsedLightIndex] = evalVisible(binding.nodeIndex);
-		}
-		setAnimatedLightVisibilityState(sourceFile, visibleByParsedLight);
-	}
-	else
-	{
-		clearAnimatedLightVisibilityState(sourceFile);
-	}
-
-	if (!runtime.data.nodeVisibilityStates.isEmpty())
-	{
-		QHash<int, bool> effectiveCache;
-		std::function<bool(int)> evalVisible = [&](int nodeIndex) -> bool
-		{
-			if (effectiveCache.contains(nodeIndex))
-				return effectiveCache.value(nodeIndex);
-			if (nodeIndex < 0 || nodeIndex >= runtime.data.nodeVisibilityStates.size())
-				return true;
-
-			const GltfAnimationNodeVisibilityState& nodeState = runtime.data.nodeVisibilityStates[nodeIndex];
-			const bool localVisible = sampledNodeVisibility.value(nodeIndex, nodeState.defaultVisible);
-			const bool effectiveVisible = localVisible &&
-				(nodeState.parentNodeIndex < 0 || evalVisible(nodeState.parentNodeIndex));
-			effectiveCache.insert(nodeIndex, effectiveVisible);
-			return effectiveVisible;
-		};
-
-		QSet<QUuid> hiddenMeshUuids;
-		std::function<void(SceneNode*)> collectHidden = [&](SceneNode* node)
-		{
-			if (!node)
-				return;
-
-			const int nodeIndex = runtime.nodeIndexByUuid.value(node->nodeUuid, -1);
-
-			const bool visible = nodeIndex < 0 ? true : evalVisible(nodeIndex);
-			if (!visible)
-			{
-				for (const QUuid& uuid : node->meshUuids)
-					hiddenMeshUuids.insert(uuid);
-			}
-
-			for (SceneNode* child : node->children)
-				collectHidden(child);
-		};
-
-		for (SceneNode* child : fileNode->children)
-			collectHidden(child);
-		setAnimatedMeshVisibilityState(sourceFile, hiddenMeshUuids);
-	}
-	else
-	{
-		clearAnimatedMeshVisibilityState(sourceFile);
-	}
-	for (auto it = animatedMaterials.constBegin(); it != animatedMaterials.constEnd(); ++it)
-	{
-		if (SceneMesh* mesh = getMeshByUuid(it.key()))
-			mesh->setMaterial(it.value());
-	}
+	const AnimationRuntimeController::AnimationSampleResult sample =
+		_animCtrl.sampleClip(runtime, clip, timeSeconds, sceneGraph);
+	const bool animationAffectsShadowCasters = sample.affectsShadowCasters;
+	AnimationRuntimeController::AnimationSampleResult mutableSample = sample;
+	applyNodeTransformsToMeshes(sourceFile, runtime, mutableSample, fileNode);
+	applyMorphTargetWeights(sourceFile, mutableSample);
+	applyAnimatedMaterialChanges(mutableSample);
+	applyAnimatedMeshVisibility(sourceFile, runtime, mutableSample, fileNode);
+	applyAnimatedLightTransforms(sourceFile, runtime, mutableSample, fileNode);
+	applyAnimatedCamera(sourceFile, runtime, mutableSample);
 	if (animationAffectsShadowCasters)
 		_renderCtrl.setShadowMapNeedsInitialization(true);
 	update();

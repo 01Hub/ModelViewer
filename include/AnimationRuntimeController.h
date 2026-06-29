@@ -70,6 +70,17 @@ public:
         QHash<QUuid,  int>    nodeIndexByUuid;
     };
 
+    struct AnimationSampleResult
+    {
+        QHash<QUuid, RuntimeNodeTransform>  nodeTransforms;
+        QHash<QUuid, RuntimeNodeTransform>  meshTransforms;
+        QHash<QUuid, QVector<float>>        morphWeights;
+        QHash<QUuid, GLMaterial>            animatedMaterials;
+        QHash<int, bool>                    nodeVisibility;
+        QHash<QUuid, QMatrix4x4>            worldTransforms;
+        bool                                affectsShadowCasters = false;
+    };
+
     // ---- Playback state ----------------------------------------------------
     QString activeAnimationFile() const              { return _activeAnimationFile; }
     void    setActiveAnimationFile(const QString& f) { _activeAnimationFile = f; }
@@ -153,6 +164,12 @@ public:
         const SceneGraph* sg);
     std::vector<GPULight> buildUploadLights() const;
     std::vector<GPULight> buildUploadLights(const std::function<bool(const LightOrigin&)>& isLightEnabled) const;
+
+    AnimationSampleResult sampleClip(
+        const RuntimeAnimationFileState& runtime,
+        const GltfAnimationClip& clip,
+        double timeSeconds,
+        const SceneGraph* sg) const;
 
     // ---- Light population --------------------------------------------------
     // Populate the parsed-light baseline from a single-file GltfLightData

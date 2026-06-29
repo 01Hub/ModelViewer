@@ -900,6 +900,24 @@ private:
 	SceneMesh* createMeshFromData(const AssImpMeshData& meshData);
 	void syncFileNodeTransforms(const QString& sourceFile);
 	void reapplyGltfCameraAfterTransform();
+	void applyNodeTransformsToMeshes(const QString& sourceFile,
+		const AnimationRuntimeController::RuntimeAnimationFileState& runtime,
+		AnimationRuntimeController::AnimationSampleResult& result,
+		SceneNode* fileNode);
+	void applyMorphTargetWeights(const QString& sourceFile,
+		const AnimationRuntimeController::AnimationSampleResult& result);
+	void applyAnimatedMaterialChanges(const AnimationRuntimeController::AnimationSampleResult& result);
+	void applyAnimatedMeshVisibility(const QString& sourceFile,
+		const AnimationRuntimeController::RuntimeAnimationFileState& runtime,
+		const AnimationRuntimeController::AnimationSampleResult& result,
+		SceneNode* fileNode);
+	void applyAnimatedLightTransforms(const QString& sourceFile,
+		const AnimationRuntimeController::RuntimeAnimationFileState& runtime,
+		AnimationRuntimeController::AnimationSampleResult& result,
+		SceneNode* fileNode);
+	void applyAnimatedCamera(const QString& sourceFile,
+		const AnimationRuntimeController::RuntimeAnimationFileState& runtime,
+		const AnimationRuntimeController::AnimationSampleResult& result);
 	void applyAnimationPose(const QString& sourceFile, int clipIndex, double timeSeconds);
 	void resetAnimationPose(const QString& sourceFile);
 	void updateAnimatedMeshState(const QString& sourceFile,
