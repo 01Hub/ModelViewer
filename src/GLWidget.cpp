@@ -3234,28 +3234,12 @@ void GLWidget::showSkyBox(bool show)
 	update();
 }
 
-void GLWidget::blurSkyBox(bool blur)
-{
-	setSkyBoxBlurPercent(blur ? 100 : 0);
-}
-
-void GLWidget::setSkyBoxBlurPercent(int percent)
-{
-	_renderCtrl.setSkyBoxBlurPercent(std::clamp(percent, 0, 100));
-	update();
-}
-
 void GLWidget::showReflections(bool show)
 {
 	_renderCtrl.setReflectionsEnabled(show);
 	_renderCtrl.fgShader()->bind();
 	_renderCtrl.fgShader()->setUniformValue("reflectionsEnabled", _renderCtrl.reflectionsEnabled());
 	update();
-}
-
-void GLWidget::showFloor(bool show)
-{
-	setGroundMode(show ? GroundMode::Floor : GroundMode::None);
 }
 
 void GLWidget::setGroundMode(GroundMode mode)
@@ -4424,12 +4408,6 @@ void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	drawTransformGizmo(_primaryCamera);
 	if(_viewCtrl.userShowCornerAxisOverride())
 		drawCornerAxis(_viewCtrl.cornerAxisPosition());
-}
-
-void GLWidget::setCornerAxisPosition(CornerAxisPosition position)
-{
-	_viewCtrl.setCornerAxisPosition(position);
-	update();
 }
 
 void GLWidget::applyExplodedViewTransforms(const QMap<int, TransformState>& transforms, bool fitView)
@@ -10337,11 +10315,6 @@ void GLWidget::disableLowRes()
 	update();
 }
 
-void GLWidget::disableSectionCapsInteractionSuppression()
-{
-	setSectionCapsInteractionSuppressed(false);
-}
-
 void GLWidget::setSectionCapsInteractionSuppressed(bool suppressed)
 {
 	bool actual = suppressed && _renderCtrl.dynamicCappingEnabled();
@@ -10350,13 +10323,6 @@ void GLWidget::setSectionCapsInteractionSuppressed(bool suppressed)
 
 	_renderCtrl.setSectionCapsSuppressedDuringInteraction(actual);
 	update();
-}
-
-void GLWidget::setSectionCapsDynamicEnabled(bool enabled)
-{
-	_renderCtrl.setDynamicCappingEnabled(enabled);
-	if (!enabled && _renderCtrl.sectionCapsSuppressedDuringInteraction())
-		setSectionCapsInteractionSuppressed(false);
 }
 
 void GLWidget::resizeEvent(QResizeEvent* event)
@@ -12133,17 +12099,6 @@ void GLWidget::showLights(bool showLights)
 	update();
 }
 
-void GLWidget::useDefaultLights(bool useDefaultLights)
-{
-	_renderCtrl.setUseDefaultLights(useDefaultLights);	
-	update();
-}
-
-void GLWidget::usePunctualLights(bool usePunctualLights)
-{
-	_renderCtrl.setUsePunctualLights(usePunctualLights);
-	update();
-}
 
 void GLWidget::applyEnabledLightList(const std::vector<GPULight>& enabledLights)
 {
@@ -12153,62 +12108,6 @@ void GLWidget::applyEnabledLightList(const std::vector<GPULight>& enabledLights)
 	                          !enabledLights.empty());
 }
 
-void GLWidget::useIBL(bool useIBL)
-{
-	_renderCtrl.setUseIBL(useIBL);
-	update();
-}
-
-float GLWidget::getScreenGamma() const
-{
-	return _renderCtrl.screenGamma();
-}
-
-void GLWidget::setScreenGamma(double screenGamma)
-{
-	_renderCtrl.setScreenGamma(static_cast<float>(screenGamma));
-	update();
-}
-
-void GLWidget::setHDRToneMappingMode(HDRToneMapMode mode)
-{
-	_renderCtrl.setToneMappingMode(mode);
-	update();
-}
-
-void GLWidget::setEnvMapExposure(double exposure)
-{
-	_renderCtrl.setEnvMapExposure(pow(2.0f, exposure));
-	update();
-}
-
-void GLWidget::setIBLExposure(double exposure)
-{
-	_renderCtrl.setIblExposure(pow(2.0f, exposure));
-	update();
-}
-
-bool GLWidget::getGammaCorrection() const
-{
-	return _renderCtrl.gammaCorrection();
-}
-
-void GLWidget::enableGammaCorrection(bool gammaCorrection)
-{
-	_renderCtrl.setGammaCorrection(gammaCorrection);
-	update();
-}
-
-bool GLWidget::getHdrToneMapping() const
-{
-	return _renderCtrl.hdrToneMapping();
-}
-
-void GLWidget::enableHDRToneMapping(bool hdrToneMapping)
-{
-	_renderCtrl.setHdrToneMapping(hdrToneMapping);
-	update();
-}
 
 RenderingMode GLWidget::getRenderingMode() const
 {
@@ -12257,12 +12156,6 @@ void GLWidget::setFloorOffsetPercent(double value)
 	update();
 }
 
-void GLWidget::setSkyBoxFOV(double fov)
-{
-	_renderCtrl.setSkyBoxFOV(static_cast<float>(fov));
-	update();
-}
-
 void GLWidget::setPerspFOV(int fovDegrees)
 {
 	_viewCtrl.setFOV(static_cast<float>(qBound(1, fovDegrees, 179)));
@@ -12307,12 +12200,6 @@ void GLWidget::updateEnvMapRotationMatrix()
 	envMapRot.rotate(CoordinateSystemHelper::cameraUpAxisConventionRotation(_viewCtrl.cameraUpAxisZUp()).inverted());
 	_renderCtrl.fgShader()->bind();
 	_renderCtrl.fgShader()->setUniformValue("envMapRotationMatrix", envMapRot.toGenericMatrix<3, 3>());
-}
-
-void GLWidget::setSkyBoxTextureHDRI(bool hdrSet)
-{
-	_renderCtrl.setSkyBoxTextureHDRI(hdrSet);
-	update();
 }
 
 QColor GLWidget::getBgBotColor() const
@@ -12402,15 +12289,6 @@ void GLWidget::setShowFaceNormals(bool showFaceNormals)
     }
 }
 
-bool GLWidget::isFaceNormalsShown() const
-{
-    return _renderCtrl.debugOverlayEnabled() && _renderCtrl.debugOverlayMode() == DebugOverlayMode::FaceNormals;
-}
-
-bool GLWidget::isVertexNormalsShown() const
-{
-    return _renderCtrl.debugOverlayEnabled() && _renderCtrl.debugOverlayMode() == DebugOverlayMode::VertexNormals;
-}
 
 void GLWidget::setShowVertexNormals(bool showVertexNormals)
 {
@@ -12425,11 +12303,6 @@ void GLWidget::setShowVertexNormals(bool showVertexNormals)
     }
 }
 
-bool GLWidget::isBoundingBoxShown() const
-{
-    return _renderCtrl.debugOverlayEnabled() && _renderCtrl.debugOverlayMode() == DebugOverlayMode::BoundingBox;
-}
-
 void GLWidget::setShowBoundingBox(bool showBoundingBox)
 {
     if (showBoundingBox)
@@ -12441,11 +12314,6 @@ void GLWidget::setShowBoundingBox(bool showBoundingBox)
     {
         setDebugOverlayEnabled(false);
     }
-}
-
-DebugOverlayMode GLWidget::debugOverlayMode() const
-{
-    return _renderCtrl.debugOverlayMode();
 }
 
 void GLWidget::setDebugOverlayMode(DebugOverlayMode mode)
@@ -12483,11 +12351,6 @@ void GLWidget::setDebugOverlayMode(DebugOverlayMode mode)
     }
 
     update();
-}
-
-bool GLWidget::isDebugOverlayEnabled() const
-{
-    return _renderCtrl.debugOverlayEnabled();
 }
 
 void GLWidget::setDebugOverlayEnabled(bool enabled)

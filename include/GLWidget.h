@@ -108,7 +108,7 @@ public:
 	void setShowCenterAxisOverride(bool show) { _viewCtrl.setUserShowAxisOverride(show); update(); }
 	void setShowCornerAxisOverride(bool show) { _viewCtrl.setUserShowCornerAxisOverride(show); update(); }
 	void setShowViewCubeOverride(bool show) { _viewCtrl.setShowViewCubeOverride(show); update(); }
-	void setCornerAxisPosition(CornerAxisPosition position);
+	void setCornerAxisPosition(CornerAxisPosition position) { _viewCtrl.setCornerAxisPosition(position); update(); }
 
 	void beginWindowZoom();
 	void performWindowZoom();
@@ -172,12 +172,12 @@ public:
 	void showSelfShadows(bool show);
 	void showEnvironment(bool show);
 	void showSkyBox(bool show);
-	void blurSkyBox(bool blur);
-	void setSkyBoxBlurPercent(int percent);
+	void blurSkyBox(bool blur) { setSkyBoxBlurPercent(blur ? 100 : 0); }
+	void setSkyBoxBlurPercent(int percent) { _renderCtrl.setSkyBoxBlurPercent(std::clamp(percent, 0, 100)); update(); }
 	void showReflections(bool show);
 	void setGroundMode(GroundMode mode);
 	GroundMode groundMode() const { return _renderCtrl.groundMode(); }
-	void showFloor(bool show);
+	void showFloor(bool show) { setGroundMode(show ? GroundMode::Floor : GroundMode::None); }
 	bool isFloorShown() { return _renderCtrl.groundMode() == GroundMode::Floor; }
 	bool isGridShown() const { return _renderCtrl.groundMode() == GroundMode::Grid; }
 	void showFloorTexture(bool show);
@@ -267,17 +267,17 @@ public:
 	DisplayMode getDisplayMode() const;
 	void setDisplayMode(DisplayMode mode);
 
-	bool isVertexNormalsShown() const;
+	bool isVertexNormalsShown() const { return _renderCtrl.debugOverlayEnabled() && _renderCtrl.debugOverlayMode() == DebugOverlayMode::VertexNormals; }
 	void setShowVertexNormals(bool showVertexNormals);
-	bool isBoundingBoxShown() const;
+	bool isBoundingBoxShown() const { return _renderCtrl.debugOverlayEnabled() && _renderCtrl.debugOverlayMode() == DebugOverlayMode::BoundingBox; }
 	void setShowBoundingBox(bool showBoundingBox);
-	DebugOverlayMode debugOverlayMode() const;
+	DebugOverlayMode debugOverlayMode() const { return _renderCtrl.debugOverlayMode(); }
 	void setDebugOverlayMode(DebugOverlayMode mode);
-	bool isDebugOverlayEnabled() const;
+	bool isDebugOverlayEnabled() const { return _renderCtrl.debugOverlayEnabled(); }
 	void setDebugOverlayEnabled(bool enabled);
 	void setDebugOverlayAvailability(bool boundingBox, bool vertexNormals, bool faceNormals);
 
-	bool isFaceNormalsShown() const;
+	bool isFaceNormalsShown() const { return _renderCtrl.debugOverlayEnabled() && _renderCtrl.debugOverlayMode() == DebugOverlayMode::FaceNormals; }
 	void setShowFaceNormals(bool showFaceNormals);
 
 	std::vector<int> getDisplayedObjectsIds() const;
@@ -325,9 +325,9 @@ public:
 	void setClippingZCoeff(const float& coeff) { _renderCtrl.setClippingZCoeff(coeff); }
 	float clippingZCoeff() const { return _renderCtrl.clippingZCoeff(); }
 
-	bool getHdrToneMapping() const;
-	bool getGammaCorrection() const;
-	float getScreenGamma() const;
+	bool getHdrToneMapping() const { return _renderCtrl.hdrToneMapping(); }
+	bool getGammaCorrection() const { return _renderCtrl.gammaCorrection(); }
+	float getScreenGamma() const { return _renderCtrl.screenGamma(); }
 
 	// Environment mapping accessors
 	// index: 0 = ViewerIBL, 1 = Studio, 2 = Outdoor, 3 = Office
@@ -459,7 +459,7 @@ public:
 	/// Accessor for the foreground shader (for pre-load shader validation).
 	ShaderProgram* getShader() const { return _renderCtrl.fgShader(); }
 
-	void setSectionCapsDynamicEnabled(bool enabled);
+	void setSectionCapsDynamicEnabled(bool enabled) { _renderCtrl.setDynamicCappingEnabled(enabled); if (!enabled && _renderCtrl.sectionCapsSuppressedDuringInteraction()) setSectionCapsInteractionSuppressed(false); }
 
 	// Moved to AnimationRuntimeController (Phase 8); aliases preserve external access.
 	using RuntimeNodeTransform       = AnimationRuntimeController::RuntimeNodeTransform;
@@ -501,33 +501,33 @@ public slots:
 	void setSelectionHighlighting(bool highlight);
 	void performKeyboardNav();
 	void disableLowRes();
-	void disableSectionCapsInteractionSuppression();
+	void disableSectionCapsInteractionSuppression() { setSectionCapsInteractionSuppressed(false); }
 	void setFloorTexRepeatS(double floorTexRepeatS);
 	void setFloorTexRepeatT(double floorTexRepeatT);
 	void setFloorOffsetPercent(double value);
-	void setSkyBoxFOV(double fov);
+	void setSkyBoxFOV(double fov) { _renderCtrl.setSkyBoxFOV(static_cast<float>(fov)); update(); }
 	void setPerspFOV(int fovDegrees);
 	void setSkyBoxZRotation(int index);
-	void setSkyBoxTextureHDRI(bool hdrSet);
-	void enableHDRToneMapping(bool hdrToneMapping);
-	void enableGammaCorrection(bool gammaCorrection);
-	void setScreenGamma(double screenGamma);
-	void setHDRToneMappingMode(HDRToneMapMode mode);
-	void setEnvMapExposure(double exposure);
-	void setIBLExposure(double exposure);
+	void setSkyBoxTextureHDRI(bool hdrSet) { _renderCtrl.setSkyBoxTextureHDRI(hdrSet); update(); }
+	void enableHDRToneMapping(bool hdrToneMapping) { _renderCtrl.setHdrToneMapping(hdrToneMapping); update(); }
+	void enableGammaCorrection(bool gammaCorrection) { _renderCtrl.setGammaCorrection(gammaCorrection); update(); }
+	void setScreenGamma(double screenGamma) { _renderCtrl.setScreenGamma(static_cast<float>(screenGamma)); update(); }
+	void setHDRToneMappingMode(HDRToneMapMode mode) { _renderCtrl.setToneMappingMode(mode); update(); }
+	void setEnvMapExposure(double exposure) { _renderCtrl.setEnvMapExposure(std::pow(2.0f, static_cast<float>(exposure))); update(); }
+	void setIBLExposure(double exposure) { _renderCtrl.setIblExposure(std::pow(2.0f, static_cast<float>(exposure))); update(); }
 
 	// Getters for tone mapping and gamma settings
 	bool isHDRToneMappingEnabled() const { return _renderCtrl.hdrToneMapping(); }
 	bool isGammaCorrectionEnabled() const { return _renderCtrl.gammaCorrection(); }
 	HDRToneMapMode getHDRToneMappingMode() const { return _renderCtrl.toneMappingMode(); }
 	void showLights(bool showLights);
-	void useDefaultLights(bool useDefaultLights);
-	void usePunctualLights(bool usePunctualLights);
+	void useDefaultLights(bool useDefaultLights) { _renderCtrl.setUseDefaultLights(useDefaultLights); update(); }
+	void usePunctualLights(bool usePunctualLights) { _renderCtrl.setUsePunctualLights(usePunctualLights); update(); }
 
 	// Upload a new GPU light list (e.g. after a per-light checkbox toggle) and
 	// sync the hasPunctualLights / lightCount shader uniforms in one call.
 	void applyEnabledLightList(const std::vector<GPULight>& enabledLights);
-	void useIBL(bool useIBL);
+	void useIBL(bool useIBL) { _renderCtrl.setUseIBL(useIBL); update(); }
 	void showFileReadingProgress(float percent);
 	void showMeshLoadingProgress(float percent);
 	void showNodeMeshLoadingProgress(int processedNodes, int totalNodes, int processedMeshes, int totalMeshes, bool uvProcessed);
