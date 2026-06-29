@@ -899,6 +899,7 @@ private:
 	void onMeshBatchReady(const std::vector<AssImpMeshData>& batch);
 	SceneMesh* createMeshFromData(const AssImpMeshData& meshData);
 	void syncFileNodeTransforms(const QString& sourceFile);
+	void reapplyGltfCameraAfterTransform();
 	void applyAnimationPose(const QString& sourceFile, int clipIndex, double timeSeconds);
 	void resetAnimationPose(const QString& sourceFile);
 	void updateAnimatedMeshState(const QString& sourceFile,

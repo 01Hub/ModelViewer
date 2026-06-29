@@ -3,13 +3,16 @@
 #include "BoundingBox.h"
 #include "GltfLightData.h"
 #include "SceneMeshRecord.h"
-#include "RenderableMesh.h"
+#include "SceneMesh.h"
+#include "TransformCommand.h"
 
 #include <QDateTime>
 #include <QList>
 #include <QMap>
 #include <QUuid>
 #include <QVector>
+#include <exception>
+#include <iostream>
 #include <unordered_map>
 #include <vector>
 
@@ -170,6 +173,88 @@ public:
 	// ---- Light data --------------------------------------------------------
 	GltfLightData&       pendingLightData()         { return _pendingLightData; }
 	const GltfLightData& pendingLightData()   const { return _pendingLightData; }
+
+	// ---- Mesh/material batch helpers --------------------------------------
+	bool applyMaterialToMeshes(const std::vector<int>& ids, const GLMaterial& mat)
+	{
+		bool needsTransmission = false;
+		for (int id : ids)
+		{
+			try
+			{
+				if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+					continue;
+				SceneMesh* mesh = meshAt(static_cast<size_t>(id));
+				if (!mesh)
+					continue;
+				mesh->setMaterial(mat);
+				if (mat.hasTransmission() || mat.diffuseTransmissionFactor() > 0.0f)
+					needsTransmission = true;
+			}
+			catch (const std::exception& ex)
+			{
+				std::cout << "Exception in SceneRuntime::applyMaterialToMeshes\n" << ex.what() << std::endl;
+			}
+		}
+		return needsTransmission;
+	}
+
+	void applyTextureMapsToMesh(int id, const GLMaterial& resolved)
+	{
+		try
+		{
+			if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+				return;
+			SceneMesh* mesh = meshAt(static_cast<size_t>(id));
+			if (!mesh)
+				return;
+			mesh->setTextureMaps(resolved);
+			mesh->invertOpacityADSMap(resolved.isOpacityMapInverted());
+			mesh->invertOpacityPBRMap(resolved.isOpacityMapInverted());
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in SceneRuntime::applyTextureMapsToMesh\n" << ex.what() << std::endl;
+		}
+	}
+
+	std::vector<unsigned int> drainTextureCacheGpuIds()
+	{
+		std::vector<unsigned int> gpuIds;
+		for (auto& entry : _texCache)
+		{
+			if (entry.second.lastGPUTexture != 0)
+				gpuIds.push_back(entry.second.lastGPUTexture);
+		}
+		_texCache.clear();
+		_texRefCount.clear();
+		return gpuIds;
+	}
+
+	void applyMeshTransforms(const QMap<int, TransformState>& transforms)
+	{
+		for (auto it = transforms.begin(); it != transforms.end(); ++it)
+		{
+			const int index = it.key();
+			const TransformState& state = it.value();
+			if (index < 0 || index >= static_cast<int>(_meshStore.size()))
+				continue;
+			SceneMesh* mesh = meshAt(static_cast<size_t>(index));
+			if (!mesh)
+				continue;
+			mesh->setTranslation(state.translation);
+			if (state.hasExactRotation)
+				mesh->setRotationQuaternion(state.rotationQuat, state.rotation);
+			else
+				mesh->setRotation(state.rotation);
+			mesh->setScaling(state.scale);
+		}
+	}
+
+	bool isModelLevelTransform(int transformCount) const
+	{
+		return transformCount == static_cast<int>(_meshStore.size());
+	}
 
 private:
 	// ---- Mesh store ----

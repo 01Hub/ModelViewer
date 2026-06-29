@@ -159,6 +159,22 @@ std::vector<GPULight> AnimationRuntimeController::rebuildAndBuildUploadLights(
     return isLightEnabled ? buildUploadLights(isLightEnabled) : buildUploadLights();
 }
 
+std::vector<GPULight> AnimationRuntimeController::buildUploadLightsWithSceneGraph(
+    const std::function<QMatrix4x4(const QString&)>& userTransformResolver,
+    const SceneGraph* sg)
+{
+    if (!sg)
+        return rebuildAndBuildUploadLights(userTransformResolver);
+
+    return rebuildAndBuildUploadLights(
+        userTransformResolver,
+        [sg](const LightOrigin& origin) {
+            const GltfLightData& ld = sg->lightDataForFile(origin.file);
+            return origin.index < static_cast<int>(ld.lights.size()) &&
+                   ld.lights[origin.index].enabled;
+        });
+}
+
 std::vector<GPULight> AnimationRuntimeController::buildUploadLights() const
 {
     return _currentRepositionedLights;

@@ -148,6 +148,9 @@ public:
     std::vector<GPULight> rebuildAndBuildUploadLights(
         const std::function<QMatrix4x4(const QString&)>& userTransformResolver,
         const std::function<bool(const LightOrigin&)>& isLightEnabled = {});
+    std::vector<GPULight> buildUploadLightsWithSceneGraph(
+        const std::function<QMatrix4x4(const QString&)>& userTransformResolver,
+        const SceneGraph* sg);
     std::vector<GPULight> buildUploadLights() const;
     std::vector<GPULight> buildUploadLights(const std::function<bool(const LightOrigin&)>& isLightEnabled) const;
 

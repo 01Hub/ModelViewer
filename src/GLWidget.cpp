@@ -4104,39 +4104,15 @@ void GLWidget::invertADSOpacityTexMap(const std::vector<int>& ids, const bool& i
 
 void GLWidget::setMaterialToObjects(const std::vector<int>& ids, const GLMaterial& mat)
 {
-	for (int id : ids)
-	{
-		try
-		{
-			SceneMesh* mesh = _sceneRuntime.meshAt(id);
-			mesh->setMaterial(mat);
-			if (mat.hasTransmission() || mat.diffuseTransmissionFactor() > 0.0f)
-				setTransmissionEnabled(true);
-		}
-		catch (const std::exception& ex)
-		{
-			std::cout << "Exception in GLWidget::setMaterialToObjects\n" << ex.what() << std::endl;
-		}
-	}
+	if (_sceneRuntime.applyMaterialToMeshes(ids, mat))
+		setTransmissionEnabled(true);
 }
 
 void GLWidget::setTexturesToObjects(const std::vector<int>& ids, const GLMaterial& mat)
 {
+	const GLMaterial resolved = resolveMaterialTextures(this, mat);
 	for (int id : ids)
-	{
-		try
-		{
-			SceneMesh* mesh = _sceneRuntime.meshAt(id);
-			GLMaterial resolved = resolveMaterialTextures(this, mat);
-			mesh->setTextureMaps(resolved);
-			mesh->invertOpacityADSMap(resolved.isOpacityMapInverted());
-			mesh->invertOpacityPBRMap(resolved.isOpacityMapInverted());
-		}
-		catch (const std::exception& ex)
-		{
-			std::cout << "Exception in GLWidget::setTexturesToObjects\n" << ex.what() << std::endl;
-		}
-	}
+		_sceneRuntime.applyTextureMapsToMesh(id, resolved);
 }
 
 void GLWidget::synchronizeTextureCache(const GLMaterial* material, GLMaterial::TextureType type)
@@ -4159,15 +4135,9 @@ void GLWidget::synchronizeTextureCache(const GLMaterial* material, GLMaterial::T
 
 void GLWidget::clearTextureCache()
 {
-	for (auto& entry : _sceneRuntime.texCache())
-	{
-		if (entry.second.lastGPUTexture != 0)
-		{
-			glDeleteTextures(1, &entry.second.lastGPUTexture);
-		}
-	}
-	_sceneRuntime.texCache().clear();
-	_sceneRuntime.texRefCount().clear();
+	const std::vector<unsigned int> gpuIds = _sceneRuntime.drainTextureCacheGpuIds();
+	for (unsigned int id : gpuIds)
+		glDeleteTextures(1, &id);
 }
 
 void GLWidget::setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale)
@@ -4233,30 +4203,8 @@ void GLWidget::applyTransforms(const QMap<int, TransformState>& transforms, bool
 
 	makeCurrent();
 
-	// Apply all transformations to individual meshes
-	for (auto it = transforms.begin(); it != transforms.end(); ++it)
-	{
-		int index = it.key();
-		const TransformState& state = it.value();
-
-		if (index >= 0 && index < static_cast<int>(_sceneRuntime.meshStore().size()))
-		{
-			SceneMesh* mesh = _sceneRuntime.meshAt(index);
-			if (mesh)
-			{
-				mesh->setTranslation(state.translation);
-				if (state.hasExactRotation)
-					mesh->setRotationQuaternion(state.rotationQuat, state.rotation);
-				else
-					mesh->setRotation(state.rotation);
-				mesh->setScaling(state.scale);
-			}
-		}
-	}
-
-	// Check if this is a model-level transformation
-	// (all meshes are being transformed)
-	bool isModelLevelTransform = (transforms.size() == static_cast<int>(_sceneRuntime.meshStore().size()));
+	_sceneRuntime.applyMeshTransforms(transforms);
+	const bool isModelLevelTransform = _sceneRuntime.isModelLevelTransform(transforms.size());
 
 	// Lights/cameras follow automatically: updatePunctualLights() derives the
 	// per-file user transform straight from the meshes' TRS state.
@@ -4266,24 +4214,8 @@ void GLWidget::applyTransforms(const QMap<int, TransformState>& transforms, bool
 	if (_explodedViewPanel && _explodedViewPanel->isVisible())
 		updateExplosion();
 	updatePunctualLights();
-	if (isModelLevelTransform && isGltfCameraActive() && _viewer)
-	{
-		const GltfCameraData camData =
-			_viewer->sceneGraph()->gltfCameraDataForFile(_animCtrl.activeGltfCameraFile());
-		if (_animCtrl.activeGltfCameraIndex() >= 0 && _animCtrl.activeGltfCameraIndex() < camData.cameras.size())
-		{
-			const GltfCameraEntry& cam = camData.cameras[_animCtrl.activeGltfCameraIndex()];
-			// Always apply the static transform first; then let applyAnimationPose
-			// override it for animated cameras (same logic as activateGltfCamera).
-			applyGltfCameraEntryTransform(cam);
-			const bool animationOwnsThisFile =
-				_animCtrl.activeAnimationFile() == _animCtrl.activeGltfCameraFile() && _animCtrl.activeAnimationClip() >= 0;
-			if (animationOwnsThisFile)
-			{
-				applyAnimationPose(_animCtrl.activeAnimationFile(), _animCtrl.activeAnimationClip(), _animCtrl.animationCurrentTimeSeconds());
-			}
-		}
-	}
+	if (isModelLevelTransform)
+		reapplyGltfCameraAfterTransform();
 	triggerShadowRecomputation();
 	updateFloorPlane();
 	if (fitView && !isGltfCameraActive())
@@ -4658,31 +4590,15 @@ void GLWidget::updatePunctualLights()
 		return;
 	}
 
-	std::vector<GPULight> uploadLights;
-	if (_viewer && _viewer->sceneGraph())
-	{
-		auto* sg = _viewer->sceneGraph();
-		uploadLights = _animCtrl.rebuildAndBuildUploadLights(
+	const SceneGraph* sg = _viewer ? _viewer->sceneGraph() : nullptr;
+	const std::vector<GPULight> uploadLights =
+		_animCtrl.buildUploadLightsWithSceneGraph(
 			[this](const QString& file) {
 				QMatrix4x4 m;
 				userModelTransformForFile(file, m);
 				return m;
 			},
-			[sg](const LightOrigin& origin) {
-				const GltfLightData& ld = sg->lightDataForFile(origin.file);
-				return origin.index < static_cast<int>(ld.lights.size()) &&
-				       ld.lights[origin.index].enabled;
-			});
-	}
-	else
-	{
-		uploadLights = _animCtrl.rebuildAndBuildUploadLights(
-			[this](const QString& file) {
-				QMatrix4x4 m;
-				userModelTransformForFile(file, m);
-				return m;
-			});
-	}
+			sg);
 
 	_renderCtrl.glLights()->setLights(uploadLights);
 	syncPunctualLightUniforms(static_cast<int>(uploadLights.size()),
@@ -9660,6 +9576,33 @@ void GLWidget::syncFileNodeTransforms(const QString& sourceFile)
 
 	for (SceneNode* child : fileNode->children)
 		collect(child);
+}
+
+void GLWidget::reapplyGltfCameraAfterTransform()
+{
+	if (!isGltfCameraActive() || !_viewer)
+		return;
+
+	const GltfCameraData camData =
+		_viewer->sceneGraph()->gltfCameraDataForFile(_animCtrl.activeGltfCameraFile());
+	if (_animCtrl.activeGltfCameraIndex() < 0 ||
+		_animCtrl.activeGltfCameraIndex() >= camData.cameras.size())
+	{
+		return;
+	}
+
+	const GltfCameraEntry& cam = camData.cameras[_animCtrl.activeGltfCameraIndex()];
+	applyGltfCameraEntryTransform(cam);
+
+	const bool animationOwnsThisFile =
+		_animCtrl.activeAnimationFile() == _animCtrl.activeGltfCameraFile() &&
+		_animCtrl.activeAnimationClip() >= 0;
+	if (animationOwnsThisFile)
+	{
+		applyAnimationPose(_animCtrl.activeAnimationFile(),
+			_animCtrl.activeAnimationClip(),
+			_animCtrl.animationCurrentTimeSeconds());
+	}
 }
 
 void GLWidget::setActiveAnimation(const QString& sourceFile, int clipIndex)
