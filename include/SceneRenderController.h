@@ -378,6 +378,50 @@ public:
     bool       useIBL()                  const { return _useIBL; }
     void       setUseIBL(bool v)               { _useIBL = v; }
 
+    // ---- Background & rendering mode ---------------------------------------
+    QColor       bgTopColor()                  const { return _bgTopColor; }
+    void         setBgTopColor(const QColor& c)      { _bgTopColor = c; }
+    QColor       bgBotColor()                  const { return _bgBotColor; }
+    void         setBgBotColor(const QColor& c)      { _bgBotColor = c; }
+    int          gradientStyle()               const { return _gradientStyle; }
+    void         setGradientStyle(int s)             { _gradientStyle = s; }
+    RenderingMode renderingMode()              const { return _renderingMode; }
+    void         setRenderingMode(RenderingMode m)   { _renderingMode = m; }
+
+    // ---- Floor texture / offset --------------------------------------------
+    float        floorTexRepeatS()             const { return _floorTexRepeatS; }
+    void         setFloorTexRepeatS(float v)         { _floorTexRepeatS = v; }
+    float        floorTexRepeatT()             const { return _floorTexRepeatT; }
+    void         setFloorTexRepeatT(float v)         { _floorTexRepeatT = v; }
+    float        floorOffsetPercent()          const { return _floorOffsetPercent; }
+    void         setFloorOffsetPercent(float v)      { _floorOffsetPercent = v; }
+
+    // ---- Default light -----------------------------------------------------
+    QVector4D    defaultLightColor()           const { return _defaultLightColor; }
+    void         setDefaultLightColor(const QVector4D& c) { _defaultLightColor = c; }
+    QVector3D    lightOffset()                 const { return _lightOffset; }
+    void         setLightOffset(const QVector3D& v)  { _lightOffset = v; }
+    bool         showLights()                  const { return _showLights; }
+    void         setShowLights(bool v)               { _showLights = v; }
+
+    // ---- Clipping-plane hatch ----------------------------------------------
+    ClippingPlaneHatchMode hatchMode()         const { return _hatchMode; }
+    void setHatchMode(ClippingPlaneHatchMode m)      { _hatchMode = m; }
+    HatchPattern hatchPattern()                const { return _hatchPattern; }
+    void setHatchPattern(HatchPattern p)             { _hatchPattern = p; }
+    int          hatchTiling()                 const { return _hatchTiling; }
+    void         setHatchTiling(int v)               { _hatchTiling = v; }
+    float        hatchThickness()              const { return _hatchThickness; }
+    void         setHatchThickness(float v)          { _hatchThickness = v; }
+    float        hatchIntensity()              const { return _hatchIntensity; }
+    void         setHatchIntensity(float v)          { _hatchIntensity = v; }
+    int          hatchLayers()                 const { return _hatchLayers; }
+    void         setHatchLayers(int v)               { _hatchLayers = v; }
+    QVector3D    hatchLineColor()              const { return _hatchLineColor; }
+    void         setHatchLineColor(const QVector3D& c) { _hatchLineColor = c; }
+    QString      hatchTexturePath()            const { return _hatchTexturePath; }
+    void         setHatchTexturePath(const QString& p) { _hatchTexturePath = p; }
+
     // ---- Debug overlay -----------------------------------------------------
     bool           showVertexNormals()        const { return _showVertexNormals; }
     void           setShowVertexNormals(bool v)     { _showVertexNormals = v; }
@@ -620,6 +664,32 @@ private:
     bool         _useDefaultLights                   = false;
     bool         _usePunctualLights                  = false;
     bool         _useIBL                             = true;
+
+    // ---- Background & rendering mode ---------------------------------------
+    QColor        _bgTopColor;
+    QColor        _bgBotColor;
+    int           _gradientStyle                     = 0;
+    RenderingMode _renderingMode                     = RenderingMode::ADS_BLINN_PHONG;
+
+    // ---- Floor texture / offset --------------------------------------------
+    float         _floorTexRepeatS                   = 1.0f;
+    float         _floorTexRepeatT                   = 1.0f;
+    float         _floorOffsetPercent                = 0.0f;
+
+    // ---- Default light -----------------------------------------------------
+    QVector4D     _defaultLightColor                 = { 1.0f, 1.0f, 1.0f, 1.0f };
+    QVector3D     _lightOffset;
+    bool          _showLights                        = false;
+
+    // ---- Clipping-plane hatch ----------------------------------------------
+    ClippingPlaneHatchMode _hatchMode                = ClippingPlaneHatchMode::PROCEDURAL;
+    HatchPattern           _hatchPattern             = HatchPattern::DIAGONAL_45;
+    int                    _hatchTiling              = 50;
+    float                  _hatchThickness           = 0.05f;
+    float                  _hatchIntensity           = 1.0f;
+    int                    _hatchLayers              = 3;
+    QVector3D              _hatchLineColor           = QVector3D(0.0f, 0.0f, 0.0f);
+    QString                _hatchTexturePath;
 
     // ---- Debug overlay -----------------------------------------------------
     bool             _showVertexNormals          = false;

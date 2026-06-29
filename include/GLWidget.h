@@ -56,11 +56,9 @@ struct SceneNode;
 
 class ModelViewer;
 
-// ViewMode, ViewProjection, CornerAxisPosition → RenderEnums.h (Phase 11)
+// ViewMode, ViewProjection, CornerAxisPosition, RenderingMode,
+// ClippingPlaneHatchMode, HatchPattern → RenderEnums.h (Phase 11/12)
 enum class DisplayMode { SHADED, HOLLOW_MESH, MESH_EDGES, WIREFRAME, SHADED_WITH_EDGES, REALSHADED, FLATSHADED };
-enum class RenderingMode { ADS_BLINN_PHONG, PHYSICALLY_BASED_RENDERING };
-enum class ClippingPlaneHatchMode { PROCEDURAL, TEXTURE };
-enum class HatchPattern { DIAGONAL_45 = 0, DIAGONAL_135 = 1, HORIZONTAL = 2, VERTICAL = 3, GRID = 4, DIAGONAL_CROSS = 5 };
 
 // ---------------------------------------------------------------------------
 // TextureSlotInfo
@@ -258,7 +256,7 @@ public:
 	void setDefaultLightColor(const QVector4D& defaultLightColor);
 
 	QVector3D getLightPosition() const;
-	QVector3D getLightOffset() const { return QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ); }
+	QVector3D getLightOffset() const { return _renderCtrl.lightOffset(); }
 	void setLightOffset(const QVector3D& offset);
 
 	float getFloorSize() const { return _floorSize; }
@@ -295,10 +293,10 @@ public:
 	QColor getBgBotColor() const;
 	void setBgBotColor(const QColor& bgBotColor);
 
-	int getBgGradientStyle() const { return _gradientStyle; }
-	void setBgGradientStyle(int style) { _gradientStyle = style; }
+	int getBgGradientStyle() const { return _renderCtrl.gradientStyle(); }
+	void setBgGradientStyle(int style) { _renderCtrl.setGradientStyle(style); }
 
-	RenderingMode getRenderingMode() const;
+	RenderingMode getRenderingMode() const { return _renderCtrl.renderingMode(); }
 	void setRenderingMode(const RenderingMode& renderingMode);
 
 	void setCappingPlanesEnabled(const bool& enabled) { _renderCtrl.setCappingEnabled(enabled); }
@@ -357,7 +355,7 @@ public:
 	bool areSelfShadowsEnabled() const { return _renderCtrl.selfShadowsEnabled(); }
 	bool areDefaultLightsEnabled() const { return _renderCtrl.useDefaultLights(); }
 	bool arePunctualLightsEnabled() const { return _renderCtrl.usePunctualLights(); }
-	bool areLightsShown() const;
+	bool areLightsShown() const { return _renderCtrl.showLights(); }
 
 	ViewToolbar* getViewToolbar() const { return _viewToolbar; }
 
@@ -915,13 +913,10 @@ private:
 
 	QSet<int> _keys;
 	DisplayMode _displayMode;
-	RenderingMode _renderingMode;
-	QColor      _bgTopColor;
-	QColor      _bgBotColor;
-	int _gradientStyle = 0; // 0=Vertical, 1=Horizontal, 2=TopLeftToBottomRight, 3=TopRightToBottomLeft
+	// _renderingMode, _bgTopColor, _bgBotColor, _gradientStyle → SceneRenderController (Phase 12)
 	int _modelNum;
 	QImage _texImage, _texBuffer;
-	float _floorTexRepeatS, _floorTexRepeatT;
+	// _floorTexRepeatS/T → SceneRenderController (Phase 12)
 	TextRenderer* _textRenderer;
 	TextRenderer* _axisTextRenderer;
 	QString _labelTop, _labelFront, _labelLeft, _labelIsometric, _labelDimetric, _labelTrimetric;
@@ -938,15 +933,13 @@ private:
 	// Selection manager instance (owns all selection logic and state)
 	SelectionManager* _selectionManager = nullptr;
 
-	QVector4D _defaultLightColor;
+	// _defaultLightColor → SceneRenderController (Phase 12)
 	QVector4D _ambientLight;
 	QVector4D _diffuseLight;
 	QVector4D _specularLight;
 
 	QVector3D _lightPosition;
-	float _lightOffsetX;
-	float _lightOffsetY;
-	float _lightOffsetZ;
+	// _lightOffsetX/Y/Z → SceneRenderController._lightOffset (Phase 12)
 
 	QMatrix4x4 _lightSpaceMatrix;
 
@@ -955,7 +948,7 @@ private:
 	QImage					 _floorTexImage;
 	float                    _floorSize;
 	float 					 _floorSizeFactor;
-	float					 _floorOffsetPercent;
+	// _floorOffsetPercent → SceneRenderController (Phase 12)
 	float                    _floorPlaneZ;
 	QVector3D                _floorCenter;
 
@@ -1002,7 +995,7 @@ private:
 	// Manual placement session fields → ExplodedViewRuntimeController (Phase 9)
 	CubeRenderable* _lightCube;
 	SphereRenderable* _lightSphere;
-	bool _showLights;
+	// _showLights → SceneRenderController (Phase 12)
 
 	ModelViewer* _viewer;
 
@@ -1017,14 +1010,7 @@ private:
 	// _texCache, _texRefCount → SceneRuntime (Phase 5)
 
 
-	ClippingPlaneHatchMode _hatchMode = ClippingPlaneHatchMode::PROCEDURAL;
-	HatchPattern _hatchPattern = HatchPattern::DIAGONAL_45;
-	int   _hatchTiling = 50;
-	float _hatchThickness = 0.05f;
-	float _hatchIntensity = 1.0f;
-	int _hatchLayers = 3;
-	QVector3D _hatchLineColor = QVector3D(0.0f, 0.0f, 0.0f);
-	QString _hatchTexturePath;
+	// _hatch* fields → SceneRenderController (Phase 12)
 
 	AdaptiveShadowMapper shadowMapper;
 

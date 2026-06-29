@@ -9,6 +9,10 @@
 // can include them without creating a circular dependency.
 // ---------------------------------------------------------------------------
 
+enum class RenderingMode          { ADS_BLINN_PHONG, PHYSICALLY_BASED_RENDERING };
+enum class ClippingPlaneHatchMode { PROCEDURAL, TEXTURE };
+enum class HatchPattern           { DIAGONAL_45 = 0, DIAGONAL_135 = 1, HORIZONTAL = 2, VERTICAL = 3, GRID = 4, DIAGONAL_CROSS = 5 };
+
 enum class DebugOverlayMode  { BoundingBox, VertexNormals, FaceNormals };
 enum class HDRToneMapMode    { KhronosPbrNeutral, ACES_Narkowicz, ACES_Hill,
                                AECS_Hill_Exposure_Boost, Uncharted2ToneMapping, Reinhard };

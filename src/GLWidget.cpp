@@ -293,19 +293,13 @@ _floorPlane(nullptr),
 
 	_modelNum = 6;
 
-	_defaultLightColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 	_ambientLight = { 0.12f, 0.12f, 0.12f, 1.0f };
-	_diffuseLight = _defaultLightColor;
-	_specularLight = _defaultLightColor;
+	_diffuseLight = _renderCtrl.defaultLightColor();
+	_specularLight = _renderCtrl.defaultLightColor();
 
 	_lightPosition = { 25.0f, 25.0f, 50.0f };
-	_lightOffsetX = 0.0f;
-	_lightOffsetY = 0.0f;
-	_lightOffsetZ = 0.0f;
 
 	_displayMode = DisplayMode::SHADED;
-	_renderingMode = RenderingMode::ADS_BLINN_PHONG;
-
 	_viewCtrl.setMultiViewActive(false);
 
 	_viewCtrl.setShowAxis(true);
@@ -339,8 +333,9 @@ _floorPlane(nullptr),
 	_floorPlaneZ = -0.5f;
 	_renderCtrl.setGroundMode(GroundMode::None);
 	_renderCtrl.setFloorTextureDisplayed(true);
-	_floorTexRepeatS = _floorTexRepeatT = 1;
-	_floorOffsetPercent = kDefaultFloorOffsetPercent / 100.0f;
+	_renderCtrl.setFloorTexRepeatS(1.0f);
+	_renderCtrl.setFloorTexRepeatT(1.0f);
+	_renderCtrl.setFloorOffsetPercent(kDefaultFloorOffsetPercent / 100.0f);
 
 	// Floor texture
 	if (!_texBuffer.load(PathUtils::getDataDirectory() + "/" + "textures/envmap/floor/Grey-White-Checkered-Squares1800x1800.jpg"))
@@ -368,7 +363,7 @@ _floorPlane(nullptr),
 	_renderCtrl.setToneMappingMode(HDRToneMapMode::KhronosPbrNeutral);
 
 	_renderCtrl.setLowResEnabled(false);	
-	_showLights = false;
+	_renderCtrl.setShowLights(false);
 	_renderCtrl.setUseDefaultLights(true);
 	_renderCtrl.setUsePunctualLights(true);
 	_renderCtrl.setUseIBL(true);
@@ -845,7 +840,7 @@ void GLWidget::initializeGL()
 	// Set lighting information
 	_renderCtrl.fgShader()->bind();
 	syncDefaultLightColorUniforms();
-	_renderCtrl.fgShader()->setUniformValue("lightSource.position", _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
+	_renderCtrl.fgShader()->setUniformValue("lightSource.position", _lightPosition + _renderCtrl.lightOffset());
 	_renderCtrl.fgShader()->setUniformValue("lightModel.ambient", QVector3D(0.2f, 0.2f, 0.2f));
 	_renderCtrl.fgShader()->setUniformValue("Line.Width", 0.75f);
 	_renderCtrl.fgShader()->setUniformValue("Line.Color", QVector4D(0.05f, 0.0f, 0.05f, 1.0f));
@@ -864,7 +859,7 @@ void GLWidget::initializeGL()
 	_renderCtrl.fgShader()->setUniformValue("sssDiffuseTexture", 37);
 	_renderCtrl.fgShader()->setUniformValue("sssDepthTexture", 38);
 	_renderCtrl.fgShader()->setUniformValue("displayMode", displayModeShaderInt(_displayMode));
-	_renderCtrl.fgShader()->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
+	_renderCtrl.fgShader()->setUniformValue("renderingMode", static_cast<int>(_renderCtrl.renderingMode()));
 	_renderCtrl.fgShader()->setUniformValue("selectionHighlighting", _selectionHighlighting);
 
 	updateEnvMapRotationMatrix();
@@ -971,18 +966,20 @@ void GLWidget::paintGL()
 	if (!_renderCtrl.isOpenGLInitialized())
 		return;
 
-	QColor topColor = !_sceneRuntime.visibleSwapped() ? _bgTopColor : QColor::fromRgbF(1.0f - _bgTopColor.redF(),
-		1.0f - _bgTopColor.greenF(), 1.0f - _bgTopColor.blueF(),
-		_bgTopColor.alphaF());
-	QColor botColor = !_sceneRuntime.visibleSwapped() ? _bgBotColor : QColor::fromRgbF(1.0f - _bgBotColor.redF(),
-		1.0f - _bgBotColor.greenF(), 1.0f - _bgBotColor.blueF(),
-		_bgBotColor.alphaF());
+	const QColor& rc_top = _renderCtrl.bgTopColor();
+	const QColor& rc_bot = _renderCtrl.bgBotColor();
+	QColor topColor = !_sceneRuntime.visibleSwapped() ? rc_top : QColor::fromRgbF(1.0f - rc_top.redF(),
+		1.0f - rc_top.greenF(), 1.0f - rc_top.blueF(),
+		rc_top.alphaF());
+	QColor botColor = !_sceneRuntime.visibleSwapped() ? rc_bot : QColor::fromRgbF(1.0f - rc_bot.redF(),
+		1.0f - rc_bot.greenF(), 1.0f - rc_bot.blueF(),
+		rc_bot.alphaF());
 	try
 	{
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
 		gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
-			botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _gradientStyle);
+			botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _renderCtrl.gradientStyle());
 
 		_renderCtrl.fgShader()->bind();
 		_renderCtrl.glLights()->bind(_renderCtrl.fgShader()->programId());
@@ -1342,13 +1339,14 @@ void GLWidget::syncDefaultLightColorUniforms()
 	// Keep a small internal ambient term for ADS while exposing a single editable light color.
 	static constexpr float kDefaultLightAmbientFactor = 0.12f;
 
+	const QVector4D& dlc = _renderCtrl.defaultLightColor();
 	_ambientLight = QVector4D(
-		_defaultLightColor.x() * kDefaultLightAmbientFactor,
-		_defaultLightColor.y() * kDefaultLightAmbientFactor,
-		_defaultLightColor.z() * kDefaultLightAmbientFactor,
-		_defaultLightColor.w());
-	_diffuseLight = _defaultLightColor;
-	_specularLight = _defaultLightColor;
+		dlc.x() * kDefaultLightAmbientFactor,
+		dlc.y() * kDefaultLightAmbientFactor,
+		dlc.z() * kDefaultLightAmbientFactor,
+		dlc.w());
+	_diffuseLight = dlc;
+	_specularLight = dlc;
 
 	_renderCtrl.fgShader()->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
 	_renderCtrl.fgShader()->setUniformValue("lightSource.diffuse", _diffuseLight.toVector3D());
@@ -1357,20 +1355,18 @@ void GLWidget::syncDefaultLightColorUniforms()
 
 void GLWidget::setLightOffset(const QVector3D& offset)
 {
-	_lightOffsetX = offset.x();
-	_lightOffsetY = offset.y();
-	_lightOffsetZ = offset.z();
+	_renderCtrl.setLightOffset(offset);
 	_renderCtrl.setShadowMapNeedsInitialization(true);
 }
 
 QVector4D GLWidget::getDefaultLightColor() const
 {
-	return _defaultLightColor;
+	return _renderCtrl.defaultLightColor();
 }
 
 void GLWidget::setDefaultLightColor(const QVector4D& defaultLightColor)
 {
-	_defaultLightColor = defaultLightColor;
+	_renderCtrl.setDefaultLightColor(defaultLightColor);
 	_renderCtrl.fgShader()->bind();
 	syncDefaultLightColorUniforms();
 	_renderCtrl.fgShader()->release();
@@ -2217,7 +2213,7 @@ void GLWidget::updateFloorPlane()
 		_viewCtrl.boundingBox(),
 		_viewCtrl.cameraUpAxisZUp(),
 		_floorSize,
-		_floorOffsetPercent,
+		_renderCtrl.floorOffsetPercent(),
 		SceneRenderController::computeFloorDepthBias(
 			static_cast<float>(std::max({
 				_viewCtrl.boundingBox().getXSize(),
@@ -2233,7 +2229,7 @@ void GLWidget::updateFloorPlane()
 	{
 		_floorPlane->setPlane(
 			_renderCtrl.fgShader(), _floorCenter, groundExtent, groundExtent, 1, 1,
-			_floorPlaneZ, _floorTexRepeatS, _floorTexRepeatT,
+			_floorPlaneZ, _renderCtrl.floorTexRepeatS(), _renderCtrl.floorTexRepeatT(),
 			CoordinateSystemHelper::floorPlaneOrientation(_viewCtrl.cameraUpAxisZUp()));
 		applyFloorPlaneMaterialSettings();
 	}
@@ -2646,10 +2642,10 @@ void GLWidget::applyOverlayPanelStyle(QWidget* wrapper, const QString& objectNam
 		return;
 
 	const QColor averageBackgroundColor(
-		(_bgTopColor.red() + _bgBotColor.red()) / 2,
-		(_bgTopColor.green() + _bgBotColor.green()) / 2,
-		(_bgTopColor.blue() + _bgBotColor.blue()) / 2,
-		(_bgTopColor.alpha() + _bgBotColor.alpha()) / 2);
+		(_renderCtrl.bgTopColor().red() + _renderCtrl.bgBotColor().red()) / 2,
+		(_renderCtrl.bgTopColor().green() + _renderCtrl.bgBotColor().green()) / 2,
+		(_renderCtrl.bgTopColor().blue() + _renderCtrl.bgBotColor().blue()) / 2,
+		(_renderCtrl.bgTopColor().alpha() + _renderCtrl.bgBotColor().alpha()) / 2);
 	const QColor contrastColor = (averageBackgroundColor.lightnessF() < 0.5)
 		? QColor(255, 255, 255)
 		: QColor(0, 0, 0);
@@ -2816,49 +2812,49 @@ void GLWidget::refreshNavigationOverlayStyle()
 
 void GLWidget::setClippingPlaneHatchMode(ClippingPlaneHatchMode mode)
 {
-	_hatchMode = mode;
+	_renderCtrl.setHatchMode(mode);
 	update();
 }
 
 void GLWidget::setClippingPlaneHatchPattern(HatchPattern pattern)
 {
-	_hatchPattern = pattern;
+	_renderCtrl.setHatchPattern(pattern);
 	update();
 }
 
 void GLWidget::setHatchTiling(int tiling)
 {
-	_hatchTiling = tiling;
+	_renderCtrl.setHatchTiling(tiling);
 	update();
 }
 
 void GLWidget::setHatchLineThickness(float width)
 {
-	_hatchThickness = width;
+	_renderCtrl.setHatchThickness(width);
 	update();
 }
 
 void GLWidget::setHatchIntensity(float spacing)
 {
-	_hatchIntensity = spacing;
+	_renderCtrl.setHatchIntensity(spacing);
 	update();
 }
 
 void GLWidget::setHatchLayers(int layers)
 {
-	_hatchLayers = layers;
+	_renderCtrl.setHatchLayers(layers);
 	update();
 }
 
 void GLWidget::setHatchLineColor(const QColor& color)
 {
-	_hatchLineColor = QVector3D(color.redF(), color.greenF(), color.blueF());
+	_renderCtrl.setHatchLineColor(QVector3D(color.redF(), color.greenF(), color.blueF()));
 }
 
 void GLWidget::setHatchTexture(const QString& path)
 {
-	_hatchTexturePath = path;
-	_renderCtrl.setCappingTexture(loadTextureFromFile(_hatchTexturePath.toStdString().c_str()));
+	_renderCtrl.setHatchTexturePath(path);
+	_renderCtrl.setCappingTexture(loadTextureFromFile(path.toStdString().c_str()));
 	glActiveTexture(GL_TEXTURE6);
 	glBindTexture(GL_TEXTURE_2D, _renderCtrl.cappingTexture());
 	update();
@@ -3821,9 +3817,7 @@ void GLWidget::resetTransformation(const std::vector<int>& ids)
 	_sceneRuntime.resetMeshTransforms(ids);
 
 	// Reset light offsets when model transformations are reset
-	_lightOffsetX = 0.0f;
-	_lightOffsetY = 0.0f;
-	_lightOffsetZ = 0.0f;
+	_renderCtrl.setLightOffset(QVector3D(0.0f, 0.0f, 0.0f));
 
 	recalculateVisibleSceneStats(false);
 	if (_explodedViewPanel && _explodedViewPanel->isVisible())
@@ -3979,7 +3973,7 @@ void GLWidget::loadFloor()
 			_viewCtrl.boundingBox(),
 			_viewCtrl.cameraUpAxisZUp(),
 			_floorSize,
-			_floorOffsetPercent,
+			_renderCtrl.floorOffsetPercent(),
 			SceneRenderController::computeFloorDepthBias(
 				static_cast<float>(std::max({
 					_viewCtrl.boundingBox().getXSize(),
@@ -3997,14 +3991,14 @@ void GLWidget::loadFloor()
 	{
 		_floorPlane = new FloorPlane(
 			_renderCtrl.fgShader(), _floorCenter, groundExtent, groundExtent, 1, 1,
-			floorPlaneCoeff, _floorTexRepeatS, _floorTexRepeatT,
+			floorPlaneCoeff, _renderCtrl.floorTexRepeatS(), _renderCtrl.floorTexRepeatT(),
 			CoordinateSystemHelper::floorPlaneOrientation(_viewCtrl.cameraUpAxisZUp()));
 	}
 	else
 	{
 		_floorPlane->setPlane(
 			_renderCtrl.fgShader(), _floorCenter, groundExtent, groundExtent, 1, 1,
-			floorPlaneCoeff, _floorTexRepeatS, _floorTexRepeatT,
+			floorPlaneCoeff, _renderCtrl.floorTexRepeatS(), _renderCtrl.floorTexRepeatT(),
 			CoordinateSystemHelper::floorPlaneOrientation(_viewCtrl.cameraUpAxisZUp()));
 	}
 
@@ -4115,7 +4109,7 @@ QVector3D GLWidget::effectiveWorldLightOffset() const
 {
 	return CoordinateSystemHelper::transformVectorForCameraUpAxis(
 		_viewCtrl.cameraUpAxisZUp(),
-		QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
+		_renderCtrl.lightOffset());
 }
 
 QVector3D GLWidget::effectiveWorldLightPosition() const
@@ -4150,7 +4144,7 @@ void GLWidget::updateMainLightPosition(float halfObjectSize)
 			_viewCtrl.cameraUpAxisZUp(),
 			_viewCtrl.boundingSphere().getCenter()) + _viewCtrl.boundingSphere().getRadius();
 		CoordinateSystemHelper::setCoordinateAlongCurrentWorldUp(_viewCtrl.cameraUpAxisZUp(), _lightPosition,
-			highestUp + halfObjectSize * 5.0f + (_floorSize * _floorOffsetPercent));
+			highestUp + halfObjectSize * 5.0f + (_floorSize * _renderCtrl.floorOffsetPercent()));
 	}
 }
 
@@ -4403,7 +4397,7 @@ void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
-		botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _gradientStyle);
+		botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _renderCtrl.gradientStyle());
 	render(_primaryCamera);
 	drawTransformGizmo(_primaryCamera);
 	if(_viewCtrl.userShowCornerAxisOverride())
@@ -4464,7 +4458,7 @@ void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 		renderToTransmissionBuffer(_primaryCamera, topColor, botColor);
 
 	gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
-		botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _gradientStyle);
+		botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _renderCtrl.gradientStyle());
 	const std::vector<QVector3D> multiViewCorners = collectVisibleCorners();
 	const QVector3D sharedMultiViewCenter = _primaryCamera->getPosition();
 	// Computed range (eye-relative from orbit center) gives the correct full-scene fit.
@@ -4549,11 +4543,11 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	_renderCtrl.fgShader()->bind();
 	_renderCtrl.fgShader()->setUniformValue("floorRendering", true);
 	_renderCtrl.fgShader()->setUniformValue("groundMode", static_cast<int>(_renderCtrl.groundMode()));
-	_renderCtrl.fgShader()->setUniformValue("topColor", QVector4D(_bgTopColor.red(), _bgTopColor.green(), _bgTopColor.blue(), _bgTopColor.alpha()));
-	_renderCtrl.fgShader()->setUniformValue("botColor", QVector4D(_bgBotColor.red(), _bgBotColor.green(), _bgBotColor.blue(), _bgBotColor.alpha()));
+	_renderCtrl.fgShader()->setUniformValue("topColor", QVector4D(_renderCtrl.bgTopColor().red(), _renderCtrl.bgTopColor().green(), _renderCtrl.bgTopColor().blue(), _renderCtrl.bgTopColor().alpha()));
+	_renderCtrl.fgShader()->setUniformValue("botColor", QVector4D(_renderCtrl.bgBotColor().red(), _renderCtrl.bgBotColor().green(), _renderCtrl.bgBotColor().blue(), _renderCtrl.bgBotColor().alpha()));
 	_renderCtrl.fgShader()->setUniformValue("screenSize", QVector2D(width(), height()));
 	_renderCtrl.fgShader()->setUniformValue("screenCenter", _floorCenter);
-	_renderCtrl.fgShader()->setUniformValue("gradientStyle", _gradientStyle);
+	_renderCtrl.fgShader()->setUniformValue("gradientStyle", _renderCtrl.gradientStyle());
 	_renderCtrl.fgShader()->setUniformValue("floorSize",
 		CoordinateSystemHelper::groundPlaneExtent(_floorSize, _floorSizeFactor, _renderCtrl.groundMode()));
 	_renderCtrl.fgShader()->setUniformValue("groundReferenceSize", _floorSize);
@@ -4614,7 +4608,7 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	RenderableMesh::setCurrentRenderContext(model, _viewCtrl.viewMatrix());
 	if (_renderCtrl.reflectionsEnabled() && drawReflection)
 	{
-		_renderCtrl.fgShader()->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
+		_renderCtrl.fgShader()->setUniformValue("renderingMode", static_cast<int>(_renderCtrl.renderingMode()));
 		drawMesh(_renderCtrl.fgShader());
 	}
 
@@ -4636,7 +4630,7 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	_renderCtrl.fgShader()->bind();
 	_renderCtrl.fgShader()->setUniformValue("floorRendering", false);
 	_renderCtrl.fgShader()->setUniformValue("groundMode", static_cast<int>(GroundMode::None));
-	_renderCtrl.fgShader()->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
+	_renderCtrl.fgShader()->setUniformValue("renderingMode", static_cast<int>(_renderCtrl.renderingMode()));
 	glDisable(GL_BLEND);
 
 	_renderCtrl.fgShader()->setUniformValue("envMapEnabled", _renderCtrl.envMapEnabled());
@@ -6090,22 +6084,22 @@ void GLWidget::drawSectionCapping()
 			float xAng = _renderCtrl.clippingYFlipped() || _renderCtrl.clippingYCoeff() > 0 ? 90.0f : -90.0f;
 			float zAng = _renderCtrl.clippingZFlipped() || _renderCtrl.clippingZCoeff() > 0 ? 0.0f : 180.0f;
 
-			bool wantTexture = _hatchMode == ClippingPlaneHatchMode::TEXTURE/* read from UI or stored flag */;
+			bool wantTexture = _renderCtrl.hatchMode() == ClippingPlaneHatchMode::TEXTURE/* read from UI or stored flag */;
 			bool wantFlipU = false/* read from UI or stored flag */;
 			bool wantFlipV = false/* read from UI or stored flag */;
 
 			// Pick a consistent density: e.g., ~3 tiles across the model diagonal
 			const float sceneDiag = _viewCtrl.boundingBox().boundingRadius() * 2.0f;
-			const float tilesAcross = wantTexture ? 3.0f : _hatchTiling;
+			const float tilesAcross = wantTexture ? 3.0f : _renderCtrl.hatchTiling();
 			const float worldUnitsPerTile = sceneDiag / tilesAcross;
 
 			_renderCtrl.clippingPlaneShader()->setUniformValue("worldUnitsPerTile", worldUnitsPerTile);
 			// procedural hatch params (tweak to taste)
-			_renderCtrl.clippingPlaneShader()->setUniformValue("hatchThickness", _hatchThickness);
-			_renderCtrl.clippingPlaneShader()->setUniformValue("hatchIntensity", _hatchIntensity);
-			_renderCtrl.clippingPlaneShader()->setUniformValue("hatchLayers", _hatchLayers);
-			_renderCtrl.clippingPlaneShader()->setUniformValue("hatchLineColor", _hatchLineColor);			
-			_renderCtrl.clippingPlaneShader()->setUniformValue("hatchPattern", static_cast<int>(_hatchPattern));
+			_renderCtrl.clippingPlaneShader()->setUniformValue("hatchThickness", _renderCtrl.hatchThickness());
+			_renderCtrl.clippingPlaneShader()->setUniformValue("hatchIntensity", _renderCtrl.hatchIntensity());
+			_renderCtrl.clippingPlaneShader()->setUniformValue("hatchLayers", _renderCtrl.hatchLayers());
+			_renderCtrl.clippingPlaneShader()->setUniformValue("hatchLineColor", _renderCtrl.hatchLineColor());
+			_renderCtrl.clippingPlaneShader()->setUniformValue("hatchPattern", static_cast<int>(_renderCtrl.hatchPattern()));
 			
 			_renderCtrl.clippingPlaneShader()->setUniformValue("useTexture", wantTexture);
 
@@ -8253,7 +8247,7 @@ void GLWidget::render(GLCamera* camera)
 	// --- 5) Overlays ---
     drawDebugOverlay(camera);
 	if (_viewCtrl.showAxis() && _viewCtrl.userShowAxisOverride()) drawAxis(camera);
-	if (_showLights) drawLights();
+	if (_renderCtrl.showLights()) drawLights();
 	if (profileRendering)
 		RenderableMesh::recordFrameCpuMs(static_cast<double>(frameTimer.nsecsElapsed()) / 1000000.0);
 	RenderableMesh::flushRenderDiagnostics();
@@ -8598,25 +8592,16 @@ void GLWidget::loadBgColorSettings()
 	// Retrieve and validate top color
 	QVariant topColorValue = settings.value("Background/TopColor");
 	if (topColorValue.isValid() && topColorValue.canConvert<QColor>())
-	{
-		_bgTopColor = topColorValue.value<QColor>();
-	}
+		_renderCtrl.setBgTopColor(topColorValue.value<QColor>());
 	else
-	{
-		_bgTopColor = QColor::fromRgbF(0.45f, 0.45f, 0.45f, 1.0f);
-	}
+		_renderCtrl.setBgTopColor(QColor::fromRgbF(0.45f, 0.45f, 0.45f, 1.0f));
 
 	// Retrieve and validate bottom color
 	QVariant bottomColorValue = settings.value("Background/BottomColor");
 	if (bottomColorValue.isValid() && bottomColorValue.canConvert<QColor>())
-	{
-		_bgBotColor = bottomColorValue.value<QColor>();
-	}
+		_renderCtrl.setBgBotColor(bottomColorValue.value<QColor>());
 	else
-	{		
-		_bgBotColor = QColor::fromRgbF(0.9f, 0.9f, 0.9f, 1.0f);
-		
-	}
+		_renderCtrl.setBgBotColor(QColor::fromRgbF(0.9f, 0.9f, 0.9f, 1.0f));
 
 	// Retrieve and validate gradient style
 	QVariant gradientStyleValue = settings.value("Background/GradientStyle");
@@ -8625,16 +8610,16 @@ void GLWidget::loadBgColorSettings()
 		int style = gradientStyleValue.toInt();
 		if (style >= 0 && style <= 3)
 		{
-			_gradientStyle = style;
+			_renderCtrl.setGradientStyle(style);
 		}
 		else
 		{
-			_gradientStyle = 0; // Default to vertical gradient
+			_renderCtrl.setGradientStyle(0); // Default to vertical gradient
 		}
 	}
 	else
 	{
-		_gradientStyle = 0; // Default to vertical gradient
+		_renderCtrl.setGradientStyle(0); // Default to vertical gradient
 	}
 }
 
@@ -10106,7 +10091,7 @@ void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topCol
 		glDisable(GL_DEPTH_TEST);
 		glDepthMask(GL_FALSE);
 		gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
-			botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _gradientStyle);
+			botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _renderCtrl.gradientStyle());
 		glEnable(GL_DEPTH_TEST);
 		glDepthMask(GL_TRUE);
 	}
@@ -12088,14 +12073,9 @@ void GLWidget::closeEvent(QCloseEvent* event)
 	event->accept();
 }
 
-bool GLWidget::areLightsShown() const
-{
-	return _showLights;
-}
-
 void GLWidget::showLights(bool showLights)
 {
-	_showLights = showLights;
+	_renderCtrl.setShowLights(showLights);
 	update();
 }
 
@@ -12109,16 +12089,11 @@ void GLWidget::applyEnabledLightList(const std::vector<GPULight>& enabledLights)
 }
 
 
-RenderingMode GLWidget::getRenderingMode() const
-{
-	return _renderingMode;
-}
-
 void GLWidget::setRenderingMode(const RenderingMode& renderingMode)
 {
-	_renderingMode = renderingMode;
+	_renderCtrl.setRenderingMode(renderingMode);
 	_renderCtrl.fgShader()->bind();
-	_renderCtrl.fgShader()->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
+	_renderCtrl.fgShader()->setUniformValue("renderingMode", static_cast<int>(_renderCtrl.renderingMode()));
 
 	// Mark textures as dirty to ensure they are reloaded
 	for (const SceneMeshRecord& meshRecord : _sceneRuntime.meshStore())
@@ -12132,26 +12107,26 @@ void GLWidget::setRenderingMode(const RenderingMode& renderingMode)
 
 	_renderCtrl.fgShader()->release();
 	update();
-	emit renderingModeChanged(static_cast<int>(_renderingMode));
+	emit renderingModeChanged(static_cast<int>(_renderCtrl.renderingMode()));
 }
 
 void GLWidget::setFloorTexRepeatT(double floorTexRepeatT)
 {
-	_floorTexRepeatT = static_cast<float>(floorTexRepeatT);
+	_renderCtrl.setFloorTexRepeatT(static_cast<float>(floorTexRepeatT));
 	updateFloorPlane();
 	update();
 }
 
 void GLWidget::setFloorTexRepeatS(double floorTexRepeatS)
 {
-	_floorTexRepeatS = static_cast<float>(floorTexRepeatS);
+	_renderCtrl.setFloorTexRepeatS(static_cast<float>(floorTexRepeatS));
 	updateFloorPlane();
 	update();
 }
 
 void GLWidget::setFloorOffsetPercent(double value)
 {
-	_floorOffsetPercent = static_cast<float>(value / 100.0f);
+	_renderCtrl.setFloorOffsetPercent(static_cast<float>(value / 100.0f));
 	updateFloorPlane();
 	update();
 }
@@ -12204,18 +12179,18 @@ void GLWidget::updateEnvMapRotationMatrix()
 
 QColor GLWidget::getBgBotColor() const
 {
-	return _bgBotColor;
+	return _renderCtrl.bgBotColor();
 }
 
 void GLWidget::updateOverlayEditorTheme()
 {
-	emit backgroundColorChanged(_bgTopColor, _bgBotColor);
+	emit backgroundColorChanged(_renderCtrl.bgTopColor(), _renderCtrl.bgBotColor());
 
 	const QColor averageBackgroundColor(
-		(_bgTopColor.red() + _bgBotColor.red()) / 2,
-		(_bgTopColor.green() + _bgBotColor.green()) / 2,
-		(_bgTopColor.blue() + _bgBotColor.blue()) / 2,
-		(_bgTopColor.alpha() + _bgBotColor.alpha()) / 2);
+		(_renderCtrl.bgTopColor().red() + _renderCtrl.bgBotColor().red()) / 2,
+		(_renderCtrl.bgTopColor().green() + _renderCtrl.bgBotColor().green()) / 2,
+		(_renderCtrl.bgTopColor().blue() + _renderCtrl.bgBotColor().blue()) / 2,
+		(_renderCtrl.bgTopColor().alpha() + _renderCtrl.bgBotColor().alpha()) / 2);
 	const QColor contrastColor = (averageBackgroundColor.lightnessF() < 0.5)
 		? QColor(255, 255, 255)
 		: QColor(0, 0, 0);
@@ -12232,7 +12207,7 @@ void GLWidget::updateOverlayEditorTheme()
 
 void GLWidget::setBgBotColor(const QColor& bgBotColor)
 {
-	_bgBotColor = bgBotColor;
+	_renderCtrl.setBgBotColor(bgBotColor);
 	updateOverlayEditorTheme();
 	refreshNavigationOverlayStyle();
 	update();
@@ -12240,12 +12215,12 @@ void GLWidget::setBgBotColor(const QColor& bgBotColor)
 
 QColor GLWidget::getBgTopColor() const
 {
-	return _bgTopColor;
+	return _renderCtrl.bgTopColor();
 }
 
 void GLWidget::setBgTopColor(const QColor& bgTopColor)
 {
-	_bgTopColor = bgTopColor;
+	_renderCtrl.setBgTopColor(bgTopColor);
 	updateOverlayEditorTheme();
 	refreshNavigationOverlayStyle();
 	update();
