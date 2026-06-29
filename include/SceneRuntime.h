@@ -2,6 +2,7 @@
 
 #include "BoundingBox.h"
 #include "GltfLightData.h"
+#include "LightOrigin.h"
 #include "SceneMeshRecord.h"
 #include "SceneMesh.h"
 #include "TransformCommand.h"
@@ -173,6 +174,12 @@ public:
 	// ---- Light data --------------------------------------------------------
 	GltfLightData&       pendingLightData()         { return _pendingLightData; }
 	const GltfLightData& pendingLightData()   const { return _pendingLightData; }
+	std::vector<GPULight>&       originalParsedLights()            { return _originalParsedLights; }
+	const std::vector<GPULight>& originalParsedLights() const      { return _originalParsedLights; }
+	std::vector<GPULight>&       currentRepositionedLights()       { return _currentRepositionedLights; }
+	const std::vector<GPULight>& currentRepositionedLights() const { return _currentRepositionedLights; }
+	QVector<LightOrigin>&        lightFileIndexMap()               { return _lightFileIndexMap; }
+	const QVector<LightOrigin>&  lightFileIndexMap() const         { return _lightFileIndexMap; }
 
 	// ---- Mesh/material batch helpers --------------------------------------
 	bool applyMaterialToMeshes(const std::vector<int>& ids, const GLMaterial& mat)
@@ -295,4 +302,7 @@ private:
 
 	// ---- Light data ----
 	GltfLightData _pendingLightData;
+	std::vector<GPULight> _originalParsedLights;
+	std::vector<GPULight> _currentRepositionedLights;
+	QVector<LightOrigin>  _lightFileIndexMap;
 };

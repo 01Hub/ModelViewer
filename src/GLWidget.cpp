@@ -1041,7 +1041,7 @@ void GLWidget::initializeGL()
 
 	_renderCtrl.setOpenGLInitialized(true);
 
-	// Keep GLWidget's _animCtrl.originalParsedLights() in sync with SceneGraph whenever
+	// Keep SceneRuntime's parsed-light baseline in sync with SceneGraph whenever
 	// a file's light data is added or removed (multi-model scene support).
 	if (_viewer && _viewer->sceneGraph())
 	{
@@ -2498,8 +2498,8 @@ void GLWidget::updateFloorPlane()
 		applyFloorPlaneMaterialSettings();
 	}
 
-	// Create fallback light if no punctual lights available
-	if (_animCtrl.originalParsedLights().empty())
+	// Create fallback light if no punctual lights are available.
+	if (_sceneRuntime.originalParsedLights().empty())
 	{
 		if (shouldUseFallbackLightForVisibleScene())
 		{
@@ -3586,7 +3586,10 @@ void GLWidget::removeFromDisplay(int index)
 	// If display list is empty, clear punctual lights
 	if (_sceneRuntime.displayedObjectsIds().empty())
 	{
-		_animCtrl.clearParsedLights();
+		_animCtrl.clearParsedLights(
+			_sceneRuntime.originalParsedLights(),
+			_sceneRuntime.currentRepositionedLights(),
+			_sceneRuntime.lightFileIndexMap());
 		_animCtrl.clearAllAnimatedState();
 		_renderCtrl.glLights()->setLights({});
 		syncPunctualLightUniforms(0, false);
@@ -4585,7 +4588,7 @@ float uniformScaleOf(const QMatrix4x4& m)
 
 void GLWidget::updatePunctualLights()
 {
-	if (_animCtrl.originalParsedLights().empty())
+	if (_sceneRuntime.originalParsedLights().empty())
 	{
 		return;
 	}
@@ -4598,6 +4601,9 @@ void GLWidget::updatePunctualLights()
 				userModelTransformForFile(file, m);
 				return m;
 			},
+			_sceneRuntime.originalParsedLights(),
+			_sceneRuntime.currentRepositionedLights(),
+			_sceneRuntime.lightFileIndexMap(),
 			sg);
 
 	_renderCtrl.glLights()->setLights(uploadLights);
@@ -8603,7 +8609,10 @@ void GLWidget::drawLights()
 	// Draw punctual lights — only those whose enabled flag is set (tree checkbox AND Show Lights).
 	{
 		const std::vector<GPULight> gizmoLights =
-		    _animCtrl.buildGizmoLights(_viewer ? _viewer->sceneGraph() : nullptr);
+		    _animCtrl.buildGizmoLights(
+		        _viewer ? _viewer->sceneGraph() : nullptr,
+		        _sceneRuntime.currentRepositionedLights(),
+		        _sceneRuntime.lightFileIndexMap());
 		if (!gizmoLights.empty())
 		{
 		const float sceneRadius = std::max(_viewCtrl.boundingSphere().getRadius(), 0.001f);
@@ -10279,13 +10288,13 @@ void GLWidget::applyAnimatedLightTransforms(
 	if (fileNode && (runtime.data.hasNodeAnimations || runtime.data.hasSkinning))
 	{
 		int fileLightOffset = 0;
-		int fileLightCount = static_cast<int>(_animCtrl.originalParsedLights().size());
-		if (!_animCtrl.lightFileIndexMap().isEmpty())
+		int fileLightCount = static_cast<int>(_sceneRuntime.originalParsedLights().size());
+		if (!_sceneRuntime.lightFileIndexMap().isEmpty())
 		{
 			int foundOffset = -1, foundCount = 0;
-			for (int k = 0; k < _animCtrl.lightFileIndexMap().size(); ++k)
+			for (int k = 0; k < _sceneRuntime.lightFileIndexMap().size(); ++k)
 			{
-				if (_animCtrl.lightFileIndexMap()[k].file == sourceFile)
+				if (_sceneRuntime.lightFileIndexMap()[k].file == sourceFile)
 				{
 					if (foundCount == 0)
 						foundOffset = k;
@@ -10304,7 +10313,7 @@ void GLWidget::applyAnimatedLightTransforms(
 		if (!runtime.data.lightBindings.isEmpty() &&
 			fileLightCount == static_cast<int>(runtime.data.lightBindings.size()))
 		{
-			std::vector<GPULight> animatedLights = _animCtrl.originalParsedLights();
+			std::vector<GPULight> animatedLights = _sceneRuntime.originalParsedLights();
 			bool resolvedAnyAnimatedLightTransform = false;
 			for (const GltfAnimationLightBinding& binding : runtime.data.lightBindings)
 			{
@@ -14698,17 +14707,21 @@ void GLWidget::setParsedLights(const GltfLightData& lightData)
     _sceneRuntime.pendingLightData() = lightData;
 
     // If this model carries no punctual lights, leave the existing GPU light
-    // state intact.  Another model already loaded may have punctual lights
+    // state intact. Another model already loaded may have punctual lights
     // registered in SceneGraph; onSceneLightDataChanged() is the authoritative
     // rebuilder once the file is registered.
     if (lightData.isEmpty())
         return;
 
-    _animCtrl.setParsedLightsFromSingleFile(lightData);
+    _animCtrl.setParsedLightsFromSingleFile(
+        lightData,
+        _sceneRuntime.originalParsedLights(),
+        _sceneRuntime.currentRepositionedLights(),
+        _sceneRuntime.lightFileIndexMap());
     _animCtrl.clearAllAnimatedState();
 
-    syncPunctualLightUniforms(static_cast<int>(_animCtrl.originalParsedLights().size()),
-                              !_animCtrl.originalParsedLights().empty());
+    syncPunctualLightUniforms(static_cast<int>(_sceneRuntime.originalParsedLights().size()),
+                              !_sceneRuntime.originalParsedLights().empty());
 }
 
 // ---------------------------------------------------------------------------
@@ -14716,7 +14729,7 @@ void GLWidget::setParsedLights(const GltfLightData& lightData)
 //
 // Slot connected to SceneGraph::lightDataChanged.  Called whenever a file's
 // light data is registered (setLightData) or removed (clearLightData).
-// Rebuilds _animCtrl.originalParsedLights() from the full set of SceneGraph-registered
+// Rebuilds SceneRuntime's parsed-light baseline from the full set of SceneGraph-registered
 // lights so that gizmos and the repositioning system always reflect the
 // current multi-model scene, not just the last model that was loaded.
 // ---------------------------------------------------------------------------
@@ -14725,11 +14738,17 @@ void GLWidget::onSceneLightDataChanged()
     if (!_viewer || !_viewer->sceneGraph())
         return;
 
-    _animCtrl.rebuildParsedLightsFromSceneGraph(_viewer->sceneGraph());
+    _animCtrl.rebuildParsedLightsFromSceneGraph(
+        _viewer->sceneGraph(),
+        _sceneRuntime.originalParsedLights(),
+        _sceneRuntime.lightFileIndexMap());
 
-    if (_animCtrl.originalParsedLights().empty())
+    if (_sceneRuntime.originalParsedLights().empty())
     {
-        _animCtrl.clearParsedLights();
+        _animCtrl.clearParsedLights(
+            _sceneRuntime.originalParsedLights(),
+            _sceneRuntime.currentRepositionedLights(),
+            _sceneRuntime.lightFileIndexMap());
         makeCurrent();
         _renderCtrl.glLights()->setLights({});
         syncPunctualLightUniforms(0, false);

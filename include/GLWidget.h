@@ -291,22 +291,6 @@ public:
 	QVector3D getLightOffset() const { return QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ); }
 	void setLightOffset(const QVector3D& offset);
 
-	std::vector<GPULight> getParsedLights() const { return _animCtrl.originalParsedLights(); }
-
-	// Returns the current repositioned lights (what the user sees after slider/auto-rotate
-	// adjustments). Falls back to the parsed baseline if repositioning hasn't run yet.
-	std::vector<GPULight> getRepositionedLights() const
-	{
-		return _animCtrl.currentRepositionedLights().empty() ? _animCtrl.originalParsedLights()
-		                                                     : _animCtrl.currentRepositionedLights();
-	}
-
-	// Maps flat index i in the parsed/repositioned light arrays to
-	// { sourceFile, lightIndex } in SceneGraph::_lightDataByFile.
-	// Public so MVF serialisation in ModelViewer can build per-file light sections.
-	using LightOrigin = AnimationRuntimeController::LightOrigin;
-	QVector<LightOrigin> getLightFileIndexMap() const { return _animCtrl.lightFileIndexMap(); }
-
 	float getFloorSize() const { return _floorSize; }
 
 	bool isShaded() const;
