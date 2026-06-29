@@ -4449,7 +4449,16 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		QSet<QUuid> visibleUuids;
 		const QJsonArray visArr = result.document.mvfSession[QStringLiteral("visibleMeshUuids")].toArray();
 		for (const QJsonValue& v : visArr)
-			visibleUuids.insert(QUuid::fromString(v.toString()));
+		{
+			const QUuid uuid = QUuid::fromString(v.toString());
+			if (!uuid.isNull())
+				visibleUuids.insert(uuid);
+		}
+		if (visibleUuids.isEmpty())
+		{
+			for (const QUuid& uuid : allMeshUuids)
+				visibleUuids.insert(uuid);
+		}
 
 		// --- Phase 3: GL upload — dispatched one mesh at a time --------
 		//     BlockingQueuedConnection blocks the worker while the main
@@ -5308,7 +5317,9 @@ QSet<QUuid> ModelViewer::collectVisibleUuidsFromDisplayList() const
 			visibleUuids.insert(uuid);
 	}
 
-	if (visibleUuids.isEmpty())
+	if (visibleUuids.isEmpty() &&
+	    !_glWidget->isVisibleSwapped() &&
+	    _glWidget->getHiddenObjectsIds().empty())
 	{
 		const auto& store = _glWidget->getMeshStore();
 		for (size_t i = 0; i < store.size(); ++i)

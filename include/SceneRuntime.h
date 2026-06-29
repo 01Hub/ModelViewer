@@ -6,7 +6,9 @@
 #include "TransformCommand.h"
 
 #include <algorithm>
+#include <functional>
 #include <QDateTime>
+#include <QHash>
 #include <QList>
 #include <QMap>
 #include <QUuid>
@@ -121,28 +123,17 @@ public:
 	const QVector<RuntimeVisibilityNode>& runtimeVisibilityNodes() const { return _runtimeVisibilityNodes; }
 
 	int     runtimeVisibilityRootIndex()              const { return _runtimeVisibilityRootIndex; }
-	void    setRuntimeVisibilityRootIndex(int v)            { _runtimeVisibilityRootIndex = v; }
-
-	bool    runtimeVisibilityHierarchyDirty()         const { return _runtimeVisibilityHierarchyDirty; }
-	void    setRuntimeVisibilityHierarchyDirty(bool v)      { _runtimeVisibilityHierarchyDirty = v; }
-
-	int     runtimeVisibilityMeshStoreCount()         const { return _runtimeVisibilityMeshStoreCount; }
-	void    setRuntimeVisibilityMeshStoreCount(int v)       { _runtimeVisibilityMeshStoreCount = v; }
-
 	bool    runtimeVisibilityPrepared()               const { return _runtimeVisibilityPrepared; }
-	void    setRuntimeVisibilityPrepared(bool v)            { _runtimeVisibilityPrepared = v; }
-
-	quint64 runtimeVisibilityBoundsRevision()         const { return _runtimeVisibilityBoundsRevision; }
-	void    setRuntimeVisibilityBoundsRevision(quint64 v)   { _runtimeVisibilityBoundsRevision = v; }
-
-	quint64 runtimeVisibilityMaskRevision()           const { return _runtimeVisibilityMaskRevision; }
-	void    setRuntimeVisibilityMaskRevision(quint64 v)     { _runtimeVisibilityMaskRevision = v; }
-
-	quint64 runtimeVisibilityMaskProcessedRevision()        const { return _runtimeVisibilityMaskProcessedRevision; }
-	void    setRuntimeVisibilityMaskProcessedRevision(quint64 v)  { _runtimeVisibilityMaskProcessedRevision = v; }
 
 	std::vector<unsigned char>&       runtimeBaseVisibleMask()       { return _runtimeBaseVisibleMask; }
 	const std::vector<unsigned char>& runtimeBaseVisibleMask() const { return _runtimeBaseVisibleMask; }
+	void invalidateRuntimeVisibilityHierarchy();
+	void rebuildRuntimeVisibilityHierarchy(const SceneNode* root);
+	bool ensureRuntimeVisibilityHierarchy(const SceneNode* root);
+	void refreshRuntimeVisibilityCacheForCurrentView(
+		const SceneNode* root,
+		quint64 currentBoundsRevision,
+		const std::function<bool(const SceneMesh*)>& isMeshVisibleFn);
 
 	// ---- Assimp scene ------------------------------------------------------
 	const aiScene*  assimpScene()                   const { return _assimpScene; }
@@ -657,4 +648,10 @@ private:
 	bool _cancelRequested            = false;
 	bool _loadCancelled              = false;
 
+	int buildRuntimeVisibilityNodeRecursive(const SceneNode* node,
+	                                        const QHash<QUuid, int>& meshIndexByUuid);
+	bool refreshRuntimeVisibilityNodeBounds(int nodeIndex,
+	                                        const std::vector<unsigned char>& baseVisibleMask,
+	                                        bool refreshBounds,
+	                                        const std::function<bool(const SceneMesh*)>& isMeshVisibleFn);
 };

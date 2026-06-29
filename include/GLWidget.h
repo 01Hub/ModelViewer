@@ -281,6 +281,7 @@ public:
 	void setShowFaceNormals(bool showFaceNormals);
 
 	std::vector<int> getDisplayedObjectsIds() const;
+	std::vector<int> getHiddenObjectsIds() const;
 	const std::vector<int>& currentVisibleObjectIds() const { return _sceneRuntime.currentVisibleObjectIds(); }
 
 	bool isVisibleSwapped() const;
@@ -450,6 +451,10 @@ public:
 	/// Rebuilds the parsed light baseline from all SceneGraph-registered light data.
 	/// Connected to SceneGraph::lightDataChanged to stay current on model add/remove.
 	void onSceneLightDataChanged();
+
+	/// Thin slot that delegates to SceneRuntime. Qt::UniqueConnection requires a
+	/// member-function pointer — it does not work with lambda connections in Qt6.
+	void onSceneStructureChanged();
 
 	/// Accessor for the foreground shader (for pre-load shader validation).
 	ShaderProgram* getShader() const { return _renderCtrl.fgShader(); }
@@ -689,15 +694,6 @@ private:
 	bool isMeshVisible(const SceneMesh* mesh, int activeClipPlaneIndex) const;
 	bool sceneHasVisibleTransmissionMaterials() const;
 	bool sceneHasVisibleSSSMaterials() const;
-	void invalidateRuntimeVisibilityHierarchy();
-	void rebuildRuntimeVisibilityHierarchy();
-	bool ensureRuntimeVisibilityHierarchy();
-	void refreshRuntimeVisibilityCacheForCurrentView();
-	int buildRuntimeVisibilityNodeRecursive(const SceneNode* node,
-	                                        const QHash<QUuid, int>& meshIndexByUuid);
-	bool refreshRuntimeVisibilityNodeBounds(int nodeIndex,
-	                                        const std::vector<unsigned char>& baseVisibleMask,
-	                                        bool refreshBounds);
 	void collectVisibleMeshIdsForPass(int nodeIndex,
 	                                  int activeClipPlaneIndex,
 	                                  bool wantTransparent,

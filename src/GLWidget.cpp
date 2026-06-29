@@ -917,7 +917,7 @@ void GLWidget::initializeGL()
 		        this, &GLWidget::onSceneLightDataChanged,
 		        Qt::UniqueConnection);
 		connect(_viewer->sceneGraph(), &SceneGraph::structureChanged,
-		        this, &GLWidget::invalidateRuntimeVisibilityHierarchy,
+		        this, &GLWidget::onSceneStructureChanged,
 		        Qt::UniqueConnection);
 	}
 }
@@ -5445,184 +5445,6 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 // Visibility culling helpers
 // ---------------------------------------------------------------------------
 
-void GLWidget::invalidateRuntimeVisibilityHierarchy()
-{
-	_sceneRuntime.setRuntimeVisibilityHierarchyDirty(true);
-	_sceneRuntime.setRuntimeVisibilityPrepared(false);
-	_sceneRuntime.setRuntimeVisibilityRootIndex(-1);
-	_sceneRuntime.setRuntimeVisibilityMeshStoreCount(static_cast<int>(_sceneRuntime.meshStore().size()));
-	_sceneRuntime.setRuntimeVisibilityBoundsRevision(0);
-	_sceneRuntime.runtimeVisibilityNodes().clear();
-	_sceneRuntime.runtimeBaseVisibleMask().clear();
-}
-
-int GLWidget::buildRuntimeVisibilityNodeRecursive(const SceneNode* node,
-                                                  const QHash<QUuid, int>& meshIndexByUuid)
-{
-	if (!node)
-		return -1;
-
-	const int nodeIndex = _sceneRuntime.runtimeVisibilityNodes().size();
-	_sceneRuntime.runtimeVisibilityNodes().push_back(RuntimeVisibilityNode{});
-	_sceneRuntime.runtimeVisibilityNodes()[nodeIndex].sceneNode = node;
-	_sceneRuntime.runtimeVisibilityNodes()[nodeIndex].meshIndices.reserve(node->meshUuids.size());
-
-	for (const QUuid& uuid : node->meshUuids)
-	{
-		const auto it = meshIndexByUuid.find(uuid);
-		if (it != meshIndexByUuid.end())
-			_sceneRuntime.runtimeVisibilityNodes()[nodeIndex].meshIndices.push_back(it.value());
-	}
-
-	_sceneRuntime.runtimeVisibilityNodes()[nodeIndex].children.reserve(node->children.size());
-	for (const SceneNode* child : node->children)
-	{
-		const int childIndex = buildRuntimeVisibilityNodeRecursive(child, meshIndexByUuid);
-		if (childIndex >= 0)
-			_sceneRuntime.runtimeVisibilityNodes()[nodeIndex].children.push_back(childIndex);
-	}
-
-	return nodeIndex;
-}
-
-void GLWidget::rebuildRuntimeVisibilityHierarchy()
-{
-	_sceneRuntime.runtimeVisibilityNodes().clear();
-	_sceneRuntime.setRuntimeVisibilityRootIndex(-1);
-	_sceneRuntime.setRuntimeVisibilityPrepared(false);
-
-	if (!_viewer || !_viewer->sceneGraph())
-	{
-		_sceneRuntime.setRuntimeVisibilityHierarchyDirty(false);
-		_sceneRuntime.setRuntimeVisibilityMeshStoreCount(static_cast<int>(_sceneRuntime.meshStore().size()));
-		_sceneRuntime.setRuntimeVisibilityBoundsRevision(0);
-		return;
-	}
-
-	QHash<QUuid, int> meshIndexByUuid;
-	meshIndexByUuid.reserve(static_cast<int>(_sceneRuntime.meshStore().size()));
-	for (int meshIndex = 0; meshIndex < static_cast<int>(_sceneRuntime.meshStore().size()); ++meshIndex)
-	{
-		if (SceneMesh* mesh = _sceneRuntime.meshAt(meshIndex))
-			meshIndexByUuid.insert(mesh->uuid(), meshIndex);
-	}
-
-	_sceneRuntime.setRuntimeVisibilityRootIndex(buildRuntimeVisibilityNodeRecursive(
-		_viewer->sceneGraph()->root(),
-		meshIndexByUuid));
-	_sceneRuntime.setRuntimeVisibilityHierarchyDirty(false);
-	_sceneRuntime.setRuntimeVisibilityMeshStoreCount(static_cast<int>(_sceneRuntime.meshStore().size()));
-	_sceneRuntime.setRuntimeVisibilityBoundsRevision(0);
-}
-
-bool GLWidget::ensureRuntimeVisibilityHierarchy()
-{
-	if (_sceneRuntime.runtimeVisibilityHierarchyDirty() ||
-	    _sceneRuntime.runtimeVisibilityMeshStoreCount() != static_cast<int>(_sceneRuntime.meshStore().size()))
-	{
-		rebuildRuntimeVisibilityHierarchy();
-	}
-
-	return _sceneRuntime.runtimeVisibilityRootIndex() >= 0 &&
-	       _sceneRuntime.runtimeVisibilityRootIndex() < _sceneRuntime.runtimeVisibilityNodes().size();
-}
-
-bool GLWidget::refreshRuntimeVisibilityNodeBounds(
-	int nodeIndex,
-	const std::vector<unsigned char>& baseVisibleMask,
-	bool refreshBounds)
-{
-	if (nodeIndex < 0 || nodeIndex >= _sceneRuntime.runtimeVisibilityNodes().size())
-		return false;
-
-	RuntimeVisibilityNode& runtimeNode = _sceneRuntime.runtimeVisibilityNodes()[nodeIndex];
-	bool boundsInitialized = false;
-	bool hasVisibleMesh = false;
-	BoundingBox bounds;
-
-	for (int meshIndex : std::as_const(runtimeNode.meshIndices))
-	{
-		if (meshIndex < 0 || meshIndex >= static_cast<int>(_sceneRuntime.meshStore().size()))
-			continue;
-		if (meshIndex >= static_cast<int>(baseVisibleMask.size()) || !baseVisibleMask[meshIndex])
-			continue;
-
-		const SceneMesh* mesh = _sceneRuntime.meshAt(meshIndex);
-		if (!mesh || !isMeshAnimationVisible(mesh))
-			continue;
-
-		if (!boundsInitialized)
-		{
-			bounds = mesh->getBoundingBox();
-			boundsInitialized = true;
-		}
-		else
-		{
-			bounds.addBox(mesh->getBoundingBox());
-		}
-		hasVisibleMesh = true;
-	}
-
-	for (int childIndex : std::as_const(runtimeNode.children))
-	{
-		if (!refreshRuntimeVisibilityNodeBounds(childIndex, baseVisibleMask, refreshBounds))
-			continue;
-
-		const RuntimeVisibilityNode& childNode = _sceneRuntime.runtimeVisibilityNodes()[childIndex];
-		if (refreshBounds && !boundsInitialized)
-		{
-			bounds = childNode.subtreeBounds;
-			boundsInitialized = true;
-		}
-		else if (refreshBounds)
-		{
-			bounds.addBox(childNode.subtreeBounds);
-		}
-		hasVisibleMesh = true;
-	}
-
-	runtimeNode.subtreeHasVisibleMeshes = hasVisibleMesh;
-	if (refreshBounds && boundsInitialized)
-		runtimeNode.subtreeBounds = bounds;
-
-	return hasVisibleMesh;
-}
-
-void GLWidget::refreshRuntimeVisibilityCacheForCurrentView()
-{
-	_sceneRuntime.setRuntimeVisibilityPrepared(false);
-	if (!ensureRuntimeVisibilityHierarchy())
-		return;
-
-	const std::vector<int>& visibleIds = _sceneRuntime.currentVisibleObjectIds();
-	_sceneRuntime.runtimeBaseVisibleMask().assign(_sceneRuntime.meshStore().size(), 0u);
-	for (int meshIndex : visibleIds)
-	{
-		if (meshIndex >= 0 && meshIndex < static_cast<int>(_sceneRuntime.runtimeBaseVisibleMask().size()))
-			_sceneRuntime.runtimeBaseVisibleMask()[meshIndex] = 1u;
-	}
-
-	const quint64 currentBoundsRevision = RenderableMesh::currentRuntimeBoundsRevision();
-	const bool refreshBounds = (_sceneRuntime.runtimeVisibilityBoundsRevision() != currentBoundsRevision);
-	const bool maskChanged = (_sceneRuntime.runtimeVisibilityMaskProcessedRevision() != _sceneRuntime.runtimeVisibilityMaskRevision());
-
-	if (!refreshBounds && !maskChanged)
-	{
-		_sceneRuntime.setRuntimeVisibilityPrepared(true);
-		return;
-	}
-
-	refreshRuntimeVisibilityNodeBounds(
-		_sceneRuntime.runtimeVisibilityRootIndex(),
-		_sceneRuntime.runtimeBaseVisibleMask(),
-		refreshBounds);
-	if (refreshBounds)
-		_sceneRuntime.setRuntimeVisibilityBoundsRevision(currentBoundsRevision);
-	if (maskChanged)
-		_sceneRuntime.setRuntimeVisibilityMaskProcessedRevision(_sceneRuntime.runtimeVisibilityMaskRevision());
-	_sceneRuntime.setRuntimeVisibilityPrepared(true);
-}
-
 void GLWidget::collectVisibleMeshIdsForPass(int nodeIndex,
                                             int activeClipPlaneIndex,
                                             bool wantTransparent,
@@ -8352,7 +8174,10 @@ void GLWidget::render(GLCamera* camera)
 
 	// Extract frustum planes once per frame for AABB culling
 	extractFrustumPlanes();
-	refreshRuntimeVisibilityCacheForCurrentView();
+	_sceneRuntime.refreshRuntimeVisibilityCacheForCurrentView(
+		(_viewer && _viewer->sceneGraph()) ? _viewer->sceneGraph()->root() : nullptr,
+		RenderableMesh::currentRuntimeBoundsRevision(),
+		[this](const SceneMesh* mesh) { return isMeshAnimationVisible(mesh); });
 
 	// --- 1) Skybox ---
 	if (_renderCtrl.skyBoxEnabled())
@@ -12563,6 +12388,16 @@ BoundingSphere GLWidget::getBoundingSphere() const
 std::vector<int> GLWidget::getDisplayedObjectsIds() const
 {
 	return _sceneRuntime.displayedObjectsIds();
+}
+
+std::vector<int> GLWidget::getHiddenObjectsIds() const
+{
+	return _sceneRuntime.hiddenObjectsIds();
+}
+
+void GLWidget::onSceneStructureChanged()
+{
+	_sceneRuntime.invalidateRuntimeVisibilityHierarchy();
 }
 
 bool GLWidget::isVisibleSwapped() const
