@@ -100,6 +100,11 @@ public:
 	std::vector<int>&       hiddenObjectsIds()                 { return _hiddenObjectsIds; }
 	const std::vector<int>& hiddenObjectsIds()           const { return _hiddenObjectsIds; }
 
+	const std::vector<int>& currentVisibleObjectIds() const
+	{
+		return _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+	}
+
 	// ---- Recycle bin -------------------------------------------------------
 	QMap<QUuid, RecycleBinEntry>&       recycleBin()           { return _recycleBin; }
 	const QMap<QUuid, RecycleBinEntry>& recycleBin()     const { return _recycleBin; }
@@ -160,6 +165,14 @@ public:
 	bool  visibleSwapped()                    const { return _visibleSwapped; }
 	bool& visibleSwapped()                          { return _visibleSwapped; }
 	void  setVisibleSwapped(bool v)                 { _visibleSwapped = v; }
+	bool  swapVisible(bool checked)
+	{
+		if (_visibleSwapped == checked)
+			return false;
+		_visibleSwapped = checked;
+		++_runtimeVisibilityMaskRevision;
+		return true;
+	}
 
 	bool progressiveLoadingEnabled()          const { return _progressiveLoadingEnabled; }
 	void setProgressiveLoadingEnabled(bool v)       { _progressiveLoadingEnabled = v; }

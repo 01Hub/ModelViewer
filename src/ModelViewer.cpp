@@ -3528,7 +3528,7 @@ void ModelViewer::handleTreeWidgetSelectionChanged()
 	updateSelectionStatusMessage();
 
 	// Notify panels connected to GLWidget::selectionChanged (e.g. TextureDebugPanel).
-	_glWidget->broadcastSelectionChanged(selectedIds);
+	emit _glWidget->selectionChanged(selectedIds);
 
 	if (selectedVec.empty())
 	{

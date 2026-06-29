@@ -281,11 +281,11 @@ public:
 	void setShowFaceNormals(bool showFaceNormals);
 
 	std::vector<int> getDisplayedObjectsIds() const;
+	const std::vector<int>& currentVisibleObjectIds() const { return _sceneRuntime.currentVisibleObjectIds(); }
 
 	bool isVisibleSwapped() const;
 
 	BoundingSphere getBoundingSphere() const;
-	int processSelection(const QPoint& pixel);
 
 	QColor getBgTopColor() const;
 	void setBgTopColor(const QColor& bgTopColor);
@@ -534,9 +534,11 @@ public slots:
 	QMatrix4x4 getViewMatrix() const { return _viewCtrl.viewMatrix(); }
 	QMatrix4x4 getProjectionMatrix() const { return _viewCtrl.projectionMatrix(); }
 	QMatrix4x4 getModelViewMatrix() const { return _viewCtrl.modelViewMatrix(); }
+	QMatrix4x4 getModelMatrix() const { return _viewCtrl.modelMatrix(); }
 	bool isMultiViewActive() const { return _viewCtrl.multiViewActive(); }
 	ShaderProgram* getSelectionShader() const { return _renderCtrl.selectionShader(); }
 	SelectionManager* getSelectionManager() const { return _selectionManager; }
+	bool isMeshAnimationVisibleForSelection(const SceneMesh* mesh) const { return isMeshAnimationVisible(mesh); }
 	// Returns the camera configured for the viewport that contains 'pixel'.
 	// In multi-view mode the ortho camera is set to the correct orientation
 	// (Top/Front/Left) before being returned; the isometric viewport returns
@@ -550,12 +552,6 @@ public slots:
 	// method calls makeCurrent/doneCurrent internally).  meshId is a _meshStore
 	// index; pass -1 to emit an empty result and clear the debug panel.
 	void requestTextureReadback(int meshId);
-
-	// Emits selectionChanged() with the given list.  Called by
-	// ModelViewer::handleTreeWidgetSelectionChanged() so that panels connected
-	// to this signal (e.g. TextureDebugPanel) stay in sync with tree-widget
-	// driven selection changes, including full deselection (empty list).
-	void broadcastSelectionChanged(const QList<int>& ids) { emit selectionChanged(ids); }
 
 	// Enable or disable a specific texture unit for meshId during rendering.
 	// When disabled the unit is replaced with a neutral placeholder texture
@@ -945,12 +941,6 @@ private:
 
 	// Selection manager instance (owns all selection logic and state)
 	SelectionManager* _selectionManager = nullptr;
-
-	// FBO resources for color picking (managed by GLWidget)
-	unsigned int _selectionFBO = 0;
-	unsigned int _selectionRBO = 0;        // Color render buffer
-	unsigned int _selectionDBO = 0;        // Depth render buffer
-
 
 	QVector4D _defaultLightColor;
 	QVector4D _ambientLight;

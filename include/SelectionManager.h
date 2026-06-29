@@ -64,6 +64,7 @@ public:
     void select(int id);
     void deselect(int id);
     void syncMeshSelectionVisualState();
+    int processSelection(const QPoint& pixel);
 
     // State queries
     QList<int> getSelectedIds() const { return _selectedMeshIds; }
@@ -103,16 +104,13 @@ private:
     void convertClickToRay(const QPoint& pixel, const QRect& viewport,
                           GLCamera* camera, QVector3D& rayPos, QVector3D& rayDir);
 
-    // Color picking helper
-    unsigned int processSelection(const QPoint& pixel);
-
     // State members
     QList<int> _selectedMeshIds;           // Currently selected mesh IDs
     int _hoveredMeshId = -1;               // Currently hovered mesh (-1 = none)
     HoverHighlightMode _hoverHighlightMode = HoverHighlightMode::RaycastOnly;
     SelectionMode _selectionMode = SelectionMode::Hybrid;
 
-    // FBO resources for color picking (managed by GLWidget)
+    // FBO resources for color picking
     unsigned int _selectionFBO = 0;
     unsigned int _selectionRBO = 0;        // Color render buffer
     unsigned int _selectionDBO = 0;        // Depth render buffer

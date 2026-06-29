@@ -383,11 +383,6 @@ _floorPlane(nullptr),
 	_renderCtrl.setCharlieLUTTexture(0);
 	_renderCtrl.setSheenELUTTexture(0);
 
-	_selectionFBO = 0;
-	_selectionRBO = 0;
-	_selectionDBO = 0;
-
-
 	_viewCtrl.setRubberBandRadius(1.0f);
 	_viewCtrl.setRubberBandZoomRatio(0.5f);
 
@@ -518,12 +513,8 @@ GLWidget::~GLWidget()
 		cleanUpShaders();
 
 		_renderCtrl.cleanupGLResources();
-		if (_selectionFBO != 0)
-			glDeleteFramebuffers(1, &_selectionFBO);
-		if (_selectionRBO != 0)
-			glDeleteRenderbuffers(1, &_selectionRBO);
-		if (_selectionDBO != 0)
-			glDeleteRenderbuffers(1, &_selectionDBO);
+		if (_selectionManager)
+			_selectionManager->cleanupFBOResources();
 
 		// Delete scene objects
 		if (_clippingPlaneXY)
@@ -939,22 +930,8 @@ void GLWidget::resizeGL(int width, int height)
 	float w = (float)width;
 	float h = (float)height;
 
-	// Invalidate selection FBO buffers so they're recreated with new dimensions
-	if (_selectionRBO != 0)
-	{
-		glDeleteRenderbuffers(1, &_selectionRBO);
-		_selectionRBO = 0;
-	}
-	if (_selectionDBO != 0)
-	{
-		glDeleteRenderbuffers(1, &_selectionDBO);
-		_selectionDBO = 0;
-	}
-	if (_selectionFBO != 0)
-	{
-		glDeleteFramebuffers(1, &_selectionFBO);
-		_selectionFBO = 0;
-	}
+	if (_selectionManager)
+		_selectionManager->resizeFBOResources(width, height);
 
 	glViewport(0, 0, w, h);
 	_viewCtrl.setViewportMatrix(w, h);
@@ -1028,7 +1005,7 @@ void GLWidget::paintGL()
 		// Text rendering
 		if (_sceneRuntime.meshStore().size() != 0)
 		{
-			const std::vector<int>& objectIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
+			const std::vector<int>& objectIds = _sceneRuntime.currentVisibleObjectIds();
 			if (objectIds.size() > 0)
 				_textRenderer->RenderText(_labelNumMeshes.arg(objectIds.size()).toStdString(), 4, 4, 1, QVector3D(1.0f, 1.0f, 0.0f));
 		}
@@ -1508,7 +1485,7 @@ void GLWidget::setViewMode(ViewMode mode)
 		// On an empty scene, keep the cached fit diameter at the current
 		// view range so the zoom animation is a no-op while the
 		// rotation animation still proceeds normally.
-		const std::vector<int>& visibleIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
+		const std::vector<int>& visibleIds = _sceneRuntime.currentVisibleObjectIds();
 		if (!_sceneRuntime.meshStore().empty() && !visibleIds.empty())
 		{
 			QVector3D projCenter;
@@ -1538,7 +1515,7 @@ void GLWidget::fitAll()
 	// Guard: do nothing if the scene has no visible meshes.
 	// Without this, computeFitViewRange() operates on degenerate bounds,
 	// driving the view range to near-zero and hiding the trihedron.
-	const std::vector<int>& visibleIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
+	const std::vector<int>& visibleIds = _sceneRuntime.currentVisibleObjectIds();
 	if (_sceneRuntime.meshStore().empty() || visibleIds.empty())
 		return;
 
@@ -1801,7 +1778,7 @@ bool GLWidget::positionGameplayCameraForScene(GLCamera::CameraMode mode)
 		return false;
 	}
 
-	const std::vector<int>& visibleIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
+	const std::vector<int>& visibleIds = _sceneRuntime.currentVisibleObjectIds();
 	if (_sceneRuntime.meshStore().empty() || visibleIds.empty())
 		return false;
 
@@ -1875,7 +1852,7 @@ bool GLWidget::positionGameplayCameraForScene(GLCamera::CameraMode mode)
 
 void GLWidget::setCameraMode(GLCamera::CameraMode mode)
 {
-	const std::vector<int>& visibleIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
+	const std::vector<int>& visibleIds = _sceneRuntime.currentVisibleObjectIds();
 	const bool hasVisibleScene = !_sceneRuntime.meshStore().empty() && !visibleIds.empty();
 
 	if (mode == GLCamera::CameraMode::Fly || mode == GLCamera::CameraMode::FirstPerson)
@@ -2021,7 +1998,7 @@ void GLWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 	_viewCtrl.setVisibleLowestZ(-1.0f);
 	_viewCtrl.setVisibleHighestZ(1.0f);
 
-	const std::vector<int>& visibleIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
+	const std::vector<int>& visibleIds = _sceneRuntime.currentVisibleObjectIds();
 	if (updateMemorySize)
 	{
 		_displayedObjectsMemSize = 0;
@@ -2296,7 +2273,7 @@ void GLWidget::syncPunctualLightUniforms(int lightCount, bool hasPunctualLights)
 
 bool GLWidget::shouldUseFallbackLightForVisibleScene() const
 {
-	const std::vector<int>& visibleIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
+	const std::vector<int>& visibleIds = _sceneRuntime.currentVisibleObjectIds();
 	bool sawVisibleMesh = false;
 	bool sawGltfDerivedMesh = false;
 
@@ -3774,8 +3751,8 @@ void GLWidget::showNodeMeshLoadingProgress(int processedNodes, int totalNodes, i
 
 void GLWidget::swapVisible(bool checked)
 {
-	_sceneRuntime.setVisibleSwapped(checked);
-	_sceneRuntime.setRuntimeVisibilityMaskRevision(_sceneRuntime.runtimeVisibilityMaskRevision() + 1);
+	if (!_sceneRuntime.swapVisible(checked))
+		return;
 	recalculateVisibleSceneStats(false);
 	triggerShadowRecomputation();
 	updateFloorPlane();
@@ -4775,7 +4752,7 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 
 	if (_sceneRuntime.meshStore().empty()) return;
 
-	const std::vector<int>& objectIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
+	const std::vector<int>& objectIds = _sceneRuntime.currentVisibleObjectIds();
 
 	// Split — applying cap-plane straddle culling during collection
 	std::vector<int> opaqueIds;
@@ -4897,7 +4874,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 	if (_sceneRuntime.runtimeVisibilityPrepared() && _sceneRuntime.runtimeVisibilityRootIndex() >= 0)
 	{
 		std::vector<int> candidateIds;
-		candidateIds.reserve((_sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds()).size());
+		candidateIds.reserve(_sceneRuntime.currentVisibleObjectIds().size());
 		collectVisibleMeshIdsForPass(_sceneRuntime.runtimeVisibilityRootIndex(), activeClipPlaneIndex, false, candidateIds);
 		opaque.reserve(candidateIds.size());
 		for (int id : candidateIds)
@@ -4908,7 +4885,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 	}
 	else
 	{
-		const std::vector<int>& objectIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
+		const std::vector<int>& objectIds = _sceneRuntime.currentVisibleObjectIds();
 		opaque.reserve(objectIds.size());
 		for (int id : objectIds)
 		{
@@ -5166,7 +5143,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 	if (_sceneRuntime.runtimeVisibilityPrepared() && _sceneRuntime.runtimeVisibilityRootIndex() >= 0)
 	{
 		std::vector<int> candidateIds;
-		candidateIds.reserve((_sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds()).size());
+		candidateIds.reserve(_sceneRuntime.currentVisibleObjectIds().size());
 		collectVisibleMeshIdsForPass(_sceneRuntime.runtimeVisibilityRootIndex(), activeClipPlaneIndex, true, candidateIds);
 		transparent.reserve(candidateIds.size());
 		for (int id : candidateIds)
@@ -5183,7 +5160,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 	}
 	else
 	{
-		const std::vector<int>& objectIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
+		const std::vector<int>& objectIds = _sceneRuntime.currentVisibleObjectIds();
 		transparent.reserve(objectIds.size());
 
 		for (int id : objectIds)
@@ -5617,7 +5594,7 @@ void GLWidget::refreshRuntimeVisibilityCacheForCurrentView()
 	if (!ensureRuntimeVisibilityHierarchy())
 		return;
 
-	const std::vector<int>& visibleIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
+	const std::vector<int>& visibleIds = _sceneRuntime.currentVisibleObjectIds();
 	_sceneRuntime.runtimeBaseVisibleMask().assign(_sceneRuntime.meshStore().size(), 0u);
 	for (int meshIndex : visibleIds)
 	{
@@ -5745,7 +5722,7 @@ bool GLWidget::isMeshFullyInsideFrustum(const SceneMesh* mesh) const
 float GLWidget::computeFullyVisibleMinMeshRadius() const
 {
 	const std::vector<int>& ids =
-		_sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
+		_sceneRuntime.currentVisibleObjectIds();
 
 	float minRadius = std::numeric_limits<float>::max();
 	for (int id : ids)
@@ -5951,7 +5928,7 @@ bool GLWidget::isMeshVisible(const SceneMesh* mesh, int activeClipPlaneIndex) co
 
 bool GLWidget::sceneHasVisibleTransmissionMaterials() const
 {
-	const std::vector<int>& ids = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
+	const std::vector<int>& ids = _sceneRuntime.currentVisibleObjectIds();
 	for (int id : ids)
 	{
 		if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
@@ -5969,7 +5946,7 @@ bool GLWidget::sceneHasVisibleTransmissionMaterials() const
 
 bool GLWidget::sceneHasVisibleSSSMaterials() const
 {
-	const std::vector<int>& ids = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
+	const std::vector<int>& ids = _sceneRuntime.currentVisibleObjectIds();
 	for (int id : ids)
 	{
 		if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
@@ -6418,7 +6395,7 @@ void GLWidget::drawVertexNormals()
 
 	if (_sceneRuntime.meshStore().size() != 0)
 	{
-		for (int i : (_sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds()))
+		for (int i : _sceneRuntime.currentVisibleObjectIds())
 		{
 			SceneMesh* mesh = _sceneRuntime.meshAt(i);
 			mesh->setProg(_renderCtrl.vertexNormalShader());
@@ -6442,7 +6419,7 @@ void GLWidget::drawFaceNormals()
 
 	if (_sceneRuntime.meshStore().size() != 0)
 	{
-		for (int i : (_sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds()))
+		for (int i : _sceneRuntime.currentVisibleObjectIds())
 		{
 			SceneMesh* mesh = _sceneRuntime.meshAt(i);
 			mesh->setProg(_renderCtrl.faceNormalShader());
@@ -6486,7 +6463,7 @@ void GLWidget::drawBoundingBoxOverlay()
     }
     else
     {
-        for (int meshId : (_sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds()))
+        for (int meshId : _sceneRuntime.currentVisibleObjectIds())
             accumulateBounds(meshId);
     }
 
@@ -7908,7 +7885,7 @@ bool GLWidget::orientCameraToViewCubeNormal(const QVector3D& outwardNormal)
 		_viewCtrl.setViewMode(ViewMode::NONE);
 	}
 
-	const std::vector<int>& visibleIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
+	const std::vector<int>& visibleIds = _sceneRuntime.currentVisibleObjectIds();
 	if (!_sceneRuntime.meshStore().empty() && !visibleIds.empty())
 	{
 		const QMatrix4x4 targetRotationMatrix(_viewCtrl.customViewTargetRotation().toRotationMatrix());
@@ -8526,7 +8503,7 @@ void GLWidget::renderToShadowBuffer()
 	BoundingBox skinnedBounds;
 	bool hasShadowCasterBounds = false;
 	bool hasSkinnedBounds = false;
-	const std::vector<int>& visibleIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
+	const std::vector<int>& visibleIds = _sceneRuntime.currentVisibleObjectIds();
 	for (int i : visibleIds)
 	{
 		try
@@ -8676,192 +8653,6 @@ void GLWidget::renderToShadowBuffer()
 	// End Shadow Mapping
 	// restore viewport
 	glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
-}
-
-int GLWidget::processSelection(const QPoint& pixel)
-{
-	int id = -1;
-
-	// Get the list of objects to render (all visible objects)
-	const auto& visibleIds = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
-
-	if (visibleIds.empty())
-		return -1;
-
-	// Note: Even with one visible object, we must perform FBO rendering and color picking
-	// to determine if the click actually hit that object (vs empty space).
-	// FBO rendering with depth testing will correctly return -1 if click missed.
-
-	// Render all visible objects to FBO and perform color picking to determine topmost
-	makeCurrent();
-
-	// Validate GL context and dimensions
-	if (width() <= 0 || height() <= 0)
-		return -1;
-
-	if(_selectionFBO == 0)
-		glGenFramebuffers(1, &_selectionFBO);
-	glBindFramebuffer(GL_FRAMEBUFFER, _selectionFBO);
-#ifdef GL_FRAMEBUFFER_DEFAULT_SAMPLES
-		glFramebufferParameteri(GL_FRAMEBUFFER, GL_FRAMEBUFFER_DEFAULT_SAMPLES, 0);
-#else // MacOS
-		glFramebufferParameteri(GL_FRAMEBUFFER, 0, 0);
-#endif
-
-	if(_selectionRBO == 0)
-		glGenRenderbuffers(1, &_selectionRBO);
-	glBindRenderbuffer(GL_RENDERBUFFER, _selectionRBO);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA, width(), height());
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, _selectionRBO);
-	GLenum DrawBuffers[1] = { GL_COLOR_ATTACHMENT0 };
-	glDrawBuffers(1, DrawBuffers);
-	if(_selectionDBO == 0)
-		glGenRenderbuffers(1, &_selectionDBO);
-	glBindRenderbuffer(GL_RENDERBUFFER, (GLuint)_selectionDBO);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width(), height());
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, _selectionDBO);
-	GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-	if (status != GL_FRAMEBUFFER_COMPLETE)
-	{
-		std::cout << "Failed to create selection framebuffer: " << status << std::endl;
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
-		return -1;
-	}
-
-	// save current viewport
-	int viewport[4];
-	glGetIntegerv(GL_VIEWPORT, viewport);
-
-	// Resolve the camera and sub-viewport for the clicked pixel.
-	// In multi-view mode each quadrant uses a different camera; the selection FBO
-	// must replicate the exact same view/projection and GL viewport so that the
-	// rendered pixel positions match the on-screen positions.
-	GLCamera* selCamera = getCameraForPoint(pixel);
-
-	int selVpX = 0, selVpY = 0, selVpW = width(), selVpH = height();
-	if (_viewCtrl.multiViewActive())
-	{
-		const int hw = width() / 2, hh = height() / 2;
-		// Qt pixel coords have y=0 at top; GL viewport y=0 at bottom.
-		if (pixel.x() < width() / 2 && pixel.y() > height() / 2)        // Qt bottom-left → Top view
-			{ selVpX = 0;  selVpY = 0;  selVpW = hw; selVpH = hh; }
-		else if (pixel.x() < width() / 2 && pixel.y() <= height() / 2)  // Qt top-left   → Front view
-			{ selVpX = 0;  selVpY = hh; selVpW = hw; selVpH = hh; }
-		else if (pixel.x() >= width() / 2 && pixel.y() < height() / 2)  // Qt top-right  → Left view
-			{ selVpX = hw; selVpY = hh; selVpW = hw; selVpH = hh; }
-		else                                                               // Qt bottom-right → Isometric
-			{ selVpX = hw; selVpY = 0;  selVpW = hw; selVpH = hh; }
-	}
-
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	glViewport(0, 0, width(), height());
-	glBindFramebuffer(GL_FRAMEBUFFER, _selectionFBO);
-	glDrawBuffer(GL_COLOR_ATTACHMENT0);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glViewport(selVpX, selVpY, selVpW, selVpH);
-	glEnable(GL_DEPTH_TEST);
-	glDisable(GL_BLEND);
-	_renderCtrl.selectionShader()->bind();
-	_renderCtrl.selectionShader()->setUniformValue("projectionMatrix", selCamera->getProjectionMatrix());
-	_renderCtrl.selectionShader()->setProperty("globalModelMatrix", QVariant::fromValue(_viewCtrl.modelMatrix()));
-	_renderCtrl.selectionShader()->setUniformValue("viewMatrix", selCamera->getViewMatrix());
-
-	// Render ALL visible objects to FBO (not just ray-hit ones)
-	// This ensures color picking is a true fallback method, independent of ray test results
-	for (int i : std::as_const(visibleIds))
-	{
-		try
-		{
-			SceneMesh* mesh = _sceneRuntime.meshAt(i);
-			if (mesh && isMeshAnimationVisible(mesh))
-			{
-				QColor pickColor = PickingHelper::indexToColor(i + 1);
-				_renderCtrl.selectionShader()->bind();
-
-				const float r = pickColor.redF();
-				const float g = pickColor.greenF();
-				const float b = pickColor.blueF();
-				const float a = pickColor.alphaF();
-
-				_renderCtrl.selectionShader()->setUniformValue("pickingColor", QVector4D(r, g, b, a));
-				// Explosion offset is baked into combinedRenderTransform() via
-				// RenderableMesh::_explosionOffset — no extra handling needed here.
-				_renderCtrl.selectionShader()->setUniformValue("modelMatrix", mesh->combinedRenderTransform());
-				_renderCtrl.selectionShader()->setUniformValue("hasSkinning", mesh->hasSkinning());
-				_renderCtrl.selectionShader()->setUniformValue("jointCount", static_cast<int>(mesh->jointPalette().size()));
-				if (mesh->hasSkinning() && !mesh->jointPalette().isEmpty())
-				{
-					const int maxJoints = std::min(static_cast<int>(mesh->jointPalette().size()), 128);
-					for (int jointIndex = 0; jointIndex < maxJoints; ++jointIndex)
-					{
-						const QString uniformName = QStringLiteral("jointMatrices[%1]").arg(jointIndex);
-						_renderCtrl.selectionShader()->setUniformValue(uniformName.toUtf8().constData(), mesh->jointPalette()[jointIndex]);
-					}
-				}
-				mesh->setProg(_renderCtrl.selectionShader());
-				mesh->getVAO().bind();
-				if (mesh->getIndices().empty())
-					glDrawArrays(mesh->getPrimitiveMode(), 0, static_cast<int>(mesh->getPoints().size() / 3));
-				else
-					glDrawElements(mesh->getPrimitiveMode(), static_cast<int>(mesh->getIndices().size()), GL_UNSIGNED_INT, 0);
-				mesh->getVAO().release();
-				glFlush();
-				glFinish();
-			}
-		}
-		catch (const std::exception& ex)
-		{
-			std::cout << "Exception raised in GLWidget::renderToSelectionBuffer\n" << ex.what() << std::endl;
-		}
-	}
-
-	glReadBuffer(GL_COLOR_ATTACHMENT0);
-	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-	int pixelWinSize = 2;
-
-	// Calculate safe pixel read coordinates with bounds checking.
-	// The selection FBO is always width() x height() in size.
-	// pixel is in Qt widget coords (y=0 at top); GL FBO coords have y=0 at bottom.
-	int readX = pixel.x() - pixelWinSize / 2;
-	int readY = height() - pixel.y() - 1 + pixelWinSize / 2;
-
-	// Clamp to FBO bounds
-	if (readX < 0) readX = 0;
-	if (readY < 0) readY = 0;
-	if (readX + pixelWinSize > width())  readX = width()  - pixelWinSize;
-	if (readY + pixelWinSize > height()) readY = height() - pixelWinSize;
-
-	// Ensure dimensions don't exceed bounds
-	int readWidth = pixelWinSize;
-	int readHeight = pixelWinSize;
-	if (readX + readWidth > width())   readWidth  = width()  - readX;
-	if (readY + readHeight > height()) readHeight = height() - readY;
-
-	if (readWidth <= 0 || readHeight <= 0)
-	{
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
-		glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
-		return -1; // Click outside viewport
-	}
-
-	std::vector<float> res(static_cast<size_t>(readWidth) * readHeight * 4);
-	glReadPixels(readX, readY, readWidth, readHeight, GL_RGBA, GL_FLOAT, res.data());
-	std::map<int, int> voteCount;
-	for (size_t i = 0; i < res.size(); i += 4)
-	{
-		QColor col = QColor::fromRgbF(res[i + 0], res[i + 1], res[i + 2], res[i + 3]);
-		unsigned int colId = PickingHelper::colorToIndex(col);
-		if (colId != 0)
-			voteCount[colId - 1]++;
-	}
-	if (!voteCount.empty())
-		id = std::max_element(voteCount.begin(), voteCount.end(), voteCount.value_comp())->first;
-
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
-	// restore viewport
-	glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
-
-	return id;
 }
 
 void GLWidget::renderQuad()
@@ -12009,7 +11800,7 @@ std::vector<QVector3D> GLWidget::collectVisibleCorners() const
 {
 	constexpr int MAX_SAMPLES_PER_MESH = 1024;
 
-	const auto& ids = _sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds() : _sceneRuntime.displayedObjectsIds();
+	const auto& ids = _sceneRuntime.currentVisibleObjectIds();
 	std::vector<QVector3D> points;
 	points.reserve(ids.size() * MAX_SAMPLES_PER_MESH);
 

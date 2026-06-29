@@ -1919,7 +1919,7 @@ void ExplodedViewPanel::previewAssemblyEntry(const QUuid& uuid)
         {
             _glWidget->getSelectionManager()->syncSelectedIds(QList<int>{index});
             _glWidget->syncMeshSelectionVisualState();
-            _glWidget->broadcastSelectionChanged(QList<int>{index});
+            emit _glWidget->selectionChanged(QList<int>{index});
             _glWidget->update();
         }
     }

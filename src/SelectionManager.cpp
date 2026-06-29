@@ -5,10 +5,12 @@
 #include "RenderableMesh.h"
 #include <QOpenGLFunctions_4_5_Core>
 #include <QOpenGLContext>
+#include <QOpenGLVersionFunctionsFactory>
 #include <QApplication>
 #include <QLineF>
 #include <QRect>
 #include <QMatrix4x4>
+#include <QVariant>
 #include <QVector4D>
 #include <algorithm>
 #include <iostream>
@@ -48,7 +50,7 @@ int SelectionManager::clickSelect(const QPoint& pixel)
     int id = -1;
     _selectedMeshIds.clear();  // Click select clears and selects ONE mesh
 
-    const auto& ids = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+    const auto& ids = _glWidget->currentVisibleObjectIds();
     if (ids.empty()) {
         return -1;
     }
@@ -89,7 +91,7 @@ int SelectionManager::clickSelect(const QPoint& pixel)
     // This is the authoritative path for animated meshes because it uses the
     // current render-time transforms / skinning state rather than cached CPU
     // triangle data.
-    const int colId = _glWidget ? _glWidget->processSelection(pixel) : -1;
+    const int colId = processSelection(pixel);
 
     QApplication::restoreOverrideCursor();
 
@@ -120,7 +122,7 @@ int SelectionManager::hoverSelect(const QPoint& pixel)
 {
     int hoveredId = -1;
 
-    const auto& ids = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+    const auto& ids = _glWidget->currentVisibleObjectIds();
     if (ids.empty())
         return -1;
 
@@ -130,7 +132,7 @@ int SelectionManager::hoverSelect(const QPoint& pixel)
 
     if (_hoverHighlightMode == HoverHighlightMode::Accurate || animatedPoseActive)
     {
-        hoveredId = _glWidget ? _glWidget->processSelection(pixel) : -1;
+        hoveredId = processSelection(pixel);
     }
     else
     {
@@ -176,7 +178,7 @@ int SelectionManager::hoverSelect(const QPoint& pixel)
 
 QList<int> SelectionManager::sweepSelect(const QPoint& p1, const QPoint& p2, bool addToSelection)
 {
-    const auto& ids = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+    const auto& ids = _glWidget->currentVisibleObjectIds();
     if (ids.empty())
         return _selectedMeshIds;
 
@@ -353,8 +355,20 @@ void SelectionManager::initializeFBOResources()
 
 void SelectionManager::cleanupFBOResources()
 {
-    // Note: Actual GL cleanup happens in GLWidget::resizeGL() and destructor
-    // SelectionManager just tracks the resource IDs
+    QOpenGLContext* context = QOpenGLContext::currentContext();
+    if (context)
+    {
+        if (auto* f = QOpenGLVersionFunctionsFactory::get<QOpenGLFunctions_4_5_Core>(context))
+        {
+            if (_selectionFBO != 0)
+                f->glDeleteFramebuffers(1, &_selectionFBO);
+            if (_selectionRBO != 0)
+                f->glDeleteRenderbuffers(1, &_selectionRBO);
+            if (_selectionDBO != 0)
+                f->glDeleteRenderbuffers(1, &_selectionDBO);
+        }
+    }
+
     _selectionFBO = 0;
     _selectionRBO = 0;
     _selectionDBO = 0;
@@ -362,14 +376,9 @@ void SelectionManager::cleanupFBOResources()
 
 void SelectionManager::resizeFBOResources(int width, int height)
 {
-    // Note: Actual GL cleanup happens in GLWidget::resizeGL()
-    // SelectionManager just tracks dimensions
+    cleanupFBOResources();
     _fboWidth = width;
     _fboHeight = height;
-    // FBO resources will be recreated on demand in processSelection()
-    _selectionFBO = 0;
-    _selectionRBO = 0;
-    _selectionDBO = 0;
 }
 
 // ============================================================================
@@ -421,10 +430,173 @@ void SelectionManager::convertClickToRay(const QPoint& pixel, const QRect& viewp
 // Helper Methods - Color Picking
 // ============================================================================
 
-unsigned int SelectionManager::processSelection(const QPoint& pixel)
+int SelectionManager::processSelection(const QPoint& pixel)
 {
-    // NOTE: FBO color picking is handled by GLWidget::processSelection()
-    // SelectionManager focuses on ray-casting selection logic only
-    // This method is kept for potential future extension
-    return 0;
+    if (!_glWidget)
+        return -1;
+
+    const auto& visibleIds = _glWidget->currentVisibleObjectIds();
+    if (visibleIds.empty())
+        return -1;
+
+    _glWidget->makeCurrent();
+
+    const int widgetWidth = _glWidget->width();
+    const int widgetHeight = _glWidget->height();
+    if (widgetWidth <= 0 || widgetHeight <= 0)
+        return -1;
+
+    QOpenGLContext* context = QOpenGLContext::currentContext();
+    if (!context)
+        return -1;
+
+    auto* f = QOpenGLVersionFunctionsFactory::get<QOpenGLFunctions_4_5_Core>(context);
+    if (!f)
+        return -1;
+
+    int id = -1;
+
+    if (_selectionFBO == 0)
+        f->glGenFramebuffers(1, &_selectionFBO);
+    f->glBindFramebuffer(GL_FRAMEBUFFER, _selectionFBO);
+#ifdef GL_FRAMEBUFFER_DEFAULT_SAMPLES
+    f->glFramebufferParameteri(GL_FRAMEBUFFER, GL_FRAMEBUFFER_DEFAULT_SAMPLES, 0);
+#else
+    f->glFramebufferParameteri(GL_FRAMEBUFFER, 0, 0);
+#endif
+
+    if (_selectionRBO == 0)
+        f->glGenRenderbuffers(1, &_selectionRBO);
+    f->glBindRenderbuffer(GL_RENDERBUFFER, _selectionRBO);
+    f->glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA, widgetWidth, widgetHeight);
+    f->glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, _selectionRBO);
+    GLenum drawBuffers[1] = { GL_COLOR_ATTACHMENT0 };
+    f->glDrawBuffers(1, drawBuffers);
+
+    if (_selectionDBO == 0)
+        f->glGenRenderbuffers(1, &_selectionDBO);
+    f->glBindRenderbuffer(GL_RENDERBUFFER, _selectionDBO);
+    f->glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, widgetWidth, widgetHeight);
+    f->glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, _selectionDBO);
+
+    const GLenum status = f->glCheckFramebufferStatus(GL_FRAMEBUFFER);
+    if (status != GL_FRAMEBUFFER_COMPLETE)
+    {
+        std::cout << "Failed to create selection framebuffer: " << status << std::endl;
+        f->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _glWidget->defaultFramebufferObject());
+        return -1;
+    }
+
+    GLint viewport[4];
+    f->glGetIntegerv(GL_VIEWPORT, viewport);
+
+    GLCamera* selCamera = _glWidget->getCameraForPoint(pixel);
+    int selVpX = 0, selVpY = 0, selVpW = widgetWidth, selVpH = widgetHeight;
+    if (_glWidget->isMultiViewActive())
+    {
+        const int hw = widgetWidth / 2;
+        const int hh = widgetHeight / 2;
+        if (pixel.x() < widgetWidth / 2 && pixel.y() > widgetHeight / 2)
+            { selVpX = 0;  selVpY = 0;  selVpW = hw; selVpH = hh; }
+        else if (pixel.x() < widgetWidth / 2 && pixel.y() <= widgetHeight / 2)
+            { selVpX = 0;  selVpY = hh; selVpW = hw; selVpH = hh; }
+        else if (pixel.x() >= widgetWidth / 2 && pixel.y() < widgetHeight / 2)
+            { selVpX = hw; selVpY = hh; selVpW = hw; selVpH = hh; }
+        else
+            { selVpX = hw; selVpY = 0;  selVpW = hw; selVpH = hh; }
+    }
+
+    f->glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    f->glViewport(0, 0, widgetWidth, widgetHeight);
+    f->glBindFramebuffer(GL_FRAMEBUFFER, _selectionFBO);
+    f->glDrawBuffer(GL_COLOR_ATTACHMENT0);
+    f->glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    f->glViewport(selVpX, selVpY, selVpW, selVpH);
+    f->glEnable(GL_DEPTH_TEST);
+    f->glDisable(GL_BLEND);
+
+    ShaderProgram* selectionShader = _glWidget->getSelectionShader();
+    selectionShader->bind();
+    selectionShader->setUniformValue("projectionMatrix", selCamera->getProjectionMatrix());
+    selectionShader->setProperty("globalModelMatrix", QVariant::fromValue(_glWidget->getModelMatrix()));
+    selectionShader->setUniformValue("viewMatrix", selCamera->getViewMatrix());
+
+    for (int i : visibleIds)
+    {
+        try
+        {
+            SceneMesh* mesh = _meshStore.at(i).mesh;
+            if (mesh && _glWidget->isMeshAnimationVisibleForSelection(mesh))
+            {
+                const QColor pickColor = PickingHelper::indexToColor(i + 1);
+                selectionShader->bind();
+                selectionShader->setUniformValue("pickingColor", QVector4D(
+                    pickColor.redF(), pickColor.greenF(), pickColor.blueF(), pickColor.alphaF()));
+                selectionShader->setUniformValue("modelMatrix", mesh->combinedRenderTransform());
+                selectionShader->setUniformValue("hasSkinning", mesh->hasSkinning());
+                selectionShader->setUniformValue("jointCount", static_cast<int>(mesh->jointPalette().size()));
+                if (mesh->hasSkinning() && !mesh->jointPalette().isEmpty())
+                {
+                    const int maxJoints = std::min(static_cast<int>(mesh->jointPalette().size()), 128);
+                    for (int jointIndex = 0; jointIndex < maxJoints; ++jointIndex)
+                    {
+                        const QString uniformName = QStringLiteral("jointMatrices[%1]").arg(jointIndex);
+                        selectionShader->setUniformValue(uniformName.toUtf8().constData(), mesh->jointPalette()[jointIndex]);
+                    }
+                }
+                mesh->setProg(selectionShader);
+                mesh->getVAO().bind();
+                if (mesh->getIndices().empty())
+                    f->glDrawArrays(mesh->getPrimitiveMode(), 0, static_cast<int>(mesh->getPoints().size() / 3));
+                else
+                    f->glDrawElements(mesh->getPrimitiveMode(), static_cast<int>(mesh->getIndices().size()), GL_UNSIGNED_INT, nullptr);
+                mesh->getVAO().release();
+                f->glFlush();
+                f->glFinish();
+            }
+        }
+        catch (const std::exception& ex)
+        {
+            std::cout << "Exception raised in SelectionManager::processSelection\n" << ex.what() << std::endl;
+        }
+    }
+
+    f->glReadBuffer(GL_COLOR_ATTACHMENT0);
+    f->glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    const int pixelWinSize = 2;
+    int readX = pixel.x() - pixelWinSize / 2;
+    int readY = widgetHeight - pixel.y() - 1 + pixelWinSize / 2;
+    if (readX < 0) readX = 0;
+    if (readY < 0) readY = 0;
+    if (readX + pixelWinSize > widgetWidth)  readX = widgetWidth - pixelWinSize;
+    if (readY + pixelWinSize > widgetHeight) readY = widgetHeight - pixelWinSize;
+
+    int readWidth = pixelWinSize;
+    int readHeight = pixelWinSize;
+    if (readX + readWidth > widgetWidth)   readWidth  = widgetWidth  - readX;
+    if (readY + readHeight > widgetHeight) readHeight = widgetHeight - readY;
+
+    if (readWidth <= 0 || readHeight <= 0)
+    {
+        f->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _glWidget->defaultFramebufferObject());
+        f->glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+        return -1;
+    }
+
+    std::vector<float> res(static_cast<size_t>(readWidth) * static_cast<size_t>(readHeight) * 4u);
+    f->glReadPixels(readX, readY, readWidth, readHeight, GL_RGBA, GL_FLOAT, res.data());
+    std::map<int, int> voteCount;
+    for (size_t i = 0; i < res.size(); i += 4)
+    {
+        const QColor col = QColor::fromRgbF(res[i + 0], res[i + 1], res[i + 2], res[i + 3]);
+        const unsigned int colId = PickingHelper::colorToIndex(col);
+        if (colId != 0)
+            voteCount[static_cast<int>(colId - 1)]++;
+    }
+    if (!voteCount.empty())
+        id = std::max_element(voteCount.begin(), voteCount.end(), voteCount.value_comp())->first;
+
+    f->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _glWidget->defaultFramebufferObject());
+    f->glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+    return id;
 }
