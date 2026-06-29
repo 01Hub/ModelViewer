@@ -148,46 +148,33 @@ void AnimationRuntimeController::rebuildCurrentRepositionedLights(
 
 std::vector<GPULight> AnimationRuntimeController::rebuildAndBuildUploadLights(
     const std::function<QMatrix4x4(const QString&)>& userTransformResolver,
-    const std::vector<GPULight>& originalLights,
-    std::vector<GPULight>& repositionedLights,
-    const QVector<LightOrigin>& lightFileIndexMap,
     const std::function<bool(const LightOrigin&)>& isLightEnabled)
 {
     QHash<QString, QMatrix4x4> transformCache;
     if (userTransformResolver)
     {
-        for (const LightOrigin& origin : lightFileIndexMap)
+        for (const LightOrigin& origin : _lightFileIndexMap)
         {
             if (!transformCache.contains(origin.file))
                 transformCache.insert(origin.file, userTransformResolver(origin.file));
         }
     }
 
-    rebuildCurrentRepositionedLights(originalLights, repositionedLights, lightFileIndexMap, transformCache);
+    rebuildCurrentRepositionedLights(_originalParsedLights, _currentRepositionedLights, _lightFileIndexMap, transformCache);
     return isLightEnabled
-        ? buildUploadLights(repositionedLights, lightFileIndexMap, isLightEnabled)
-        : buildUploadLights(repositionedLights);
+        ? buildUploadLights(isLightEnabled)
+        : buildUploadLights();
 }
 
 std::vector<GPULight> AnimationRuntimeController::buildUploadLightsWithSceneGraph(
     const std::function<QMatrix4x4(const QString&)>& userTransformResolver,
-    const std::vector<GPULight>& originalLights,
-    std::vector<GPULight>& repositionedLights,
-    const QVector<LightOrigin>& lightFileIndexMap,
     const SceneGraph* sg)
 {
     if (!sg)
-        return rebuildAndBuildUploadLights(
-            userTransformResolver,
-            originalLights,
-            repositionedLights,
-            lightFileIndexMap);
+        return rebuildAndBuildUploadLights(userTransformResolver);
 
     return rebuildAndBuildUploadLights(
         userTransformResolver,
-        originalLights,
-        repositionedLights,
-        lightFileIndexMap,
         [sg](const LightOrigin& origin) {
             const GltfLightData& ld = sg->lightDataForFile(origin.file);
             return origin.index < static_cast<int>(ld.lights.size()) &&
@@ -195,32 +182,193 @@ std::vector<GPULight> AnimationRuntimeController::buildUploadLightsWithSceneGrap
         });
 }
 
-std::vector<GPULight> AnimationRuntimeController::buildUploadLights(
-    const std::vector<GPULight>& repositionedLights) const
+std::vector<GPULight> AnimationRuntimeController::buildUploadLights() const
 {
-    return repositionedLights;
+    return _currentRepositionedLights;
 }
 
 std::vector<GPULight> AnimationRuntimeController::buildUploadLights(
-    const std::vector<GPULight>& repositionedLights,
-    const QVector<LightOrigin>& lightFileIndexMap,
     const std::function<bool(const LightOrigin&)>& isLightEnabled) const
 {
     if (!isLightEnabled ||
-        lightFileIndexMap.isEmpty() ||
-        lightFileIndexMap.size() != static_cast<int>(repositionedLights.size()))
+        _lightFileIndexMap.isEmpty() ||
+        _lightFileIndexMap.size() != static_cast<int>(_currentRepositionedLights.size()))
     {
-        return repositionedLights;
+        return _currentRepositionedLights;
     }
 
     std::vector<GPULight> uploadLights;
-    uploadLights.reserve(repositionedLights.size());
-    for (int i = 0; i < static_cast<int>(repositionedLights.size()); ++i)
+    uploadLights.reserve(_currentRepositionedLights.size());
+    for (int i = 0; i < static_cast<int>(_currentRepositionedLights.size()); ++i)
     {
-        if (isLightEnabled(lightFileIndexMap[i]))
-            uploadLights.push_back(repositionedLights[i]);
+        if (isLightEnabled(_lightFileIndexMap[i]))
+            uploadLights.push_back(_currentRepositionedLights[i]);
     }
     return uploadLights;
+}
+
+QHash<int, bool> AnimationRuntimeController::buildEffectiveNodeVisibility(
+    const RuntimeAnimationFileState& runtime,
+    const QHash<int, bool>& nodeVisibilityOverrides) const
+{
+    QHash<int, bool> effectiveCache;
+    std::function<bool(int)> evalVisible = [&](int nodeIndex) -> bool
+    {
+        if (effectiveCache.contains(nodeIndex))
+            return effectiveCache.value(nodeIndex);
+        if (nodeIndex < 0 || nodeIndex >= runtime.data.nodeVisibilityStates.size())
+            return true;
+
+        const GltfAnimationNodeVisibilityState& nodeState = runtime.data.nodeVisibilityStates[nodeIndex];
+        const bool localVisible = nodeVisibilityOverrides.value(nodeIndex, nodeState.defaultVisible);
+        const bool effectiveVisible = localVisible &&
+            (nodeState.parentNodeIndex < 0 || evalVisible(nodeState.parentNodeIndex));
+        effectiveCache.insert(nodeIndex, effectiveVisible);
+        return effectiveVisible;
+    };
+
+    for (const GltfAnimationNodeVisibilityState& nodeState : runtime.data.nodeVisibilityStates)
+        evalVisible(nodeState.nodeIndex);
+
+    return effectiveCache;
+}
+
+QVector<bool> AnimationRuntimeController::buildAnimatedLightVisibilityMask(
+    const RuntimeAnimationFileState& runtime,
+    const QHash<int, bool>& effectiveNodeVisibility) const
+{
+    QVector<bool> visibleByParsedLight(runtime.data.lightBindings.size(), true);
+    for (const GltfAnimationLightBinding& binding : runtime.data.lightBindings)
+    {
+        if (binding.parsedLightIndex >= 0 && binding.parsedLightIndex < visibleByParsedLight.size())
+            visibleByParsedLight[binding.parsedLightIndex] =
+                effectiveNodeVisibility.value(binding.nodeIndex, true);
+    }
+    return visibleByParsedLight;
+}
+
+QSet<QUuid> AnimationRuntimeController::collectHiddenAnimatedMeshUuids(
+    const RuntimeAnimationFileState& runtime,
+    const QHash<int, bool>& effectiveNodeVisibility,
+    const SceneNode* fileNode) const
+{
+    QSet<QUuid> hiddenMeshUuids;
+    if (!fileNode)
+        return hiddenMeshUuids;
+
+    std::function<void(const SceneNode*)> collectHidden = [&](const SceneNode* node)
+    {
+        if (!node)
+            return;
+
+        const int nodeIndex = runtime.nodeIndexByUuid.value(node->nodeUuid, -1);
+        const bool visible = nodeIndex < 0 ? true : effectiveNodeVisibility.value(nodeIndex, true);
+        if (!visible)
+        {
+            for (const QUuid& uuid : node->meshUuids)
+                hiddenMeshUuids.insert(uuid);
+        }
+
+        for (SceneNode* child : node->children)
+            collectHidden(child);
+    };
+
+    for (SceneNode* child : fileNode->children)
+        collectHidden(child);
+
+    return hiddenMeshUuids;
+}
+
+bool AnimationRuntimeController::buildAnimatedLightTransformState(
+    const QString& sourceFile,
+    const RuntimeAnimationFileState& runtime,
+    const AnimationSampleResult& result,
+    const SceneNode* fileNode,
+    std::vector<GPULight>& outAnimatedLights) const
+{
+    if (!fileNode || !(runtime.data.hasNodeAnimations || runtime.data.hasSkinning))
+        return false;
+
+    int fileLightOffset = 0;
+    int fileLightCount = static_cast<int>(_originalParsedLights.size());
+    if (!_lightFileIndexMap.isEmpty())
+    {
+        int foundOffset = -1;
+        int foundCount = 0;
+        for (int k = 0; k < _lightFileIndexMap.size(); ++k)
+        {
+            if (_lightFileIndexMap[k].file == sourceFile)
+            {
+                if (foundCount == 0)
+                    foundOffset = k;
+                ++foundCount;
+            }
+        }
+        if (foundOffset >= 0)
+        {
+            fileLightOffset = foundOffset;
+            fileLightCount = foundCount;
+        }
+    }
+
+    if (runtime.data.lightBindings.isEmpty() ||
+        fileLightCount != static_cast<int>(runtime.data.lightBindings.size()))
+    {
+        return false;
+    }
+
+    const QMatrix4x4 importCorrection = AnimationRuntimeController::aiToQMatrix(fileNode->localTransform);
+    std::vector<GPULight> animatedLights = _originalParsedLights;
+    bool resolvedAnyAnimatedLightTransform = false;
+
+    for (const GltfAnimationLightBinding& binding : runtime.data.lightBindings)
+    {
+        const int globalIndex = fileLightOffset + binding.parsedLightIndex;
+        if (binding.parsedLightIndex < 0 ||
+            globalIndex >= static_cast<int>(animatedLights.size()))
+        {
+            continue;
+        }
+
+        QMatrix4x4 modelSpaceWorld;
+        bool hasWorldTransform = false;
+        if (binding.nodeIndex >= 0 && runtime.nodeUuidByIndex.contains(binding.nodeIndex))
+        {
+            const QUuid nodeUuid = AnimationRuntimeController::resolveRuntimeNodeUuid(runtime, binding.nodeIndex);
+            if (result.worldTransforms.contains(nodeUuid))
+            {
+                modelSpaceWorld = result.worldTransforms.value(nodeUuid);
+                hasWorldTransform = true;
+            }
+        }
+        else if (!binding.nodeName.isEmpty())
+        {
+            const QUuid nodeUuid = AnimationRuntimeController::resolveRuntimeNodeUuid(runtime, -1, binding.nodeName);
+            if (!nodeUuid.isNull() && result.worldTransforms.contains(nodeUuid))
+            {
+                modelSpaceWorld = result.worldTransforms.value(nodeUuid);
+                hasWorldTransform = true;
+            }
+        }
+
+        if (!hasWorldTransform)
+            continue;
+
+        const QMatrix4x4 worldSpace = importCorrection * modelSpaceWorld;
+        GPULight& light = animatedLights[globalIndex];
+        light.position = glm::vec3(worldSpace(0, 3), worldSpace(1, 3), worldSpace(2, 3));
+
+        const QVector3D localDir(0.0f, 0.0f, -1.0f);
+        const QVector3D worldDir = (worldSpace.mapVector(localDir)).normalized();
+        light.direction = glm::vec3(worldDir.x(), worldDir.y(), worldDir.z());
+        resolvedAnyAnimatedLightTransform = true;
+    }
+
+    if (!resolvedAnyAnimatedLightTransform)
+        return false;
+
+    outAnimatedLights = std::move(animatedLights);
+    return true;
 }
 
 AnimationRuntimeController::AnimationSampleResult AnimationRuntimeController::sampleClip(
@@ -430,29 +578,23 @@ AnimationRuntimeController::AnimationSampleResult AnimationRuntimeController::sa
 // Light population
 // ---------------------------------------------------------------------------
 
-void AnimationRuntimeController::setParsedLightsFromSingleFile(
-    const GltfLightData& lightData,
-    std::vector<GPULight>& originalLights,
-    std::vector<GPULight>& repositionedLights,
-    QVector<LightOrigin>& lightFileIndexMap)
+void AnimationRuntimeController::setParsedLightsFromSingleFile(const GltfLightData& lightData)
 {
-    originalLights.clear();
-    lightFileIndexMap.clear();
-    repositionedLights.clear();
+    _originalParsedLights.clear();
+    _lightFileIndexMap.clear();
+    _currentRepositionedLights.clear();
     for (const GltfLightEntry& entry : lightData.lights)
-        originalLights.push_back(entry.gpuLight);
+        _originalParsedLights.push_back(entry.gpuLight);
     // lightFileIndexMap intentionally not built here — onSceneLightDataChanged
     // (→ rebuildParsedLightsFromSceneGraph) is the authoritative rebuilder once
     // the file is registered in SceneGraph.
 }
 
-void AnimationRuntimeController::rebuildParsedLightsFromSceneGraph(
-    const SceneGraph* sg,
-    std::vector<GPULight>& originalLights,
-    QVector<LightOrigin>& lightFileIndexMap)
+void AnimationRuntimeController::rebuildParsedLightsFromSceneGraph(const SceneGraph* sg)
 {
-    originalLights.clear();
-    lightFileIndexMap.clear();
+    _originalParsedLights.clear();
+    _lightFileIndexMap.clear();
+    _currentRepositionedLights.clear();
     if (!sg)
         return;
     const QStringList files = sg->filesWithLights();
@@ -461,45 +603,39 @@ void AnimationRuntimeController::rebuildParsedLightsFromSceneGraph(
         const GltfLightData& ld = sg->lightDataForFile(file);
         for (int i = 0; i < static_cast<int>(ld.lights.size()); ++i)
         {
-            originalLights.push_back(ld.lights[i].gpuLight);
-            lightFileIndexMap.append({file, i});
+            _originalParsedLights.push_back(ld.lights[i].gpuLight);
+            _lightFileIndexMap.append({file, i});
         }
     }
 }
 
-void AnimationRuntimeController::clearParsedLights(
-    std::vector<GPULight>& originalLights,
-    std::vector<GPULight>& repositionedLights,
-    QVector<LightOrigin>& lightFileIndexMap)
+void AnimationRuntimeController::clearParsedLights()
 {
-    originalLights.clear();
-    lightFileIndexMap.clear();
-    repositionedLights.clear();
+    _originalParsedLights.clear();
+    _lightFileIndexMap.clear();
+    _currentRepositionedLights.clear();
 }
 
-std::vector<GPULight> AnimationRuntimeController::buildGizmoLights(
-    const SceneGraph* sg,
-    const std::vector<GPULight>& repositionedLights,
-    const QVector<LightOrigin>& lightFileIndexMap) const
+std::vector<GPULight> AnimationRuntimeController::buildGizmoLights(const SceneGraph* sg) const
 {
-    if (repositionedLights.empty())
+    if (_currentRepositionedLights.empty())
         return {};
 
     const bool hasEnabledMap = sg
-        && !lightFileIndexMap.isEmpty()
-        && static_cast<int>(repositionedLights.size()) == lightFileIndexMap.size();
+        && !_lightFileIndexMap.isEmpty()
+        && static_cast<int>(_currentRepositionedLights.size()) == _lightFileIndexMap.size();
 
     if (!hasEnabledMap)
-        return repositionedLights;
+        return _currentRepositionedLights;
 
     std::vector<GPULight> result;
-    result.reserve(repositionedLights.size());
-    for (int i = 0; i < static_cast<int>(repositionedLights.size()); ++i)
+    result.reserve(_currentRepositionedLights.size());
+    for (int i = 0; i < static_cast<int>(_currentRepositionedLights.size()); ++i)
     {
-        const LightOrigin& origin = lightFileIndexMap[i];
+        const LightOrigin& origin = _lightFileIndexMap[i];
         const GltfLightData& ld = sg->lightDataForFile(origin.file);
         if (origin.index < static_cast<int>(ld.lights.size()) && ld.lights[origin.index].enabled)
-            result.push_back(repositionedLights[i]);
+            result.push_back(_currentRepositionedLights[i]);
     }
     return result;
 }

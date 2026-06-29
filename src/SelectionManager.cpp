@@ -1,8 +1,8 @@
 #include "SelectionManager.h"
 #include "GLWidget.h"
 #include "GLCamera.h"
+#include "PickingHelper.h"
 #include "RenderableMesh.h"
-#include <QColor>
 #include <QOpenGLFunctions_4_5_Core>
 #include <QOpenGLContext>
 #include <QApplication>
@@ -54,7 +54,8 @@ int SelectionManager::clickSelect(const QPoint& pixel)
     }
 
     QVector3D rayPos, rayDir, intersectionPoint;
-    QRect viewport = getViewportFromPoint(pixel);
+    const QRect viewport = PickingHelper::viewportRectForPoint(
+        pixel, _glWidget->width(), _glWidget->height(), _glWidget->isMultiViewActive());
 
     QApplication::setOverrideCursor(Qt::WaitCursor);
     convertClickToRay(pixel, viewport, _glWidget->getCameraForPoint(pixel), rayPos, rayDir);
@@ -134,7 +135,8 @@ int SelectionManager::hoverSelect(const QPoint& pixel)
     else
     {
         QVector3D rayPos, rayDir, intersectionPoint;
-        QRect viewport = getViewportFromPoint(pixel);
+        const QRect viewport = PickingHelper::viewportRectForPoint(
+            pixel, _glWidget->width(), _glWidget->height(), _glWidget->isMultiViewActive());
 
         convertClickToRay(pixel, viewport, _glWidget->getCameraForPoint(pixel), rayPos, rayDir);
         if (rayDir.isNull())
@@ -252,6 +254,66 @@ QList<int> SelectionManager::sweepSelect(const QPoint& p1, const QPoint& p2, boo
     return _selectedMeshIds;
 }
 
+void SelectionManager::select(int id)
+{
+    try
+    {
+        if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+            return;
+
+        SceneMesh* mesh = _meshStore.at(id).mesh;
+        if (!mesh)
+            return;
+
+        mesh->select();
+        if (!_selectedMeshIds.contains(id))
+            _selectedMeshIds.append(id);
+    }
+    catch (const std::exception& ex)
+    {
+        std::cout << "Exception raised in SelectionManager::select\n" << ex.what() << std::endl;
+    }
+}
+
+void SelectionManager::deselect(int id)
+{
+    try
+    {
+        if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+            return;
+
+        SceneMesh* mesh = _meshStore.at(id).mesh;
+        if (!mesh)
+            return;
+
+        mesh->deselect();
+        _selectedMeshIds.removeAll(id);
+    }
+    catch (const std::exception& ex)
+    {
+        std::cout << "Exception raised in SelectionManager::deselect\n" << ex.what() << std::endl;
+    }
+}
+
+void SelectionManager::syncMeshSelectionVisualState()
+{
+    for (const SceneMeshRecord& meshRecord : _meshStore)
+    {
+        if (meshRecord.mesh)
+            meshRecord.mesh->deselect();
+    }
+
+    for (int id : _selectedMeshIds)
+    {
+        if (id < 0 || id >= static_cast<int>(_meshStore.size()))
+            continue;
+
+        SceneMesh* mesh = _meshStore.at(id).mesh;
+        if (mesh)
+            mesh->select();
+    }
+}
+
 // ============================================================================
 // Settings Slots
 // ============================================================================
@@ -355,39 +417,6 @@ void SelectionManager::convertClickToRay(const QPoint& pixel, const QRect& viewp
     dir = rawDir.isNull() ? QVector3D(0, 0, 0) : rawDir.normalized();
 }
 
-QRect SelectionManager::getViewportFromPoint(const QPoint& point)
-{
-    QRect viewport;
-    int w = _glWidget->width();
-    int h = _glWidget->height();
-
-    // Check if multi-view is active
-    bool multiViewActive = _glWidget->isMultiViewActive();
-
-    if (multiViewActive)
-    {
-        // top view
-        if (point.x() < w / 2 && point.y() > h / 2)
-            viewport = QRect(0, 0, w / 2, h / 2);
-        // front view
-        else if (point.x() < w / 2 && point.y() <= h / 2)
-            viewport = QRect(0, h / 2, w / 2, h / 2);
-        // left view
-        else if (point.x() >= w / 2 && point.y() < h / 2)
-            viewport = QRect(w / 2, h / 2, w / 2, h / 2);
-        // isometric (also catches pixels exactly on the dividing lines)
-        else
-            viewport = QRect(w / 2, 0, w / 2, h / 2);
-    }
-    else
-    {
-        // single viewport
-        viewport = QRect(0, 0, w, h);
-    }
-
-    return viewport;
-}
-
 // ============================================================================
 // Helper Methods - Color Picking
 // ============================================================================
@@ -398,23 +427,4 @@ unsigned int SelectionManager::processSelection(const QPoint& pixel)
     // SelectionManager focuses on ray-casting selection logic only
     // This method is kept for potential future extension
     return 0;
-}
-
-unsigned int SelectionManager::colorToIndex(const QColor& color)
-{
-    int alpha = color.alpha();
-    int red = color.red();
-    int green = color.green();
-    int blue = color.blue();
-    unsigned int index = ((alpha << 24) | (red << 16) | (green << 8) | (blue));
-    return index;
-}
-
-QColor SelectionManager::indexToColor(const unsigned int& index)
-{
-    int red = ((index >> 16) & 0xFF);
-    int green = ((index >> 8) & 0xFF);
-    int blue = (index & 0xFF);
-    int alpha = ((index >> 24) & 0xFF);
-    return QColor(red, green, blue, alpha);
 }

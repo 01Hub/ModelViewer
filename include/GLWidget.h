@@ -185,10 +185,7 @@ public:
 
 	std::vector<SceneMesh*> getMeshStore() const
 	{
-		std::vector<SceneMesh*> result;
-		result.reserve(_sceneRuntime.meshStore().size());
-		for (const auto& r : _sceneRuntime.meshStore()) result.push_back(r.mesh);
-		return result;
+		return _sceneRuntime.meshPointers();
 	}
 
 	void addToDisplay(SceneMesh*);
@@ -832,10 +829,6 @@ private:
 	bool positionGameplayCameraForScene(GLCamera::CameraMode mode);
 
 	QList<int> sweepSelect(const QPoint& pixel, bool addToSelection = false);  // Sweep selection using rubber band
-	unsigned int colorToIndex(const QColor& color);
-	QColor indexToColor(const unsigned int& index);
-	QRect getViewportFromPoint(const QPoint& pixel);
-	QRect getClientRectFromPoint(const QPoint& pixel);
 	QVector3D get3dTranslationVectorFromMousePoints(const QPoint& start, const QPoint& end);
 	unsigned int loadTextureFromFile(const char* path,
 		GLenum wrapS = GL_REPEAT, GLenum wrapT = GL_REPEAT,
@@ -860,7 +853,7 @@ private:
 		SceneNode* fileNode);
 	void applyAnimatedLightTransforms(const QString& sourceFile,
 		const AnimationRuntimeController::RuntimeAnimationFileState& runtime,
-		AnimationRuntimeController::AnimationSampleResult& result,
+		const AnimationRuntimeController::AnimationSampleResult& result,
 		SceneNode* fileNode);
 	void applyAnimatedCamera(const QString& sourceFile,
 		const AnimationRuntimeController::RuntimeAnimationFileState& runtime,

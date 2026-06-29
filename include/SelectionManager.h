@@ -61,6 +61,9 @@ public:
     int clickSelect(const QPoint& pixel);
     int hoverSelect(const QPoint& pixel);
     QList<int> sweepSelect(const QPoint& p1, const QPoint& p2, bool addToSelection = false);
+    void select(int id);
+    void deselect(int id);
+    void syncMeshSelectionVisualState();
 
     // State queries
     QList<int> getSelectedIds() const { return _selectedMeshIds; }
@@ -99,11 +102,6 @@ private:
     void getRayFromPixelCoords(const QPoint& pixel, QVector3D& rayPos, QVector3D& rayDir);
     void convertClickToRay(const QPoint& pixel, const QRect& viewport,
                           GLCamera* camera, QVector3D& rayPos, QVector3D& rayDir);
-    QRect getViewportFromPoint(const QPoint& point);
-
-    // Color conversion utilities
-    unsigned int colorToIndex(const QColor& color);
-    QColor indexToColor(const unsigned int& index);
 
     // Color picking helper
     unsigned int processSelection(const QPoint& pixel);

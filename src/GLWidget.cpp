@@ -11,6 +11,7 @@
 #include "FloorPlane.h"
 #include "GltfCameraData.h"
 #include "GLWidget.h"
+#include "PickingHelper.h"
 #include <QtMath>
 #include "SelectionManager.h"
 #include "TransformGizmo.h"
@@ -592,173 +593,60 @@ void GLWidget::cleanUpShaders()
 
 void GLWidget::moveToRecycleBin(const QUuid& uuid, int originalIndex)
 {
-	// Find mesh in _sceneRuntime.meshStore()
-	SceneMesh* mesh = nullptr;
-	int index = -1;
-
-	for (size_t i = 0; i < _sceneRuntime.meshStore().size(); ++i)
-	{
-		if (_sceneRuntime.meshAt(i)->uuid() == uuid)
-		{
-			mesh = _sceneRuntime.meshAt(i);
-			index = static_cast<int>(i);
-			break;
-		}
-	}
-
-	if (!mesh)
+	if (!_sceneRuntime.moveToRecycleBin(uuid, originalIndex))
 	{
 		qWarning() << "GLWidget::moveToRecycleBin - Mesh not found:" << uuid;
 		return;
 	}
-
-	// Remove from _sceneRuntime.meshStore() (but don't delete)
-	_sceneRuntime.meshStore().erase(_sceneRuntime.meshStore().begin() + index);
-
-	// Also remove from displayed/hidden lists
-	auto it = std::find(_sceneRuntime.displayedObjectsIds().begin(),
-		_sceneRuntime.displayedObjectsIds().end(), index);
-	if (it != _sceneRuntime.displayedObjectsIds().end())
-		_sceneRuntime.displayedObjectsIds().erase(it);
-
-	it = std::find(_sceneRuntime.hiddenObjectsIds().begin(),
-		_sceneRuntime.hiddenObjectsIds().end(), index);
-	if (it != _sceneRuntime.hiddenObjectsIds().end())
-		_sceneRuntime.hiddenObjectsIds().erase(it);
-
-	// Adjust indices in displayed/hidden lists
-	// All indices > removed index need to be decremented
-	for (int& id : _sceneRuntime.displayedObjectsIds())
-	{
-		if (id > index)
-			id--;
-	}
-	for (int& id : _sceneRuntime.hiddenObjectsIds())
-	{
-		if (id > index)
-			id--;
-	}
-
-	// Add to recycle bin
-	SceneRuntime::RecycleBinEntry entry;
-	entry.mesh = mesh;
-	entry.originalIndex = originalIndex;
-	entry.deletedAt = QDateTime::currentDateTime();
-
-	_sceneRuntime.recycleBin()[uuid] = entry;
-
-	qDebug() << "Moved mesh to recycle bin:" << mesh->getName()
-		<< "uuid:" << uuid;
+	qDebug() << "Moved mesh to recycle bin, uuid:" << uuid;
 }
 
 bool GLWidget::restoreFromRecycleBin(const QUuid& uuid)
 {
-	if (!_sceneRuntime.recycleBin().contains(uuid))
+	if (!_sceneRuntime.restoreFromRecycleBin(uuid))
 	{
 		qWarning() << "GLWidget::restoreFromRecycleBin - Mesh not in bin:" << uuid;
 		return false;
 	}
-
-	SceneRuntime::RecycleBinEntry entry = _sceneRuntime.recycleBin().take(uuid);
-	SceneMesh* mesh = entry.mesh;
-
-	// Restore at the ORIGINAL index so _sceneRuntime.meshStore() keeps the SceneGraph DFS
-	// order.  The export path pairs the export scene's meshes with the
-	// runtime mesh list by order — appending at the end scrambles material
-	// and texture assignment on any export after a delete + undo.
-	int insertIndex = entry.originalIndex;
-	if (insertIndex < 0 || insertIndex > static_cast<int>(_sceneRuntime.meshStore().size()))
-		insertIndex = static_cast<int>(_sceneRuntime.meshStore().size());
-	_sceneRuntime.meshStore().insert(_sceneRuntime.meshStore().begin() + insertIndex, {mesh, mesh->uuid()});
-
-	// Shift existing display/hidden ids at or above the insertion point,
-	// then add the restored mesh to the displayed set (kept sorted —
-	// setDisplayList relies on sorted ids for std::set_difference).
-	for (int& id : _sceneRuntime.displayedObjectsIds())
-	{
-		if (id >= insertIndex)
-			id++;
-	}
-	for (int& id : _sceneRuntime.hiddenObjectsIds())
-	{
-		if (id >= insertIndex)
-			id++;
-	}
-	_sceneRuntime.displayedObjectsIds().push_back(insertIndex);
-	std::sort(_sceneRuntime.displayedObjectsIds().begin(), _sceneRuntime.displayedObjectsIds().end());
-
-	qDebug() << "Restored mesh from recycle bin:" << mesh->getName()
-		<< "uuid:" << uuid << "at index:" << insertIndex;
-
+	qDebug() << "Restored mesh from recycle bin, uuid:" << uuid;
 	return true;
 }
 
 void GLWidget::permanentlyDeleteFromBin(const QUuid& uuid)
 {
-	if (!_sceneRuntime.recycleBin().contains(uuid))
+	if (!_sceneRuntime.permanentlyDeleteFromRecycleBin(uuid))
 		return;
-
-	SceneRuntime::RecycleBinEntry entry = _sceneRuntime.recycleBin().take(uuid);
-	SceneMesh* mesh = entry.mesh;
-
-	qDebug() << "Permanently deleting mesh:" << mesh->getName()
-		<< "uuid:" << uuid;
-
-	// Actually destroy the mesh
-	delete mesh;
+	qDebug() << "Permanently deleted mesh from recycle bin, uuid:" << uuid;
 }
 
 bool GLWidget::isInRecycleBin(const QUuid& uuid) const
 {
-	return _sceneRuntime.recycleBin().contains(uuid);
+	return _sceneRuntime.isInRecycleBin(uuid);
 }
 
 QVector<QUuid> GLWidget::getRecycleBinUuids() const
 {
-	return _sceneRuntime.recycleBin().keys().toVector();
+	return _sceneRuntime.recycleBinUuids();
 }
 
 SceneMesh* GLWidget::getMeshByUuid(const QUuid& uuid) const
 {
-	// Check in _sceneRuntime.meshStore() first
-	for (const SceneMeshRecord& meshRecord : _sceneRuntime.meshStore())
-	{
-		SceneMesh* mesh = meshRecord.mesh;
-		if (!mesh)
-			continue;
-		if (mesh->uuid() == uuid)
-			return mesh;
-	}
-
-	// Check in recycle bin
-	if (_sceneRuntime.recycleBin().contains(uuid))
-		return _sceneRuntime.recycleBin()[uuid].mesh;
-
-	return nullptr;
+	return _sceneRuntime.getMeshByUuid(uuid);
 }
 
 SceneMesh* GLWidget::getMeshByIndex(int index) const
 {
-	return getMeshByUuid(getUuidByIndex(index));
+	return _sceneRuntime.getMeshByIndex(index);
 }
 
 int GLWidget::getIndexByUuid(const QUuid& uuid) const
 {
-	for (size_t i = 0; i < _sceneRuntime.meshStore().size(); ++i)
-	{
-		if (_sceneRuntime.meshAt(i)->uuid() == uuid)
-			return static_cast<int>(i);
-	}
-
-	return -1;  // Not found or in recycle bin
+	return _sceneRuntime.getIndexByUuid(uuid);
 }
 
 QUuid GLWidget::getUuidByIndex(int index) const
 {
-	if (index >= 0 && index < static_cast<int>(_sceneRuntime.meshStore().size()))
-		return _sceneRuntime.meshAt(index)->uuid();
-
-	return QUuid();  // Invalid
+	return _sceneRuntime.getUuidByIndex(index);
 }
 
 // Map C++ DisplayMode enum to the legacy integer values expected by main_scene.frag.
@@ -1772,7 +1660,7 @@ void GLWidget::performWindowZoom()
 	}
 
 	QPoint zoomWinCen = zoomRect.center();
-	QRect viewport = getViewportFromPoint(zoomWinCen);
+	QRect viewport = PickingHelper::viewportRectForPoint(zoomWinCen, width(), height(), _viewCtrl.multiViewActive());
 	QMatrix4x4 mvMatrix = _viewCtrl.viewMatrix() * _viewCtrl.modelMatrix();
 
 	// Sample the depth buffer at the rubber-band centre to get the actual scene depth.
@@ -1823,7 +1711,7 @@ void GLWidget::performWindowZoom()
 
 	// Unproject viewport centre (O) and rubber-band centre (P) at the scene depth.
 	// The pan vector P - O brings the rubber-band centre to screen centre for any choice of depth.
-	QRect clientRect = getClientRectFromPoint(zoomWinCen);
+	QRect clientRect = PickingHelper::clientRectForPoint(zoomWinCen, width(), height(), _viewCtrl.multiViewActive());
 	QPoint clientWinCen = clientRect.center();
 	QVector3D o(clientWinCen.x(), height() - clientWinCen.y(), depthZ);
 	QVector3D O = o.unproject(mvMatrix, _viewCtrl.projectionMatrix(), viewport);
@@ -2082,26 +1970,8 @@ void GLWidget::setZoomingActive(bool active)
 
 void GLWidget::setDisplayList(const std::vector<int>& ids)
 {
-	_sceneRuntime.displayedObjectsIds() = ids;
-	_sceneRuntime.setRuntimeVisibilityMaskRevision(_sceneRuntime.runtimeVisibilityMaskRevision() + 1);
-
-	std::vector<int> allObjectIDs;
-	for (size_t i = 0; i < _sceneRuntime.meshStore().size(); i++)
-	{
-		allObjectIDs.push_back(static_cast<int>(i));
-	}
-	_sceneRuntime.hiddenObjectsIds().clear();
-	std::set_difference(
-		allObjectIDs.begin(), allObjectIDs.end(),
-		_sceneRuntime.displayedObjectsIds().begin(), _sceneRuntime.displayedObjectsIds().end(),
-		std::back_inserter(_sceneRuntime.hiddenObjectsIds())
-	);
-
-	if (_sceneRuntime.hiddenObjectsIds().size() == 0 && _sceneRuntime.visibleSwapped())
-	{
-		_sceneRuntime.setVisibleSwapped(false);
+	if (_sceneRuntime.setDisplayList(ids))
 		emit visibleSwapped(_sceneRuntime.visibleSwapped());
-	}
 
 	_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
 	_viewCtrl.setBoundingSphereCenter(0, 0, 0);
@@ -2392,7 +2262,7 @@ void GLWidget::updateFloorPlane()
 	}
 
 	// Create fallback light if no punctual lights are available.
-	if (_sceneRuntime.originalParsedLights().empty())
+	if (_animCtrl.originalParsedLights().empty())
 	{
 		if (shouldUseFallbackLightForVisibleScene())
 		{
@@ -3441,8 +3311,7 @@ void GLWidget::addToDisplay(SceneMesh* mesh)
 		qDebug() << "Error: Attempted to add a null mesh to display.";
 		return;
 	}
-	_sceneRuntime.meshStore().push_back({mesh, mesh->uuid()});
-	_sceneRuntime.displayedObjectsIds().push_back(static_cast<int>(_sceneRuntime.meshStore().size() - 1));
+	_sceneRuntime.addMeshToDisplay(mesh);
 
 	//if(_sceneRuntime.progressiveLoadingEnabled())
 		//_viewer->updateDisplayList();	
@@ -3450,26 +3319,17 @@ void GLWidget::addToDisplay(SceneMesh* mesh)
 
 void GLWidget::removeFromDisplay(int index)
 {
-	SceneMesh* mesh = _sceneRuntime.meshAt(index);
-	_sceneRuntime.meshStore().erase(_sceneRuntime.meshStore().begin() + index);
+	const bool wasSwapped = _sceneRuntime.visibleSwapped();
+	SceneMesh* mesh = _sceneRuntime.detachMeshAt(index);
+	if (!mesh)
+		return;
 	delete mesh;
-	if (_sceneRuntime.meshStore().size() == 0)
-	{
-		_sceneRuntime.displayedObjectsIds().clear();
-		_sceneRuntime.hiddenObjectsIds().clear();
-		if (_sceneRuntime.visibleSwapped())
-		{
-			_sceneRuntime.setVisibleSwapped(false);
-			emit visibleSwapped(_sceneRuntime.visibleSwapped());
-		}
-	}
+	if (wasSwapped && !_sceneRuntime.visibleSwapped())
+		emit visibleSwapped(_sceneRuntime.visibleSwapped());
 	// If display list is empty, clear punctual lights
-	if (_sceneRuntime.displayedObjectsIds().empty())
+		if (_sceneRuntime.displayedObjectsIds().empty())
 	{
-		_animCtrl.clearParsedLights(
-			_sceneRuntime.originalParsedLights(),
-			_sceneRuntime.currentRepositionedLights(),
-			_sceneRuntime.lightFileIndexMap());
+		_animCtrl.clearParsedLights();
 		_animCtrl.clearAllAnimatedState();
 		_renderCtrl.glLights()->setLights({});
 		syncPunctualLightUniforms(0, false);
@@ -3506,52 +3366,20 @@ void GLWidget::centerScreen(std::vector<int> selectedIDs)
 
 void GLWidget::select(int id)
 {
-	try {
-		_sceneRuntime.meshAt(id)->select();
-		if (_selectionManager)
-		{
-			QList<int> ids = _selectionManager->getSelectedIds();
-			if (!ids.contains(id))
-			{
-				ids.append(id);
-				_selectionManager->syncSelectedIds(ids);
-			}
-		}
-	}
-	catch (const std::exception& ex) {
-		std::cout << "Exception raised in GLWidget::select\n" << ex.what() << std::endl;
-	}
+	if (_selectionManager)
+		_selectionManager->select(id);
 }
 
 void GLWidget::deselect(int id)
 {
-	try {
-		_sceneRuntime.meshAt(id)->deselect();
-		if (_selectionManager)
-		{
-			QList<int> ids = _selectionManager->getSelectedIds();
-			if (ids.removeAll(id) > 0)
-				_selectionManager->syncSelectedIds(ids);
-		}
-	}
-	catch (const std::exception& ex) {
-		std::cout << "Exception raised in GLWidget::deselect\n" << ex.what() << std::endl;
-	}
+	if (_selectionManager)
+		_selectionManager->deselect(id);
 }
 
 void GLWidget::syncMeshSelectionVisualState()
 {
-	const QList<int> selectedIds = _selectionManager ? _selectionManager->getSelectedIds() : QList<int>{};
-	for (const SceneMeshRecord& meshRecord : _sceneRuntime.meshStore())
-	{
-		if (meshRecord.mesh)
-			meshRecord.mesh->deselect();
-	}
-	for (int id : selectedIds)
-	{
-		if (id >= 0 && id < static_cast<int>(_sceneRuntime.meshStore().size()) && _sceneRuntime.meshAt(id))
-			_sceneRuntime.meshAt(id)->select();
-	}
+	if (_selectionManager)
+		_selectionManager->syncMeshSelectionVisualState();
 }
 
 bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod, QString& error, bool progressiveLoading)
@@ -3739,10 +3567,10 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 				// Register per-file punctual lights (if any) for this file.
 				// setLightData() emits lightDataChanged() which triggers the
 				// PunctualLightsPanel to refresh and GLWidget to rebuild the GPU list.
-				if (!_sceneRuntime.pendingLightData().isEmpty())
+				if (!_animCtrl.pendingLightData().isEmpty())
 				{
-					_sceneRuntime.pendingLightData().sourceFile = fileName; // authoritative path
-					_viewer->sceneGraph()->setLightData(fileName, _sceneRuntime.pendingLightData());
+					_animCtrl.pendingLightData().sourceFile = fileName; // authoritative path
+					_viewer->sceneGraph()->setLightData(fileName, _animCtrl.pendingLightData());
 				}
 
 				// Register KHR_materials_variants data (if any) for this file.
@@ -3971,18 +3799,7 @@ void GLWidget::cancelAssImpModelLoading()
 
 void GLWidget::invertADSOpacityTexMap(const std::vector<int>& ids, const bool& inverted)
 {
-	for (int id : ids)
-	{
-		try
-		{
-			SceneMesh* mesh = _sceneRuntime.meshAt(id);
-			mesh->invertOpacityADSMap(inverted);
-		}
-		catch (const std::exception& ex)
-		{
-			std::cout << "Exception in GLWidget::invertADSOpacityTexMap\n" << ex.what() << std::endl;
-		}
-	}
+	_sceneRuntime.invertAdsOpacityMaps(ids, inverted);
 }
 
 void GLWidget::setMaterialToObjects(const std::vector<int>& ids, const GLMaterial& mat)
@@ -4025,20 +3842,7 @@ void GLWidget::clearTextureCache()
 
 void GLWidget::setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale)
 {
-	for (int id : ids)
-	{
-		try
-		{
-			SceneMesh* mesh = _sceneRuntime.meshAt(id);
-			mesh->setTranslation(trans);
-			mesh->setRotation(rot);
-			mesh->setScaling(scale);
-		}
-		catch (const std::exception& ex)
-		{
-			std::cout << "Exception in GLWidget::setTransformation\n" << ex.what() << std::endl;
-		}
-	}
+	_sceneRuntime.setMeshTransforms(ids, trans, rot, scale);
 
 	// Lights/cameras follow automatically: updatePunctualLights() derives the
 	// per-file user transform straight from the meshes' TRS state.
@@ -4053,18 +3857,7 @@ void GLWidget::setTransformation(const std::vector<int>& ids, const QVector3D& t
 
 void GLWidget::resetTransformation(const std::vector<int>& ids)
 {
-	for (int id : ids)
-	{
-		try
-		{
-			SceneMesh* mesh = _sceneRuntime.meshAt(id);
-			mesh->resetTransformations();			
-		}
-		catch (const std::exception& ex)
-		{
-			std::cout << "Exception in GLWidget::resetTransformation\n" << ex.what() << std::endl;
-		}
-	}
+	_sceneRuntime.resetMeshTransforms(ids);
 
 	// Reset light offsets when model transformations are reset
 	_lightOffsetX = 0.0f;
@@ -4430,31 +4223,7 @@ float GLWidget::updateFloorGeometry()
 bool GLWidget::userModelTransformForFile(const QString& sourceFile,
                                          QMatrix4x4& outTransform) const
 {
-	bool found = false;
-	QMatrix4x4 trsf;
-	for (const SceneMeshRecord& meshRecord : _sceneRuntime.meshStore())
-	{
-		SceneMesh* mesh = meshRecord.mesh;
-		if (!mesh || mesh->getSourceFile() != sourceFile)
-			continue;
-		if (!found)
-		{
-			trsf = mesh->getTransformation();
-			found = true;
-		}
-		else if (mesh->getTransformation() != trsf)
-		{
-			// Meshes of this file were transformed individually — there is no
-			// single model-level transform the lights/cameras could follow.
-			return false;
-		}
-	}
-
-	if (!found || trsf.isIdentity())
-		return false;
-
-	outTransform = trsf;
-	return true;
+	return _sceneRuntime.userModelTransformForFile(sourceFile, outTransform);
 }
 
 namespace
@@ -4472,7 +4241,7 @@ float uniformScaleOf(const QMatrix4x4& m)
 
 void GLWidget::updatePunctualLights()
 {
-	if (_sceneRuntime.originalParsedLights().empty())
+	if (_animCtrl.originalParsedLights().empty())
 	{
 		return;
 	}
@@ -4485,9 +4254,6 @@ void GLWidget::updatePunctualLights()
 				userModelTransformForFile(file, m);
 				return m;
 			},
-			_sceneRuntime.originalParsedLights(),
-			_sceneRuntime.currentRepositionedLights(),
-			_sceneRuntime.lightFileIndexMap(),
 			sg);
 
 	_renderCtrl.glLights()->setLights(uploadLights);
@@ -7128,7 +6894,7 @@ void GLWidget::updateTransformGizmoTranslationDrag(const QPoint& pixel)
 	if (!_viewCtrl.transformGizmoTranslating() || !_viewer || _viewCtrl.transformGizmoStartStates().isEmpty())
 		return;
 
-	const QRect viewport = getViewportFromPoint(pixel);
+	const QRect viewport = PickingHelper::viewportRectForPoint(pixel, width(), height(), _viewCtrl.multiViewActive());
 	const GLCamera* camera = getCameraForPoint(pixel);
 	if (!camera)
 		return;
@@ -7361,7 +7127,7 @@ void GLWidget::updateTransformGizmoScaleDrag(const QPoint& pixel)
 	if (!_viewCtrl.transformGizmoScaling() || !_viewer || _viewCtrl.transformGizmoStartStates().isEmpty())
 		return;
 
-	const QRect viewport = getViewportFromPoint(pixel);
+	const QRect viewport = PickingHelper::viewportRectForPoint(pixel, width(), height(), _viewCtrl.multiViewActive());
 	const GLCamera* camera = getCameraForPoint(pixel);
 	if (!camera)
 		return;
@@ -7552,7 +7318,7 @@ bool GLWidget::beginTransformGizmoRotationDrag(TransformGizmo::Handle handle, co
 		return false;
 	}
 
-	const QRect viewport = getViewportFromPoint(pixel);
+	const QRect viewport = PickingHelper::viewportRectForPoint(pixel, width(), height(), _viewCtrl.multiViewActive());
 	const GLCamera* camera = getCameraForPoint(pixel);
 	if (!camera)
 		return false;
@@ -7615,7 +7381,7 @@ void GLWidget::updateTransformGizmoRotationDrag(const QPoint& pixel)
 	if (!_viewCtrl.transformGizmoRotating() || !_viewer || _viewCtrl.transformGizmoStartStates().isEmpty())
 		return;
 
-	const QRect viewport = getViewportFromPoint(pixel);
+	const QRect viewport = PickingHelper::viewportRectForPoint(pixel, width(), height(), _viewCtrl.multiViewActive());
 	const GLCamera* camera = getCameraForPoint(pixel);
 	if (!camera)
 		return;
@@ -8489,10 +8255,7 @@ void GLWidget::drawLights()
 	// Draw punctual lights — only those whose enabled flag is set (tree checkbox AND Show Lights).
 	{
 		const std::vector<GPULight> gizmoLights =
-		    _animCtrl.buildGizmoLights(
-		        _viewer ? _viewer->sceneGraph() : nullptr,
-		        _sceneRuntime.currentRepositionedLights(),
-		        _sceneRuntime.lightFileIndexMap());
+		    _animCtrl.buildGizmoLights(_viewer ? _viewer->sceneGraph() : nullptr);
 		if (!gizmoLights.empty())
 		{
 		const float sceneRadius = std::max(_viewCtrl.boundingSphere().getRadius(), 0.001f);
@@ -9012,7 +8775,7 @@ int GLWidget::processSelection(const QPoint& pixel)
 			SceneMesh* mesh = _sceneRuntime.meshAt(i);
 			if (mesh && isMeshAnimationVisible(mesh))
 			{
-				QColor pickColor = indexToColor(i + 1);
+				QColor pickColor = PickingHelper::indexToColor(i + 1);
 				_renderCtrl.selectionShader()->bind();
 
 				const float r = pickColor.redF();
@@ -9087,7 +8850,7 @@ int GLWidget::processSelection(const QPoint& pixel)
 	for (size_t i = 0; i < res.size(); i += 4)
 	{
 		QColor col = QColor::fromRgbF(res[i + 0], res[i + 1], res[i + 2], res[i + 3]);
-		unsigned int colId = colorToIndex(col);
+		unsigned int colId = PickingHelper::colorToIndex(col);
 		if (colId != 0)
 			voteCount[colId - 1]++;
 	}
@@ -9880,32 +9643,10 @@ void GLWidget::resetAnimationPose(const QString& sourceFile)
 	if (!runtime.data.lightBindings.isEmpty())
 	{
 		clearAnimatedLightTransformState(sourceFile);
-		QVector<bool> visibleByParsedLight(runtime.data.lightBindings.size(), true);
-		QHash<int, bool> explicitVisibility;
-		for (const GltfAnimationNodeVisibilityState& nodeState : runtime.data.nodeVisibilityStates)
-			explicitVisibility.insert(nodeState.nodeIndex, nodeState.defaultVisible);
-
-		QHash<int, bool> effectiveCache;
-		std::function<bool(int)> evalVisible = [&](int nodeIndex) -> bool
-		{
-			if (effectiveCache.contains(nodeIndex))
-				return effectiveCache.value(nodeIndex);
-			if (nodeIndex < 0 || nodeIndex >= runtime.data.nodeVisibilityStates.size())
-				return true;
-
-			const GltfAnimationNodeVisibilityState& nodeState = runtime.data.nodeVisibilityStates[nodeIndex];
-			const bool localVisible = explicitVisibility.value(nodeIndex, true);
-			const bool effectiveVisible = localVisible &&
-				(nodeState.parentNodeIndex < 0 || evalVisible(nodeState.parentNodeIndex));
-			effectiveCache.insert(nodeIndex, effectiveVisible);
-			return effectiveVisible;
-		};
-
-		for (const GltfAnimationLightBinding& binding : runtime.data.lightBindings)
-		{
-			if (binding.parsedLightIndex >= 0 && binding.parsedLightIndex < visibleByParsedLight.size())
-				visibleByParsedLight[binding.parsedLightIndex] = evalVisible(binding.nodeIndex);
-		}
+		const QHash<int, bool> effectiveVisibility =
+			_animCtrl.buildEffectiveNodeVisibility(runtime, QHash<int, bool>{});
+		const QVector<bool> visibleByParsedLight =
+			_animCtrl.buildAnimatedLightVisibilityMask(runtime, effectiveVisibility);
 		setAnimatedLightVisibilityState(sourceFile, visibleByParsedLight);
 	}
 	else
@@ -9916,47 +9657,10 @@ void GLWidget::resetAnimationPose(const QString& sourceFile)
 
 	if (!runtime.data.nodeVisibilityStates.isEmpty())
 	{
-		QHash<int, bool> explicitVisibility;
-		for (const GltfAnimationNodeVisibilityState& nodeState : runtime.data.nodeVisibilityStates)
-			explicitVisibility.insert(nodeState.nodeIndex, nodeState.defaultVisible);
-
-		QHash<int, bool> effectiveCache;
-		std::function<bool(int)> evalVisible = [&](int nodeIndex) -> bool
-		{
-			if (effectiveCache.contains(nodeIndex))
-				return effectiveCache.value(nodeIndex);
-			if (nodeIndex < 0 || nodeIndex >= runtime.data.nodeVisibilityStates.size())
-				return true;
-
-			const GltfAnimationNodeVisibilityState& nodeState = runtime.data.nodeVisibilityStates[nodeIndex];
-			const bool localVisible = explicitVisibility.value(nodeIndex, true);
-			const bool effectiveVisible = localVisible &&
-				(nodeState.parentNodeIndex < 0 || evalVisible(nodeState.parentNodeIndex));
-			effectiveCache.insert(nodeIndex, effectiveVisible);
-			return effectiveVisible;
-		};
-
-		QSet<QUuid> hiddenMeshUuids;
-		std::function<void(SceneNode*)> collectHidden = [&](SceneNode* node)
-		{
-			if (!node)
-				return;
-
-			const int nodeIndex = runtime.nodeIndexByUuid.value(node->nodeUuid, -1);
-
-			const bool visible = nodeIndex < 0 ? true : evalVisible(nodeIndex);
-			if (!visible)
-			{
-				for (const QUuid& uuid : node->meshUuids)
-					hiddenMeshUuids.insert(uuid);
-			}
-
-			for (SceneNode* child : node->children)
-				collectHidden(child);
-		};
-
-		for (SceneNode* child : fileNode->children)
-			collectHidden(child);
+		const QHash<int, bool> effectiveVisibility =
+			_animCtrl.buildEffectiveNodeVisibility(runtime, QHash<int, bool>{});
+		const QSet<QUuid> hiddenMeshUuids =
+			_animCtrl.collectHiddenAnimatedMeshUuids(runtime, effectiveVisibility, fileNode);
 		setAnimatedMeshVisibilityState(sourceFile, hiddenMeshUuids);
 	}
 	else
@@ -10120,132 +9824,28 @@ void GLWidget::applyAnimatedMeshVisibility(
 		return;
 	}
 
-	QHash<int, bool> effectiveCache;
-	std::function<bool(int)> evalVisible = [&](int nodeIndex) -> bool
-	{
-		if (effectiveCache.contains(nodeIndex))
-			return effectiveCache.value(nodeIndex);
-		if (nodeIndex < 0 || nodeIndex >= runtime.data.nodeVisibilityStates.size())
-			return true;
-
-		const GltfAnimationNodeVisibilityState& nodeState = runtime.data.nodeVisibilityStates[nodeIndex];
-		const bool localVisible = result.nodeVisibility.value(nodeIndex, nodeState.defaultVisible);
-		const bool effectiveVisible = localVisible &&
-			(nodeState.parentNodeIndex < 0 || evalVisible(nodeState.parentNodeIndex));
-		effectiveCache.insert(nodeIndex, effectiveVisible);
-		return effectiveVisible;
-	};
-
-	QSet<QUuid> hiddenMeshUuids;
-	std::function<void(SceneNode*)> collectHidden = [&](SceneNode* node)
-	{
-		if (!node)
-			return;
-
-		const int nodeIndex = runtime.nodeIndexByUuid.value(node->nodeUuid, -1);
-		const bool visible = nodeIndex < 0 ? true : evalVisible(nodeIndex);
-		if (!visible)
-		{
-			for (const QUuid& uuid : node->meshUuids)
-				hiddenMeshUuids.insert(uuid);
-		}
-
-		for (SceneNode* child : node->children)
-			collectHidden(child);
-	};
-
-	for (SceneNode* child : fileNode->children)
-		collectHidden(child);
+	const QHash<int, bool> effectiveVisibility =
+		_animCtrl.buildEffectiveNodeVisibility(runtime, result.nodeVisibility);
+	const QSet<QUuid> hiddenMeshUuids =
+		_animCtrl.collectHiddenAnimatedMeshUuids(runtime, effectiveVisibility, fileNode);
 	setAnimatedMeshVisibilityState(sourceFile, hiddenMeshUuids);
 }
 
 void GLWidget::applyAnimatedLightTransforms(
 	const QString& sourceFile,
 	const AnimationRuntimeController::RuntimeAnimationFileState& runtime,
-	AnimationRuntimeController::AnimationSampleResult& result,
+	const AnimationRuntimeController::AnimationSampleResult& result,
 	SceneNode* fileNode)
 {
-	if (fileNode && (runtime.data.hasNodeAnimations || runtime.data.hasSkinning))
+	std::vector<GPULight> animatedLights;
+	if (_animCtrl.buildAnimatedLightTransformState(
+		sourceFile,
+		runtime,
+		result,
+		fileNode,
+		animatedLights))
 	{
-		int fileLightOffset = 0;
-		int fileLightCount = static_cast<int>(_sceneRuntime.originalParsedLights().size());
-		if (!_sceneRuntime.lightFileIndexMap().isEmpty())
-		{
-			int foundOffset = -1, foundCount = 0;
-			for (int k = 0; k < _sceneRuntime.lightFileIndexMap().size(); ++k)
-			{
-				if (_sceneRuntime.lightFileIndexMap()[k].file == sourceFile)
-				{
-					if (foundCount == 0)
-						foundOffset = k;
-					++foundCount;
-				}
-			}
-			if (foundOffset >= 0)
-			{
-				fileLightOffset = foundOffset;
-				fileLightCount = foundCount;
-			}
-		}
-
-		const QMatrix4x4 importCorrection = AnimationRuntimeController::aiToQMatrix(fileNode->localTransform);
-
-		if (!runtime.data.lightBindings.isEmpty() &&
-			fileLightCount == static_cast<int>(runtime.data.lightBindings.size()))
-		{
-			std::vector<GPULight> animatedLights = _sceneRuntime.originalParsedLights();
-			bool resolvedAnyAnimatedLightTransform = false;
-			for (const GltfAnimationLightBinding& binding : runtime.data.lightBindings)
-			{
-				const int globalIndex = fileLightOffset + binding.parsedLightIndex;
-				if (binding.parsedLightIndex < 0 ||
-					globalIndex >= static_cast<int>(animatedLights.size()))
-				{
-					continue;
-				}
-
-				QMatrix4x4 modelSpaceWorld;
-				bool hasWorldTransform = false;
-				if (binding.nodeIndex >= 0 && runtime.nodeUuidByIndex.contains(binding.nodeIndex))
-				{
-					const QUuid nodeUuid = AnimationRuntimeController::resolveRuntimeNodeUuid(runtime, binding.nodeIndex);
-					if (result.worldTransforms.contains(nodeUuid))
-					{
-						modelSpaceWorld = result.worldTransforms.value(nodeUuid);
-						hasWorldTransform = true;
-					}
-				}
-				else if (!binding.nodeName.isEmpty())
-				{
-					const QUuid nodeUuid = AnimationRuntimeController::resolveRuntimeNodeUuid(runtime, -1, binding.nodeName);
-					if (!nodeUuid.isNull() && result.worldTransforms.contains(nodeUuid))
-					{
-						modelSpaceWorld = result.worldTransforms.value(nodeUuid);
-						hasWorldTransform = true;
-					}
-				}
-
-				if (!hasWorldTransform)
-					continue;
-
-				const QMatrix4x4 worldSpace = importCorrection * modelSpaceWorld;
-				GPULight& light = animatedLights[globalIndex];
-				light.position = glm::vec3(worldSpace(0, 3), worldSpace(1, 3), worldSpace(2, 3));
-
-				const QVector3D localDir(0.0f, 0.0f, -1.0f);
-				const QVector3D worldDir = (worldSpace.mapVector(localDir)).normalized();
-				light.direction = glm::vec3(worldDir.x(), worldDir.y(), worldDir.z());
-				resolvedAnyAnimatedLightTransform = true;
-			}
-			if (resolvedAnyAnimatedLightTransform)
-				setAnimatedLightTransformState(sourceFile, animatedLights);
-			else
-				clearAnimatedLightTransformState(sourceFile);
-		}
-		else
-		{
-			clearAnimatedLightTransformState(sourceFile);
-		}
+		setAnimatedLightTransformState(sourceFile, animatedLights);
 	}
 	else
 	{
@@ -10254,28 +9854,10 @@ void GLWidget::applyAnimatedLightTransforms(
 
 	if (!runtime.data.lightBindings.isEmpty())
 	{
-		QVector<bool> visibleByParsedLight(runtime.data.lightBindings.size(), true);
-		QHash<int, bool> effectiveCache;
-		std::function<bool(int)> evalVisible = [&](int nodeIndex) -> bool
-		{
-			if (effectiveCache.contains(nodeIndex))
-				return effectiveCache.value(nodeIndex);
-			if (nodeIndex < 0 || nodeIndex >= runtime.data.nodeVisibilityStates.size())
-				return true;
-
-			const GltfAnimationNodeVisibilityState& nodeState = runtime.data.nodeVisibilityStates[nodeIndex];
-			const bool localVisible = result.nodeVisibility.value(nodeIndex, nodeState.defaultVisible);
-			const bool effectiveVisible = localVisible &&
-				(nodeState.parentNodeIndex < 0 || evalVisible(nodeState.parentNodeIndex));
-			effectiveCache.insert(nodeIndex, effectiveVisible);
-			return effectiveVisible;
-		};
-
-		for (const GltfAnimationLightBinding& binding : runtime.data.lightBindings)
-		{
-			if (binding.parsedLightIndex >= 0 && binding.parsedLightIndex < visibleByParsedLight.size())
-				visibleByParsedLight[binding.parsedLightIndex] = evalVisible(binding.nodeIndex);
-		}
+		const QHash<int, bool> effectiveVisibility =
+			_animCtrl.buildEffectiveNodeVisibility(runtime, result.nodeVisibility);
+		const QVector<bool> visibleByParsedLight =
+			_animCtrl.buildAnimatedLightVisibilityMask(runtime, effectiveVisibility);
 		setAnimatedLightVisibilityState(sourceFile, visibleByParsedLight);
 	}
 	else
@@ -10900,52 +10482,7 @@ void GLWidget::generateCubemapMipmaps(GLuint cubemapTexture)
 
 QString GLWidget::generateUniqueMeshName(const QString& baseName)
 {
-	// Check if base name already exists
-	bool nameExists = false;
-	for (const SceneMeshRecord& meshRecord : _sceneRuntime.meshStore())
-	{
-		const SceneMesh* mesh = meshRecord.mesh;
-		if (!mesh)
-			continue;
-		if (mesh->getName() == baseName)
-		{
-			nameExists = true;
-			break;
-		}
-	}
-
-	// If base name doesn't exist, use it as-is
-	if (!nameExists)
-		return baseName;
-
-	// Find the next available number suffix
-	int counter = 2;
-	QString uniqueName;
-
-	while (true)
-	{
-		uniqueName = QString("%1 (%2)").arg(baseName).arg(counter);
-
-		bool exists = false;
-		for (const SceneMeshRecord& meshRecord : _sceneRuntime.meshStore())
-		{
-			const SceneMesh* mesh = meshRecord.mesh;
-			if (!mesh)
-				continue;
-			if (mesh->getName() == uniqueName)
-			{
-				exists = true;
-				break;
-			}
-		}
-
-		if (!exists)
-			break;
-
-		counter++;
-	}
-
-	return uniqueName;
+	return _sceneRuntime.generateUniqueMeshName(baseName);
 }
 
 void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topColor, const QColor& botColor)
@@ -11291,7 +10828,9 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 
 		if (_viewCtrl.viewPanning() || _viewCtrl.viewZooming() || _viewCtrl.viewRotating())
 		{
-			_viewCtrl.setNavigationLock(getViewportFromPoint(e->pos()), getClientRectFromPoint(e->pos()));
+			_viewCtrl.setNavigationLock(
+				PickingHelper::viewportRectForPoint(e->pos(), width(), height(), _viewCtrl.multiViewActive()),
+				PickingHelper::clientRectForPoint(e->pos(), width(), height(), _viewCtrl.multiViewActive()));
 		}
 
 		if (!(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
@@ -11310,7 +10849,9 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 	{
 		_viewCtrl.setRightButtonPoint(e->position().toPoint());
 		_viewCtrl.setLastPanPoint(e->pos());
-		_viewCtrl.setNavigationLock(getViewportFromPoint(e->pos()), getClientRectFromPoint(e->pos()));
+		_viewCtrl.setNavigationLock(
+			PickingHelper::viewportRectForPoint(e->pos(), width(), height(), _viewCtrl.multiViewActive()),
+			PickingHelper::clientRectForPoint(e->pos(), width(), height(), _viewCtrl.multiViewActive()));
 	}
 
 	if (e->button() & Qt::MiddleButton || ((e->button() & Qt::LeftButton) && _viewCtrl.viewRotating()))
@@ -11318,7 +10859,9 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 		_viewCtrl.setMiddleButtonPoint(e->position().toPoint());
 		if (e->button() & Qt::MiddleButton)
 		{
-			_viewCtrl.setNavigationLock(getViewportFromPoint(e->pos()), getClientRectFromPoint(e->pos()));
+			_viewCtrl.setNavigationLock(
+				PickingHelper::viewportRectForPoint(e->pos(), width(), height(), _viewCtrl.multiViewActive()),
+				PickingHelper::clientRectForPoint(e->pos(), width(), height(), _viewCtrl.multiViewActive()));
 		}
 	}
 }
@@ -11586,7 +11129,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		_viewCtrl.syncCurrentViewRange();
 
 		// Translate to focus on mouse center
-		QPoint cen = getClientRectFromPoint(downPoint).center();
+		QPoint cen = PickingHelper::clientRectForPoint(downPoint, width(), height(), _viewCtrl.multiViewActive()).center();
 		float sign = (downPoint.x() > _viewCtrl.middleButtonPoint().x() || downPoint.y() < _viewCtrl.middleButtonPoint().y()) ? 1.0f : -1.0f;
 		QVector3D OP = get3dTranslationVectorFromMousePoints(cen, _viewCtrl.middleButtonPoint());
 		OP *= sign * 0.05f;
@@ -11768,7 +11311,7 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 	_viewCtrl.syncCurrentViewRange();
 
 	// Translate to focus on mouse center
-	QPoint cen = getClientRectFromPoint(e->position().toPoint()).center();
+	QPoint cen = PickingHelper::clientRectForPoint(e->position().toPoint(), width(), height(), _viewCtrl.multiViewActive()).center();
 	QVector3D OP = get3dTranslationVectorFromMousePoints(cen, e->position().toPoint());
 	const float rangeScale = (oldViewRange > 0.0f) ? (_viewCtrl.viewRange() / oldViewRange) : 1.0f;
 	OP *= (1.0f - rangeScale);
@@ -11969,7 +11512,7 @@ void GLWidget::performKeyboardNav()
 				}
 				// Translate to focus on mouse center
 				QPoint pos = mapFromGlobal(QCursor::pos());
-				QPoint cen = getClientRectFromPoint(pos).center();
+				QPoint cen = PickingHelper::clientRectForPoint(pos, width(), height(), _viewCtrl.multiViewActive()).center();
 				float sign = (pos.x() > cen.x() || pos.y() < cen.y() ||
 					(pos.x() < cen.x() && pos.y() > cen.y())) && _keys.contains(Qt::Key_Q) ? 1.0f : -1.0f;
 				QVector3D OP = get3dTranslationVectorFromMousePoints(cen, pos);
@@ -12093,7 +11636,7 @@ void GLWidget::onInertiaTimer()
 		else
 			_viewCtrl.setViewRange(_viewCtrl.viewRange() * zoomFactor);
 
-		QPoint cen = getViewportFromPoint(mapFromGlobal(QCursor::pos())).center();
+		QPoint cen = PickingHelper::viewportRectForPoint(mapFromGlobal(QCursor::pos()), width(), height(), _viewCtrl.multiViewActive()).center();
 		QVector3D OP = get3dTranslationVectorFromMousePoints(cen, cen);
 		OP *= -_viewCtrl.inertiaZoomPanVelocity() * 0.05f;
 		_primaryCamera->move(OP.x(), OP.y(), OP.z());
@@ -12202,61 +11745,6 @@ GLCamera* GLWidget::getCameraForPoint(const QPoint& pixel)
 	return _orthoViewsCamera;
 }
 
-QRect GLWidget::getViewportFromPoint(const QPoint& pixel)
-{
-	QRect viewport;
-	if (_viewCtrl.multiViewActive())
-	{
-		// top view
-		if (pixel.x() < width() / 2 && pixel.y() > height() / 2)
-			viewport = QRect(0, 0, width() / 2, height() / 2);
-		// front view
-		else if (pixel.x() < width() / 2 && pixel.y() <= height() / 2)
-			viewport = QRect(0, height() / 2, width() / 2, height() / 2);
-		// left view
-		else if (pixel.x() >= width() / 2 && pixel.y() < height() / 2)
-			viewport = QRect(width() / 2, height() / 2, width() / 2, height() / 2);
-		// isometric (also catches pixels exactly on the dividing lines)
-		else
-			viewport = QRect(width() / 2, 0, width() / 2, height() / 2);
-	}
-	else
-	{
-		// single viewport
-		viewport = QRect(0, 0, width(), height());
-	}
-
-	return viewport;
-}
-
-QRect GLWidget::getClientRectFromPoint(const QPoint& pixel)
-{
-	QRect clientRect;
-	if (_viewCtrl.multiViewActive())
-	{
-		// top view
-		if (pixel.x() < width() / 2 && pixel.y() > height() / 2)
-			clientRect = QRect(0, height() / 2, width() / 2, height() / 2);
-		// front view
-		else if (pixel.x() < width() / 2 && pixel.y() <= height() / 2)
-			clientRect = QRect(0, 0, width() / 2, height() / 2);
-		// left view
-		else if (pixel.x() >= width() / 2 && pixel.y() < height() / 2)
-			clientRect = QRect(width() / 2, 0, width() / 2, height() / 2);
-		// isometric (also catches pixels exactly on the dividing lines)
-		else
-			clientRect = QRect(width() / 2, height() / 2, width() / 2, height() / 2);
-	}
-	else
-	{
-		// single viewport
-		clientRect = QRect(0, 0, width(), height());
-	}
-
-	return clientRect;
-}
-
-
 QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, const QPoint& end)
 {
 	if (width() <= 0 || height() <= 0)
@@ -12274,8 +11762,12 @@ QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, c
 	// Determine viewport and camera
 	const QRect widgetRect(0, 0, width(), height());
 	const QPoint safeStart = clampPointToRect(start, widgetRect);
-	QRect viewport = _viewCtrl.navigationViewportLocked() ? _viewCtrl.navigationLockedViewport() : getViewportFromPoint(safeStart);
-	QRect clientRect = _viewCtrl.navigationViewportLocked() ? _viewCtrl.navigationLockedClientRect() : getClientRectFromPoint(safeStart);
+	QRect viewport = _viewCtrl.navigationViewportLocked()
+		? _viewCtrl.navigationLockedViewport()
+		: PickingHelper::viewportRectForPoint(safeStart, width(), height(), _viewCtrl.multiViewActive());
+	QRect clientRect = _viewCtrl.navigationViewportLocked()
+		? _viewCtrl.navigationLockedClientRect()
+		: PickingHelper::clientRectForPoint(safeStart, width(), height(), _viewCtrl.multiViewActive());
 	if (viewport.width() <= 0 || viewport.height() <= 0)
 		return QVector3D(0, 0, 0);
 
@@ -12498,27 +11990,6 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel, bool addToSelection)
 	emit selectionChanged(selectedIds);
 	emit sweepSelectionDone(selectedIds);
 	return selectedIds;
-}
-
-
-
-unsigned int GLWidget::colorToIndex(const QColor& color)
-{
-	int alpha = color.alpha();
-	int red = color.red();
-	int green = color.green();
-	int blue = color.blue();
-	unsigned int index =  ((alpha << 24) | (red << 16) | (green << 8) | (blue));
-	return index;
-}
-
-QColor GLWidget::indexToColor(const unsigned int& index)
-{
-	int red = ((index >> 16) & 0xFF);
-	int green = ((index >> 8) & 0xFF);
-	int blue = (index & 0xFF);
-	int alpha = ((index >> 24) & 0xFF);
-	return QColor(red, green, blue, alpha);
 }
 
 void GLWidget::setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir)
@@ -14314,16 +13785,8 @@ bool GLWidget::uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& meshes)
     if (!_renderCtrl.fgShader())
         return false;
 
-    for (const SceneMeshRecord& meshRecord : _sceneRuntime.meshStore())
-        delete meshRecord.mesh;
-    _sceneRuntime.meshStore().clear();
-    _sceneRuntime.displayedObjectsIds().clear();
-    _sceneRuntime.hiddenObjectsIds().clear();
-    if (_sceneRuntime.visibleSwapped())
-    {
-        _sceneRuntime.setVisibleSwapped(false);
+    if (_sceneRuntime.clearMeshStore())
         emit visibleSwapped(_sceneRuntime.visibleSwapped());
-    }
 
     const int totalMeshes = meshes.size();
     QElapsedTimer yieldTimer;
@@ -14408,16 +13871,8 @@ void GLWidget::clearMeshStore()
 {
     makeCurrent();
 
-    for (const SceneMeshRecord& meshRecord : _sceneRuntime.meshStore())
-        delete meshRecord.mesh;
-    _sceneRuntime.meshStore().clear();
-    _sceneRuntime.displayedObjectsIds().clear();
-    _sceneRuntime.hiddenObjectsIds().clear();
-    if (_sceneRuntime.visibleSwapped())
-    {
-        _sceneRuntime.setVisibleSwapped(false);
+    if (_sceneRuntime.clearMeshStore())
         emit visibleSwapped(_sceneRuntime.visibleSwapped());
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -14493,7 +13948,7 @@ bool GLWidget::loadMvfMeshes(const Mvf::Document& document,
 
 void GLWidget::setParsedLights(const GltfLightData& lightData)
 {
-    _sceneRuntime.pendingLightData() = lightData;
+    _animCtrl.pendingLightData() = lightData;
 
     // If this model carries no punctual lights, leave the existing GPU light
     // state intact. Another model already loaded may have punctual lights
@@ -14502,15 +13957,11 @@ void GLWidget::setParsedLights(const GltfLightData& lightData)
     if (lightData.isEmpty())
         return;
 
-    _animCtrl.setParsedLightsFromSingleFile(
-        lightData,
-        _sceneRuntime.originalParsedLights(),
-        _sceneRuntime.currentRepositionedLights(),
-        _sceneRuntime.lightFileIndexMap());
+    _animCtrl.setParsedLightsFromSingleFile(lightData);
     _animCtrl.clearAllAnimatedState();
 
-    syncPunctualLightUniforms(static_cast<int>(_sceneRuntime.originalParsedLights().size()),
-                              !_sceneRuntime.originalParsedLights().empty());
+    syncPunctualLightUniforms(static_cast<int>(_animCtrl.originalParsedLights().size()),
+                              !_animCtrl.originalParsedLights().empty());
 }
 
 // ---------------------------------------------------------------------------
@@ -14527,17 +13978,11 @@ void GLWidget::onSceneLightDataChanged()
     if (!_viewer || !_viewer->sceneGraph())
         return;
 
-    _animCtrl.rebuildParsedLightsFromSceneGraph(
-        _viewer->sceneGraph(),
-        _sceneRuntime.originalParsedLights(),
-        _sceneRuntime.lightFileIndexMap());
+    _animCtrl.rebuildParsedLightsFromSceneGraph(_viewer->sceneGraph());
 
-    if (_sceneRuntime.originalParsedLights().empty())
+    if (_animCtrl.originalParsedLights().empty())
     {
-        _animCtrl.clearParsedLights(
-            _sceneRuntime.originalParsedLights(),
-            _sceneRuntime.currentRepositionedLights(),
-            _sceneRuntime.lightFileIndexMap());
+        _animCtrl.clearParsedLights();
         makeCurrent();
         _renderCtrl.glLights()->setLights({});
         syncPunctualLightUniforms(0, false);

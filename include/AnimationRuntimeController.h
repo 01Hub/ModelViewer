@@ -7,6 +7,7 @@
 #include "LightOrigin.h"
 
 class SceneGraph;
+struct SceneNode;
 
 #include <assimp/matrix4x4.h>
 
@@ -116,6 +117,10 @@ public:
     int     activeGltfCameraIndex() const { return _activeGltfCameraIndex; }
     void    setActiveGltfCamera(const QString& file, int index);
 
+    // ---- Light load staging -----------------------------------------------
+    GltfLightData&       pendingLightData()       { return _pendingLightData; }
+    const GltfLightData& pendingLightData() const { return _pendingLightData; }
+
     // ---- Light transform animation -----------------------------------------
     QString                      animatedLightTransformSourceFile() const { return _animatedLightTransformSourceFile; }
     const std::vector<GPULight>& animatedParsedLights() const             { return _animatedParsedLights; }
@@ -141,6 +146,13 @@ public:
     void clearAllAnimatedState();
 
     // ---- Light runtime transforms ------------------------------------------
+    std::vector<GPULight>&       originalParsedLights()            { return _originalParsedLights; }
+    const std::vector<GPULight>& originalParsedLights() const      { return _originalParsedLights; }
+    std::vector<GPULight>&       currentRepositionedLights()       { return _currentRepositionedLights; }
+    const std::vector<GPULight>& currentRepositionedLights() const { return _currentRepositionedLights; }
+    QVector<LightOrigin>&        lightFileIndexMap()               { return _lightFileIndexMap; }
+    const QVector<LightOrigin>&  lightFileIndexMap() const         { return _lightFileIndexMap; }
+
     void rebuildCurrentRepositionedLights(
         const std::vector<GPULight>& originalLights,
         std::vector<GPULight>& repositionedLights,
@@ -148,21 +160,12 @@ public:
         const QHash<QString, QMatrix4x4>& userTransforms);
     std::vector<GPULight> rebuildAndBuildUploadLights(
         const std::function<QMatrix4x4(const QString&)>& userTransformResolver,
-        const std::vector<GPULight>& originalLights,
-        std::vector<GPULight>& repositionedLights,
-        const QVector<LightOrigin>& lightFileIndexMap,
         const std::function<bool(const LightOrigin&)>& isLightEnabled = {});
     std::vector<GPULight> buildUploadLightsWithSceneGraph(
         const std::function<QMatrix4x4(const QString&)>& userTransformResolver,
-        const std::vector<GPULight>& originalLights,
-        std::vector<GPULight>& repositionedLights,
-        const QVector<LightOrigin>& lightFileIndexMap,
         const SceneGraph* sg);
+    std::vector<GPULight> buildUploadLights() const;
     std::vector<GPULight> buildUploadLights(
-        const std::vector<GPULight>& repositionedLights) const;
-    std::vector<GPULight> buildUploadLights(
-        const std::vector<GPULight>& repositionedLights,
-        const QVector<LightOrigin>& lightFileIndexMap,
         const std::function<bool(const LightOrigin&)>& isLightEnabled) const;
 
     AnimationSampleResult sampleClip(
@@ -171,26 +174,37 @@ public:
         double timeSeconds,
         const SceneGraph* sg) const;
 
+    QHash<int, bool> buildEffectiveNodeVisibility(
+        const RuntimeAnimationFileState& runtime,
+        const QHash<int, bool>& nodeVisibilityOverrides) const;
+
+    QVector<bool> buildAnimatedLightVisibilityMask(
+        const RuntimeAnimationFileState& runtime,
+        const QHash<int, bool>& effectiveNodeVisibility) const;
+
+    QSet<QUuid> collectHiddenAnimatedMeshUuids(
+        const RuntimeAnimationFileState& runtime,
+        const QHash<int, bool>& effectiveNodeVisibility,
+        const SceneNode* fileNode) const;
+
+    bool buildAnimatedLightTransformState(
+        const QString& sourceFile,
+        const RuntimeAnimationFileState& runtime,
+        const AnimationSampleResult& result,
+        const SceneNode* fileNode,
+        std::vector<GPULight>& outAnimatedLights) const;
+
     // ---- Light population --------------------------------------------------
     // Populate the parsed-light baseline from a single-file GltfLightData
     // (used during initial model load before the file is in SceneGraph).
-    void setParsedLightsFromSingleFile(const GltfLightData& lightData,
-                                       std::vector<GPULight>& originalLights,
-                                       std::vector<GPULight>& repositionedLights,
-                                       QVector<LightOrigin>& lightFileIndexMap);
+    void setParsedLightsFromSingleFile(const GltfLightData& lightData);
     // Rebuild the full parsed-light baseline from all files registered in
     // SceneGraph (authoritative multi-model path, called on lightDataChanged).
-    void rebuildParsedLightsFromSceneGraph(const SceneGraph* sg,
-                                           std::vector<GPULight>& originalLights,
-                                           QVector<LightOrigin>& lightFileIndexMap);
+    void rebuildParsedLightsFromSceneGraph(const SceneGraph* sg);
     // Clear all parsed and repositioned light state (e.g. on scene reset).
-    void clearParsedLights(std::vector<GPULight>& originalLights,
-                           std::vector<GPULight>& repositionedLights,
-                           QVector<LightOrigin>& lightFileIndexMap);
+    void clearParsedLights();
     // Return the enabled-filtered repositioned lights for gizmo rendering.
-    std::vector<GPULight> buildGizmoLights(const SceneGraph* sg,
-                                           const std::vector<GPULight>& repositionedLights,
-                                           const QVector<LightOrigin>& lightFileIndexMap) const;
+    std::vector<GPULight> buildGizmoLights(const SceneGraph* sg) const;
 
     // ---- Static helpers ----------------------------------------------------
     static QMatrix4x4           aiToQMatrix(const aiMatrix4x4& m);
@@ -226,11 +240,19 @@ private:
     QString _activeGltfCameraFile;
     int     _activeGltfCameraIndex = -1;
 
+    // Light load staging
+    GltfLightData _pendingLightData;
+
     // Light animation
     QString               _animatedLightTransformSourceFile;
     std::vector<GPULight> _animatedParsedLights;
     QString               _animatedLightVisibilitySourceFile;
     QVector<bool>         _animatedLightVisibilityMask;
+
+    // Canonical punctual-light runtime state
+    std::vector<GPULight> _originalParsedLights;
+    std::vector<GPULight> _currentRepositionedLights;
+    QVector<LightOrigin>  _lightFileIndexMap;
 
     // Mesh visibility animation
     QString     _animatedMeshVisibilitySourceFile;
