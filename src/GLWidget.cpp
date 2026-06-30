@@ -4902,6 +4902,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		if (useWireShader)
 		{
+			const QList<int> selIds = _selectionManager->getSelectedIds();
 			RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
 			_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
 			_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
@@ -4910,12 +4911,24 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 			_renderCtrl.wireframeShader()->setUniformValue("hasVertexColors", false);
 			_renderCtrl.wireframeShader()->setUniformValue("hasAlbedoMap",    false);
 			_renderCtrl.wireframeShader()->setUniformValue("hasSkinning",     false);
-			_renderCtrl.wireframeShader()->setUniformValue("jointCount",      0);
+			_renderCtrl.wireframeShader()->setUniformValue("jointCount",      0);			
+			_renderCtrl.wireframeShader()->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));
+			_renderCtrl.wireframeShader()->setUniformValue("hovered", false);			
+			_renderCtrl.wireframeShader()->setUniformValue("selectedColor", QVector3D(0.0f, 0.5f, 1.0f));	
+			_renderCtrl.wireframeShader()->setUniformValue("selected", false);
 			for (auto& [key, id] : opaque)
 			{
 				if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
+				{
+					const bool isSel = selIds.contains(id);
+					_renderCtrl.wireframeShader()->setUniformValue("selected", isSel);
+					_renderCtrl.wireframeShader()->setUniformValue("hovered",
+						!isSel && hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
 					mesh->renderWireframeFast(_renderCtrl.wireframeShader());
+				}
 			}
+			_renderCtrl.wireframeShader()->setUniformValue("hovered", false);
+			_renderCtrl.wireframeShader()->setUniformValue("selected", false);
 		}
 		else
 		{
@@ -4963,7 +4976,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glLineWidth(1.5f);
 		if (useWireShader)
-		{
+		{			
 			RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
 			_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
 			_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
@@ -4972,12 +4985,12 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 			_renderCtrl.wireframeShader()->setUniformValue("hasVertexColors", false);
 			_renderCtrl.wireframeShader()->setUniformValue("hasAlbedoMap",    false);
 			_renderCtrl.wireframeShader()->setUniformValue("hasSkinning",     false);
-			_renderCtrl.wireframeShader()->setUniformValue("jointCount",      0);
+			_renderCtrl.wireframeShader()->setUniformValue("jointCount",      0);			
 			for (auto& [key, id] : opaque)
 			{
-				if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
-					mesh->renderWireframeFast(_renderCtrl.wireframeShader());
-			}
+				if (SceneMesh* mesh = _sceneRuntime.meshAt(id))					
+					mesh->renderWireframeFast(_renderCtrl.wireframeShader());				
+			}			
 		}
 		else
 		{
@@ -5213,6 +5226,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		if (useWireShaderT)
 		{
+			const QList<int> selIds = _selectionManager->getSelectedIds();
 			RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
 			_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
 			_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
@@ -5222,11 +5236,23 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 			_renderCtrl.wireframeShader()->setUniformValue("hasAlbedoMap",    false);
 			_renderCtrl.wireframeShader()->setUniformValue("hasSkinning",     false);
 			_renderCtrl.wireframeShader()->setUniformValue("jointCount",      0);
+			_renderCtrl.wireframeShader()->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));	
+			_renderCtrl.wireframeShader()->setUniformValue("hovered", false);
+			_renderCtrl.wireframeShader()->setUniformValue("selectedColor", QVector3D(0.0f, 0.5f, 1.0f));
+			_renderCtrl.wireframeShader()->setUniformValue("selected", false);
 			for (auto& it : transparent)
 			{
 				if (SceneMesh* mesh = _sceneRuntime.meshAt(it.second))
+				{
+					const bool isSel = selIds.contains(it.second);
+					_renderCtrl.wireframeShader()->setUniformValue("selected", isSel);
+					_renderCtrl.wireframeShader()->setUniformValue("hovered",
+						!isSel && hoverHighlightingEnabledT && it.second == _selectionManager->getHoveredId());
 					mesh->renderWireframeFast(_renderCtrl.wireframeShader());
+				}
 			}
+			_renderCtrl.wireframeShader()->setUniformValue("hovered", false);
+			_renderCtrl.wireframeShader()->setUniformValue("selected", false);
 		}
 		else
 		{
