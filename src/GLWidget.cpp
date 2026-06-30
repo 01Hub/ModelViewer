@@ -615,6 +615,11 @@ QVector<QUuid> GLWidget::getRecycleBinUuids() const
 	return _sceneRuntime.recycleBinUuids();
 }
 
+QList<QUuid> GLWidget::getPendingSceneUuids() const
+{
+	return _sceneRuntime.pendingSceneUuids();
+}
+
 SceneMesh* GLWidget::getMeshByUuid(const QUuid& uuid) const
 {
 	return _sceneRuntime.getMeshByUuid(uuid);
@@ -699,6 +704,7 @@ void GLWidget::initializeGL()
 	createFullscreenTriangle();
 
 	qRegisterMetaType<AssImpMeshDataBatch>("AssImpMeshDataBatch");
+	qRegisterMetaType<SceneUpAxis>("SceneUpAxis");
 	qRegisterMetaType<const aiScene*>("const aiScene*");
 	qRegisterMetaType<std::vector<GPULight>>("std::vector<GPULight>");
 
@@ -3429,6 +3435,17 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 			&GLWidget::showNodeMeshLoadingProgress,
 			Qt::QueuedConnection);
 
+		QMetaObject::Connection upAxisConnection = connect(
+			loadingWorker,
+			&AssImpModelLoader::sceneUpAxisDetected,
+			this,
+			[this, hadExistingMeshes](SceneUpAxis sceneUpAxis, bool autoOrientCameraEnabled) {
+				if (!autoOrientCameraEnabled || hadExistingMeshes)
+					return;
+				applyAutoOrientCameraConvention(sceneUpAxis);
+			},
+			Qt::BlockingQueuedConnection);
+
 		QMetaObject::Connection batchConnection = connect(
 			loadingWorker,
 			&AssImpModelLoader::meshBatchReady,
@@ -3618,6 +3635,7 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 		disconnect(fileProgressConnection);
 		disconnect(meshProgressConnection);
 		disconnect(nodeProgressConnection);
+		disconnect(upAxisConnection);
 		disconnect(batchConnection);
 		disconnect(cancelRequestConnection);
 		disconnect(lightsConnection);
@@ -4844,7 +4862,9 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 	// Collect visible opaque meshes, then sort by texture signature to
 	// minimise GPU texture state changes across consecutive draw calls.
 	std::vector<std::pair<uint64_t, int>> opaque;
-	if (_sceneRuntime.runtimeVisibilityPrepared() && _sceneRuntime.runtimeVisibilityRootIndex() >= 0)
+	if (_sceneRuntime.pendingSceneUuids().isEmpty() &&
+		_sceneRuntime.runtimeVisibilityPrepared() &&
+		_sceneRuntime.runtimeVisibilityRootIndex() >= 0)
 	{
 		std::vector<int> candidateIds;
 		candidateIds.reserve(_sceneRuntime.currentVisibleObjectIds().size());
@@ -5113,7 +5133,9 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 	if (_sceneRuntime.meshStore().empty()) return;
 
 	std::vector<std::pair<float, int>> transparent;
-	if (_sceneRuntime.runtimeVisibilityPrepared() && _sceneRuntime.runtimeVisibilityRootIndex() >= 0)
+	if (_sceneRuntime.pendingSceneUuids().isEmpty() &&
+		_sceneRuntime.runtimeVisibilityPrepared() &&
+		_sceneRuntime.runtimeVisibilityRootIndex() >= 0)
 	{
 		std::vector<int> candidateIds;
 		candidateIds.reserve(_sceneRuntime.currentVisibleObjectIds().size());
@@ -9378,6 +9400,12 @@ void GLWidget::onMeshBatchReady(const std::vector<AssImpMeshData>& batch)
 		_sceneRuntime.pendingSceneUuids().append(mesh->uuid());
 	}
 	_viewer->updateDisplayList();
+
+	// Progressive AssImp loading emits batches from a worker thread via
+	// BlockingQueuedConnection. Yield once here so paint/update events run
+	// before the next batch arrives, making meshes appear incrementally.
+	if (_sceneRuntime.progressiveLoadingEnabled())
+		QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
 }
 
 UVMethod GLWidget::promptLargeModelUVDecision(int totalTriangles, UVMethod currentMethod)
@@ -12778,6 +12806,7 @@ static QVector<GltfVariantMapping> parseVariantMappings(const QJsonArray& array)
 // ---------------------------------------------------------------------------
 // prepareMvfMeshes — CPU-only, thread-safe
 // ---------------------------------------------------------------------------
+#if 0
 QVector<GLWidget::PreparedMvfMesh> GLWidget::prepareMvfMeshes(
     const Mvf::Document& document,
     const QByteArray& geometryChunk,
@@ -13091,6 +13120,7 @@ QVector<GLWidget::PreparedMvfMesh> GLWidget::prepareMvfMeshes(
 
     return result;
 }
+#endif
 
 // ---------------------------------------------------------------------------
 // uploadPreparedMvfMeshes — GL-only, must be on main thread
@@ -13130,6 +13160,8 @@ bool GLWidget::uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& meshes)
         mesh->setMeshData(pm.vertices, pm.indices);
         mesh->setVariantMappings(pm.variantMappings);
         mesh->setAllVariantMaterials(pm.allVariantMaterials);
+        if (pm.hasSceneRenderTransform)
+            mesh->setSceneRenderTransformFast(pm.sceneRenderTransform);
 
         // Restore skeletal skinning data so bone animations work after MVF reload.
         if (!pm.skinJoints.isEmpty())
@@ -13238,6 +13270,8 @@ void GLWidget::uploadOneMvfMesh(const PreparedMvfMesh& pm)
     mesh->setTextureMaps(resolved);
     mesh->invertOpacityADSMap(resolved.isOpacityMapInverted());
     mesh->invertOpacityPBRMap(resolved.isOpacityMapInverted());
+    if (pm.hasSceneRenderTransform)
+        mesh->setSceneRenderTransformFast(pm.sceneRenderTransform);
 
     // Restore per-mesh user transform (gizmo TRS) saved in the MVF file.
     {
@@ -13265,7 +13299,8 @@ bool GLWidget::loadMvfMeshes(const Mvf::Document& document,
                                const QByteArray& geometryChunk,
                                const QByteArray& imageChunk)
 {
-    QVector<PreparedMvfMesh> prepared = prepareMvfMeshes(document, geometryChunk, imageChunk);
+    QVector<PreparedMvfMesh> prepared =
+        MvfMeshPreparationWorker::prepare(document, geometryChunk, imageChunk);
     return uploadPreparedMvfMeshes(prepared);
 }
 

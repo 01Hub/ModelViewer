@@ -34,6 +34,16 @@ using namespace std;
 
 namespace
 {
+QMatrix4x4 aiToQMatrix4x4(const aiMatrix4x4& matrix)
+{
+	QMatrix4x4 result;
+	result.setRow(0, QVector4D(matrix.a1, matrix.a2, matrix.a3, matrix.a4));
+	result.setRow(1, QVector4D(matrix.b1, matrix.b2, matrix.b3, matrix.b4));
+	result.setRow(2, QVector4D(matrix.c1, matrix.c2, matrix.c3, matrix.c4));
+	result.setRow(3, QVector4D(matrix.d1, matrix.d2, matrix.d3, matrix.d4));
+	return result;
+}
+
 glm::vec3 computeFallbackTangent(const glm::vec3& normal)
 {
 	const glm::vec3 safeNormal = glm::length(normal) > 0.0001f
@@ -954,6 +964,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	const bool isGltfLike = qPath.endsWith(".gltf", Qt::CaseInsensitive) ||
 		qPath.endsWith(".glb", Qt::CaseInsensitive);
 	_sceneUpAxis = detectSceneUpAxis(_scene, path);
+	emit sceneUpAxisDetected(_sceneUpAxis, _autoOrient);
 
 	// Capture original glTF material indices before deduplication so import,
 	// variants, and export continue to share the authored material numbering.
@@ -1707,6 +1718,7 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	meshData.sourceFile = QString::fromStdString(_path);
 	meshData.sourceNodeName = QString::fromUtf8(nodeName);
 	meshData.preserveNodeTransform = true;
+	meshData.nodeWorldTransform = aiToQMatrix4x4(transform);
 	meshData.skinJoints = skinJoints;
 	meshData.morphTargets = morphTargets;
 	meshData.defaultMorphWeights = defaultMorphWeights;

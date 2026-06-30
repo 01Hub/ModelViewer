@@ -16,6 +16,7 @@
 #include "ModelViewerApplication.h"
 #include "MvfDocument.h"
 #include "MvfFormat.h"
+#include "MvfMeshPreparationWorker.h"
 #include "MvfSceneBuilder.h"
 #include "SceneTreeWidget.h"
 #include "ObjectTransformPanel.h"
@@ -2073,6 +2074,15 @@ void ModelViewer::updateDisplayList()
 	_glWidget->setAutoFitViewOnUpdate(false);
 
 	_visibleMeshUuids = collectVisibleUuidsFromDisplayList();
+	if (_progressiveLoadingEnabled)
+	{
+		const QList<QUuid> pendingSceneUuids = _glWidget->getPendingSceneUuids();
+		for (const QUuid& uuid : pendingSceneUuids)
+		{
+			if (!uuid.isNull())
+				_visibleMeshUuids.insert(uuid);
+		}
+	}
 	applyVisibleMeshState(false);
 
 	++_treeRebuildGeneration;
@@ -4438,8 +4448,8 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 				fileObj[QStringLiteral("activeClip")].toInt(animationData.clips.isEmpty() ? -1 : 0));
 		}
 
-		QVector<GLWidget::PreparedMvfMesh> prepared =
-			GLWidget::prepareMvfMeshes(result.document, geomChunk, imgChunk);
+		QVector<PreparedMvfMesh> prepared =
+			MvfMeshPreparationWorker::prepare(result.document, geomChunk, imgChunk);
 
 		// Extract mesh UUIDs and visibility
 		QList<QUuid> allMeshUuids;
@@ -4460,6 +4470,54 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 				visibleUuids.insert(uuid);
 		}
 
+		if (!result.viewerState.isEmpty())
+		{
+			QMetaObject::invokeMethod(_glWidget, [this, viewerState = result.viewerState]() {
+				_glWidget->setCameraUpAxisZUp(
+					viewerState[QStringLiteral("cameraUpAxisZUp")].toBool(_glWidget->isCameraUpAxisZUp()));
+				_glWidget->setProjection(static_cast<ViewProjection>(
+					viewerState[QStringLiteral("projection")].toInt(static_cast<int>(_glWidget->projection()))));
+
+				const int savedCameraMode =
+					viewerState[QStringLiteral("cameraMode")].toInt(static_cast<int>(_glWidget->cameraMode()));
+				switch (savedCameraMode)
+				{
+				case static_cast<int>(GLCamera::CameraMode::Fly):
+					_glWidget->setCameraMode(GLCamera::CameraMode::Fly);
+					break;
+				case static_cast<int>(GLCamera::CameraMode::FirstPerson):
+					_glWidget->setCameraMode(GLCamera::CameraMode::FirstPerson);
+					break;
+				case static_cast<int>(GLCamera::CameraMode::Orbit):
+				default:
+					_glWidget->setCameraMode(GLCamera::CameraMode::Orbit);
+					break;
+				}
+			}, Qt::BlockingQueuedConnection);
+		}
+
+		QHash<QUuid, QMatrix4x4> preparedMeshWorldByUuid;
+		const int mvfSceneIndex = result.document.scene;
+		const QJsonArray sceneRootNodes =
+			(mvfSceneIndex >= 0 && mvfSceneIndex < result.document.scenes.size())
+				? result.document.scenes[mvfSceneIndex][QStringLiteral("nodes")].toArray()
+				: QJsonArray{};
+		QMetaObject::invokeMethod(this, [this, &result, &sceneRootNodes, &preparedMeshWorldByUuid]() {
+			if (!_sceneGraph)
+				return;
+			_sceneGraph->rebuildFromMvf(result.document.nodes, sceneRootNodes);
+			preparedMeshWorldByUuid = _sceneGraph->evaluateWorldTransforms().meshWorldByUuid;
+		}, Qt::BlockingQueuedConnection);
+		for (PreparedMvfMesh& pm : prepared)
+		{
+			const auto it = preparedMeshWorldByUuid.constFind(pm.uuid);
+			if (it != preparedMeshWorldByUuid.constEnd())
+			{
+				pm.sceneRenderTransform = it.value();
+				pm.hasSceneRenderTransform = true;
+			}
+		}
+
 		// --- Phase 3: GL upload — dispatched one mesh at a time --------
 		//     BlockingQueuedConnection blocks the worker while the main
 		//     thread uploads, then returns control to waitLoop.exec()
@@ -4478,7 +4536,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			QMetaObject::invokeMethod(_glWidget,
 				[this, &prepared, i, totalMeshes, &displayFileName, progressiveMode]()
 			{
-				const GLWidget::PreparedMvfMesh& pm = prepared[i];
+				const PreparedMvfMesh& pm = prepared[i];
 				_glWidget->uploadOneMvfMesh(pm);
 
 				const int pct = 15 + (i + 1) * 75 / totalMeshes;
@@ -4731,6 +4789,12 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	if (!result.viewerState.isEmpty())
 	{
 		const QJsonObject& viewerState = result.viewerState;
+		_glWidget->setCameraUpAxisZUp(
+			viewerState[QStringLiteral("cameraUpAxisZUp")].toBool(_glWidget->isCameraUpAxisZUp()));
+		_glWidget->setProjection(static_cast<ViewProjection>(
+			viewerState[QStringLiteral("projection")].toInt(static_cast<int>(_glWidget->projection()))));
+		const int savedCameraMode =
+			viewerState[QStringLiteral("cameraMode")].toInt(static_cast<int>(_glWidget->cameraMode()));
 		_glWidget->setDisplayMode(static_cast<DisplayMode>(
 			viewerState[QStringLiteral("displayMode")].toInt(static_cast<int>(_glWidget->getDisplayMode()))));
 		_glWidget->setRenderingMode(static_cast<RenderingMode>(
@@ -4830,6 +4894,20 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		const QJsonArray bgBot = viewerState[QStringLiteral("bgBotColor")].toArray();
 		if (bgBot.size() == 4)
 			_glWidget->setBgBotColor(jsonToColor(bgBot, _glWidget->getBgBotColor()));
+
+		switch (savedCameraMode)
+		{
+		case static_cast<int>(GLCamera::CameraMode::Fly):
+			_glWidget->setCameraMode(GLCamera::CameraMode::Fly);
+			break;
+		case static_cast<int>(GLCamera::CameraMode::FirstPerson):
+			_glWidget->setCameraMode(GLCamera::CameraMode::FirstPerson);
+			break;
+		case static_cast<int>(GLCamera::CameraMode::Orbit):
+		default:
+			_glWidget->setCameraMode(GLCamera::CameraMode::Orbit);
+			break;
+		}
 	}
 
 	if (!result.activeGltfCameraFile.isEmpty() && result.activeGltfCameraIndex >= 0)
@@ -4895,6 +4973,9 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 	};
 
 	QJsonObject viewerState;
+	viewerState.insert(QStringLiteral("cameraUpAxisZUp"), _glWidget->isCameraUpAxisZUp());
+	viewerState.insert(QStringLiteral("projection"), static_cast<int>(_glWidget->projection()));
+	viewerState.insert(QStringLiteral("cameraMode"), static_cast<int>(_glWidget->cameraMode()));
 	viewerState.insert(QStringLiteral("displayMode"), static_cast<int>(_glWidget->getDisplayMode()));
 	viewerState.insert(QStringLiteral("renderingMode"), static_cast<int>(_glWidget->getRenderingMode()));
 	viewerState.insert(QStringLiteral("groundMode"), static_cast<int>(_glWidget->groundMode()));

@@ -9,6 +9,7 @@
 #include "SceneRenderController.h"
 #include "ViewportInteractionController.h"
 #include "GLCamera.h"
+#include "MvfMeshPreparationWorker.h"
 #include "PlaneRenderable.h"
 #include "FloorPlane.h"
 #include "SceneRuntime.h"
@@ -96,6 +97,7 @@ public:
 	void setCameraUpAxisZUp(bool zUp, bool syncToolbar = true);
 	bool isCameraUpAxisZUp() const { return _viewCtrl.cameraUpAxisZUp(); }
 	void setProjection(ViewProjection proj);
+	ViewProjection projection() const { return _viewCtrl.projection(); }
 	void setCameraMode(GLCamera::CameraMode mode);
 	GLCamera::CameraMode cameraMode() const;
 
@@ -370,6 +372,7 @@ public:
 	// Query methods
 	bool isInRecycleBin(const QUuid& uuid) const;
 	QVector<QUuid> getRecycleBinUuids() const;
+	QList<QUuid> getPendingSceneUuids() const;
 
 	// UUID lookup methods
 	SceneMesh* getMeshByUuid(const QUuid& uuid) const;
@@ -380,11 +383,14 @@ public:
 	// Generate a name that doesn't clash with any existing mesh name.
 	QString generateUniqueMeshName(const QString& baseName);
 
-	// ---- MVF mesh loading (split into CPU preparation + GL upload) ----
+	// ---- MVF mesh loading ----
 
 	/// Pre-computed mesh data produced by prepareMvfMeshes().
 	/// All fields are plain data — no GL resources — so the struct is safe
 	/// to construct on any thread.
+	using PreparedMvfMesh = ::PreparedMvfMesh;
+
+#if 0
 	struct PreparedMvfMesh
 	{
 		QString      name;
@@ -427,6 +433,7 @@ public:
 	    const Mvf::Document& document,
 	    const QByteArray& geometryChunk,
 	    const QByteArray& imageChunk);
+#endif
 
 	/// Clear the mesh store and display list (safe to call from main thread).
 	/// Called before uploading new MVF meshes to replace any existing geometry.

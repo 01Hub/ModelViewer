@@ -22,6 +22,7 @@
 #include <gp_Trsf.hxx>
 #include <QFileInfo>
 #include <QImage>
+#include <QMatrix4x4>
 #include <QString>
 #include <Quantity_Color.hxx>
 #include <TDataStd_Name.hxx>
@@ -79,6 +80,7 @@ enum class SceneUpAxis
 	ZUp,
 	YUp
 };
+Q_DECLARE_METATYPE(SceneUpAxis)
 
 struct SceneMeshInfo
 {
@@ -115,6 +117,7 @@ struct AssImpMeshData
 	QString sourceFile;
 	QString sourceNodeName;
 	bool preserveNodeTransform = false;
+	QMatrix4x4 nodeWorldTransform;
 
 	// KHR_materials_variants: which material index maps to which variants.
 	// Empty when the source file has no variant extension.
@@ -198,6 +201,7 @@ signals:
 	void verticesProcessed(float percent);
 	void nodeMeshProgressUpdated(int processedNodes, int totalNodes, int processedMeshes, int totalMeshes, bool uvProcessed);
 	void meshBatchReady(AssImpMeshDataBatch batch);
+	void sceneUpAxisDetected(SceneUpAxis sceneUpAxis, bool autoOrientCameraEnabled);
 	void loadingFinished(bool successFlag, const aiScene* scene);
 	void loadingCancelled();
 	void lightsLoaded(const GltfLightData& lights);
