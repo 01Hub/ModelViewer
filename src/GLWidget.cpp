@@ -5678,6 +5678,57 @@ bool GLWidget::sceneHasVisibleSSSMaterials() const
 
 // ---------------------------------------------------------------------------
 
+// Renders only opaque SSS meshes (hasVolumeScattering) — used exclusively
+// by the SSS capture pre-pass to avoid submitting the entire scene.
+void GLWidget::drawSSSMeshesOnly(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
+{
+	RenderableMesh::resetTextureBindingCacheForCurrentContext();
+
+	// Collect SSS-only candidates, mirroring the two-path strategy in drawOpaqueMeshes.
+	std::vector<std::pair<uint64_t, int>> sssMeshes;
+	if (_sceneRuntime.pendingSceneUuids().isEmpty() &&
+		_sceneRuntime.runtimeVisibilityPrepared() &&
+		_sceneRuntime.runtimeVisibilityRootIndex() >= 0)
+	{
+		std::vector<int> candidateIds;
+		collectVisibleMeshIdsForPass(_sceneRuntime.runtimeVisibilityRootIndex(),
+		                             activeClipPlaneIndex, false, candidateIds);
+		sssMeshes.reserve(candidateIds.size());
+		for (int id : candidateIds)
+		{
+			if (const SceneMesh* mesh = _sceneRuntime.meshAt(id))
+				if (mesh->getMaterial().hasVolumeScattering())
+					sssMeshes.emplace_back(mesh->getRenderMaterialSortKey(), id);
+		}
+	}
+	else
+	{
+		const std::vector<int>& ids = _sceneRuntime.currentVisibleObjectIds();
+		sssMeshes.reserve(ids.size());
+		for (int id : ids)
+		{
+			SceneMesh* mesh = _sceneRuntime.meshAt(id);
+			if (!mesh || mesh->isTransparent()) continue;
+			if (!mesh->getMaterial().hasVolumeScattering()) continue;
+			if (!isMeshVisible(mesh, activeClipPlaneIndex)) continue;
+			sssMeshes.emplace_back(mesh->getRenderMaterialSortKey(), id);
+		}
+	}
+
+	std::sort(sssMeshes.begin(), sssMeshes.end(),
+		[](const auto& a, const auto& b) { return a.first < b.first; });
+
+	for (auto& [key, id] : sssMeshes)
+	{
+		if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
+		{
+			mesh->setProg(prog);
+			RenderableMesh::bindProgramCached(prog);
+			mesh->render();
+		}
+	}
+}
+
 void GLWidget::drawMeshesWithClipping(QOpenGLShaderProgram* prog,
 	bool transparentPass)
 {
@@ -10135,12 +10186,39 @@ void GLWidget::renderToSSSBuffer(GLCamera* camera)
 	glActiveTexture(GL_TEXTURE0);
 
 	// --- RENDER: SSS opaque meshes only ---
-	// sssCapture=true makes the shader discard non-SSS fragments and output
-	// raw linear diffuse (baseDirectDiffuse + baseDiffuseIBL) for SSS ones.
+	// sssCapture=true tells the shader to output raw linear diffuse for SSS
+	// meshes and discard everything else.  We only submit SSS meshes here
+	// (drawSSSMeshesOnly) so no vertex work is wasted on non-SSS geometry.
 	_renderCtrl.fgShader()->bind();
 	setCommonUniforms(_renderCtrl.fgShader(), camera);
 	_renderCtrl.fgShader()->setUniformValue("sssCapture", true);
-	drawMeshesWithClipping(_renderCtrl.fgShader(), false); // opaque pass only
+
+	if (_renderCtrl.yzClippingEnabled() || _renderCtrl.zxClippingEnabled() || _renderCtrl.xyClippingEnabled())
+	{
+		if (_renderCtrl.yzClippingEnabled())
+		{
+			glEnable(GL_CLIP_DISTANCE0);
+			drawSSSMeshesOnly(_renderCtrl.fgShader(), 0);
+			glDisable(GL_CLIP_DISTANCE0);
+		}
+		if (_renderCtrl.zxClippingEnabled())
+		{
+			glEnable(GL_CLIP_DISTANCE1);
+			drawSSSMeshesOnly(_renderCtrl.fgShader(), 1);
+			glDisable(GL_CLIP_DISTANCE1);
+		}
+		if (_renderCtrl.xyClippingEnabled())
+		{
+			glEnable(GL_CLIP_DISTANCE2);
+			drawSSSMeshesOnly(_renderCtrl.fgShader(), 2);
+			glDisable(GL_CLIP_DISTANCE2);
+		}
+	}
+	else
+	{
+		drawSSSMeshesOnly(_renderCtrl.fgShader());
+	}
+
 	_renderCtrl.fgShader()->setUniformValue("sssCapture", false); // reset before release
 	_renderCtrl.fgShader()->release();
 

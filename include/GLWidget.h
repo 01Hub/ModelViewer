@@ -671,6 +671,7 @@ private:
 	void drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex = -1);
 	void drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex = -1);
 	void drawMeshesWithClipping(QOpenGLShaderProgram* prog, bool transparentPass);
+	void drawSSSMeshesOnly(QOpenGLShaderProgram* prog, int activeClipPlaneIndex = -1);
 	void setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera);
 
 	// Visibility culling
@@ -922,7 +923,7 @@ private:
 
 	QRubberBand* _rubberBand;
 	QRubberBand* _selectRect;
-	QTimer* _inertiaTimer = nullptr;
+	QTimer* _inertiaTimer        = nullptr;
 
 	// Selection manager instance (owns all selection logic and state)
 	SelectionManager* _selectionManager = nullptr;
