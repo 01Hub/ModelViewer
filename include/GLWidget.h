@@ -3,6 +3,7 @@
 
 #include "AdaptiveShadowMapper.h"
 #include "AnimationRuntimeController.h"
+#include "VisibilityComputationHelper.h"
 #include "BoundingSphere.h"
 #include "ExplodedViewRuntimeController.h"
 #include "SceneRenderController.h"
@@ -667,27 +668,9 @@ private:
 
 	// Visibility culling
 	void extractFrustumPlanes();
-	bool  isBoundingBoxOutsideFrustum(const BoundingBox& bb) const;
-	bool  isMeshOutsideFrustum(const SceneMesh* mesh) const;
-	bool  isMeshFullyInsideFrustum(const SceneMesh* mesh) const;
+	void rebuildClippingContext();
 	float computeFullyVisibleMinMeshRadius() const;
 	void  updateZoomInLimit();
-	bool isBoundingBoxFullyClipped_X(const BoundingBox& bb) const;
-	bool isBoundingBoxFullyClipped_Y(const BoundingBox& bb) const;
-	bool isBoundingBoxFullyClipped_Z(const BoundingBox& bb) const;
-	bool isBoundingBoxFullyKept_X(const BoundingBox& bb) const;
-	bool isBoundingBoxFullyKept_Y(const BoundingBox& bb) const;
-	bool isBoundingBoxFullyKept_Z(const BoundingBox& bb) const;
-	bool isBoundingBoxStraddlesCapPlane(const BoundingBox& bb, int planeIndex) const;
-	bool isBoundingBoxInvisibleInAllClipPasses(const BoundingBox& bb) const;
-	bool isMeshFullyClipped_X(const SceneMesh* mesh) const;
-	bool isMeshFullyClipped_Y(const SceneMesh* mesh) const;
-	bool isMeshFullyClipped_Z(const SceneMesh* mesh) const;
-	bool isMeshFullyKept_X(const SceneMesh* mesh) const;
-	bool isMeshFullyKept_Y(const SceneMesh* mesh) const;
-	bool isMeshFullyKept_Z(const SceneMesh* mesh) const;
-	bool isMeshStraddlesCapPlane(const SceneMesh* mesh, int planeIndex) const;
-	bool isMeshInvisibleInAllClipPasses(const SceneMesh* mesh) const;
 	bool isMeshAnimationVisible(const SceneMesh* mesh) const;
 	bool isMeshVisible(const SceneMesh* mesh, int activeClipPlaneIndex) const;
 	bool sceneHasVisibleTransmissionMaterials() const;
@@ -908,6 +891,10 @@ private:
 	// Declaration order: _viewCtrl must come before all its aliases.
 	ViewportInteractionController _viewCtrl;
 
+	// Cached per-frame culling contexts — rebuilt in extractFrustumPlanes() /
+	// rebuildClippingContext(). Avoids repeated look-ups inside tight render loops.
+	VisibilityComputationHelper::FrustumContext  _frustumCtx;
+	VisibilityComputationHelper::ClippingContext _clippingCtx;
 
 	ViewToolbar* _viewToolbar;
 

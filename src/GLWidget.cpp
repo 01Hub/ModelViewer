@@ -4744,8 +4744,9 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 			// animation pose is applied, so the test would incorrectly drop them.
 			if (activeCapPlaneIndex >= 0)
 			{
-				if (!mesh->hasSkinning() && isMeshOutsideFrustum(mesh)) continue;
-				if (!isMeshStraddlesCapPlane(mesh, activeCapPlaneIndex)) continue;
+				namespace VCH = VisibilityComputationHelper;
+				if (!mesh->hasSkinning() && VCH::isMeshOutside(mesh, _frustumCtx)) continue;
+				if (!VCH::isMeshStraddlesCapPlane(mesh, activeCapPlaneIndex, _clippingCtx)) continue;
 			}
 
 			if (mesh->isTransparent())
@@ -5428,18 +5429,19 @@ void GLWidget::collectVisibleMeshIdsForPass(int nodeIndex,
 	const RuntimeVisibilityNode& runtimeNode = _sceneRuntime.runtimeVisibilityNodes()[nodeIndex];
 	if (!runtimeNode.subtreeHasVisibleMeshes)
 		return;
-	if (isBoundingBoxOutsideFrustum(runtimeNode.subtreeBounds))
+	namespace VCH = VisibilityComputationHelper;
+	if (VCH::isBoundingBoxOutside(runtimeNode.subtreeBounds, _frustumCtx))
 		return;
 
 	if (activeClipPlaneIndex >= 0)
 	{
-		if (isBoundingBoxInvisibleInAllClipPasses(runtimeNode.subtreeBounds))
+		if (VCH::isBoundingBoxInvisibleInAllClipPasses(runtimeNode.subtreeBounds, _clippingCtx))
 			return;
-		if (activeClipPlaneIndex == 0 && isBoundingBoxFullyClipped_X(runtimeNode.subtreeBounds))
+		if (activeClipPlaneIndex == 0 && VCH::isBoundingBoxFullyClipped_X(runtimeNode.subtreeBounds, _clippingCtx))
 			return;
-		if (activeClipPlaneIndex == 1 && isBoundingBoxFullyClipped_Y(runtimeNode.subtreeBounds))
+		if (activeClipPlaneIndex == 1 && VCH::isBoundingBoxFullyClipped_Y(runtimeNode.subtreeBounds, _clippingCtx))
 			return;
-		if (activeClipPlaneIndex == 2 && isBoundingBoxFullyClipped_Z(runtimeNode.subtreeBounds))
+		if (activeClipPlaneIndex == 2 && VCH::isBoundingBoxFullyClipped_Z(runtimeNode.subtreeBounds, _clippingCtx))
 			return;
 	}
 
@@ -5466,46 +5468,24 @@ void GLWidget::collectVisibleMeshIdsForPass(int nodeIndex,
 void GLWidget::extractFrustumPlanes()
 {
 	_viewCtrl.updateFrustumPlanes();
-}
-
-bool GLWidget::isBoundingBoxOutsideFrustum(const BoundingBox& bb) const
-{
+	const QVector4D* planes = _viewCtrl.frustumPlanes();
 	for (int i = 0; i < 6; ++i)
-	{
-		const QVector4D& p = _viewCtrl.frustumPlane(i);
-		const float sx = p.x() >= 0.0f ? static_cast<float>(bb.xMax()) : static_cast<float>(bb.xMin());
-		const float sy = p.y() >= 0.0f ? static_cast<float>(bb.yMax()) : static_cast<float>(bb.yMin());
-		const float sz = p.z() >= 0.0f ? static_cast<float>(bb.zMax()) : static_cast<float>(bb.zMin());
-		if (p.x() * sx + p.y() * sy + p.z() * sz + p.w() < 0.0f)
-			return true;
-	}
-	return false;
+		_frustumCtx.planes[i] = planes[i];
 }
 
-bool GLWidget::isMeshOutsideFrustum(const SceneMesh* mesh) const
+void GLWidget::rebuildClippingContext()
 {
-	return mesh ? isBoundingBoxOutsideFrustum(mesh->getBoundingBox()) : true;
-}
-
-bool GLWidget::isMeshFullyInsideFrustum(const SceneMesh* mesh) const
-{
-	const BoundingBox& bb = mesh->getBoundingBox();
-	for (int i = 0; i < 6; ++i)
-	{
-		const QVector4D& p = _viewCtrl.frustumPlane(i);
-		// Negative support point: the AABB corner LEAST inside this plane.
-		// If even this worst-case corner is on the positive (inside) side,
-		// the whole AABB is guaranteed to lie within this half-space.
-		const float sx = p.x() >= 0.0f ? static_cast<float>(bb.xMin())
-		                                : static_cast<float>(bb.xMax());
-		const float sy = p.y() >= 0.0f ? static_cast<float>(bb.yMin())
-		                                : static_cast<float>(bb.yMax());
-		const float sz = p.z() >= 0.0f ? static_cast<float>(bb.zMin())
-		                                : static_cast<float>(bb.zMax());
-		if (p.x() * sx + p.y() * sy + p.z() * sz + p.w() < 0.0f)
-			return false;   // at least one plane has a corner outside
-	}
-	return true;
+	using namespace VisibilityComputationHelper;
+	const auto& center = _viewCtrl.boundingBox().center();
+	_clippingCtx.x = { _renderCtrl.clippingXCoeff() + static_cast<float>(center.getX()),
+	                   _renderCtrl.clippingXFlipped() };
+	_clippingCtx.y = { _renderCtrl.clippingYCoeff() + static_cast<float>(center.getY()),
+	                   _renderCtrl.clippingYFlipped() };
+	_clippingCtx.z = { _renderCtrl.clippingZCoeff() + static_cast<float>(center.getZ()),
+	                   _renderCtrl.clippingZFlipped() };
+	_clippingCtx.yzEnabled = _renderCtrl.yzClippingEnabled();
+	_clippingCtx.zxEnabled = _renderCtrl.zxClippingEnabled();
+	_clippingCtx.xyEnabled = _renderCtrl.xyClippingEnabled();
 }
 
 // Returns the minimum bounding-sphere radius among meshes that are completely
@@ -5538,8 +5518,8 @@ float GLWidget::computeFullyVisibleMinMeshRadius() const
 			continue;
 		}
 
-		if (isMeshOutsideFrustum(mesh))      continue;   // not visible at all
-		if (!isMeshFullyInsideFrustum(mesh)) continue;   // only partially in view
+		if (VisibilityComputationHelper::isMeshOutside(mesh, _frustumCtx))      continue;   // not visible at all
+		if (!VisibilityComputationHelper::isMeshFullyInside(mesh, _frustumCtx)) continue;   // only partially in view
 
 		const float r = mesh->getBoundingSphere().getRadius();
 		if (r > 0.0f)
@@ -5566,113 +5546,6 @@ void GLWidget::updateZoomInLimit()
 	else
 		_viewCtrl.setZoomInLimit(_viewCtrl.zoomInLimit()
 			+ (rawFloor - _viewCtrl.zoomInLimit()) * 0.12f);                           // rise: gradual
-}
-
-bool GLWidget::isBoundingBoxFullyClipped_X(const BoundingBox& bb) const
-{
-	const float tx = _renderCtrl.clippingXCoeff() + static_cast<float>(_viewCtrl.boundingBox().center().getX());
-	return _renderCtrl.clippingXFlipped()
-		? static_cast<float>(bb.xMax()) < tx
-		: static_cast<float>(bb.xMin()) > tx;
-}
-
-bool GLWidget::isBoundingBoxFullyClipped_Y(const BoundingBox& bb) const
-{
-	const float ty = _renderCtrl.clippingYCoeff() + static_cast<float>(_viewCtrl.boundingBox().center().getY());
-	return _renderCtrl.clippingYFlipped()
-		? static_cast<float>(bb.yMax()) < ty
-		: static_cast<float>(bb.yMin()) > ty;
-}
-
-bool GLWidget::isBoundingBoxFullyClipped_Z(const BoundingBox& bb) const
-{
-	const float tz = _renderCtrl.clippingZCoeff() + static_cast<float>(_viewCtrl.boundingBox().center().getZ());
-	return _renderCtrl.clippingZFlipped()
-		? static_cast<float>(bb.zMax()) < tz
-		: static_cast<float>(bb.zMin()) > tz;
-}
-
-bool GLWidget::isMeshFullyClipped_X(const SceneMesh* mesh) const
-{
-	return mesh ? isBoundingBoxFullyClipped_X(mesh->getBoundingBox()) : true;
-}
-
-bool GLWidget::isMeshFullyClipped_Y(const SceneMesh* mesh) const
-{
-	return mesh ? isBoundingBoxFullyClipped_Y(mesh->getBoundingBox()) : true;
-}
-
-bool GLWidget::isMeshFullyClipped_Z(const SceneMesh* mesh) const
-{
-	return mesh ? isBoundingBoxFullyClipped_Z(mesh->getBoundingBox()) : true;
-}
-
-bool GLWidget::isBoundingBoxFullyKept_X(const BoundingBox& bb) const
-{
-	const float tx = _renderCtrl.clippingXCoeff() + static_cast<float>(_viewCtrl.boundingBox().center().getX());
-	return _renderCtrl.clippingXFlipped()
-		? static_cast<float>(bb.xMin()) >= tx
-		: static_cast<float>(bb.xMax()) <= tx;
-}
-
-bool GLWidget::isBoundingBoxFullyKept_Y(const BoundingBox& bb) const
-{
-	const float ty = _renderCtrl.clippingYCoeff() + static_cast<float>(_viewCtrl.boundingBox().center().getY());
-	return _renderCtrl.clippingYFlipped()
-		? static_cast<float>(bb.yMin()) >= ty
-		: static_cast<float>(bb.yMax()) <= ty;
-}
-
-bool GLWidget::isBoundingBoxFullyKept_Z(const BoundingBox& bb) const
-{
-	const float tz = _renderCtrl.clippingZCoeff() + static_cast<float>(_viewCtrl.boundingBox().center().getZ());
-	return _renderCtrl.clippingZFlipped()
-		? static_cast<float>(bb.zMin()) >= tz
-		: static_cast<float>(bb.zMax()) <= tz;
-}
-
-bool GLWidget::isMeshFullyKept_X(const SceneMesh* mesh) const
-{
-	return mesh ? isBoundingBoxFullyKept_X(mesh->getBoundingBox()) : false;
-}
-
-bool GLWidget::isMeshFullyKept_Y(const SceneMesh* mesh) const
-{
-	return mesh ? isBoundingBoxFullyKept_Y(mesh->getBoundingBox()) : false;
-}
-
-bool GLWidget::isMeshFullyKept_Z(const SceneMesh* mesh) const
-{
-	return mesh ? isBoundingBoxFullyKept_Z(mesh->getBoundingBox()) : false;
-}
-
-bool GLWidget::isBoundingBoxStraddlesCapPlane(const BoundingBox& bb, int planeIndex) const
-{
-	switch (planeIndex)
-	{
-	case 0: return !isBoundingBoxFullyClipped_X(bb) && !isBoundingBoxFullyKept_X(bb);
-	case 1: return !isBoundingBoxFullyClipped_Y(bb) && !isBoundingBoxFullyKept_Y(bb);
-	case 2: return !isBoundingBoxFullyClipped_Z(bb) && !isBoundingBoxFullyKept_Z(bb);
-	default: return true;
-	}
-}
-
-bool GLWidget::isMeshStraddlesCapPlane(const SceneMesh* mesh, int planeIndex) const
-{
-	return mesh ? isBoundingBoxStraddlesCapPlane(mesh->getBoundingBox(), planeIndex) : false;
-}
-
-bool GLWidget::isBoundingBoxInvisibleInAllClipPasses(const BoundingBox& bb) const
-{
-	if (_renderCtrl.yzClippingEnabled() && !isBoundingBoxFullyClipped_X(bb)) return false;
-	if (_renderCtrl.zxClippingEnabled() && !isBoundingBoxFullyClipped_Y(bb)) return false;
-	if (_renderCtrl.xyClippingEnabled() && !isBoundingBoxFullyClipped_Z(bb)) return false;
-	return true;
-}
-
-bool GLWidget::isMeshInvisibleInAllClipPasses(const SceneMesh* mesh) const
-{
-	return mesh ? isBoundingBoxInvisibleInAllClipPasses(mesh->getBoundingBox()) : true;
 }
 
 bool GLWidget::isMeshAnimationVisible(const SceneMesh* mesh) const
@@ -5703,19 +5576,20 @@ bool GLWidget::isMeshVisible(const SceneMesh* mesh, int activeClipPlaneIndex) co
 	// clips any geometry that is genuinely outside the viewport at no extra cost,
 	// and the performance cost of drawing a few extra off-screen skinned meshes
 	// is negligible compared to the cost of the skinning shader itself.
-	if (!mesh->hasSkinning() && isMeshOutsideFrustum(mesh)) return false;
+	namespace VCH = VisibilityComputationHelper;
+	if (!mesh->hasSkinning() && VCH::isMeshOutside(mesh, _frustumCtx)) return false;
 
 	// 2. No clip planes in this pass → frustum result is final
 	if (activeClipPlaneIndex < 0) return true;
 
 	// 3. Pre-pass elimination: if ALL active planes fully clip this mesh it is
 	//    invisible across every union pass — skip it entirely
-	if (isMeshInvisibleInAllClipPasses(mesh)) return false;
+	if (VCH::isMeshInvisibleInAllClipPasses(mesh, _clippingCtx)) return false;
 
 	// 4. Per-pass cull: skip if fully clipped by the one plane active in this pass
-	if (activeClipPlaneIndex == 0 && isMeshFullyClipped_X(mesh)) return false;
-	if (activeClipPlaneIndex == 1 && isMeshFullyClipped_Y(mesh)) return false;
-	if (activeClipPlaneIndex == 2 && isMeshFullyClipped_Z(mesh)) return false;
+	if (activeClipPlaneIndex == 0 && VCH::isMeshFullyClipped_X(mesh, _clippingCtx)) return false;
+	if (activeClipPlaneIndex == 1 && VCH::isMeshFullyClipped_Y(mesh, _clippingCtx)) return false;
+	if (activeClipPlaneIndex == 2 && VCH::isMeshFullyClipped_Z(mesh, _clippingCtx)) return false;
 
 	return true;
 }
@@ -8144,8 +8018,9 @@ void GLWidget::render(GLCamera* camera)
 	camera->setSceneRadius(_viewCtrl.boundingSphere().getRadius());
 	_viewCtrl.syncMatricesFromCamera(*camera);
 
-	// Extract frustum planes once per frame for AABB culling
+	// Extract frustum planes and clipping context once per frame for AABB culling
 	extractFrustumPlanes();
+	rebuildClippingContext();
 	_sceneRuntime.refreshRuntimeVisibilityCacheForCurrentView(
 		(_viewer && _viewer->sceneGraph()) ? _viewer->sceneGraph()->root() : nullptr,
 		RenderableMesh::currentRuntimeBoundsRevision(),

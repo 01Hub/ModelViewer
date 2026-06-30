@@ -477,6 +477,7 @@ public:
     }
 
     const QVector4D& frustumPlane(int index) const       { return _frustumPlanes[index]; }
+    const QVector4D* frustumPlanes() const               { return _frustumPlanes; }
 
     int viewCubeHoveredRegionId() const                  { return _viewCubeHoveredRegionId; }
     void setViewCubeHoveredRegionId(int regionId)        { _viewCubeHoveredRegionId = regionId; }
