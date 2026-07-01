@@ -15,7 +15,7 @@
  */
 
  /***************************************************************************
-  *            GLCamera.h
+  *            Camera.h
   *
   *  Thu Jun 29 22:46:35 2006
   *  Copyright  2006  N. Sharjith
@@ -30,8 +30,8 @@
   //www.codecolony.de
    **********************************************************************/
 
-#ifndef _GLCAMERA_H
-#define _GLCAMERA_H
+#ifndef _CAMERA_H
+#define _CAMERA_H
 
 #ifdef WIN32
 #include <windows.h>
@@ -52,9 +52,9 @@
 //Note: All angles in degrees  //
 /////////////////////////////////
 
-// CGLCamera
+// CCamera
 
-class GLCamera
+class Camera
 {
 public:
 	enum class ViewProjection
@@ -86,8 +86,8 @@ public:
 		FirstPerson
 	};
 
-	GLCamera();
-	GLCamera(float width, float height, float range, float fov);
+	Camera();
+	Camera(float width, float height, float range, float fov);
 
 	void setScreenSize(float w, float h);
 	QPoint getScreenSize() const;
@@ -197,4 +197,4 @@ private:
 
 };
 
-#endif /* _GLCAMERA_H */
+#endif /* _CAMERA_H */

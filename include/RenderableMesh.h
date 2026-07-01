@@ -5,7 +5,7 @@
 #include "Drawable.h"
 #include "BoundingSphere.h"
 #include "BoundingBox.h"
-#include "GLMaterial.h"
+#include "Material.h"
 #include "GltfAnimationData.h"
 #include "GltfVariantData.h"
 #include "MeshInstanceState.h"
@@ -244,17 +244,17 @@ public:
 	void setVariantMappings(const QVector<GltfVariantMapping>& m) { _materialState.setVariantMappings(m); }
 	const QVector<GltfVariantMapping>& variantMappings() const    { return _materialState.variantMappings(); }
 
-	// Pre-built GLMaterial for every material index referenced by variants.
+	// Pre-built Material for every material index referenced by variants.
 	// Includes the default material keyed by originalMaterialIndex.
-	void setAllVariantMaterials(const QMap<int, GLMaterial>& mats) { _materialState.setAllVariantMaterials(mats); }
-	const QMap<int, GLMaterial>& allVariantMaterials() const       { return _materialState.allVariantMaterials(); }
+	void setAllVariantMaterials(const QMap<int, Material>& mats) { _materialState.setAllVariantMaterials(mats); }
+	const QMap<int, Material>& allVariantMaterials() const       { return _materialState.allVariantMaterials(); }
 
 	bool hasVariants() const { return _materialState.hasVariants(); }
 
-	// Return a pointer to the prebuilt GLMaterial for the given variant index,
+	// Return a pointer to the prebuilt Material for the given variant index,
 	// or nullptr when this mesh has no mapping for that variant (keep default).
 	// Pass variantIndex = -1 to retrieve the original/default material.
-	const GLMaterial* materialForVariant(int variantIndex) const;
+	const Material* materialForVariant(int variantIndex) const;
 	virtual int getOriginalMaterialIndex() const { return -1; }
 
 	void setActiveVariantIndex(int idx) { _instanceState.setActiveVariantIndex(idx); }
@@ -403,10 +403,10 @@ public:
 
 	virtual void clearAllPBRMaps();
 	
-	virtual GLMaterial getMaterial() const;
-	virtual void setMaterial(const GLMaterial& material);
+	virtual Material getMaterial() const;
+	virtual void setMaterial(const Material& material);
 
-	virtual void setTextureMaps(const GLMaterial& material);
+	virtual void setTextureMaps(const Material& material);
 
 	void cacheBaseVolumeProperties();
 	void applyScaledVolumeProperties();
@@ -522,7 +522,7 @@ protected:
 	std::vector<QOpenGLBuffer> _buffers;
 
 	MaterialVizState _materialState;
-	GLMaterial& _material;   // reference alias into _materialState
+	Material& _material;   // reference alias into _materialState
 
 	// ---- Fallback texture --------------------------------------------------
 	QImage       _fallbackTextureImage;

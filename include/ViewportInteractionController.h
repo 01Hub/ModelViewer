@@ -2,7 +2,7 @@
 
 #include "BoundingBox.h"
 #include "BoundingSphere.h"
-#include "GLCamera.h"
+#include "Camera.h"
 #include "RenderEnums.h"
 #include "TransformCommand.h"
 
@@ -84,8 +84,8 @@ public:
     ViewProjection projection() const                    { return _projection; }
     void setProjection(ViewProjection projection)        { _projection = projection; }
 
-    GLCamera::ProjectionType previousProjection() const  { return _previousProjection; }
-    void setPreviousProjection(GLCamera::ProjectionType projection)
+    Camera::ProjectionType previousProjection() const  { return _previousProjection; }
+    void setPreviousProjection(Camera::ProjectionType projection)
     {
         _previousProjection = projection;
     }
@@ -415,27 +415,27 @@ public:
         _modelViewMatrix = _viewMatrix * _modelMatrix;
     }
 
-    void syncMatricesFromCamera(const GLCamera& camera)
+    void syncMatricesFromCamera(const Camera& camera)
     {
         _viewMatrix = camera.getViewMatrix();
         _projectionMatrix = camera.getProjectionMatrix();
         recomputeModelViewMatrix();
     }
 
-    void syncPoseFromCamera(const GLCamera& camera)
+    void syncPoseFromCamera(const Camera& camera)
     {
         _currentRotation = QQuaternion::fromRotationMatrix(
             camera.getViewMatrix().toGenericMatrix<3, 3>());
         _currentTranslation = camera.getPosition();
     }
 
-    void syncRotationFromCamera(const GLCamera& camera)
+    void syncRotationFromCamera(const Camera& camera)
     {
         _currentRotation = QQuaternion::fromRotationMatrix(
             camera.getViewMatrix().toGenericMatrix<3, 3>());
     }
 
-    void syncTranslationFromCamera(const GLCamera& camera)
+    void syncTranslationFromCamera(const Camera& camera)
     {
         _currentTranslation = camera.getPosition();
     }
@@ -445,7 +445,7 @@ public:
         _currentViewRange = _viewRange;
     }
 
-    void syncPoseAndRangeFromCamera(const GLCamera& camera)
+    void syncPoseAndRangeFromCamera(const Camera& camera)
     {
         syncPoseFromCamera(camera);
         syncCurrentViewRange();
@@ -483,7 +483,7 @@ public:
     void setViewCubeHoveredRegionId(int regionId)        { _viewCubeHoveredRegionId = regionId; }
 
     bool systemCameraStateSaved() const                  { return _systemCameraStateSaved; }
-    void saveSystemCameraState(const GLCamera& camera)
+    void saveSystemCameraState(const Camera& camera)
     {
         _savedCameraPos = camera.getPosition();
         _savedCameraDir = camera.getViewDir();
@@ -494,14 +494,14 @@ public:
         _savedCameraViewRange = camera.getViewRange();
         _systemCameraStateSaved = true;
     }
-    void restoreSystemCameraState(GLCamera& camera)
+    void restoreSystemCameraState(Camera& camera)
     {
         camera.setView(_savedCameraPos, _savedCameraDir, _savedCameraUp, _savedCameraRight);
         camera.setProjectionType(_savedProjectionType);
         camera.setFOV(_savedCameraFOV);
         camera.setViewRange(_savedCameraViewRange);
     }
-    GLCamera::ProjectionType savedProjectionType() const { return _savedProjectionType; }
+    Camera::ProjectionType savedProjectionType() const { return _savedProjectionType; }
     float savedCameraViewRange() const                   { return _savedCameraViewRange; }
     void clearSystemCameraState()                        { _systemCameraStateSaved = false; }
 
@@ -513,7 +513,7 @@ private:
     QVector3D                _savedCameraDir;
     QVector3D                _savedCameraUp;
     QVector3D                _savedCameraRight;
-    GLCamera::ProjectionType _savedProjectionType     = GLCamera::ProjectionType::PERSPECTIVE;
+    Camera::ProjectionType _savedProjectionType     = Camera::ProjectionType::PERSPECTIVE;
     float                    _savedCameraFOV          = 45.0f;
     float                    _savedCameraViewRange    = 200.0f;
 
@@ -534,7 +534,7 @@ private:
     // ---- View mode ---------------------------------------------------------
     ViewMode     _viewMode                   = ViewMode::NONE;
     ViewProjection _projection               = ViewProjection::PERSPECTIVE;
-    GLCamera::ProjectionType _previousProjection = GLCamera::ProjectionType::PERSPECTIVE;
+    Camera::ProjectionType _previousProjection = Camera::ProjectionType::PERSPECTIVE;
     bool         _multiViewActive            = false;
     int          _viewCubeHoveredRegionId    = -1;
     bool         _customViewAnimationActive  = false;

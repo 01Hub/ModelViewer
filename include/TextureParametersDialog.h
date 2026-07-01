@@ -32,7 +32,7 @@ public:
         }
     };
 
-    // Structure for texture transform (from GLMaterial)
+    // Structure for texture transform (from Material)
     struct TextureTransform
     {
         int texCoord = 0;

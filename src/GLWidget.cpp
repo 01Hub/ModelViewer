@@ -107,9 +107,9 @@ _floorPlane(nullptr),
 		});
 
 	 connect(_viewToolbar, &ViewToolbar::cameraModeSelected, this, [this](const QString& type) {
-		if (type == "Orbit") setCameraMode(GLCamera::CameraMode::Orbit);
-		else if (type == "Fly") setCameraMode(GLCamera::CameraMode::Fly);
-		else if (type == "First Person") setCameraMode(GLCamera::CameraMode::FirstPerson);
+		if (type == "Orbit") setCameraMode(Camera::CameraMode::Orbit);
+		else if (type == "Fly") setCameraMode(Camera::CameraMode::Fly);
+		else if (type == "First Person") setCameraMode(Camera::CameraMode::FirstPerson);
 		});
 
 	connect(_viewToolbar, &ViewToolbar::cameraUpAxisToggled, this, [this](bool zUp) {
@@ -220,16 +220,16 @@ _floorPlane(nullptr),
 	_viewCtrl.setCurrentViewRange(1.0f);
 	_viewCtrl.setViewMode(ViewMode::ISOMETRIC);
 	_viewCtrl.setProjection(ViewProjection::ORTHOGRAPHIC);
-	_viewCtrl.setPreviousProjection(GLCamera::ProjectionType::ORTHOGRAPHIC);
+	_viewCtrl.setPreviousProjection(Camera::ProjectionType::ORTHOGRAPHIC);
 
 	_viewCtrl.setAutoFitViewOnUpdate(true);
 	_selectionHighlighting = true;
 
-	_primaryCamera = new GLCamera(width(), height(), _viewCtrl.viewRange(), _viewCtrl.FOV());
-	_primaryCamera->setView(GLCamera::ViewProjection::SE_ISOMETRIC_VIEW);
+	_primaryCamera = new Camera(width(), height(), _viewCtrl.viewRange(), _viewCtrl.FOV());
+	_primaryCamera->setView(Camera::ViewProjection::SE_ISOMETRIC_VIEW);
 
-	_orthoViewsCamera = new GLCamera(width(), height(), _viewCtrl.viewRange(), _viewCtrl.FOV());
-	_orthoViewsCamera->setView(GLCamera::ViewProjection::SE_ISOMETRIC_VIEW);
+	_orthoViewsCamera = new Camera(width(), height(), _viewCtrl.viewRange(), _viewCtrl.FOV());
+	_orthoViewsCamera->setView(Camera::ViewProjection::SE_ISOMETRIC_VIEW);
 
 	{
 		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
@@ -716,7 +716,7 @@ void GLWidget::initializeGL()
 
 	_assimpModelLoader = new AssImpModelLoader();
 	_assimpModelLoader->setImageTextureUploader(
-		[this](GLMaterial::Texture& texture, const QImage& image) -> unsigned int {
+		[this](Material::Texture& texture, const QImage& image) -> unsigned int {
 			TextureSamplerSettings samplers{ texture.wrapS, texture.wrapT, texture.minFilter, texture.magFilter };
 			if (QThread::currentThread() != this->thread())
 			{
@@ -730,7 +730,7 @@ void GLWidget::initializeGL()
 			return uploadDecodedTextureImage(image, samplers);
 		});
 	_assimpModelLoader->setKtx2TextureUploader(
-		[this](const QString& path, const std::string& mapType, GLMaterial::Texture& texture) -> unsigned int {
+		[this](const QString& path, const std::string& mapType, Material::Texture& texture) -> unsigned int {
 			TextureSamplerSettings samplers{ texture.wrapS, texture.wrapT, texture.minFilter, texture.magFilter };
 			if (QThread::currentThread() != this->thread())
 			{
@@ -944,11 +944,11 @@ void GLWidget::resizeGL(int width, int height)
 	_primaryCamera->setSceneRadius(_viewCtrl.boundingSphere().getRadius());
 	if (_viewCtrl.projection() == ViewProjection::ORTHOGRAPHIC)
 	{
-		_primaryCamera->setProjectionType(GLCamera::ProjectionType::ORTHOGRAPHIC);		
+		_primaryCamera->setProjectionType(Camera::ProjectionType::ORTHOGRAPHIC);		
 	}
 	else
 	{
-		_primaryCamera->setProjectionType(GLCamera::ProjectionType::PERSPECTIVE);		
+		_primaryCamera->setProjectionType(Camera::ProjectionType::PERSPECTIVE);		
 	}
 	_viewCtrl.syncMatricesFromCamera(*_primaryCamera);
 
@@ -1411,8 +1411,8 @@ void GLWidget::rotateCurrentCameraAroundWorldX(float degrees)
 
 	setView(_primaryCamera->getPosition(), rotatedViewDir, correctedUp, correctedRight);
 
-	if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
-		_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+	if (_primaryCamera->getMode() == Camera::CameraMode::Fly ||
+		_primaryCamera->getMode() == Camera::CameraMode::FirstPerson)
 	{
 		_primaryCamera->setYawPitchFromViewDir();
 	}
@@ -1521,8 +1521,8 @@ void GLWidget::fitAll()
 	if (_sceneRuntime.meshStore().empty() || visibleIds.empty())
 		return;
 
-	if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
-		_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+	if (_primaryCamera->getMode() == Camera::CameraMode::Fly ||
+		_primaryCamera->getMode() == Camera::CameraMode::FirstPerson)
 	{
 		checkAndStopTimers();
 		_keyboardNavTimer->stop();
@@ -1672,7 +1672,7 @@ void GLWidget::performWindowZoom()
 		if (rawDepth >= 1.0f)
 		{
 			// No geometry found near centre — fall back to bounding sphere centre depth.
-			QVector3D Z = (_primaryCamera->getMode() == GLCamera::CameraMode::Orbit)
+			QVector3D Z = (_primaryCamera->getMode() == Camera::CameraMode::Orbit)
 				? _primaryCamera->getPosition()
 				: _viewCtrl.boundingSphere().getCenter();
 			Z = Z.project(mvMatrix, _viewCtrl.projectionMatrix(), viewport);
@@ -1754,24 +1754,24 @@ void GLWidget::performWindowZoom()
 void GLWidget::setProjection(ViewProjection proj)
 {
 	_viewCtrl.setProjection(proj);
-	if (!_primaryCamera || _primaryCamera->getMode() == GLCamera::CameraMode::Orbit)
+	if (!_primaryCamera || _primaryCamera->getMode() == Camera::CameraMode::Orbit)
 	{
 		_viewCtrl.setPreviousProjection((proj == ViewProjection::PERSPECTIVE)
-			? GLCamera::ProjectionType::PERSPECTIVE
-			: GLCamera::ProjectionType::ORTHOGRAPHIC);
+			? Camera::ProjectionType::PERSPECTIVE
+			: Camera::ProjectionType::ORTHOGRAPHIC);
 	}
 	resizeGL(width(), height());
 }
 
-GLCamera::CameraMode GLWidget::cameraMode() const
+Camera::CameraMode GLWidget::cameraMode() const
 {
-	return _primaryCamera ? _primaryCamera->getMode() : GLCamera::CameraMode::Orbit;
+	return _primaryCamera ? _primaryCamera->getMode() : Camera::CameraMode::Orbit;
 }
 
-bool GLWidget::positionGameplayCameraForScene(GLCamera::CameraMode mode)
+bool GLWidget::positionGameplayCameraForScene(Camera::CameraMode mode)
 {
 	if (!_primaryCamera ||
-		(mode != GLCamera::CameraMode::Fly && mode != GLCamera::CameraMode::FirstPerson))
+		(mode != Camera::CameraMode::Fly && mode != Camera::CameraMode::FirstPerson))
 	{
 		return false;
 	}
@@ -1805,7 +1805,7 @@ bool GLWidget::positionGameplayCameraForScene(GLCamera::CameraMode mode)
 
 	QVector3D eye;
 	QVector3D target = center;
-	if (mode == GLCamera::CameraMode::Fly)
+	if (mode == Camera::CameraMode::Fly)
 	{
 	const float flyDistance = std::max(radius * 2.25f, _viewCtrl.viewRange() * 0.9f);
 		const float flyLift = std::clamp(modelHeight * 0.35f, radius * 0.25f, radius * 1.25f);
@@ -1848,16 +1848,16 @@ bool GLWidget::positionGameplayCameraForScene(GLCamera::CameraMode mode)
 	return true;
 }
 
-void GLWidget::setCameraMode(GLCamera::CameraMode mode)
+void GLWidget::setCameraMode(Camera::CameraMode mode)
 {
 	const std::vector<int>& visibleIds = _sceneRuntime.currentVisibleObjectIds();
 	const bool hasVisibleScene = !_sceneRuntime.meshStore().empty() && !visibleIds.empty();
 
-	if (mode == GLCamera::CameraMode::Fly || mode == GLCamera::CameraMode::FirstPerson)
+	if (mode == Camera::CameraMode::Fly || mode == Camera::CameraMode::FirstPerson)
 	{
-		const bool comingFromOrbit = _primaryCamera->getMode() == GLCamera::CameraMode::Orbit;
+		const bool comingFromOrbit = _primaryCamera->getMode() == Camera::CameraMode::Orbit;
 		QVector3D orbitEye = _primaryCamera->getPosition();
-		const GLCamera::ProjectionType orbitProjection = comingFromOrbit
+		const Camera::ProjectionType orbitProjection = comingFromOrbit
 			? _primaryCamera->getProjectionType()
 			: _viewCtrl.previousProjection();
 
@@ -1871,7 +1871,7 @@ void GLWidget::setCameraMode(GLCamera::CameraMode mode)
 			orbitEye = center - viewDir * desiredDist;
 		}
 
-		if (_primaryCamera->getProjectionType() != GLCamera::ProjectionType::PERSPECTIVE)
+		if (_primaryCamera->getProjectionType() != Camera::ProjectionType::PERSPECTIVE)
 		{
 			setProjection(ViewProjection::PERSPECTIVE);
 			_viewCtrl.setPreviousProjection(orbitProjection);
@@ -1895,10 +1895,10 @@ void GLWidget::setCameraMode(GLCamera::CameraMode mode)
 			_viewCtrl.setCurrentTranslation(_primaryCamera->getPosition());
 		}
 	}
-	else if (mode == GLCamera::CameraMode::Orbit)
+	else if (mode == Camera::CameraMode::Orbit)
 	{
-		if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
-			_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+		if (_primaryCamera->getMode() == Camera::CameraMode::Fly ||
+			_primaryCamera->getMode() == Camera::CameraMode::FirstPerson)
 		{
 			const QVector3D eye = _primaryCamera->getPosition();
 			const QVector3D target = eye + _primaryCamera->getViewDir() * _primaryCamera->getOrbitDistance();
@@ -1906,7 +1906,7 @@ void GLWidget::setCameraMode(GLCamera::CameraMode mode)
 		}
 
 		_primaryCamera->setMode(mode);
-		setProjection(_viewCtrl.previousProjection() == GLCamera::ProjectionType::PERSPECTIVE ? ViewProjection::PERSPECTIVE : ViewProjection::ORTHOGRAPHIC);
+		setProjection(_viewCtrl.previousProjection() == Camera::ProjectionType::PERSPECTIVE ? ViewProjection::PERSPECTIVE : ViewProjection::ORTHOGRAPHIC);
 		_viewCtrl.syncPoseFromCamera(*_primaryCamera);
 		_viewCtrl.setCurrentViewRange(_viewCtrl.viewRange());
 	}
@@ -1964,10 +1964,10 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 	triggerShadowRecomputation();
 	updateFloorPlane();
 
-	if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
-		_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+	if (_primaryCamera->getMode() == Camera::CameraMode::Fly ||
+		_primaryCamera->getMode() == Camera::CameraMode::FirstPerson)
 	{
-		if (_primaryCamera->getProjectionType() != GLCamera::ProjectionType::PERSPECTIVE)
+		if (_primaryCamera->getProjectionType() != Camera::ProjectionType::PERSPECTIVE)
 		{
 			setProjection(ViewProjection::PERSPECTIVE);
 		}
@@ -3752,24 +3752,24 @@ void GLWidget::cancelAssImpModelLoading()
 
 
 
-void GLWidget::setMaterialToObjects(const std::vector<int>& ids, const GLMaterial& mat)
+void GLWidget::setMaterialToObjects(const std::vector<int>& ids, const Material& mat)
 {
 	if (_sceneRuntime.applyMaterialToMeshes(ids, mat))
 		setTransmissionEnabled(true);
 }
 
-void GLWidget::setTexturesToObjects(const std::vector<int>& ids, const GLMaterial& mat)
+void GLWidget::setTexturesToObjects(const std::vector<int>& ids, const Material& mat)
 {
-	const GLMaterial resolved = resolveMaterialTextures(this, mat);
+	const Material resolved = resolveMaterialTextures(this, mat);
 	for (int id : ids)
 		_sceneRuntime.applyTextureMapsToMesh(id, resolved);
 }
 
-void GLWidget::synchronizeTextureCache(const GLMaterial* material, GLMaterial::TextureType type)
+void GLWidget::synchronizeTextureCache(const Material* material, Material::TextureType type)
 {
 	if (!material) return;
 
-	const GLMaterial::Texture& matTex = material->texture(type);
+	const Material::Texture& matTex = material->texture(type);
 	if (matTex.path.empty()) return;
 
 	TextureSamplerSettings samplers{
@@ -4026,7 +4026,7 @@ void GLWidget::syncFloorPlaneAlbedoTexture()
 	if (_floorPlane == nullptr)
 		return;
 
-	GLMaterial material = _floorPlane->getMaterial();
+	Material material = _floorPlane->getMaterial();
 	const GLuint oldAlbedoTex = static_cast<GLuint>(material.albedoTextureId());
 	const GLuint oldDiffuseTex = static_cast<GLuint>(material.diffuseTextureId());
 
@@ -4041,13 +4041,13 @@ void GLWidget::syncFloorPlaneAlbedoTexture()
 			glDeleteTextures(1, &oldDiffuseTex);
 		}
 
-		GLMaterial::Texture resetAlbedo;
+		Material::Texture resetAlbedo;
 		resetAlbedo.type = "albedo";
-		GLMaterial::Texture resetDiffuse;
+		Material::Texture resetDiffuse;
 		resetDiffuse.type = "diffuse";
 
-		material.setTexture(GLMaterial::TextureType::Albedo, resetAlbedo);
-		material.setTexture(GLMaterial::TextureType::Diffuse, resetDiffuse);
+		material.setTexture(Material::TextureType::Albedo, resetAlbedo);
+		material.setTexture(Material::TextureType::Diffuse, resetDiffuse);
 		material.setAlbedoMap(QString());
 		material.setAlbedoTextureId(0);
 		material.setDiffuseMap(QString());
@@ -4076,7 +4076,7 @@ void GLWidget::syncFloorPlaneAlbedoTexture()
 		glDeleteTextures(1, &oldDiffuseTex);
 	}
 
-	GLMaterial::Texture albedoTexture = material.texture(GLMaterial::TextureType::Albedo);
+	Material::Texture albedoTexture = material.texture(Material::TextureType::Albedo);
 	albedoTexture.id = newFloorTex;
 	albedoTexture.type = "albedo";
 	albedoTexture.path = "generated://floor-albedo";
@@ -4086,13 +4086,13 @@ void GLWidget::syncFloorPlaneAlbedoTexture()
 	albedoTexture.minFilter = samplers.minFilter;
 	albedoTexture.magFilter = samplers.magFilter;
 	albedoTexture.imageData = _floorTexImage;
-	material.setTexture(GLMaterial::TextureType::Albedo, albedoTexture);
+	material.setTexture(Material::TextureType::Albedo, albedoTexture);
 	material.setAlbedoMap("generated://floor-albedo");
 	material.setAlbedoTextureId(static_cast<int>(newFloorTex));
 
-	GLMaterial::Texture resetDiffuse;
+	Material::Texture resetDiffuse;
 	resetDiffuse.type = "diffuse";
-	material.setTexture(GLMaterial::TextureType::Diffuse, resetDiffuse);
+	material.setTexture(Material::TextureType::Diffuse, resetDiffuse);
 	material.setDiffuseMap(QString());
 	material.setDiffuseTextureId(0);
 	_floorPlane->setMaterial(material);
@@ -5628,7 +5628,7 @@ bool GLWidget::sceneHasVisibleTransmissionMaterials() const
 		if (!mesh || !isMeshAnimationVisible(mesh))
 			continue;
 
-		const GLMaterial& mat = mesh->getMaterial();
+		const Material& mat = mesh->getMaterial();
 		if (mat.hasTransmission() || mat.diffuseTransmissionFactor() > 0.0f)
 			return true;
 	}
@@ -5751,7 +5751,7 @@ void GLWidget::drawMeshesWithClipping(QOpenGLShaderProgram* prog,
 }
 
 
-void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
+void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, Camera* camera)
 {
 	QVector3D camPos = camera->getRenderPosition();
 	QVector3D camDir = camera->getViewDir();
@@ -6256,7 +6256,7 @@ void GLWidget::drawBoundingBoxOverlay()
     glBindVertexArray(0);
 }
 
-void GLWidget::drawDebugOverlay(GLCamera* camera)
+void GLWidget::drawDebugOverlay(Camera* camera)
 {
     if (!camera || !_renderCtrl.debugOverlayEnabled())
         return;
@@ -6275,7 +6275,7 @@ void GLWidget::drawDebugOverlay(GLCamera* camera)
     }
 }
 
-void GLWidget::drawAxis(GLCamera* camera)
+void GLWidget::drawAxis(Camera* camera)
 {
 	if (!camera)
 		return;
@@ -6356,7 +6356,7 @@ void GLWidget::drawAxis(GLCamera* camera)
 	_renderCtrl.axisShader()->release();
 }
 
-void GLWidget::drawTransformGizmo(GLCamera* camera)
+void GLWidget::drawTransformGizmo(Camera* camera)
 {
 	if (!_transformGizmo || !_viewCtrl.transformGizmoRequested())
 		return;
@@ -6614,7 +6614,7 @@ void GLWidget::updateTransformGizmoTranslationDrag(const QPoint& pixel)
 		return;
 
 	const QRect viewport = PickingHelper::viewportRectForPoint(pixel, width(), height(), _viewCtrl.multiViewActive());
-	const GLCamera* camera = getCameraForPoint(pixel);
+	const Camera* camera = getCameraForPoint(pixel);
 	if (!camera)
 		return;
 
@@ -6847,7 +6847,7 @@ void GLWidget::updateTransformGizmoScaleDrag(const QPoint& pixel)
 		return;
 
 	const QRect viewport = PickingHelper::viewportRectForPoint(pixel, width(), height(), _viewCtrl.multiViewActive());
-	const GLCamera* camera = getCameraForPoint(pixel);
+	const Camera* camera = getCameraForPoint(pixel);
 	if (!camera)
 		return;
 
@@ -7038,7 +7038,7 @@ bool GLWidget::beginTransformGizmoRotationDrag(TransformGizmo::Handle handle, co
 	}
 
 	const QRect viewport = PickingHelper::viewportRectForPoint(pixel, width(), height(), _viewCtrl.multiViewActive());
-	const GLCamera* camera = getCameraForPoint(pixel);
+	const Camera* camera = getCameraForPoint(pixel);
 	if (!camera)
 		return false;
 
@@ -7101,7 +7101,7 @@ void GLWidget::updateTransformGizmoRotationDrag(const QPoint& pixel)
 		return;
 
 	const QRect viewport = PickingHelper::viewportRectForPoint(pixel, width(), height(), _viewCtrl.multiViewActive());
-	const GLCamera* camera = getCameraForPoint(pixel);
+	const Camera* camera = getCameraForPoint(pixel);
 	if (!camera)
 		return;
 
@@ -8064,7 +8064,7 @@ void GLWidget::bindIBLTextures()
 }
 
 
-void GLWidget::render(GLCamera* camera)
+void GLWidget::render(Camera* camera)
 {
 	QElapsedTimer frameTimer;
 	const bool profileRendering =
@@ -8919,7 +8919,7 @@ void GLWidget::resetToSystemCamera()
 		_viewCtrl.restoreSystemCameraState(*_primaryCamera);
 		_viewCtrl.setViewRange(_viewCtrl.savedCameraViewRange());
 		_viewCtrl.syncCurrentViewRange();
-		_viewCtrl.setProjection((_viewCtrl.savedProjectionType() == GLCamera::ProjectionType::PERSPECTIVE)
+		_viewCtrl.setProjection((_viewCtrl.savedProjectionType() == Camera::ProjectionType::PERSPECTIVE)
 			? ViewProjection::PERSPECTIVE
 			: ViewProjection::ORTHOGRAPHIC);
 		_viewCtrl.setPreviousProjection(_viewCtrl.savedProjectionType());
@@ -8997,7 +8997,7 @@ void GLWidget::applyGltfCameraEntryTransform(const GltfCameraEntry& cam)
 
 	if (cam.type == GltfCameraType::Perspective)
 	{
-		_primaryCamera->setProjectionType(GLCamera::ProjectionType::PERSPECTIVE);
+		_primaryCamera->setProjectionType(Camera::ProjectionType::PERSPECTIVE);
 		_primaryCamera->setFOV(qRadiansToDegrees(cam.fovYRadians));
 
 		// Set the view range so the orbit pivot lands at the scene centre and
@@ -9013,23 +9013,23 @@ void GLWidget::applyGltfCameraEntryTransform(const GltfCameraEntry& cam)
 		const float clampedDist = std::max(distToScene, _viewCtrl.boundingSphere().getRadius());
 		_primaryCamera->setViewRange(clampedDist / 1.25f);
 		_viewCtrl.setProjection(ViewProjection::PERSPECTIVE);
-		_viewCtrl.setPreviousProjection(GLCamera::ProjectionType::PERSPECTIVE);
+		_viewCtrl.setPreviousProjection(Camera::ProjectionType::PERSPECTIVE);
 	}
 	else
 	{
-		_primaryCamera->setProjectionType(GLCamera::ProjectionType::ORTHOGRAPHIC);
+		_primaryCamera->setProjectionType(Camera::ProjectionType::ORTHOGRAPHIC);
 		const float orthoRange = std::max(cam.xMag, cam.yMag) * 2.0f * modelScale;
 		_primaryCamera->setViewRange(std::max(orthoRange, 0.0001f));
 		_viewCtrl.setProjection(ViewProjection::ORTHOGRAPHIC);
-		_viewCtrl.setPreviousProjection(GLCamera::ProjectionType::ORTHOGRAPHIC);
+		_viewCtrl.setPreviousProjection(Camera::ProjectionType::ORTHOGRAPHIC);
 	}
 
 	_viewCtrl.setViewRange(_primaryCamera->getViewRange());
 	_viewCtrl.syncCurrentViewRange();
 
 	const QVector3D right = QVector3D::crossProduct(worldDir, worldUp).normalized();
-	const QVector3D pivotPos = (_primaryCamera->getMode() == GLCamera::CameraMode::Orbit)
-		? worldPos + worldDir * (_primaryCamera->getProjectionType() == GLCamera::ProjectionType::ORTHOGRAPHIC
+	const QVector3D pivotPos = (_primaryCamera->getMode() == Camera::CameraMode::Orbit)
+		? worldPos + worldDir * (_primaryCamera->getProjectionType() == Camera::ProjectionType::ORTHOGRAPHIC
 			? _primaryCamera->getOrthoViewDistance()
 			: _primaryCamera->getOrbitDistance())
 		: worldPos;
@@ -9556,7 +9556,7 @@ GLuint GLWidget::createGPUTextureFromImage(const QImage& image, const TextureSam
 	return textureID;
 }
 
-GLuint GLWidget::uploadDecodedTexture(GLMaterial::Texture& texture, const QImage& image)
+GLuint GLWidget::uploadDecodedTexture(Material::Texture& texture, const QImage& image)
 {
 	TextureSamplerSettings samplers{ texture.wrapS, texture.wrapT, texture.minFilter, texture.magFilter };
 	GLuint textureId = uploadDecodedTextureImage(image, samplers);
@@ -9603,7 +9603,7 @@ GLuint GLWidget::uploadKtx2TextureImage(const QString& path, const std::string& 
 	return textureId;
 }
 
-GLuint GLWidget::uploadKtx2Texture(const QString& path, const std::string& mapType, GLMaterial::Texture& texture)
+GLuint GLWidget::uploadKtx2Texture(const QString& path, const std::string& mapType, Material::Texture& texture)
 {
 	TextureSamplerSettings samplers{ texture.wrapS, texture.wrapT, texture.minFilter, texture.magFilter };
 	GLuint textureId = uploadKtx2TextureImage(path, mapType, samplers);
@@ -9795,9 +9795,9 @@ void GLWidget::releaseTexture(unsigned int texId)
 	}
 }
 
-GLMaterial GLWidget::resolveMaterialTextures(GLWidget* w, const GLMaterial& src)
+Material GLWidget::resolveMaterialTextures(GLWidget* w, const Material& src)
 {
-	GLMaterial m = src;
+	Material m = src;
 	auto resolveTexturePath = [w](const QString& path,
 		const std::string& mapType,
 		const TextureSamplerSettings& samplers) -> unsigned int
@@ -9820,151 +9820,151 @@ GLMaterial GLWidget::resolveMaterialTextures(GLWidget* w, const GLMaterial& src)
 
 	if (m.hasAlbedoMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Albedo);
+		const Material::Texture& tex = m.texture(Material::TextureType::Albedo);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setAlbedoTextureId(resolveTexturePathOrKeepId(m.albedoMapPath(), "albedoMap", samplers, m.albedoTextureId()));
 	}
 	if (m.hasMetallicMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Metallic);
+		const Material::Texture& tex = m.texture(Material::TextureType::Metallic);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setMetallicTextureId(resolveTexturePathOrKeepId(m.metallicMapPath(), "metallicMap", samplers, m.metallicTextureId()));
 	}
 	if (m.hasRoughnessMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Roughness);
+		const Material::Texture& tex = m.texture(Material::TextureType::Roughness);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setRoughnessTextureId(resolveTexturePathOrKeepId(m.roughnessMapPath(), "roughnessMap", samplers, m.roughnessTextureId()));
 	}
 	if (m.hasNormalMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Normal);
+		const Material::Texture& tex = m.texture(Material::TextureType::Normal);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setNormalTextureId(resolveTexturePathOrKeepId(m.normalMapPath(), "normalMap", samplers, m.normalTextureId()));
 	}
 	if (m.hasAOMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::AmbientOcclusion);
+		const Material::Texture& tex = m.texture(Material::TextureType::AmbientOcclusion);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setOcclusionTextureId(resolveTexturePathOrKeepId(m.aoMapPath(), "aoMap", samplers, m.occlusionTextureId()));
 	}
 	if (m.hasOpacityMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Opacity);
+		const Material::Texture& tex = m.texture(Material::TextureType::Opacity);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setOpacityTextureId(resolveTexturePathOrKeepId(m.opacityMapPath(), "opacityMap", samplers, m.opacityTextureId()));
 	}
 	if (m.hasHeightMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Height);
+		const Material::Texture& tex = m.texture(Material::TextureType::Height);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setHeightTextureId(resolveTexturePathOrKeepId(m.heightMapPath(), "heightMap", samplers, m.heightTextureId()));
 	}
 	if (m.hasEmissiveMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Emissive);
+		const Material::Texture& tex = m.texture(Material::TextureType::Emissive);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setEmissiveTextureId(resolveTexturePathOrKeepId(m.emissiveMapPath(), "emissiveMap", samplers, m.emissiveTextureId()));
 	}
 	if (m.hasTransmissionMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Transmission);
+		const Material::Texture& tex = m.texture(Material::TextureType::Transmission);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setTransmissionTextureId(resolveTexturePathOrKeepId(m.transmissionMapPath(), "transmissionMap", samplers, m.transmissionTextureId()));
 	}
 	if (m.hasIORMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::IOR);
+		const Material::Texture& tex = m.texture(Material::TextureType::IOR);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setIORTextureId(resolveTexturePathOrKeepId(m.iorMapPath(), "iorMap", samplers, m.iorTextureId()));
 	}
 	if (m.hasSheenColorMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::SheenColor);
+		const Material::Texture& tex = m.texture(Material::TextureType::SheenColor);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setSheenColorTextureId(resolveTexturePathOrKeepId(m.sheenColorMapPath(), "sheenColorMap", samplers, m.sheenColorTextureId()));
 	}
 	if (m.hasSheenRoughnessMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::SheenRoughness);
+		const Material::Texture& tex = m.texture(Material::TextureType::SheenRoughness);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setSheenRoughnessTextureId(resolveTexturePathOrKeepId(m.sheenRoughnessMapPath(), "sheenRoughnessMap", samplers, m.sheenRoughnessTextureId()));
 	}
 	if (m.hasClearcoatColorMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::ClearcoatColor);
+		const Material::Texture& tex = m.texture(Material::TextureType::ClearcoatColor);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setClearcoatColorTextureId(resolveTexturePath(m.clearcoatColorMapPath(), "clearcoatColorMap", samplers));
 	}
 	if (m.hasClearcoatRoughnessMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::ClearcoatRoughness);
+		const Material::Texture& tex = m.texture(Material::TextureType::ClearcoatRoughness);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setClearcoatRoughnessTextureId(resolveTexturePath(m.clearcoatRoughnessMapPath(), "clearcoatRoughnessMap", samplers));
 	}
 	if (m.hasClearcoatNormalMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::ClearcoatNormal);
+		const Material::Texture& tex = m.texture(Material::TextureType::ClearcoatNormal);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setClearcoatNormalTextureId(resolveTexturePath(m.clearcoatNormalMapPath(), "clearcoatNormalMap", samplers));
 	}
 	if (m.hasIridescenceMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Iridescence);
+		const Material::Texture& tex = m.texture(Material::TextureType::Iridescence);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setIridescenceTextureId(resolveTexturePath(m.iridescenceMap(), "iridescenceMap", samplers));
 	}
 	if (m.hasIridescenceThicknessMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::IridescenceThickness);
+		const Material::Texture& tex = m.texture(Material::TextureType::IridescenceThickness);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setIridescenceThicknessTextureId(resolveTexturePath(m.iridescenceThicknessMap(), "iridescenceThicknessMap", samplers));
 	}
 	if (m.hasSpecularColorMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::SpecularColor);
+		const Material::Texture& tex = m.texture(Material::TextureType::SpecularColor);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setSpecularColorTextureId(resolveTexturePath(m.specularColorMap(), "specularColorMap", samplers));
 	}
 	if (m.hasSpecularFactorMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::SpecularFactor);
+		const Material::Texture& tex = m.texture(Material::TextureType::SpecularFactor);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setSpecularFactorTextureId(resolveTexturePath(m.specularFactorMap(), "specularFactorMap", samplers));
 	}
 	if (m.hasAnisotropyMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Anisotropy);
+		const Material::Texture& tex = m.texture(Material::TextureType::Anisotropy);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setAnisotropyTextureId(resolveTexturePath(m.anisotropyMap(), "anisotropyMap", samplers));
 	}
 	if (m.hasThicknessMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Thickness);
+		const Material::Texture& tex = m.texture(Material::TextureType::Thickness);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setThicknessTextureId(resolveTexturePath(m.thicknessMap(), "thicknessMap", samplers));
 	}
 	if (m.hasDiffuseMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Diffuse);
+		const Material::Texture& tex = m.texture(Material::TextureType::Diffuse);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setDiffuseTextureId(resolveTexturePath(m.diffuseMap(), "diffuseMap", samplers));
 	}
 	if (m.hasDiffuseTransmissionMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::DiffuseTransmission);
+		const Material::Texture& tex = m.texture(Material::TextureType::DiffuseTransmission);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setDiffuseTransmissionTextureId(resolveTexturePath(m.diffuseTransmissionMap(), "diffuseTransmissionMap", samplers));
 	}
 	if (m.hasDiffuseTransmissionColorMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::DiffuseTransmissionColor);
+		const Material::Texture& tex = m.texture(Material::TextureType::DiffuseTransmissionColor);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setDiffuseTransmissionColorTextureId(resolveTexturePath(m.diffuseTransmissionColorMap(), "diffuseTransmissionColorMap", samplers));
 	}
 	if (m.hasSpecularGlossinessMap())
 	{
-		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::SpecularGlossiness);
+		const Material::Texture& tex = m.texture(Material::TextureType::SpecularGlossiness);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
 		m.setSpecularGlossinessTextureId(resolveTexturePath(m.specularGlossinessMap(), "specularGlossinessMap", samplers));
 	}
@@ -10000,7 +10000,7 @@ void GLWidget::generateCubemapMipmaps(GLuint cubemapTexture)
 
 
 
-void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topColor, const QColor& botColor)
+void GLWidget::renderToTransmissionBuffer(Camera* camera, const QColor& topColor, const QColor& botColor)
 {
 	if (!_renderCtrl.transmissionEnabled())
 		return;
@@ -10119,7 +10119,7 @@ void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topCol
 // The result in _renderCtrl.sssCaptureTexture() feeds the blur passes in Sequence 4.
 // ============================================================================
 
-void GLWidget::renderToSSSBuffer(GLCamera* camera)
+void GLWidget::renderToSSSBuffer(Camera* camera)
 {
 	if (!sceneHasVisibleSSSMaterials())
 		return;
@@ -10539,17 +10539,17 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 			setSectionCapsInteractionSuppressed(true);
 			QPoint rotate = _viewCtrl.leftButtonPoint() - downPoint;
 
-			if (_primaryCamera->getMode() == GLCamera::CameraMode::Orbit)
+			if (_primaryCamera->getMode() == Camera::CameraMode::Orbit)
 			{
 				_primaryCamera->rotateX(rotate.y() / 2.0);
 				_primaryCamera->rotateY(rotate.x() / 2.0);
 			}
-			else if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly || _primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+			else if (_primaryCamera->getMode() == Camera::CameraMode::Fly || _primaryCamera->getMode() == Camera::CameraMode::FirstPerson)
 			{
 				_primaryCamera->getYaw() += rotate.x() * 0.2f;
 				_primaryCamera->getPitch() += rotate.y() * 0.2f;
 
-				if (_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+				if (_primaryCamera->getMode() == Camera::CameraMode::FirstPerson)
 					_primaryCamera->getPitch() = std::clamp(_primaryCamera->getPitch(), -60.0f, 60.0f);
 				else
 					_primaryCamera->getPitch() = std::clamp(_primaryCamera->getPitch(), -89.0f, 89.0f);
@@ -10574,8 +10574,8 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		update();
 	}
 	else if (e->buttons() == Qt::RightButton && !(e->modifiers() & Qt::ControlModifier) &&
-		(_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
-		 _primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson) &&
+		(_primaryCamera->getMode() == Camera::CameraMode::Fly ||
+		 _primaryCamera->getMode() == Camera::CameraMode::FirstPerson) &&
 		!isGltfCameraActive())
 	{
 		// Free-look in Fly/FP mode: RMB drag rotates the view via yaw/pitch
@@ -10583,7 +10583,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		_primaryCamera->getYaw()   += look.x() * 0.2f;
 		_primaryCamera->getPitch() += look.y() * 0.2f;
 
-		if (_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+		if (_primaryCamera->getMode() == Camera::CameraMode::FirstPerson)
 			_primaryCamera->getPitch() = std::clamp(_primaryCamera->getPitch(), -60.0f, 60.0f);
 		else
 			_primaryCamera->getPitch() = std::clamp(_primaryCamera->getPitch(), -89.0f, 89.0f);
@@ -10645,7 +10645,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		// distance stays outside whatever mesh is currently fully in view.
 		// As the user zooms in, large meshes leave the frustum and the floor
 		// shrinks automatically to match the focused geometry.
-		// Ortho: the near/far floor in GLCamera handles tearing without any
+		// Ortho: the near/far floor in Camera handles tearing without any
 		// zoom restriction, so only a minimal absolute floor is applied.
 		updateZoomInLimit();
 		const float focusRadius = _viewCtrl.zoomInLimit();
@@ -10796,8 +10796,8 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 		_renderCtrl.setLowResEnabled(true);
 	setSectionCapsInteractionSuppressed(true);
 
-	if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
-		_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+	if (_primaryCamera->getMode() == Camera::CameraMode::Fly ||
+		_primaryCamera->getMode() == Camera::CameraMode::FirstPerson)
 	{
 		QPoint numDegrees = e->angleDelta() / 8;
 		QPoint numSteps = numDegrees / 30;
@@ -10900,9 +10900,9 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
 		_keys.insert(key);
 
 	// Camera mode switching
-	if (key == Qt::Key_1) setCameraMode(GLCamera::CameraMode::Orbit);
-	if (key == Qt::Key_2) setCameraMode(GLCamera::CameraMode::Fly);
-	if (key == Qt::Key_3) setCameraMode(GLCamera::CameraMode::FirstPerson);
+	if (key == Qt::Key_1) setCameraMode(Camera::CameraMode::Orbit);
+	if (key == Qt::Key_2) setCameraMode(Camera::CameraMode::Fly);
+	if (key == Qt::Key_3) setCameraMode(Camera::CameraMode::FirstPerson);
 
 
 	update();
@@ -10931,9 +10931,9 @@ void GLWidget::performKeyboardNav()
 			factor *= 3.0f;
 
 		// https://forum.qt.io/topic/28327/big-issue-with-qt-key-inputs-for-gaming/4
-		if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly || _primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+		if (_primaryCamera->getMode() == Camera::CameraMode::Fly || _primaryCamera->getMode() == Camera::CameraMode::FirstPerson)
 		{
-			const bool firstPerson = _primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson;
+			const bool firstPerson = _primaryCamera->getMode() == Camera::CameraMode::FirstPerson;
 			if (firstPerson)
 			{
 				if (_keys.contains(Qt::Key_W) || _keys.contains(Qt::Key_Up))
@@ -10974,8 +10974,8 @@ void GLWidget::performKeyboardNav()
 				_primaryCamera->moveUpward(factor);
 		}
 
-		if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
-			_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+		if (_primaryCamera->getMode() == Camera::CameraMode::Fly ||
+			_primaryCamera->getMode() == Camera::CameraMode::FirstPerson)
 		{
 			bool updatedLook = false;
 			if (_keys.contains(Qt::Key_J))
@@ -11001,7 +11001,7 @@ void GLWidget::performKeyboardNav()
 
 			if (updatedLook)
 			{
-				const float pitchLimit = (_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson) ? 60.0f : 89.0f;
+				const float pitchLimit = (_primaryCamera->getMode() == Camera::CameraMode::FirstPerson) ? 60.0f : 89.0f;
 				_primaryCamera->getPitch() = std::clamp(_primaryCamera->getPitch(), -pitchLimit, pitchLimit);
 				_primaryCamera->updateFlyView();
 			}
@@ -11023,7 +11023,7 @@ void GLWidget::performKeyboardNav()
 		}
 		if (_keys.contains(Qt::Key_X) || _keys.contains(Qt::Key_Z))
 		{
-			if(_primaryCamera->getMode() == GLCamera::CameraMode::Orbit)
+			if(_primaryCamera->getMode() == Camera::CameraMode::Orbit)
 			{
 				// Zoom only if Orbit camera mode
 				if (_keys.contains(Qt::Key_X))
@@ -11198,12 +11198,12 @@ void GLWidget::onInertiaTimer()
 
 	// --- Rotation inertia ---
 	if (_viewCtrl.inertiaRotateVelocity().lengthSquared() > 0.01f) {
-		if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
-		    _primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+		if (_primaryCamera->getMode() == Camera::CameraMode::Fly ||
+		    _primaryCamera->getMode() == Camera::CameraMode::FirstPerson)
 		{
 			_primaryCamera->getYaw()   += _viewCtrl.inertiaRotateVelocity().x() / 2.0f;
 			_primaryCamera->getPitch() += _viewCtrl.inertiaRotateVelocity().y() / 2.0f;
-			if (_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+			if (_primaryCamera->getMode() == Camera::CameraMode::FirstPerson)
 				_primaryCamera->getPitch() = std::clamp(_primaryCamera->getPitch(), -60.0f, 60.0f);
 			else
 				_primaryCamera->getPitch() = std::clamp(_primaryCamera->getPitch(), -89.0f, 89.0f);
@@ -11243,7 +11243,7 @@ void GLWidget::stopAnimations()
 // Note: convertClickToRay is now implemented in SelectionManager
 // Keeping getViewportFromPoint and getClientRectFromPoint as they're still used by GLWidget
 
-GLCamera* GLWidget::getCameraForPoint(const QPoint& pixel)
+Camera* GLWidget::getCameraForPoint(const QPoint& pixel)
 {
 	if (!_viewCtrl.multiViewActive())
 		return _primaryCamera;
@@ -11303,11 +11303,11 @@ QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, c
 
 	const QPoint clampedStart = clampPointToRect(safeStart, clientRect);
 	const QPoint clampedEnd = clampPointToRect(clampPointToRect(end, widgetRect), clientRect);
-	GLCamera* camera = _viewCtrl.multiViewActive() && (viewport.x() != viewport.width() || viewport.y() != 0)
+	Camera* camera = _viewCtrl.multiViewActive() && (viewport.x() != viewport.width() || viewport.y() != 0)
 		? _orthoViewsCamera
 		: _primaryCamera;
 
-	QVector3D viewCenter = (camera->getMode() == GLCamera::CameraMode::Orbit)
+	QVector3D viewCenter = (camera->getMode() == Camera::CameraMode::Orbit)
 		? camera->getPosition()
 		: _viewCtrl.boundingSphere().getCenter();
 	// Get view and projection matrices
@@ -11315,7 +11315,7 @@ QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, c
 	QMatrix4x4 projection = camera->getProjectionMatrix();
 	QMatrix4x4 inv = (projection * view).inverted();
 
-	if (camera->getProjectionType() == GLCamera::ProjectionType::ORTHOGRAPHIC) {
+	if (camera->getProjectionType() == Camera::ProjectionType::ORTHOGRAPHIC) {
 		const float viewRange = std::max(camera->getViewRange(), 0.0001f);
 		const float viewportWidth = static_cast<float>(std::max(viewport.width(), 1));
 		const float viewportHeight = static_cast<float>(std::max(viewport.height(), 1));
@@ -11758,7 +11758,7 @@ void GLWidget::configureOrthoSubviewCamera(
 	_orthoViewsCamera->setScreenSize(viewportWidth, viewportHeight);
 	_orthoViewsCamera->setViewRange(sharedViewRange);
 	_orthoViewsCamera->setSceneRadius(_viewCtrl.boundingSphere().getRadius());
-	_orthoViewsCamera->setProjectionType(GLCamera::ProjectionType::ORTHOGRAPHIC);
+	_orthoViewsCamera->setProjectionType(Camera::ProjectionType::ORTHOGRAPHIC);
 	_orthoViewsCamera->setView(sharedCenter, viewDir, upDir, rightDir);
 }
 
@@ -11962,8 +11962,8 @@ void GLWidget::animateToRotation(const QQuaternion& targetRotation)
 	_viewCtrl.setViewRange(_viewCtrl.viewRange() - scaleStep);
 
 	QVector3D curPos;
-	if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
-		_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+	if (_primaryCamera->getMode() == Camera::CameraMode::Fly ||
+		_primaryCamera->getMode() == Camera::CameraMode::FirstPerson)
 	{
 		QMatrix4x4 targetRotMat(targetRotation.toRotationMatrix());
 		QVector3D targetViewDir = -targetRotMat.row(2).toVector3D().normalized();
@@ -11980,16 +11980,16 @@ void GLWidget::animateToRotation(const QQuaternion& targetRotation)
 	}
 
 	_primaryCamera->setView(curPos, viewDir, upDir, rightDir);
-	if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
-		_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+	if (_primaryCamera->getMode() == Camera::CameraMode::Fly ||
+		_primaryCamera->getMode() == Camera::CameraMode::FirstPerson)
 	{
 		_primaryCamera->setYawPitchFromViewDir();
 	}
 
 	if (qFuzzyCompare(_viewCtrl.slerpStep(), 1.0f))
 	{
-		if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
-			_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+		if (_primaryCamera->getMode() == Camera::CameraMode::Fly ||
+			_primaryCamera->getMode() == Camera::CameraMode::FirstPerson)
 		{
 			QMatrix4x4 targetRotMat(targetRotation.toRotationMatrix());
 			QVector3D targetViewDir = -targetRotMat.row(2).toVector3D().normalized();
@@ -12638,9 +12638,9 @@ static std::vector<unsigned int> readUIntStream(const QByteArray& chunk,
     return result;
 }
 
-// Apply a texture info JSON object to the right GLMaterial path setter.
-static void applyTextureRef(GLMaterial& mat,
-                             GLMaterial::TextureType type,
+// Apply a texture info JSON object to the right Material path setter.
+static void applyTextureRef(Material& mat,
+                             Material::TextureType type,
                              const QJsonObject& texInfo,
                              const QHash<int, QString>& imagePaths,
                              const QJsonArray& textures,
@@ -12658,35 +12658,35 @@ static void applyTextureRef(GLMaterial& mat,
 
     switch (type)
     {
-    case GLMaterial::TextureType::Albedo:                   mat.setAlbedoMap(path); break;
-    case GLMaterial::TextureType::Normal:                   mat.setNormalMap(path); break;
-    case GLMaterial::TextureType::AmbientOcclusion:         mat.setAOMap(path); break;
-    case GLMaterial::TextureType::Emissive:                 mat.setEmissiveMap(path); break;
-    case GLMaterial::TextureType::Metallic:                 mat.setMetallicMap(path); break;
-    case GLMaterial::TextureType::Roughness:                mat.setRoughnessMap(path); break;
-    case GLMaterial::TextureType::Transmission:             mat.setTransmissionMap(path); break;
-    case GLMaterial::TextureType::IOR:                      mat.setIORMap(path); break;
-    case GLMaterial::TextureType::SheenColor:               mat.setSheenColorMap(path); break;
-    case GLMaterial::TextureType::SheenRoughness:           mat.setSheenRoughnessMap(path); break;
-    case GLMaterial::TextureType::ClearcoatColor:           mat.setClearcoatColorMap(path); break;
-    case GLMaterial::TextureType::ClearcoatRoughness:       mat.setClearcoatRoughnessMap(path); break;
-    case GLMaterial::TextureType::ClearcoatNormal:          mat.setClearcoatNormalMap(path); break;
-    case GLMaterial::TextureType::Iridescence:              mat.setIridescenceMap(path); break;
-    case GLMaterial::TextureType::IridescenceThickness:     mat.setIridescenceThicknessMap(path); break;
-    case GLMaterial::TextureType::SpecularFactor:           mat.setSpecularFactorMap(path); break;
-    case GLMaterial::TextureType::SpecularColor:            mat.setSpecularColorMap(path); break;
-    case GLMaterial::TextureType::Anisotropy:               mat.setAnisotropyMap(path); break;
-    case GLMaterial::TextureType::Thickness:                mat.setThicknessMap(path); break;
-    case GLMaterial::TextureType::Diffuse:                  mat.setDiffuseMap(path); break;
-    case GLMaterial::TextureType::DiffuseTransmission:      mat.setDiffuseTransmissionMap(path); break;
-    case GLMaterial::TextureType::DiffuseTransmissionColor: mat.setDiffuseTransmissionColorMap(path); break;
-    case GLMaterial::TextureType::SpecularGlossiness:       mat.setSpecularGlossinessMap(path); break;
-    case GLMaterial::TextureType::Opacity:                  mat.setOpacityMap(path); break;
-    case GLMaterial::TextureType::Height:                   mat.setHeightMap(path); break;
+    case Material::TextureType::Albedo:                   mat.setAlbedoMap(path); break;
+    case Material::TextureType::Normal:                   mat.setNormalMap(path); break;
+    case Material::TextureType::AmbientOcclusion:         mat.setAOMap(path); break;
+    case Material::TextureType::Emissive:                 mat.setEmissiveMap(path); break;
+    case Material::TextureType::Metallic:                 mat.setMetallicMap(path); break;
+    case Material::TextureType::Roughness:                mat.setRoughnessMap(path); break;
+    case Material::TextureType::Transmission:             mat.setTransmissionMap(path); break;
+    case Material::TextureType::IOR:                      mat.setIORMap(path); break;
+    case Material::TextureType::SheenColor:               mat.setSheenColorMap(path); break;
+    case Material::TextureType::SheenRoughness:           mat.setSheenRoughnessMap(path); break;
+    case Material::TextureType::ClearcoatColor:           mat.setClearcoatColorMap(path); break;
+    case Material::TextureType::ClearcoatRoughness:       mat.setClearcoatRoughnessMap(path); break;
+    case Material::TextureType::ClearcoatNormal:          mat.setClearcoatNormalMap(path); break;
+    case Material::TextureType::Iridescence:              mat.setIridescenceMap(path); break;
+    case Material::TextureType::IridescenceThickness:     mat.setIridescenceThicknessMap(path); break;
+    case Material::TextureType::SpecularFactor:           mat.setSpecularFactorMap(path); break;
+    case Material::TextureType::SpecularColor:            mat.setSpecularColorMap(path); break;
+    case Material::TextureType::Anisotropy:               mat.setAnisotropyMap(path); break;
+    case Material::TextureType::Thickness:                mat.setThicknessMap(path); break;
+    case Material::TextureType::Diffuse:                  mat.setDiffuseMap(path); break;
+    case Material::TextureType::DiffuseTransmission:      mat.setDiffuseTransmissionMap(path); break;
+    case Material::TextureType::DiffuseTransmissionColor: mat.setDiffuseTransmissionColorMap(path); break;
+    case Material::TextureType::SpecularGlossiness:       mat.setSpecularGlossinessMap(path); break;
+    case Material::TextureType::Opacity:                  mat.setOpacityMap(path); break;
+    case Material::TextureType::Height:                   mat.setHeightMap(path); break;
     default: return;
     }
 
-    GLMaterial::Texture tex = mat.texture(type);
+    Material::Texture tex = mat.texture(type);
     tex.path = path.toStdString();
     tex.texCoordIndex = texInfo[QStringLiteral("texCoord")].toInt(0);
 
@@ -12719,8 +12719,8 @@ static void applyTextureRef(GLMaterial& mat,
     mat.setTexture(type, tex);
 }
 
-// Reconstruct a GLMaterial from an MVF3 material JSON object.
-static GLMaterial reconstructMvfMaterial(const QJsonObject& matObj,
+// Reconstruct a Material from an MVF3 material JSON object.
+static Material reconstructMvfMaterial(const QJsonObject& matObj,
                                          const QHash<int, QString>& imagePaths,
                                          const QJsonArray& textures,
                                          const QJsonArray& samplers)
@@ -12730,25 +12730,25 @@ static GLMaterial reconstructMvfMaterial(const QJsonObject& matObj,
     const bool hasRuntimeMaterial =
         !exts[QStringLiteral("MVF_material_runtime")].toObject().isEmpty();
 
-    GLMaterial mat = hasRuntimeMaterial
-        ? GLMaterial::fromVariantMap(exts[QStringLiteral("MVF_material_runtime")].toObject().toVariantMap())
-        : GLMaterial();
+    Material mat = hasRuntimeMaterial
+        ? Material::fromVariantMap(exts[QStringLiteral("MVF_material_runtime")].toObject().toVariantMap())
+        : Material();
     mat.setName(materialName);
 
     if (!hasRuntimeMaterial)
     {
         const QString shadingModel = matObj[QStringLiteral("shadingModel")].toString();
-        if      (shadingModel == QLatin1String("PBR"))        mat.setShadingModel(GLMaterial::ShadingModel::PBR);
-        else if (shadingModel == QLatin1String("BlinnPhong")) mat.setShadingModel(GLMaterial::ShadingModel::BlinnPhong);
-        else if (shadingModel == QLatin1String("Unlit"))      mat.setShadingModel(GLMaterial::ShadingModel::Unlit);
-        else if (shadingModel == QLatin1String("Toon"))       mat.setShadingModel(GLMaterial::ShadingModel::Toon);
+        if      (shadingModel == QLatin1String("PBR"))        mat.setShadingModel(Material::ShadingModel::PBR);
+        else if (shadingModel == QLatin1String("BlinnPhong")) mat.setShadingModel(Material::ShadingModel::BlinnPhong);
+        else if (shadingModel == QLatin1String("Unlit"))      mat.setShadingModel(Material::ShadingModel::Unlit);
+        else if (shadingModel == QLatin1String("Toon"))       mat.setShadingModel(Material::ShadingModel::Toon);
 
         const QString blendMode = matObj[QStringLiteral("blendMode")].toString();
-        if      (blendMode == QLatin1String("Opaque"))   mat.setBlendMode(GLMaterial::BlendMode::Opaque);
-        else if (blendMode == QLatin1String("Masked"))   mat.setBlendMode(GLMaterial::BlendMode::Masked);
-        else if (blendMode == QLatin1String("Alpha"))    mat.setBlendMode(GLMaterial::BlendMode::Alpha);
-        else if (blendMode == QLatin1String("Additive")) mat.setBlendMode(GLMaterial::BlendMode::Additive);
-        else if (blendMode == QLatin1String("Multiply")) mat.setBlendMode(GLMaterial::BlendMode::Multiply);
+        if      (blendMode == QLatin1String("Opaque"))   mat.setBlendMode(Material::BlendMode::Opaque);
+        else if (blendMode == QLatin1String("Masked"))   mat.setBlendMode(Material::BlendMode::Masked);
+        else if (blendMode == QLatin1String("Alpha"))    mat.setBlendMode(Material::BlendMode::Alpha);
+        else if (blendMode == QLatin1String("Additive")) mat.setBlendMode(Material::BlendMode::Additive);
+        else if (blendMode == QLatin1String("Multiply")) mat.setBlendMode(Material::BlendMode::Multiply);
 
         mat.setTwoSided(matObj[QStringLiteral("doubleSided")].toBool(false));
         mat.setAlphaThreshold((float)matObj[QStringLiteral("alphaCutoff")].toDouble(0.5));
@@ -12797,32 +12797,32 @@ static GLMaterial reconstructMvfMaterial(const QJsonObject& matObj,
             mat.setSheenRoughness((float)mvfPbr[QStringLiteral("sheenRoughness")].toDouble(0.0));
         }
 
-        static const struct { const char* key; GLMaterial::TextureType type; } kTexKeys[] = {
-            {"baseColorTexture",                GLMaterial::TextureType::Albedo},
-            {"normalTexture",                   GLMaterial::TextureType::Normal},
-            {"occlusionTexture",                GLMaterial::TextureType::AmbientOcclusion},
-            {"emissiveTexture",                 GLMaterial::TextureType::Emissive},
-            {"metallicTexture",                 GLMaterial::TextureType::Metallic},
-            {"roughnessTexture",                GLMaterial::TextureType::Roughness},
-            {"transmissionTexture",             GLMaterial::TextureType::Transmission},
-            {"iorTexture",                      GLMaterial::TextureType::IOR},
-            {"sheenColorTexture",               GLMaterial::TextureType::SheenColor},
-            {"sheenRoughnessTexture",           GLMaterial::TextureType::SheenRoughness},
-            {"clearcoatTexture",                GLMaterial::TextureType::ClearcoatColor},
-            {"clearcoatRoughnessTexture",       GLMaterial::TextureType::ClearcoatRoughness},
-            {"clearcoatNormalTexture",          GLMaterial::TextureType::ClearcoatNormal},
-            {"iridescenceTexture",              GLMaterial::TextureType::Iridescence},
-            {"iridescenceThicknessTexture",     GLMaterial::TextureType::IridescenceThickness},
-            {"specularTexture",                 GLMaterial::TextureType::SpecularFactor},
-            {"specularColorTexture",            GLMaterial::TextureType::SpecularColor},
-            {"anisotropyTexture",               GLMaterial::TextureType::Anisotropy},
-            {"thicknessTexture",                GLMaterial::TextureType::Thickness},
-            {"diffuseTexture",                  GLMaterial::TextureType::Diffuse},
-            {"diffuseTransmissionTexture",      GLMaterial::TextureType::DiffuseTransmission},
-            {"diffuseTransmissionColorTexture", GLMaterial::TextureType::DiffuseTransmissionColor},
-            {"specularGlossinessTexture",       GLMaterial::TextureType::SpecularGlossiness},
-            {"opacityTexture",                  GLMaterial::TextureType::Opacity},
-            {"heightTexture",                   GLMaterial::TextureType::Height},
+        static const struct { const char* key; Material::TextureType type; } kTexKeys[] = {
+            {"baseColorTexture",                Material::TextureType::Albedo},
+            {"normalTexture",                   Material::TextureType::Normal},
+            {"occlusionTexture",                Material::TextureType::AmbientOcclusion},
+            {"emissiveTexture",                 Material::TextureType::Emissive},
+            {"metallicTexture",                 Material::TextureType::Metallic},
+            {"roughnessTexture",                Material::TextureType::Roughness},
+            {"transmissionTexture",             Material::TextureType::Transmission},
+            {"iorTexture",                      Material::TextureType::IOR},
+            {"sheenColorTexture",               Material::TextureType::SheenColor},
+            {"sheenRoughnessTexture",           Material::TextureType::SheenRoughness},
+            {"clearcoatTexture",                Material::TextureType::ClearcoatColor},
+            {"clearcoatRoughnessTexture",       Material::TextureType::ClearcoatRoughness},
+            {"clearcoatNormalTexture",          Material::TextureType::ClearcoatNormal},
+            {"iridescenceTexture",              Material::TextureType::Iridescence},
+            {"iridescenceThicknessTexture",     Material::TextureType::IridescenceThickness},
+            {"specularTexture",                 Material::TextureType::SpecularFactor},
+            {"specularColorTexture",            Material::TextureType::SpecularColor},
+            {"anisotropyTexture",               Material::TextureType::Anisotropy},
+            {"thicknessTexture",                Material::TextureType::Thickness},
+            {"diffuseTexture",                  Material::TextureType::Diffuse},
+            {"diffuseTransmissionTexture",      Material::TextureType::DiffuseTransmission},
+            {"diffuseTransmissionColorTexture", Material::TextureType::DiffuseTransmissionColor},
+            {"specularGlossinessTexture",       Material::TextureType::SpecularGlossiness},
+            {"opacityTexture",                  Material::TextureType::Opacity},
+            {"heightTexture",                   Material::TextureType::Height},
         };
 
         for (const auto& entry : kTexKeys)
@@ -12920,7 +12920,7 @@ bool GLWidget::uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& meshes)
         if (!pm.occEdgeSegments.empty())
             mesh->setPrecomputedOccEdges(pm.occEdgeSegments, pm.occEdgeBoundaries);
 
-        const GLMaterial resolved = resolveMaterialTextures(this, pm.material);
+        const Material resolved = resolveMaterialTextures(this, pm.material);
         mesh->setMaterial(resolved);
         mesh->setTextureMaps(resolved);
         mesh->invertOpacityADSMap(resolved.isOpacityMapInverted());
@@ -13010,7 +13010,7 @@ void GLWidget::uploadOneMvfMesh(const PreparedMvfMesh& pm)
         mesh->setPrecomputedOccEdges(pm.occEdgeSegments, pm.occEdgeBoundaries);
 
     // Resolve textures and set material
-    const GLMaterial resolved = resolveMaterialTextures(this, pm.material);
+    const Material resolved = resolveMaterialTextures(this, pm.material);
     mesh->setMaterial(resolved);
     mesh->setTextureMaps(resolved);
     mesh->invertOpacityADSMap(resolved.isOpacityMapInverted());
@@ -13473,7 +13473,7 @@ void GLWidget::requestTextureReadback(int meshId)
 	makeCurrent();
 
 	SceneMesh*    mesh    = _sceneRuntime.meshAt(meshId);
-	const GLMaterial& mat    = mesh->getMaterial();
+	const Material& mat    = mesh->getMaterial();
 	const QString    meshName = mesh->getName();
 
 	// baseColorTex mirrors the logic in RenderableMesh::setupTextures() so the

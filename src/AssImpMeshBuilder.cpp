@@ -9,8 +9,8 @@ SceneMesh* AssImpMeshBuilder::build(const AssImpMeshData& meshData,
                                     QOpenGLShaderProgram* shader,
                                     GLWidget* gl)
 {
-    std::vector<GLMaterial::Texture> textures = meshData.textures;
-    for (GLMaterial::Texture& texture : textures)
+    std::vector<Material::Texture> textures = meshData.textures;
+    for (Material::Texture& texture : textures)
     {
         const QString originalPath = QString::fromStdString(texture.path);
 
@@ -43,8 +43,8 @@ SceneMesh* AssImpMeshBuilder::build(const AssImpMeshData& meshData,
         }
     }
 
-    GLMaterial resolvedMaterial = meshData.material;
-    for (const GLMaterial::Texture& texture : textures)
+    Material resolvedMaterial = meshData.material;
+    for (const Material::Texture& texture : textures)
     {
         const QString texturePath = QString::fromStdString(texture.path);
         if (texture.type == "albedoMap" || texture.type == "texture_diffuse")
@@ -204,7 +204,7 @@ SceneMesh* AssImpMeshBuilder::build(const AssImpMeshData& meshData,
         mesh->setAllVariantMaterials(meshData.allVariantMaterials);
     }
 
-    GLMaterial runtimeResolved = GLWidget::resolveMaterialTextures(gl, mesh->getMaterial());
+    Material runtimeResolved = GLWidget::resolveMaterialTextures(gl, mesh->getMaterial());
     mesh->setMaterial(runtimeResolved);
     mesh->setTextureMaps(runtimeResolved);
     mesh->invertOpacityADSMap(runtimeResolved.isOpacityMapInverted());

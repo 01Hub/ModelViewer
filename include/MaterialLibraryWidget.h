@@ -1,6 +1,6 @@
 #pragma once
 #include <QTreeWidget>
-#include "GLMaterial.h"
+#include "Material.h"
 #include <QList>
 #include <QMap>
 #include <QVector>
@@ -33,7 +33,7 @@ public:
     static bool saveUserMaterialToUserLocation(const QString& groupLabel,
         const QString& key,
         const QString& name,
-        const GLMaterial& mat,
+        const Material& mat,
         QWidget* parent = nullptr,
         QString* err = nullptr);
 
@@ -53,7 +53,7 @@ public:
 
 
     // Accessors for read-only shared data (optional)
-    static const QMap<QString, std::function<GLMaterial()>>& sharedMaterialMap() { return s_materialMap; }
+    static const QMap<QString, std::function<Material()>>& sharedMaterialMap() { return s_materialMap; }
     static const QVector<QPair<QString, QVector<QPair<QString, QString>>>>& sharedGroups() { return s_groups; }
 
     // Get the user materials root directory path
@@ -64,8 +64,8 @@ public:
 	void refreshMaterialTree() { populateMaterials(); }
 
 signals:
-    void materialPreview(const GLMaterial& mat);
-    void materialSelected(const GLMaterial &mat);
+    void materialPreview(const Material& mat);
+    void materialSelected(const Material &mat);
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
@@ -76,14 +76,14 @@ private slots:
 
 private:
     static QVector<QPair<QString, QVector<QPair<QString, QString>>>> populateMaterialMapWithBuiltIns(
-        QMap<QString, std::function<GLMaterial()>>& materialMap);
+        QMap<QString, std::function<Material()>>& materialMap);
 
 public:
     // keys that came from user's file (for quick checks)
     static QSet<QString> s_userMaterialKeys;
 private:
     // static storage
-    static QMap<QString, std::function<GLMaterial()>> s_materialMap;
+    static QMap<QString, std::function<Material()>> s_materialMap;
     // Groups: vector of (groupLabel, vector of (displayName, key))
     static QVector<QPair<QString, QVector<QPair<QString, QString>>>> s_groups;
 

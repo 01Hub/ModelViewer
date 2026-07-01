@@ -72,7 +72,7 @@ bool SceneMesh::_currentUniformStateHadDebugOverrides = false;
 
 /*  Functions  */
 // Constructor
-SceneMesh::SceneMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<GLMaterial::Texture> textures, GLMaterial material, bool skipOptimization, GLenum primitiveMode)
+SceneMesh::SceneMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<Material::Texture> textures, Material material, bool skipOptimization, GLenum primitiveMode)
     : RenderableMesh(shader, "SceneMesh")
     , _textures(_materialState.textures())
     , _currentMorphWeights(_animState.currentMorphWeights())
@@ -104,7 +104,7 @@ SceneMesh::~SceneMesh()
 {
 	/*if (_textures.size())
 	{
-		for (const GLMaterial::Texture &t : _textures)
+		for (const Material::Texture &t : _textures)
 		{
 			glDeleteTextures(1, &t.id);
 		}
@@ -1263,7 +1263,7 @@ void SceneMesh::setRenderStateOptimized()
 		_material.hasOpacityMap() ||
 		_material.hasTransmissionMap() ||
 		_material.transmission() > 0.0f ||
-		_material.blendMode() == GLMaterial::BlendMode::Alpha ||
+		_material.blendMode() == Material::BlendMode::Alpha ||
 		_material.alphaThreshold() > 0.0f ||
 		_materialState.hasTextureAlpha();
 
@@ -1312,7 +1312,7 @@ void SceneMesh::syncTexturesFromMaterialIfNeeded()
 {
 	// If mesh already has explicit paths for textures, do nothing
 	bool hasAnyPath = false;
-	for (const GLMaterial::Texture& t : _textures)
+	for (const Material::Texture& t : _textures)
 	{
 		if (!QString::fromUtf8(t.path).isEmpty()) { hasAnyPath = true; break; }
 	}
@@ -1329,15 +1329,15 @@ void SceneMesh::syncTexturesFromMaterialIfNeeded()
 		if (path.isEmpty()) return;
 
 		// make path absolute attempt is caller's responsibility; we just store what material had.
-		GLMaterial::Texture t;
+		Material::Texture t;
 		t.id = 0;
 		t.type = outType;
 		t.path = path.toStdString();
 
 		// CRITICAL: Copy sampler values from material's texture array
 		// Find the matching texture type in material and copy its sampler settings
-		auto matTexType = GLMaterial::stringToTextureType(QString::fromStdString(outType));
-		if (matTexType != GLMaterial::TextureType::Count)
+		auto matTexType = Material::stringToTextureType(QString::fromStdString(outType));
+		if (matTexType != Material::TextureType::Count)
 		{
 			const auto& matTex = _material.texture(matTexType);
 			t.wrapS = matTex.wrapS;
@@ -1359,7 +1359,7 @@ void SceneMesh::syncTexturesFromMaterialIfNeeded()
 		_textures.push_back(t);
 		};
 
-	// Map GLMaterial variant keys -> mesh texture type strings used throughout SceneMesh
+	// Map Material variant keys -> mesh texture type strings used throughout SceneMesh
 	// (these type strings match the checks in setupMesh()/cacheTextureBindings)
 	pushIfPresent("albedoMapPath", "albedoMap");        // PBR albedo
 	pushIfPresent("normalMapPath", "normalMap");        // normal
@@ -1487,7 +1487,7 @@ vector<unsigned int> SceneMesh::indices() const
     return _indices;
 }
 
-vector<GLMaterial::Texture> SceneMesh::textures() const
+vector<Material::Texture> SceneMesh::textures() const
 {
     return _textures;
 }
@@ -1721,7 +1721,7 @@ void SceneMesh::setHeightPBRMap(unsigned int heightMap)
 void SceneMesh::setOpacityPBRMap(unsigned int opacityMap)
 {
 	_material.setOpacityTextureId(opacityMap);
-	_material.setBlendMode(GLMaterial::BlendMode::Alpha);
+	_material.setBlendMode(Material::BlendMode::Alpha);
 	replaceOrAppendTexture("opacityMap", opacityMap, true);
 	markTexturesDirty();
 	markUniformsDirty();
@@ -1981,7 +1981,7 @@ void SceneMesh::setOpacityADSMap(unsigned int opacityTex)
 {
 	_materialState.opacityADSMap() = opacityTex;
 	replaceOrAppendTexture("texture_opacity", opacityTex, true);
-	_material.setBlendMode(GLMaterial::BlendMode::Alpha);
+	_material.setBlendMode(Material::BlendMode::Alpha);
 	markTexturesDirty();
 	markUniformsDirty();
 }
@@ -2044,9 +2044,9 @@ void SceneMesh::clearAllADSMaps()
 	clearOpacityADSMap();
 }
 
-void SceneMesh::setTextureMaps(const GLMaterial& material)
+void SceneMesh::setTextureMaps(const Material& material)
 {
-	// Runtime-resolved GLMaterial instances can point at shared textures from
+	// Runtime-resolved Material instances can point at shared textures from
 	// GLWidget's cache. Sync to those ids without deleting or recreating them.
 	_material = material;
 	cacheBaseVolumeProperties();
@@ -2117,7 +2117,7 @@ void SceneMesh::replaceOrAppendTexture(const std::string& type, GLuint id, bool 
 			return;
 		}
 	}
-	GLMaterial::Texture t; t.id = id; t.type = type; t.hasAlpha = hasAlpha;
+	Material::Texture t; t.id = id; t.type = type; t.hasAlpha = hasAlpha;
 	_textures.push_back(t);
 }
 
@@ -2125,7 +2125,7 @@ void SceneMesh::removeTexturesByType(std::initializer_list<std::string> types)
 {
 	_textures.erase(
 		std::remove_if(_textures.begin(), _textures.end(),
-			[&](const GLMaterial::Texture& texture)
+			[&](const Material::Texture& texture)
 			{
 				return std::find(types.begin(), types.end(), texture.type) != types.end();
 			}),

@@ -36,7 +36,7 @@
 #include <XCAFDoc_Location.hxx>
 #include <XCAFDoc_ShapeTool.hxx>
 
-#include "GLLights.h"
+#include "PunctualLights.h"
 #include "GltfAnimationData.h"
 #include "GltfCameraData.h"
 #include "GltfVariantData.h"
@@ -100,8 +100,8 @@ struct AssImpMeshData
 	QString name;
 	std::vector<Vertex> vertices;
 	std::vector<unsigned int> indices;
-	std::vector<GLMaterial::Texture> textures;
-	GLMaterial material;
+	std::vector<Material::Texture> textures;
+	Material material;
 	GLenum primitiveMode = GL_TRIANGLES;
 	bool hasNegativeScale = false;
 	// Index of this mesh in aiScene::mMeshes[] at load time.
@@ -123,10 +123,10 @@ struct AssImpMeshData
 	// Empty when the source file has no variant extension.
 	QVector<GltfVariantMapping> variantMappings;
 
-	// Pre-built GLMaterial for every material index referenced by variants
+	// Pre-built Material for every material index referenced by variants
 	// (including the default material at key originalMaterialIndex).
 	// Populated during processMesh() so variant switching requires no I/O.
-	QMap<int, GLMaterial> allVariantMaterials;
+	QMap<int, Material> allVariantMaterials;
 
 	// Skinning support for animated glTF meshes.
 	QVector<GltfSkinJoint> skinJoints;

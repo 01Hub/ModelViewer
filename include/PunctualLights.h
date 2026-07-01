@@ -33,14 +33,14 @@ struct GPULight
 Q_DECLARE_METATYPE(GPULight)
 Q_DECLARE_METATYPE(std::vector<GPULight>)
 
-class GLLights : public QOpenGLFunctions_4_5_Core
+class PunctualLights : public QOpenGLFunctions_4_5_Core
 {
 public:
     static const int MAX_LIGHTS = 16;
     static const int LIGHT_UBO_BINDING = 3;
 
-    GLLights();
-    ~GLLights();
+    PunctualLights();
+    ~PunctualLights();
 
     // Set lights from parsed glTF (with transforms already applied)
     void setLights(const std::vector<GPULight>& lights);

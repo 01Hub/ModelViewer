@@ -20,7 +20,7 @@ void MaterialVizState::applyScaledVolumeProperties()
     _material.setAttenuationDistance(_baseAttenuationDistance);
 }
 
-const GLMaterial* MaterialVizState::materialForVariant(int variantIndex, int originalMaterialIndex) const
+const Material* MaterialVizState::materialForVariant(int variantIndex, int originalMaterialIndex) const
 {
     if (_variantMappings.isEmpty())
         return nullptr;

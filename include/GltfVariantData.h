@@ -19,7 +19,7 @@
 // These structures are populated by AssImpModelLoader::parseGltfVariants()
 // during import and stored in SceneGraph keyed by source file path.
 // SceneMesh holds a per-mesh copy of the mappings and a pre-built
-// GLMaterial for every material index referenced by its variants.
+// Material for every material index referenced by its variants.
 // ---------------------------------------------------------------------------
 
 // Mapping for one mesh primitive: which material index is used by which

@@ -1250,7 +1250,7 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	// Data to fill
 	vector<Vertex> vertices;
 	vector<unsigned int> indices;
-	vector<GLMaterial::Texture> textures;
+	vector<Material::Texture> textures;
 	
 	_needsUVGeneration = false;
 
@@ -1632,7 +1632,7 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	}
 
 	// Process materials
-	GLMaterial mat = GLMaterial::DEFAULT_MAT();
+	Material mat = Material::DEFAULT_MAT();
 	//if (mesh->mMaterialIndex != 0)
 
 	// DEBUG: Log the material index assignment
@@ -1750,7 +1750,7 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	}
 
 	// -----------------------------------------------------------------------
-	// KHR_materials_variants: pre-build GLMaterial for every variant material
+	// KHR_materials_variants: pre-build Material for every variant material
 	// referenced by this primitive.  We do this here, while the scene + JSON
 	// caches are warm, so variant switching at runtime requires no I/O.
 	// -----------------------------------------------------------------------
@@ -1773,8 +1773,8 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 			if (matIdx < 0 || matIdx >= static_cast<int>(scene->mNumMaterials))
 				continue;
 
-			GLMaterial varMat;
-			std::vector<GLMaterial::Texture> varTextures;
+			Material varMat;
+			std::vector<Material::Texture> varTextures;
 			_materialProcessor.processAssimpColorAndMaterial(scene->mMaterials[matIdx], varMat);
 
 			if (isGltf || isGlb)

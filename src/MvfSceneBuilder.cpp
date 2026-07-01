@@ -1,7 +1,7 @@
 #include "MvfSceneBuilder.h"
 
 #include "SceneMesh.h"
-#include "GLMaterial.h"
+#include "Material.h"
 #include "SceneGraph.h"
 #include "SceneNode.h"
 #include "TextureLocationManager.h"
@@ -43,102 +43,102 @@ QJsonArray matrixToJson(const aiMatrix4x4& m)
     };
 }
 
-QString shadingModelToString(GLMaterial::ShadingModel model)
+QString shadingModelToString(Material::ShadingModel model)
 {
     switch (model)
     {
-    case GLMaterial::ShadingModel::Unlit: return QStringLiteral("Unlit");
-    case GLMaterial::ShadingModel::BlinnPhong: return QStringLiteral("BlinnPhong");
-    case GLMaterial::ShadingModel::PBR: return QStringLiteral("PBR");
-    case GLMaterial::ShadingModel::Toon: return QStringLiteral("Toon");
+    case Material::ShadingModel::Unlit: return QStringLiteral("Unlit");
+    case Material::ShadingModel::BlinnPhong: return QStringLiteral("BlinnPhong");
+    case Material::ShadingModel::PBR: return QStringLiteral("PBR");
+    case Material::ShadingModel::Toon: return QStringLiteral("Toon");
     }
     return QStringLiteral("Unknown");
 }
 
-QString blendModeToString(GLMaterial::BlendMode mode)
+QString blendModeToString(Material::BlendMode mode)
 {
     switch (mode)
     {
-    case GLMaterial::BlendMode::Opaque: return QStringLiteral("Opaque");
-    case GLMaterial::BlendMode::Masked: return QStringLiteral("Masked");
-    case GLMaterial::BlendMode::Alpha: return QStringLiteral("Alpha");
-    case GLMaterial::BlendMode::Additive: return QStringLiteral("Additive");
-    case GLMaterial::BlendMode::Multiply: return QStringLiteral("Multiply");
+    case Material::BlendMode::Opaque: return QStringLiteral("Opaque");
+    case Material::BlendMode::Masked: return QStringLiteral("Masked");
+    case Material::BlendMode::Alpha: return QStringLiteral("Alpha");
+    case Material::BlendMode::Additive: return QStringLiteral("Additive");
+    case Material::BlendMode::Multiply: return QStringLiteral("Multiply");
     }
     return QStringLiteral("Unknown");
 }
 
-QString textureTypeKey(GLMaterial::TextureType type)
+QString textureTypeKey(Material::TextureType type)
 {
     switch (type)
     {
-    case GLMaterial::TextureType::Albedo: return QStringLiteral("baseColorTexture");
-    case GLMaterial::TextureType::Normal: return QStringLiteral("normalTexture");
-    case GLMaterial::TextureType::AmbientOcclusion: return QStringLiteral("occlusionTexture");
-    case GLMaterial::TextureType::Emissive: return QStringLiteral("emissiveTexture");
-    case GLMaterial::TextureType::Metallic: return QStringLiteral("metallicTexture");
-    case GLMaterial::TextureType::Roughness: return QStringLiteral("roughnessTexture");
-    case GLMaterial::TextureType::Transmission: return QStringLiteral("transmissionTexture");
-    case GLMaterial::TextureType::IOR: return QStringLiteral("iorTexture");
-    case GLMaterial::TextureType::SheenColor: return QStringLiteral("sheenColorTexture");
-    case GLMaterial::TextureType::SheenRoughness: return QStringLiteral("sheenRoughnessTexture");
-    case GLMaterial::TextureType::ClearcoatColor: return QStringLiteral("clearcoatTexture");
-    case GLMaterial::TextureType::ClearcoatRoughness: return QStringLiteral("clearcoatRoughnessTexture");
-    case GLMaterial::TextureType::ClearcoatNormal: return QStringLiteral("clearcoatNormalTexture");
-    case GLMaterial::TextureType::Iridescence: return QStringLiteral("iridescenceTexture");
-    case GLMaterial::TextureType::IridescenceThickness: return QStringLiteral("iridescenceThicknessTexture");
-    case GLMaterial::TextureType::SpecularFactor: return QStringLiteral("specularTexture");
-    case GLMaterial::TextureType::SpecularColor: return QStringLiteral("specularColorTexture");
-    case GLMaterial::TextureType::Anisotropy: return QStringLiteral("anisotropyTexture");
-    case GLMaterial::TextureType::DiffuseTransmission: return QStringLiteral("diffuseTransmissionTexture");
-    case GLMaterial::TextureType::DiffuseTransmissionColor: return QStringLiteral("diffuseTransmissionColorTexture");
-    case GLMaterial::TextureType::Thickness: return QStringLiteral("thicknessTexture");
-    case GLMaterial::TextureType::Diffuse: return QStringLiteral("diffuseTexture");
-    case GLMaterial::TextureType::SpecularGlossiness: return QStringLiteral("specularGlossinessTexture");
-    case GLMaterial::TextureType::Opacity: return QStringLiteral("opacityTexture");
-    case GLMaterial::TextureType::Height: return QStringLiteral("heightTexture");
-    case GLMaterial::TextureType::Count:
+    case Material::TextureType::Albedo: return QStringLiteral("baseColorTexture");
+    case Material::TextureType::Normal: return QStringLiteral("normalTexture");
+    case Material::TextureType::AmbientOcclusion: return QStringLiteral("occlusionTexture");
+    case Material::TextureType::Emissive: return QStringLiteral("emissiveTexture");
+    case Material::TextureType::Metallic: return QStringLiteral("metallicTexture");
+    case Material::TextureType::Roughness: return QStringLiteral("roughnessTexture");
+    case Material::TextureType::Transmission: return QStringLiteral("transmissionTexture");
+    case Material::TextureType::IOR: return QStringLiteral("iorTexture");
+    case Material::TextureType::SheenColor: return QStringLiteral("sheenColorTexture");
+    case Material::TextureType::SheenRoughness: return QStringLiteral("sheenRoughnessTexture");
+    case Material::TextureType::ClearcoatColor: return QStringLiteral("clearcoatTexture");
+    case Material::TextureType::ClearcoatRoughness: return QStringLiteral("clearcoatRoughnessTexture");
+    case Material::TextureType::ClearcoatNormal: return QStringLiteral("clearcoatNormalTexture");
+    case Material::TextureType::Iridescence: return QStringLiteral("iridescenceTexture");
+    case Material::TextureType::IridescenceThickness: return QStringLiteral("iridescenceThicknessTexture");
+    case Material::TextureType::SpecularFactor: return QStringLiteral("specularTexture");
+    case Material::TextureType::SpecularColor: return QStringLiteral("specularColorTexture");
+    case Material::TextureType::Anisotropy: return QStringLiteral("anisotropyTexture");
+    case Material::TextureType::DiffuseTransmission: return QStringLiteral("diffuseTransmissionTexture");
+    case Material::TextureType::DiffuseTransmissionColor: return QStringLiteral("diffuseTransmissionColorTexture");
+    case Material::TextureType::Thickness: return QStringLiteral("thicknessTexture");
+    case Material::TextureType::Diffuse: return QStringLiteral("diffuseTexture");
+    case Material::TextureType::SpecularGlossiness: return QStringLiteral("specularGlossinessTexture");
+    case Material::TextureType::Opacity: return QStringLiteral("opacityTexture");
+    case Material::TextureType::Height: return QStringLiteral("heightTexture");
+    case Material::TextureType::Count:
     default: return QString();
     }
 }
 
-QString texturePathForType(const GLMaterial& material, GLMaterial::TextureType type)
+QString texturePathForType(const Material& material, Material::TextureType type)
 {
     switch (type)
     {
-    case GLMaterial::TextureType::Albedo: return material.albedoMapPath();
-    case GLMaterial::TextureType::Normal: return material.normalMapPath();
-    case GLMaterial::TextureType::AmbientOcclusion: return material.aoMapPath();
-    case GLMaterial::TextureType::Emissive: return material.emissiveMapPath();
-    case GLMaterial::TextureType::Metallic: return material.metallicMapPath();
-    case GLMaterial::TextureType::Roughness: return material.roughnessMapPath();
-    case GLMaterial::TextureType::Transmission: return material.transmissionMapPath();
-    case GLMaterial::TextureType::IOR: return material.iorMapPath();
-    case GLMaterial::TextureType::SheenColor: return material.sheenColorMapPath();
-    case GLMaterial::TextureType::SheenRoughness: return material.sheenRoughnessMapPath();
-    case GLMaterial::TextureType::ClearcoatColor: return material.clearcoatColorMapPath();
-    case GLMaterial::TextureType::ClearcoatRoughness: return material.clearcoatRoughnessMapPath();
-    case GLMaterial::TextureType::ClearcoatNormal: return material.clearcoatNormalMapPath();
-    case GLMaterial::TextureType::Iridescence: return material.iridescenceMap();
-    case GLMaterial::TextureType::IridescenceThickness: return material.iridescenceThicknessMap();
-    case GLMaterial::TextureType::SpecularFactor: return material.specularFactorMap();
-    case GLMaterial::TextureType::SpecularColor: return material.specularColorMap();
-    case GLMaterial::TextureType::Anisotropy: return material.anisotropyMap();
-    case GLMaterial::TextureType::DiffuseTransmission: return material.diffuseTransmissionMap();
-    case GLMaterial::TextureType::DiffuseTransmissionColor: return material.diffuseTransmissionColorMap();
-    case GLMaterial::TextureType::Thickness: return material.thicknessMap();
-    case GLMaterial::TextureType::Diffuse: return material.diffuseMap();
-    case GLMaterial::TextureType::SpecularGlossiness: return material.specularGlossinessMap();
-    case GLMaterial::TextureType::Opacity: return material.opacityMapPath();
-    case GLMaterial::TextureType::Height: return material.heightMapPath();
-    case GLMaterial::TextureType::Count:
+    case Material::TextureType::Albedo: return material.albedoMapPath();
+    case Material::TextureType::Normal: return material.normalMapPath();
+    case Material::TextureType::AmbientOcclusion: return material.aoMapPath();
+    case Material::TextureType::Emissive: return material.emissiveMapPath();
+    case Material::TextureType::Metallic: return material.metallicMapPath();
+    case Material::TextureType::Roughness: return material.roughnessMapPath();
+    case Material::TextureType::Transmission: return material.transmissionMapPath();
+    case Material::TextureType::IOR: return material.iorMapPath();
+    case Material::TextureType::SheenColor: return material.sheenColorMapPath();
+    case Material::TextureType::SheenRoughness: return material.sheenRoughnessMapPath();
+    case Material::TextureType::ClearcoatColor: return material.clearcoatColorMapPath();
+    case Material::TextureType::ClearcoatRoughness: return material.clearcoatRoughnessMapPath();
+    case Material::TextureType::ClearcoatNormal: return material.clearcoatNormalMapPath();
+    case Material::TextureType::Iridescence: return material.iridescenceMap();
+    case Material::TextureType::IridescenceThickness: return material.iridescenceThicknessMap();
+    case Material::TextureType::SpecularFactor: return material.specularFactorMap();
+    case Material::TextureType::SpecularColor: return material.specularColorMap();
+    case Material::TextureType::Anisotropy: return material.anisotropyMap();
+    case Material::TextureType::DiffuseTransmission: return material.diffuseTransmissionMap();
+    case Material::TextureType::DiffuseTransmissionColor: return material.diffuseTransmissionColorMap();
+    case Material::TextureType::Thickness: return material.thicknessMap();
+    case Material::TextureType::Diffuse: return material.diffuseMap();
+    case Material::TextureType::SpecularGlossiness: return material.specularGlossinessMap();
+    case Material::TextureType::Opacity: return material.opacityMapPath();
+    case Material::TextureType::Height: return material.heightMapPath();
+    case Material::TextureType::Count:
     default: return QString();
     }
 }
 
-void populateTextureFallbackMetadata(const GLMaterial& material,
-                                     GLMaterial::TextureType type,
-                                     GLMaterial::Texture& texture)
+void populateTextureFallbackMetadata(const Material& material,
+                                     Material::TextureType type,
+                                     Material::Texture& texture)
 {
     auto setTransform = [&](int texCoord, const QVector2D& scale,
                             const QVector2D& offset, float rotation)
@@ -151,91 +151,91 @@ void populateTextureFallbackMetadata(const GLMaterial& material,
 
     switch (type)
     {
-    case GLMaterial::TextureType::Albedo:
+    case Material::TextureType::Albedo:
         setTransform(material.albedoTexCoord(), material.albedoTexScale(),
                      material.albedoTexOffset(), material.albedoTexRotation());
         break;
-    case GLMaterial::TextureType::Normal:
+    case Material::TextureType::Normal:
         setTransform(material.normalTexCoord(), material.normalTexScale(),
                      material.normalTexOffset(), material.normalTexRotation());
         break;
-    case GLMaterial::TextureType::AmbientOcclusion:
+    case Material::TextureType::AmbientOcclusion:
         setTransform(material.occlusionTexCoord(), material.occlusionTexScale(),
                      material.occlusionTexOffset(), material.occlusionTexRotation());
         break;
-    case GLMaterial::TextureType::Emissive:
+    case Material::TextureType::Emissive:
         setTransform(material.emissiveTexCoord(), material.emissiveTexScale(),
                      material.emissiveTexOffset(), material.emissiveTexRotation());
         break;
-    case GLMaterial::TextureType::Metallic:
+    case Material::TextureType::Metallic:
         setTransform(material.metallicTexCoord(), material.metallicTexScale(),
                      material.metallicTexOffset(), material.metallicTexRotation());
         break;
-    case GLMaterial::TextureType::Roughness:
+    case Material::TextureType::Roughness:
         setTransform(material.roughnessTexCoord(), material.roughnessTexScale(),
                      material.roughnessTexOffset(), material.roughnessTexRotation());
         break;
-    case GLMaterial::TextureType::Transmission:
+    case Material::TextureType::Transmission:
         setTransform(material.transmissionTexCoord(), material.transmissionTexScale(),
                      material.transmissionTexOffset(), material.transmissionTexRotation());
         break;
-    case GLMaterial::TextureType::IOR:
+    case Material::TextureType::IOR:
         setTransform(material.iorTexCoord(), material.iorTexScale(),
                      material.iorTexOffset(), material.iorTexRotation());
         break;
-    case GLMaterial::TextureType::SheenColor:
+    case Material::TextureType::SheenColor:
         setTransform(material.sheenColorTexCoord(), material.sheenColorTexScale(),
                      material.sheenColorTexOffset(), material.sheenColorTexRotation());
         break;
-    case GLMaterial::TextureType::SheenRoughness:
+    case Material::TextureType::SheenRoughness:
         setTransform(material.sheenRoughnessTexCoord(), material.sheenRoughnessTexScale(),
                      material.sheenRoughnessTexOffset(), material.sheenRoughnessTexRotation());
         break;
-    case GLMaterial::TextureType::ClearcoatColor:
+    case Material::TextureType::ClearcoatColor:
         setTransform(material.clearcoatColorTexCoord(), material.clearcoatColorTexScale(),
                      material.clearcoatColorTexOffset(), material.clearcoatColorTexRotation());
         break;
-    case GLMaterial::TextureType::ClearcoatRoughness:
+    case Material::TextureType::ClearcoatRoughness:
         setTransform(material.clearcoatRoughnessTexCoord(), material.clearcoatRoughnessTexScale(),
                      material.clearcoatRoughnessTexOffset(), material.clearcoatRoughnessTexRotation());
         break;
-    case GLMaterial::TextureType::ClearcoatNormal:
+    case Material::TextureType::ClearcoatNormal:
         setTransform(material.clearcoatNormalTexCoord(), material.clearcoatNormalTexScale(),
                      material.clearcoatNormalTexOffset(), material.clearcoatNormalTexRotation());
         break;
-    case GLMaterial::TextureType::SpecularFactor:
+    case Material::TextureType::SpecularFactor:
         setTransform(material.specularFactorTexCoord(), material.specularFactorTexScale(),
                      material.specularFactorTexOffset(), material.specularFactorTexRotation());
         break;
-    case GLMaterial::TextureType::SpecularColor:
+    case Material::TextureType::SpecularColor:
         setTransform(material.specularColorTexCoord(), material.specularColorTexScale(),
                      material.specularColorTexOffset(), material.specularColorTexRotation());
         break;
-    case GLMaterial::TextureType::Anisotropy:
+    case Material::TextureType::Anisotropy:
         setTransform(material.anisotropyTexCoord(), material.anisotropyTexScale(),
                      material.anisotropyTexOffset(), material.anisotropyTexRotation());
         break;
-    case GLMaterial::TextureType::Thickness:
+    case Material::TextureType::Thickness:
         setTransform(material.thicknessTexCoord(), material.thicknessTexScale(),
                      material.thicknessTexOffset(), material.thicknessTexRotation());
         break;
-    case GLMaterial::TextureType::DiffuseTransmission:
+    case Material::TextureType::DiffuseTransmission:
         setTransform(material.diffuseTransmissionTexCoord(), material.diffuseTransmissionTexScale(),
                      material.diffuseTransmissionTexOffset(), material.diffuseTransmissionTexRotation());
         break;
-    case GLMaterial::TextureType::DiffuseTransmissionColor:
+    case Material::TextureType::DiffuseTransmissionColor:
         setTransform(material.diffuseTransmissionColorTexCoord(), material.diffuseTransmissionColorTexScale(),
                      material.diffuseTransmissionColorTexOffset(), material.diffuseTransmissionColorTexRotation());
         break;
-    case GLMaterial::TextureType::SpecularGlossiness:
+    case Material::TextureType::SpecularGlossiness:
         setTransform(material.specularGlossinessTexCoord(), material.specularGlossinessTexScale(),
                      material.specularGlossinessTexOffset(), material.specularGlossinessTexRotation());
         break;
-    case GLMaterial::TextureType::Opacity:
+    case Material::TextureType::Opacity:
         setTransform(material.opacityTexCoord(), material.opacityTexScale(),
                      material.opacityTexOffset(), material.opacityTexRotation());
         break;
-    case GLMaterial::TextureType::Height:
+    case Material::TextureType::Height:
         setTransform(material.heightTexCoord(), material.heightTexScale(),
                      material.heightTexOffset(), material.heightTexRotation());
         break;
@@ -244,7 +244,7 @@ void populateTextureFallbackMetadata(const GLMaterial& material,
     }
 }
 
-QJsonObject buildTextureInfoObject(int textureIndex, const GLMaterial::Texture& texture)
+QJsonObject buildTextureInfoObject(int textureIndex, const Material::Texture& texture)
 {
     QJsonObject obj;
     obj.insert(QStringLiteral("index"), textureIndex);
@@ -507,7 +507,7 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
     QHash<QString, int> textureIndexBySignature;
 
     auto buildMaterialJsonObject =
-        [&](const GLMaterial& material,
+        [&](const Material& material,
             const QString& id,
             const QString& nameForFallback) -> QJsonObject
     {
@@ -549,11 +549,11 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
         mvfPbr.insert(QStringLiteral("sheenRoughness"), material.sheenRoughness());
 
         for (int textureTypeIndex = 0;
-             textureTypeIndex < static_cast<int>(GLMaterial::TextureType::Count);
+             textureTypeIndex < static_cast<int>(Material::TextureType::Count);
              ++textureTypeIndex)
         {
-            const auto type = static_cast<GLMaterial::TextureType>(textureTypeIndex);
-            GLMaterial::Texture texture = material.texture(type);
+            const auto type = static_cast<Material::TextureType>(textureTypeIndex);
+            Material::Texture texture = material.texture(type);
             if (texture.path.empty())
             {
                 const QString canonicalPath = texturePathForType(material, type);
@@ -1009,7 +1009,7 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
             }
         }
 
-        const GLMaterial material = mesh->getMaterial();
+        const Material material = mesh->getMaterial();
         QJsonObject materialObj = buildMaterialJsonObject(
             material,
             meshUuid.toString(QUuid::WithoutBraces),

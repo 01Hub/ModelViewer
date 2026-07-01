@@ -32,7 +32,7 @@ struct PrecomputedTexture
 // maps.
 //
 // SceneMesh embeds one of these as _vizState and exposes each field through
-// a reference alias (same zero-churn pattern used for GLMaterial& _material).
+// a reference alias (same zero-churn pattern used for Material& _material).
 // All existing call sites in SceneMesh.cpp, AssImpMesh.cpp, FloorPlane.cpp,
 // and ViewCubeMesh.cpp continue to compile unchanged.
 //

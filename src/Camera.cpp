@@ -1,8 +1,8 @@
-// GLCamera.cpp: implementation of the GLCamera class.
+// Camera.cpp: implementation of the Camera class.
 //
 //////////////////////////////////////////////////////////////////////
 
-#include "GLCamera.h"
+#include "Camera.h"
 
 #include <QMatrix4x4>
 #include <QVector3D>
@@ -23,8 +23,8 @@ QVector3D projectOntoWorldUpPlane(const QVector3D& vector, const QVector3D& worl
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
 
-// GLCamera
-GLCamera::GLCamera() : _width(100.0f), _height(50.0f), _viewRange(200.0f), _sceneRadius(100.0f), _FOV(45.0f)
+// Camera
+Camera::Camera() : _width(100.0f), _height(50.0f), _viewRange(200.0f), _sceneRadius(100.0f), _FOV(45.0f)
 {
 	_projectionType = ProjectionType::ORTHOGRAPHIC;
 	_previousProjection = _projectionType;
@@ -32,7 +32,7 @@ GLCamera::GLCamera() : _width(100.0f), _height(50.0f), _viewRange(200.0f), _scen
 	resetAll();
 }
 
-GLCamera::GLCamera(float width, float height, float range, float fov) :_width(width), _height(height), _viewRange(range), _sceneRadius(range * 0.5f), _FOV(fov)
+Camera::Camera(float width, float height, float range, float fov) :_width(width), _height(height), _viewRange(range), _sceneRadius(range * 0.5f), _FOV(fov)
 {
 	_projectionType = ProjectionType::ORTHOGRAPHIC;
 	_viewProj = ViewProjection::SE_ISOMETRIC_VIEW;
@@ -40,71 +40,71 @@ GLCamera::GLCamera(float width, float height, float range, float fov) :_width(wi
 	updateProjectionMatrix();
 }
 
-void GLCamera::setScreenSize(float w, float h)
+void Camera::setScreenSize(float w, float h)
 {
 	_width = w;
 	_height = h;
 	updateProjectionMatrix();
 }
 
-QPoint GLCamera::getScreenSize() const
+QPoint Camera::getScreenSize() const
 {
 	return QPoint(_width, _height);
 }
 
-float GLCamera::getAspectRatio() const
+float Camera::getAspectRatio() const
 {
 	return _width / _height;
 }
 
-void GLCamera::setFOV(float fov)
+void Camera::setFOV(float fov)
 {
 	_FOV = fov;
 	updateProjectionMatrix();
 	updateViewMatrix();
 }
 
-float GLCamera::getFOV() const
+float Camera::getFOV() const
 {
 	return _FOV;
 }
 
-void GLCamera::setViewRange(float range)
+void Camera::setViewRange(float range)
 {
 	_viewRange = range;
 	updateProjectionMatrix();
 	updateViewMatrix();
 }
 
-void GLCamera::setSceneRadius(float radius)
+void Camera::setSceneRadius(float radius)
 {
 	_sceneRadius = std::max(radius, 0.0001f);
 	updateProjectionMatrix();
 }
 
-float GLCamera::getSceneRadius() const
+float Camera::getSceneRadius() const
 {
 	return _sceneRadius;
 }
 
-float GLCamera::getViewRange() const
+float Camera::getViewRange() const
 {
 	return _viewRange;
 }
 
-void GLCamera::setProjectionType(ProjectionType proj)
+void Camera::setProjectionType(ProjectionType proj)
 {
 	_projectionType = proj;
 	updateProjectionMatrix();
 	updateViewMatrix();
 }
 
-GLCamera::ProjectionType GLCamera::getProjectionType() const
+Camera::ProjectionType Camera::getProjectionType() const
 {
 	return _projectionType;
 }
 
-void GLCamera::resetAll(void)
+void Camera::resetAll(void)
 {
 	//Init with standard OGL values:
 	_position = QVector3D(0.0, 0.0, 0.0);
@@ -121,7 +121,7 @@ void GLCamera::resetAll(void)
 	updateViewMatrix();
 }
 
-void GLCamera::updateViewMatrix(void)
+void Camera::updateViewMatrix(void)
 {
 	_viewMatrix.setToIdentity();
 	QVector3D eye = _position;
@@ -152,7 +152,7 @@ void GLCamera::updateViewMatrix(void)
 	*/
 }
 
-void GLCamera::updateProjectionMatrix(void)
+void Camera::updateProjectionMatrix(void)
 {
 	_projectionMatrix.setToIdentity();
 
@@ -236,7 +236,7 @@ void GLCamera::updateProjectionMatrix(void)
 }
 
 
-void GLCamera::rotateX(float iAngle)
+void Camera::rotateX(float iAngle)
 {
 	_rotatedX += iAngle;
 
@@ -254,7 +254,7 @@ void GLCamera::rotateX(float iAngle)
 	updateViewMatrix();
 }
 
-void GLCamera::rotateY(float iAngle)
+void Camera::rotateY(float iAngle)
 {
 	_rotatedY += iAngle;
 
@@ -272,7 +272,7 @@ void GLCamera::rotateY(float iAngle)
 	updateViewMatrix();
 }
 
-void GLCamera::rotateZ(float iAngle)
+void Camera::rotateZ(float iAngle)
 {
 	_rotatedZ += iAngle;
 
@@ -290,20 +290,20 @@ void GLCamera::rotateZ(float iAngle)
 	updateViewMatrix();
 }
 
-void GLCamera::move(float iDX, float iDY, float iDZ)
+void Camera::move(float iDX, float iDY, float iDZ)
 {
 	QVector3D Dir(iDX, iDY, iDZ);
 	_position = _position + Dir;
 	updateViewMatrix();
 }
 
-void GLCamera::moveForward(float iDist)
+void Camera::moveForward(float iDist)
 {
 	_position = _position + (_viewDir * iDist);
 	updateViewMatrix();
 }
 
-void GLCamera::moveForwardPlanar(float iDist)
+void Camera::moveForwardPlanar(float iDist)
 {
 	QVector3D planarForward = projectOntoWorldUpPlane(_viewDir, _worldUpVector);
 	if (planarForward.lengthSquared() <= 1.0e-8f)
@@ -313,25 +313,25 @@ void GLCamera::moveForwardPlanar(float iDist)
 	updateViewMatrix();
 }
 
-void GLCamera::moveUpward(float iDist)
+void Camera::moveUpward(float iDist)
 {
 	_position = _position + (_upVector * iDist);
 	updateViewMatrix();
 }
 
-void GLCamera::moveWorldUp(float iDist)
+void Camera::moveWorldUp(float iDist)
 {
 	_position = _position + _worldUpVector * iDist;
 	updateViewMatrix();
 }
 
-void GLCamera::moveAcross(float iDist)
+void Camera::moveAcross(float iDist)
 {
 	_position = _position + (_rightVector * iDist);
 	updateViewMatrix();
 }
 
-void GLCamera::moveAcrossPlanar(float iDist)
+void Camera::moveAcrossPlanar(float iDist)
 {
 	QVector3D planarRight = projectOntoWorldUpPlane(_rightVector, _worldUpVector);
 	if (planarRight.lengthSquared() <= 1.0e-8f)
@@ -347,13 +347,13 @@ void GLCamera::moveAcrossPlanar(float iDist)
 	updateViewMatrix();
 }
 
-void GLCamera::setZoom(float iFactor)
+void Camera::setZoom(float iFactor)
 {
 	_zoomValue = iFactor;
 	updateViewMatrix();
 }
 
-void GLCamera::setView(ViewProjection iProj)
+void Camera::setView(ViewProjection iProj)
 {
 	//_position = QVector3D();
 	_viewDir = QVector3D(0.0, 0.0, -1.0);
@@ -440,7 +440,7 @@ void GLCamera::setView(ViewProjection iProj)
 	qDebug() << "Rotated Z " << _rotatedZ;*/
 }
 
-void GLCamera::setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir)
+void Camera::setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir)
 {
 	_position = viewPos;
 	_viewDir = viewDir;
@@ -457,7 +457,7 @@ void GLCamera::setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QV
 	updateViewMatrix();
 }
 
-void GLCamera::setWorldUpVector(const QVector3D& upVector)
+void Camera::setWorldUpVector(const QVector3D& upVector)
 {
 	if (upVector.lengthSquared() <= 1.0e-8f)
 		return;
@@ -465,7 +465,7 @@ void GLCamera::setWorldUpVector(const QVector3D& upVector)
 	_worldUpVector = upVector.normalized();
 }
 
-void GLCamera::setPosition(float iX, float iY, float iZ)
+void Camera::setPosition(float iX, float iY, float iZ)
 {
 	_position.setX(iX);
 	_position.setY(iY);
@@ -473,12 +473,12 @@ void GLCamera::setPosition(float iX, float iY, float iZ)
 	updateViewMatrix();
 }
 
-void GLCamera::setPosition(QVector3D pos)
+void Camera::setPosition(QVector3D pos)
 {
 	setPosition(pos.x(), pos.y(), pos.z());
 }
 
-QVector3D GLCamera::getRenderPosition() const
+QVector3D Camera::getRenderPosition() const
 {
 	if (_cameraMode != CameraMode::Orbit)
 		return _position;
@@ -489,17 +489,17 @@ QVector3D GLCamera::getRenderPosition() const
 	return _position - _viewDir.normalized() * distance;
 }
 
-float GLCamera::getOrbitDistance() const
+float Camera::getOrbitDistance() const
 {
 	return -computeViewShift(_FOV, _viewRange, 1.05f, 1.25f);
 }
 
-float GLCamera::getOrthoViewDistance() const
+float Camera::getOrthoViewDistance() const
 {
 	return std::max(getOrbitDistance() * 4.0f, _viewRange * 6.0f);
 }
 
-void GLCamera::updateFlyView()
+void Camera::updateFlyView()
 {
 	float yawRad = qDegreesToRadians(_yaw);
 	float pitchRad = qDegreesToRadians(_pitch);
@@ -523,7 +523,7 @@ void GLCamera::updateFlyView()
 
 
 
-void GLCamera::getRotationAngles(float* oPitch, float* oYaw, float* oRoll)
+void Camera::getRotationAngles(float* oPitch, float* oYaw, float* oRoll)
 {
 	QQuaternion quat = QQuaternion::fromRotationMatrix(_viewMatrix.toGenericMatrix<3, 3>());
 	QVector3D euler = quat.toEulerAngles();
@@ -532,7 +532,7 @@ void GLCamera::getRotationAngles(float* oPitch, float* oYaw, float* oRoll)
 	*oRoll = euler.x();
 }
 
-void GLCamera::setMode(CameraMode mode)
+void Camera::setMode(CameraMode mode)
 {
 	if (_cameraMode == CameraMode::Orbit &&
 		(mode == CameraMode::Fly || mode == CameraMode::FirstPerson))
@@ -553,7 +553,7 @@ void GLCamera::setMode(CameraMode mode)
 }
 
 
-void GLCamera::setYawPitchFromViewDir()
+void Camera::setYawPitchFromViewDir()
 {
 	QVector3D dir = _viewDir.normalized();
 	const QVector3D worldUp = _worldUpVector.normalized();
@@ -575,17 +575,17 @@ void GLCamera::setYawPitchFromViewDir()
 
 
 
-void GLCamera::setViewMatrix(QMatrix4x4 mat)
+void Camera::setViewMatrix(QMatrix4x4 mat)
 {
 	_viewMatrix = mat;
 }
 
-void GLCamera::setProjectionMatrix(QMatrix4x4 mat)
+void Camera::setProjectionMatrix(QMatrix4x4 mat)
 {
 	_projectionMatrix = mat;
 }
 
-float GLCamera::computeViewShift(float fovYDegrees, float viewRange, float margin, float maxShiftFactor) const
+float Camera::computeViewShift(float fovYDegrees, float viewRange, float margin, float maxShiftFactor) const
 {
 	float fovYRad = qDegreesToRadians(fovYDegrees);
 	float shift = -viewRange * margin / std::sin(fovYRad / 2.0f);
@@ -593,13 +593,13 @@ float GLCamera::computeViewShift(float fovYDegrees, float viewRange, float margi
 	return std::max(shift, minShift);
 }
 
-float GLCamera::getShift() const
+float Camera::getShift() const
 {
 	return computeViewShift(_FOV, _viewRange, 1.05f, 1.25f);
 }
 
 
-void GLCamera::computeStereoViewProjectionMatrices(int width, int height, float IOD, float depthZ, bool left_eye)
+void Camera::computeStereoViewProjectionMatrices(int width, int height, float IOD, float depthZ, bool left_eye)
 {
 	// https://hub.packtpub.com/rendering-stereoscopic-3d-models-using-opengl/
 	//mirror the parameters with the right eye
@@ -633,7 +633,7 @@ float sign(float num)
 {
 	return (num > 0) ? 1 : -1;
 }
-QQuaternion GLCamera::quaternionFromMatrix(QMatrix4x4 m)
+QQuaternion Camera::quaternionFromMatrix(QMatrix4x4 m)
 {
 	// Adapted from: http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/index.htm
 
@@ -650,7 +650,7 @@ QQuaternion GLCamera::quaternionFromMatrix(QMatrix4x4 m)
 	return q;
 }
 
-void GLCamera::quatToEuler(const QQuaternion& quat, float *rotx, float *roty, float *rotz)
+void Camera::quatToEuler(const QQuaternion& quat, float *rotx, float *roty, float *rotz)
 {
 	float sqw;
 	float sqx;

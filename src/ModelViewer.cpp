@@ -567,7 +567,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	// Connection for mesh material apply
 	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialPropertiesPanel::meshMaterialApplied,
-		this, [this](const QUuid& meshUuid, const GLMaterial& material) {
+		this, [this](const QUuid& meshUuid, const Material& material) {
 			// Get all currently selected mesh IDs
 			std::vector<int> selectedIds = getSelectedIDs();
 			QVector<QUuid> selectedUuids;
@@ -1755,14 +1755,14 @@ void ModelViewer::applyVariant(const QString& sourceFile, int variantIndex)
 		if (!mesh->hasVariants())
 			continue;
 
-		const GLMaterial* mat = mesh->materialForVariant(variantIndex);
+		const Material* mat = mesh->materialForVariant(variantIndex);
 		if (mat)
 		{
 			// Resolve texture paths → GPU IDs before applying.
-			// The prebuilt variant GLMaterials carry paths but texture IDs
+			// The prebuilt variant Materials carry paths but texture IDs
 			// are 0 until resolveMaterialTextures uploads them, matching
 			// what setTexturesToObjects does for the regular material path.
-			const GLMaterial resolved = GLWidget::resolveMaterialTextures(_glWidget, *mat);
+			const Material resolved = GLWidget::resolveMaterialTextures(_glWidget, *mat);
 			mesh->setMaterial(resolved);
 			mesh->setTextureMaps(resolved);
 			mesh->invertOpacityADSMap(resolved.isOpacityMapInverted());
@@ -1942,7 +1942,7 @@ bool ModelViewer::saveMaterialsBeforeClose()
 		const CachedMaterial& cached = cachedIt.value();
 		QString groupLabel = cached.group;
 		QString materialName = cached.name;
-		const GLMaterial& material = cached.material;
+		const Material& material = cached.material;
 
 		// Save to library using existing infrastructure
 		// Pass nullptr as parent to suppress "Overwrite?" dialog during closeEvent
@@ -2008,7 +2008,7 @@ void ModelViewer::cleanupUnsavedMaterialsFromLibrary()
 		return;
 
 	// Remove from shared material map - only owned materials
-	auto& sharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+	auto& sharedMap = const_cast<QMap<QString, std::function<Material()>>&>(
 		MaterialLibraryWidget::sharedMaterialMap());
 
 	for (const QString& key : _ownedUnsavedMaterials)
@@ -2062,7 +2062,7 @@ void ModelViewer::updateDisplayList()
 	_glWidget->setTransmissionEnabled(false);
 	for (SceneMesh* mesh : _glWidget->getMeshStore())
 	{
-		const GLMaterial& mat = mesh->getMaterial();
+		const Material& mat = mesh->getMaterial();
 		if (mat.hasTransmission() || mat.diffuseTransmissionFactor() > 0.0f)
 		{
 			_glWidget->setTransmissionEnabled(true);
@@ -2096,7 +2096,7 @@ void ModelViewer::updateDisplayList()
 	// before any file is loaded) to avoid fitting an empty / sentinel sphere.
 	if (shouldAutoFit &&
 		!_glWidget->getMeshStore().empty() &&
-		_glWidget->cameraMode() == GLCamera::CameraMode::Orbit)
+		_glWidget->cameraMode() == Camera::CameraMode::Orbit)
 	{
 		if (!_glWidget->isGltfCameraActive())
 		{
@@ -4482,15 +4482,15 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 					viewerState[QStringLiteral("cameraMode")].toInt(static_cast<int>(_glWidget->cameraMode()));
 				switch (savedCameraMode)
 				{
-				case static_cast<int>(GLCamera::CameraMode::Fly):
-					_glWidget->setCameraMode(GLCamera::CameraMode::Fly);
+				case static_cast<int>(Camera::CameraMode::Fly):
+					_glWidget->setCameraMode(Camera::CameraMode::Fly);
 					break;
-				case static_cast<int>(GLCamera::CameraMode::FirstPerson):
-					_glWidget->setCameraMode(GLCamera::CameraMode::FirstPerson);
+				case static_cast<int>(Camera::CameraMode::FirstPerson):
+					_glWidget->setCameraMode(Camera::CameraMode::FirstPerson);
 					break;
-				case static_cast<int>(GLCamera::CameraMode::Orbit):
+				case static_cast<int>(Camera::CameraMode::Orbit):
 				default:
-					_glWidget->setCameraMode(GLCamera::CameraMode::Orbit);
+					_glWidget->setCameraMode(Camera::CameraMode::Orbit);
 					break;
 				}
 			}, Qt::BlockingQueuedConnection);
@@ -4897,15 +4897,15 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 
 		switch (savedCameraMode)
 		{
-		case static_cast<int>(GLCamera::CameraMode::Fly):
-			_glWidget->setCameraMode(GLCamera::CameraMode::Fly);
+		case static_cast<int>(Camera::CameraMode::Fly):
+			_glWidget->setCameraMode(Camera::CameraMode::Fly);
 			break;
-		case static_cast<int>(GLCamera::CameraMode::FirstPerson):
-			_glWidget->setCameraMode(GLCamera::CameraMode::FirstPerson);
+		case static_cast<int>(Camera::CameraMode::FirstPerson):
+			_glWidget->setCameraMode(Camera::CameraMode::FirstPerson);
 			break;
-		case static_cast<int>(GLCamera::CameraMode::Orbit):
+		case static_cast<int>(Camera::CameraMode::Orbit):
 		default:
-			_glWidget->setCameraMode(GLCamera::CameraMode::Orbit);
+			_glWidget->setCameraMode(Camera::CameraMode::Orbit);
 			break;
 		}
 	}
@@ -5083,14 +5083,14 @@ bool ModelViewer::saveToFile(const QString& fileName)
 	// "save without clicking Apply" still captures the intended textures/properties.
 	if (!_currentEditingMeshUuid.isNull())
 	{
-		const GLMaterial* panelMat = Ui_ModelViewer::predefinedMaterialsPanel->material();
+		const Material* panelMat = Ui_ModelViewer::predefinedMaterialsPanel->material();
 		if (panelMat && _glWidget)
 		{
 			SceneMesh* mesh = _glWidget->getMeshByUuid(_currentEditingMeshUuid);
 			if (mesh)
 			{
 				_glWidget->makeCurrent();
-				GLMaterial resolved = GLWidget::resolveMaterialTextures(_glWidget, *panelMat);
+				Material resolved = GLWidget::resolveMaterialTextures(_glWidget, *panelMat);
 				resolved.setIsGLTFMaterial(true);
 				mesh->setMaterial(resolved);
 				mesh->setTextureMaps(resolved);
@@ -5127,7 +5127,7 @@ bool ModelViewer::saveToFile(const QString& fileName)
 	return out.status() == QDataStream::Ok;
 }
 
-void ModelViewer::setMaterialToSelectedItems(const GLMaterial& mat)
+void ModelViewer::setMaterialToSelectedItems(const Material& mat)
 {
 	_material = mat;
 	std::vector<int> ids = getSelectedIDs();
@@ -5136,7 +5136,7 @@ void ModelViewer::setMaterialToSelectedItems(const GLMaterial& mat)
 	updateControls();
 }
 
-void ModelViewer::setTexturesToSelectedItems(const GLMaterial& mat)
+void ModelViewer::setTexturesToSelectedItems(const Material& mat)
 {
 	if (checkForActiveSelection())
 	{
@@ -5147,7 +5147,7 @@ void ModelViewer::setTexturesToSelectedItems(const GLMaterial& mat)
 	}
 }
 
-void ModelViewer::setTextureSamplersToSelectedItems(const GLMaterial* material, GLMaterial::TextureType type)
+void ModelViewer::setTextureSamplersToSelectedItems(const Material* material, Material::TextureType type)
 {
 	if (!_glWidget) return;
 	_glWidget->synchronizeTextureCache(material, type);
@@ -5235,13 +5235,13 @@ void ModelViewer::onTextureCacheCleared()
 	}
 }
 
-void ModelViewer::onPredefinedMaterialSelected(const GLMaterial& mat)
+void ModelViewer::onPredefinedMaterialSelected(const Material& mat)
 {
 	// Material application is now handled by MaterialPropertiesPanel.
 	Q_UNUSED(mat);
 }
 
-void ModelViewer::onCustomMaterialApplied(const GLMaterial& mat)
+void ModelViewer::onCustomMaterialApplied(const Material& mat)
 {
 	if (!checkForActiveSelection())
 		return;
@@ -5266,7 +5266,7 @@ void ModelViewer::onCustomMaterialApplied(const GLMaterial& mat)
 	QApplication::restoreOverrideCursor();
 }
 
-void ModelViewer::onTexturesApplied(const GLMaterial* mat)
+void ModelViewer::onTexturesApplied(const Material* mat)
 {
 	Q_UNUSED(mat);
 }
@@ -5553,7 +5553,7 @@ void ModelViewer::editMeshMaterial()
 	_currentEditingMeshUuid = meshUuid;
 
 	// Get mesh's current material
-	GLMaterial meshMaterial = mesh->getMaterial();
+	Material meshMaterial = mesh->getMaterial();
 	QString meshName = mesh->getName();
 
 	// Create unsaved material from mesh's material

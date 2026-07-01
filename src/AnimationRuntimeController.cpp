@@ -712,7 +712,7 @@ QUuid AnimationRuntimeController::resolveRuntimeNodeUuid(const RuntimeAnimationF
     return QUuid();
 }
 
-void AnimationRuntimeController::applyTexturePointerValue(GLMaterial& material,
+void AnimationRuntimeController::applyTexturePointerValue(Material& material,
     GltfAnimationTextureTarget textureTarget,
     GltfAnimationPointerProperty property,
     const QVector2D& vec2Value,
@@ -734,84 +734,84 @@ void AnimationRuntimeController::applyTexturePointerValue(GLMaterial& material,
     switch (textureTarget)
     {
     case GltfAnimationTextureTarget::Albedo:
-        applyVec2(&GLMaterial::setAlbedoTexOffset, &GLMaterial::setAlbedoTexScale);
-        applyRotation(&GLMaterial::setAlbedoTexRotation); break;
+        applyVec2(&Material::setAlbedoTexOffset, &Material::setAlbedoTexScale);
+        applyRotation(&Material::setAlbedoTexRotation); break;
     case GltfAnimationTextureTarget::Metallic:
-        applyVec2(&GLMaterial::setMetallicTexOffset, &GLMaterial::setMetallicTexScale);
-        applyRotation(&GLMaterial::setMetallicTexRotation); break;
+        applyVec2(&Material::setMetallicTexOffset, &Material::setMetallicTexScale);
+        applyRotation(&Material::setMetallicTexRotation); break;
     case GltfAnimationTextureTarget::Roughness:
-        applyVec2(&GLMaterial::setRoughnessTexOffset, &GLMaterial::setRoughnessTexScale);
-        applyRotation(&GLMaterial::setRoughnessTexRotation); break;
+        applyVec2(&Material::setRoughnessTexOffset, &Material::setRoughnessTexScale);
+        applyRotation(&Material::setRoughnessTexRotation); break;
     case GltfAnimationTextureTarget::MetallicRoughness:
-        applyVec2(&GLMaterial::setMetallicTexOffset, &GLMaterial::setMetallicTexScale);
-        applyRotation(&GLMaterial::setMetallicTexRotation);
-        applyVec2(&GLMaterial::setRoughnessTexOffset, &GLMaterial::setRoughnessTexScale);
-        applyRotation(&GLMaterial::setRoughnessTexRotation); break;
+        applyVec2(&Material::setMetallicTexOffset, &Material::setMetallicTexScale);
+        applyRotation(&Material::setMetallicTexRotation);
+        applyVec2(&Material::setRoughnessTexOffset, &Material::setRoughnessTexScale);
+        applyRotation(&Material::setRoughnessTexRotation); break;
     case GltfAnimationTextureTarget::Normal:
-        applyVec2(&GLMaterial::setNormalTexOffset, &GLMaterial::setNormalTexScale);
-        applyRotation(&GLMaterial::setNormalTexRotation); break;
+        applyVec2(&Material::setNormalTexOffset, &Material::setNormalTexScale);
+        applyRotation(&Material::setNormalTexRotation); break;
     case GltfAnimationTextureTarget::Occlusion:
-        applyVec2(&GLMaterial::setOcclusionTexOffset, &GLMaterial::setOcclusionTexScale);
-        applyRotation(&GLMaterial::setOcclusionTexRotation); break;
+        applyVec2(&Material::setOcclusionTexOffset, &Material::setOcclusionTexScale);
+        applyRotation(&Material::setOcclusionTexRotation); break;
     case GltfAnimationTextureTarget::Emissive:
-        applyVec2(&GLMaterial::setEmissiveTexOffset, &GLMaterial::setEmissiveTexScale);
-        applyRotation(&GLMaterial::setEmissiveTexRotation); break;
+        applyVec2(&Material::setEmissiveTexOffset, &Material::setEmissiveTexScale);
+        applyRotation(&Material::setEmissiveTexRotation); break;
     case GltfAnimationTextureTarget::Transmission:
-        applyVec2(&GLMaterial::setTransmissionTexOffset, &GLMaterial::setTransmissionTexScale);
-        applyRotation(&GLMaterial::setTransmissionTexRotation); break;
+        applyVec2(&Material::setTransmissionTexOffset, &Material::setTransmissionTexScale);
+        applyRotation(&Material::setTransmissionTexRotation); break;
     case GltfAnimationTextureTarget::Thickness:
-        applyVec2(&GLMaterial::setThicknessTexOffset, &GLMaterial::setThicknessTexScale);
-        applyRotation(&GLMaterial::setThicknessTexRotation); break;
+        applyVec2(&Material::setThicknessTexOffset, &Material::setThicknessTexScale);
+        applyRotation(&Material::setThicknessTexRotation); break;
     case GltfAnimationTextureTarget::IOR:
-        applyVec2(&GLMaterial::setIORTexOffset, &GLMaterial::setIORTexScale);
-        applyRotation(&GLMaterial::setIORTexRotation); break;
+        applyVec2(&Material::setIORTexOffset, &Material::setIORTexScale);
+        applyRotation(&Material::setIORTexRotation); break;
     case GltfAnimationTextureTarget::SheenColor:
-        applyVec2(&GLMaterial::setSheenColorTexOffset, &GLMaterial::setSheenColorTexScale);
-        applyRotation(&GLMaterial::setSheenColorTexRotation); break;
+        applyVec2(&Material::setSheenColorTexOffset, &Material::setSheenColorTexScale);
+        applyRotation(&Material::setSheenColorTexRotation); break;
     case GltfAnimationTextureTarget::SheenRoughness:
-        applyVec2(&GLMaterial::setSheenRoughnessTexOffset, &GLMaterial::setSheenRoughnessTexScale);
-        applyRotation(&GLMaterial::setSheenRoughnessTexRotation); break;
+        applyVec2(&Material::setSheenRoughnessTexOffset, &Material::setSheenRoughnessTexScale);
+        applyRotation(&Material::setSheenRoughnessTexRotation); break;
     case GltfAnimationTextureTarget::Clearcoat:
-        applyVec2(&GLMaterial::setClearcoatColorTexOffset, &GLMaterial::setClearcoatColorTexScale);
-        applyRotation(&GLMaterial::setClearcoatColorTexRotation); break;
+        applyVec2(&Material::setClearcoatColorTexOffset, &Material::setClearcoatColorTexScale);
+        applyRotation(&Material::setClearcoatColorTexRotation); break;
     case GltfAnimationTextureTarget::ClearcoatRoughness:
-        applyVec2(&GLMaterial::setClearcoatRoughnessTexOffset, &GLMaterial::setClearcoatRoughnessTexScale);
-        applyRotation(&GLMaterial::setClearcoatRoughnessTexRotation); break;
+        applyVec2(&Material::setClearcoatRoughnessTexOffset, &Material::setClearcoatRoughnessTexScale);
+        applyRotation(&Material::setClearcoatRoughnessTexRotation); break;
     case GltfAnimationTextureTarget::ClearcoatNormal:
-        applyVec2(&GLMaterial::setClearcoatNormalTexOffset, &GLMaterial::setClearcoatNormalTexScale);
-        applyRotation(&GLMaterial::setClearcoatNormalTexRotation); break;
+        applyVec2(&Material::setClearcoatNormalTexOffset, &Material::setClearcoatNormalTexScale);
+        applyRotation(&Material::setClearcoatNormalTexRotation); break;
     case GltfAnimationTextureTarget::Iridescence:
-        applyVec2(&GLMaterial::setIridescenceTexOffset, &GLMaterial::setIridescenceTexScale);
-        applyRotation(&GLMaterial::setIridescenceTexRotation); break;
+        applyVec2(&Material::setIridescenceTexOffset, &Material::setIridescenceTexScale);
+        applyRotation(&Material::setIridescenceTexRotation); break;
     case GltfAnimationTextureTarget::IridescenceThickness:
-        applyVec2(&GLMaterial::setIridescenceThicknessTexOffset, &GLMaterial::setIridescenceThicknessTexScale);
-        applyRotation(&GLMaterial::setIridescenceThicknessTexRotation); break;
+        applyVec2(&Material::setIridescenceThicknessTexOffset, &Material::setIridescenceThicknessTexScale);
+        applyRotation(&Material::setIridescenceThicknessTexRotation); break;
     case GltfAnimationTextureTarget::SpecularFactor:
-        applyVec2(&GLMaterial::setSpecularFactorTexOffset, &GLMaterial::setSpecularFactorTexScale);
-        applyRotation(&GLMaterial::setSpecularFactorTexRotation); break;
+        applyVec2(&Material::setSpecularFactorTexOffset, &Material::setSpecularFactorTexScale);
+        applyRotation(&Material::setSpecularFactorTexRotation); break;
     case GltfAnimationTextureTarget::SpecularColor:
-        applyVec2(&GLMaterial::setSpecularColorTexOffset, &GLMaterial::setSpecularColorTexScale);
-        applyRotation(&GLMaterial::setSpecularColorTexRotation); break;
+        applyVec2(&Material::setSpecularColorTexOffset, &Material::setSpecularColorTexScale);
+        applyRotation(&Material::setSpecularColorTexRotation); break;
     case GltfAnimationTextureTarget::Anisotropy:
-        applyVec2(&GLMaterial::setAnisotropyTexOffset, &GLMaterial::setAnisotropyTexScale);
-        applyRotation(&GLMaterial::setAnisotropyTexRotation); break;
+        applyVec2(&Material::setAnisotropyTexOffset, &Material::setAnisotropyTexScale);
+        applyRotation(&Material::setAnisotropyTexRotation); break;
     case GltfAnimationTextureTarget::DiffuseTransmission:
-        applyVec2(&GLMaterial::setDiffuseTransmissionTexOffset, &GLMaterial::setDiffuseTransmissionTexScale);
-        applyRotation(&GLMaterial::setDiffuseTransmissionTexRotation); break;
+        applyVec2(&Material::setDiffuseTransmissionTexOffset, &Material::setDiffuseTransmissionTexScale);
+        applyRotation(&Material::setDiffuseTransmissionTexRotation); break;
     case GltfAnimationTextureTarget::DiffuseTransmissionColor:
-        applyVec2(&GLMaterial::setDiffuseTransmissionColorTexOffset, &GLMaterial::setDiffuseTransmissionColorTexScale);
-        applyRotation(&GLMaterial::setDiffuseTransmissionColorTexRotation); break;
+        applyVec2(&Material::setDiffuseTransmissionColorTexOffset, &Material::setDiffuseTransmissionColorTexScale);
+        applyRotation(&Material::setDiffuseTransmissionColorTexRotation); break;
     case GltfAnimationTextureTarget::Diffuse:
-        applyVec2(&GLMaterial::setDiffuseTexOffset, &GLMaterial::setDiffuseTexScale);
-        applyRotation(&GLMaterial::setDiffuseTexRotation); break;
+        applyVec2(&Material::setDiffuseTexOffset, &Material::setDiffuseTexScale);
+        applyRotation(&Material::setDiffuseTexRotation); break;
     case GltfAnimationTextureTarget::SpecularGlossiness:
-        applyVec2(&GLMaterial::setSpecularGlossinessTexOffset, &GLMaterial::setSpecularGlossinessTexScale);
-        applyRotation(&GLMaterial::setSpecularGlossinessTexRotation); break;
+        applyVec2(&Material::setSpecularGlossinessTexOffset, &Material::setSpecularGlossinessTexScale);
+        applyRotation(&Material::setSpecularGlossinessTexRotation); break;
     default: break;
     }
 }
 
-void AnimationRuntimeController::applyMaterialFactorPointerValue(GLMaterial& material,
+void AnimationRuntimeController::applyMaterialFactorPointerValue(Material& material,
     GltfAnimationPointerProperty property,
     const QVector4D& vec4Value)
 {

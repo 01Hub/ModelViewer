@@ -72,8 +72,8 @@ static std::vector<unsigned int> readUIntStream(const QByteArray& chunk,
 	return result;
 }
 
-static void applyTextureRef(GLMaterial& mat,
-                            GLMaterial::TextureType type,
+static void applyTextureRef(Material& mat,
+                            Material::TextureType type,
                             const QJsonObject& texInfo,
                             const QHash<int, QString>& imagePaths,
                             const QJsonArray& textures,
@@ -91,35 +91,35 @@ static void applyTextureRef(GLMaterial& mat,
 
 	switch (type)
 	{
-	case GLMaterial::TextureType::Albedo:                   mat.setAlbedoMap(path); break;
-	case GLMaterial::TextureType::Normal:                   mat.setNormalMap(path); break;
-	case GLMaterial::TextureType::AmbientOcclusion:         mat.setAOMap(path); break;
-	case GLMaterial::TextureType::Emissive:                 mat.setEmissiveMap(path); break;
-	case GLMaterial::TextureType::Metallic:                 mat.setMetallicMap(path); break;
-	case GLMaterial::TextureType::Roughness:                mat.setRoughnessMap(path); break;
-	case GLMaterial::TextureType::Transmission:             mat.setTransmissionMap(path); break;
-	case GLMaterial::TextureType::IOR:                      mat.setIORMap(path); break;
-	case GLMaterial::TextureType::SheenColor:               mat.setSheenColorMap(path); break;
-	case GLMaterial::TextureType::SheenRoughness:           mat.setSheenRoughnessMap(path); break;
-	case GLMaterial::TextureType::ClearcoatColor:           mat.setClearcoatColorMap(path); break;
-	case GLMaterial::TextureType::ClearcoatRoughness:       mat.setClearcoatRoughnessMap(path); break;
-	case GLMaterial::TextureType::ClearcoatNormal:          mat.setClearcoatNormalMap(path); break;
-	case GLMaterial::TextureType::Iridescence:              mat.setIridescenceMap(path); break;
-	case GLMaterial::TextureType::IridescenceThickness:     mat.setIridescenceThicknessMap(path); break;
-	case GLMaterial::TextureType::SpecularFactor:           mat.setSpecularFactorMap(path); break;
-	case GLMaterial::TextureType::SpecularColor:            mat.setSpecularColorMap(path); break;
-	case GLMaterial::TextureType::Anisotropy:               mat.setAnisotropyMap(path); break;
-	case GLMaterial::TextureType::Thickness:                mat.setThicknessMap(path); break;
-	case GLMaterial::TextureType::Diffuse:                  mat.setDiffuseMap(path); break;
-	case GLMaterial::TextureType::DiffuseTransmission:      mat.setDiffuseTransmissionMap(path); break;
-	case GLMaterial::TextureType::DiffuseTransmissionColor: mat.setDiffuseTransmissionColorMap(path); break;
-	case GLMaterial::TextureType::SpecularGlossiness:       mat.setSpecularGlossinessMap(path); break;
-	case GLMaterial::TextureType::Opacity:                  mat.setOpacityMap(path); break;
-	case GLMaterial::TextureType::Height:                   mat.setHeightMap(path); break;
+	case Material::TextureType::Albedo:                   mat.setAlbedoMap(path); break;
+	case Material::TextureType::Normal:                   mat.setNormalMap(path); break;
+	case Material::TextureType::AmbientOcclusion:         mat.setAOMap(path); break;
+	case Material::TextureType::Emissive:                 mat.setEmissiveMap(path); break;
+	case Material::TextureType::Metallic:                 mat.setMetallicMap(path); break;
+	case Material::TextureType::Roughness:                mat.setRoughnessMap(path); break;
+	case Material::TextureType::Transmission:             mat.setTransmissionMap(path); break;
+	case Material::TextureType::IOR:                      mat.setIORMap(path); break;
+	case Material::TextureType::SheenColor:               mat.setSheenColorMap(path); break;
+	case Material::TextureType::SheenRoughness:           mat.setSheenRoughnessMap(path); break;
+	case Material::TextureType::ClearcoatColor:           mat.setClearcoatColorMap(path); break;
+	case Material::TextureType::ClearcoatRoughness:       mat.setClearcoatRoughnessMap(path); break;
+	case Material::TextureType::ClearcoatNormal:          mat.setClearcoatNormalMap(path); break;
+	case Material::TextureType::Iridescence:              mat.setIridescenceMap(path); break;
+	case Material::TextureType::IridescenceThickness:     mat.setIridescenceThicknessMap(path); break;
+	case Material::TextureType::SpecularFactor:           mat.setSpecularFactorMap(path); break;
+	case Material::TextureType::SpecularColor:            mat.setSpecularColorMap(path); break;
+	case Material::TextureType::Anisotropy:               mat.setAnisotropyMap(path); break;
+	case Material::TextureType::Thickness:                mat.setThicknessMap(path); break;
+	case Material::TextureType::Diffuse:                  mat.setDiffuseMap(path); break;
+	case Material::TextureType::DiffuseTransmission:      mat.setDiffuseTransmissionMap(path); break;
+	case Material::TextureType::DiffuseTransmissionColor: mat.setDiffuseTransmissionColorMap(path); break;
+	case Material::TextureType::SpecularGlossiness:       mat.setSpecularGlossinessMap(path); break;
+	case Material::TextureType::Opacity:                  mat.setOpacityMap(path); break;
+	case Material::TextureType::Height:                   mat.setHeightMap(path); break;
 	default: return;
 	}
 
-	GLMaterial::Texture tex = mat.texture(type);
+	Material::Texture tex = mat.texture(type);
 	tex.path = path.toStdString();
 	tex.texCoordIndex = texInfo[QStringLiteral("texCoord")].toInt(0);
 
@@ -152,7 +152,7 @@ static void applyTextureRef(GLMaterial& mat,
 	mat.setTexture(type, tex);
 }
 
-static GLMaterial reconstructMvfMaterial(const QJsonObject& matObj,
+static Material reconstructMvfMaterial(const QJsonObject& matObj,
                                          const QHash<int, QString>& imagePaths,
                                          const QJsonArray& textures,
                                          const QJsonArray& samplers)
@@ -162,25 +162,25 @@ static GLMaterial reconstructMvfMaterial(const QJsonObject& matObj,
 	const bool hasRuntimeMaterial =
 		!exts[QStringLiteral("MVF_material_runtime")].toObject().isEmpty();
 
-	GLMaterial mat = hasRuntimeMaterial
-		? GLMaterial::fromVariantMap(exts[QStringLiteral("MVF_material_runtime")].toObject().toVariantMap())
-		: GLMaterial();
+	Material mat = hasRuntimeMaterial
+		? Material::fromVariantMap(exts[QStringLiteral("MVF_material_runtime")].toObject().toVariantMap())
+		: Material();
 	mat.setName(materialName);
 
 	if (!hasRuntimeMaterial)
 	{
 		const QString shadingModel = matObj[QStringLiteral("shadingModel")].toString();
-		if      (shadingModel == QLatin1String("PBR"))        mat.setShadingModel(GLMaterial::ShadingModel::PBR);
-		else if (shadingModel == QLatin1String("BlinnPhong")) mat.setShadingModel(GLMaterial::ShadingModel::BlinnPhong);
-		else if (shadingModel == QLatin1String("Unlit"))      mat.setShadingModel(GLMaterial::ShadingModel::Unlit);
-		else if (shadingModel == QLatin1String("Toon"))       mat.setShadingModel(GLMaterial::ShadingModel::Toon);
+		if      (shadingModel == QLatin1String("PBR"))        mat.setShadingModel(Material::ShadingModel::PBR);
+		else if (shadingModel == QLatin1String("BlinnPhong")) mat.setShadingModel(Material::ShadingModel::BlinnPhong);
+		else if (shadingModel == QLatin1String("Unlit"))      mat.setShadingModel(Material::ShadingModel::Unlit);
+		else if (shadingModel == QLatin1String("Toon"))       mat.setShadingModel(Material::ShadingModel::Toon);
 
 		const QString blendMode = matObj[QStringLiteral("blendMode")].toString();
-		if      (blendMode == QLatin1String("Opaque"))   mat.setBlendMode(GLMaterial::BlendMode::Opaque);
-		else if (blendMode == QLatin1String("Masked"))   mat.setBlendMode(GLMaterial::BlendMode::Masked);
-		else if (blendMode == QLatin1String("Alpha"))    mat.setBlendMode(GLMaterial::BlendMode::Alpha);
-		else if (blendMode == QLatin1String("Additive")) mat.setBlendMode(GLMaterial::BlendMode::Additive);
-		else if (blendMode == QLatin1String("Multiply")) mat.setBlendMode(GLMaterial::BlendMode::Multiply);
+		if      (blendMode == QLatin1String("Opaque"))   mat.setBlendMode(Material::BlendMode::Opaque);
+		else if (blendMode == QLatin1String("Masked"))   mat.setBlendMode(Material::BlendMode::Masked);
+		else if (blendMode == QLatin1String("Alpha"))    mat.setBlendMode(Material::BlendMode::Alpha);
+		else if (blendMode == QLatin1String("Additive")) mat.setBlendMode(Material::BlendMode::Additive);
+		else if (blendMode == QLatin1String("Multiply")) mat.setBlendMode(Material::BlendMode::Multiply);
 
 		mat.setTwoSided(matObj[QStringLiteral("doubleSided")].toBool(false));
 		mat.setAlphaThreshold(static_cast<float>(matObj[QStringLiteral("alphaCutoff")].toDouble(0.5)));
@@ -233,32 +233,32 @@ static GLMaterial reconstructMvfMaterial(const QJsonObject& matObj,
 			mat.setSheenRoughness(static_cast<float>(mvfPbr[QStringLiteral("sheenRoughness")].toDouble(0.0)));
 		}
 
-		static const struct { const char* key; GLMaterial::TextureType type; } kTexKeys[] = {
-			{"baseColorTexture",                GLMaterial::TextureType::Albedo},
-			{"normalTexture",                   GLMaterial::TextureType::Normal},
-			{"occlusionTexture",                GLMaterial::TextureType::AmbientOcclusion},
-			{"emissiveTexture",                 GLMaterial::TextureType::Emissive},
-			{"metallicTexture",                 GLMaterial::TextureType::Metallic},
-			{"roughnessTexture",                GLMaterial::TextureType::Roughness},
-			{"transmissionTexture",             GLMaterial::TextureType::Transmission},
-			{"iorTexture",                      GLMaterial::TextureType::IOR},
-			{"sheenColorTexture",               GLMaterial::TextureType::SheenColor},
-			{"sheenRoughnessTexture",           GLMaterial::TextureType::SheenRoughness},
-			{"clearcoatTexture",                GLMaterial::TextureType::ClearcoatColor},
-			{"clearcoatRoughnessTexture",       GLMaterial::TextureType::ClearcoatRoughness},
-			{"clearcoatNormalTexture",          GLMaterial::TextureType::ClearcoatNormal},
-			{"iridescenceTexture",              GLMaterial::TextureType::Iridescence},
-			{"iridescenceThicknessTexture",     GLMaterial::TextureType::IridescenceThickness},
-			{"specularTexture",                 GLMaterial::TextureType::SpecularFactor},
-			{"specularColorTexture",            GLMaterial::TextureType::SpecularColor},
-			{"anisotropyTexture",               GLMaterial::TextureType::Anisotropy},
-			{"thicknessTexture",                GLMaterial::TextureType::Thickness},
-			{"diffuseTexture",                  GLMaterial::TextureType::Diffuse},
-			{"diffuseTransmissionTexture",      GLMaterial::TextureType::DiffuseTransmission},
-			{"diffuseTransmissionColorTexture", GLMaterial::TextureType::DiffuseTransmissionColor},
-			{"specularGlossinessTexture",       GLMaterial::TextureType::SpecularGlossiness},
-			{"opacityTexture",                  GLMaterial::TextureType::Opacity},
-			{"heightTexture",                   GLMaterial::TextureType::Height},
+		static const struct { const char* key; Material::TextureType type; } kTexKeys[] = {
+			{"baseColorTexture",                Material::TextureType::Albedo},
+			{"normalTexture",                   Material::TextureType::Normal},
+			{"occlusionTexture",                Material::TextureType::AmbientOcclusion},
+			{"emissiveTexture",                 Material::TextureType::Emissive},
+			{"metallicTexture",                 Material::TextureType::Metallic},
+			{"roughnessTexture",                Material::TextureType::Roughness},
+			{"transmissionTexture",             Material::TextureType::Transmission},
+			{"iorTexture",                      Material::TextureType::IOR},
+			{"sheenColorTexture",               Material::TextureType::SheenColor},
+			{"sheenRoughnessTexture",           Material::TextureType::SheenRoughness},
+			{"clearcoatTexture",                Material::TextureType::ClearcoatColor},
+			{"clearcoatRoughnessTexture",       Material::TextureType::ClearcoatRoughness},
+			{"clearcoatNormalTexture",          Material::TextureType::ClearcoatNormal},
+			{"iridescenceTexture",              Material::TextureType::Iridescence},
+			{"iridescenceThicknessTexture",     Material::TextureType::IridescenceThickness},
+			{"specularTexture",                 Material::TextureType::SpecularFactor},
+			{"specularColorTexture",            Material::TextureType::SpecularColor},
+			{"anisotropyTexture",               Material::TextureType::Anisotropy},
+			{"thicknessTexture",                Material::TextureType::Thickness},
+			{"diffuseTexture",                  Material::TextureType::Diffuse},
+			{"diffuseTransmissionTexture",      Material::TextureType::DiffuseTransmission},
+			{"diffuseTransmissionColorTexture", Material::TextureType::DiffuseTransmissionColor},
+			{"specularGlossinessTexture",       Material::TextureType::SpecularGlossiness},
+			{"opacityTexture",                  Material::TextureType::Opacity},
+			{"heightTexture",                   Material::TextureType::Height},
 		};
 
 		for (const auto& entry : kTexKeys)
@@ -449,7 +449,7 @@ QVector<PreparedMvfMesh> MvfMeshPreparationWorker::prepare(const Mvf::Document& 
 			TangentGenerator::generateMikkTSpaceTangentsForMesh(vertices, indices);
 
 		const int materialIndex = prim[QStringLiteral("material")].toInt(-1);
-		GLMaterial material;
+		Material material;
 		if (materialIndex >= 0 && materialIndex < document.materials.size())
 		{
 			material = reconstructMvfMaterial(document.materials[materialIndex].toObject(),

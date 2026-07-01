@@ -1,5 +1,5 @@
-﻿#ifndef GLMATERIAL_H
-#define GLMATERIAL_H
+﻿#ifndef MATERIAL_H
+#define MATERIAL_H
 
 #include <QVector3D>
 #include <QString>
@@ -12,11 +12,11 @@
 #include <QOpenGLFunctions_4_5_Core>
 
 
-class GLMaterial
+class Material
 {
 public:
 
-	friend std::ostream& operator<<(std::ostream& os, const GLMaterial& m);
+	friend std::ostream& operator<<(std::ostream& os, const Material& m);
 
 	// ============================================================================
 	// Texture Type Enumeration (20 texture types)
@@ -130,10 +130,10 @@ public:
 	};
 
 public:
-	GLMaterial();
-	GLMaterial(QVector3D ambient, QVector3D diffuse, QVector3D specular, QVector3D emissive, float shininess, bool metallic = true, float opacity = 1.0f);
-	GLMaterial(QVector3D albedo, float metalness, float roughness, float opacity = 1.0f);
-	~GLMaterial();
+	Material();
+	Material(QVector3D ambient, QVector3D diffuse, QVector3D specular, QVector3D emissive, float shininess, bool metallic = true, float opacity = 1.0f);
+	Material(QVector3D albedo, float metalness, float roughness, float opacity = 1.0f);
+	~Material();
 
 	void setName(const QString& name) { _name = name; }
 	QString name() const { return _name; }
@@ -837,13 +837,13 @@ public:
 		if (_transmission > 0.0f)
 			return true;
 		// If it's OPAQUE, it's NOT transparent
-		if (_blendMode == GLMaterial::BlendMode::Opaque)
+		if (_blendMode == Material::BlendMode::Opaque)
 			return false;
 		// If it has BLEND mode (not MASK or OPAQUE), it's transparent
-		if (_blendMode == GLMaterial::BlendMode::Alpha)  // BLEND mode
+		if (_blendMode == Material::BlendMode::Alpha)  // BLEND mode
 			return true;
 		// If it's masked, it's NOT transparent (exclude from FBO)
-		if (_blendMode == GLMaterial::BlendMode::Masked)
+		if (_blendMode == Material::BlendMode::Masked)
 			return false;
 
 		return (_opacity < 1.0) || _hasTextureAlpha || _transmission > 0.0f;
@@ -901,209 +901,209 @@ public:
 	float getTransmission() const { return transmission(); }
 
 	// Static material creation methods
-	static GLMaterial getPredefinedMaterial(GLMaterial::PredefinedMaterials type);
+	static Material getPredefinedMaterial(Material::PredefinedMaterials type);
 
 	// Some metal materials
-	static GLMaterial METAL_TITANIUM();
-	static GLMaterial METAL_PLATINUM();
-	static GLMaterial METAL_MAGNESIUM();
-	static GLMaterial METAL_ZINC();
-	static GLMaterial METAL_NICKEL();
-	static GLMaterial METAL_ALUMINUM();
-	static GLMaterial METAL_IRON_RAW();
-	static GLMaterial METAL_COBALT();
-	static GLMaterial METAL_PEWTER();
-	static GLMaterial METAL_TUNGSTEN();
-	static GLMaterial METAL_BRASS();
-	static GLMaterial METAL_BRONZE();
-	static GLMaterial METAL_COPPER();
-	static GLMaterial METAL_GOLD();
-	static GLMaterial METAL_SILVER();
-	static GLMaterial METAL_CHROME();
-	static GLMaterial METAL_STEEL();
+	static Material METAL_TITANIUM();
+	static Material METAL_PLATINUM();
+	static Material METAL_MAGNESIUM();
+	static Material METAL_ZINC();
+	static Material METAL_NICKEL();
+	static Material METAL_ALUMINUM();
+	static Material METAL_IRON_RAW();
+	static Material METAL_COBALT();
+	static Material METAL_PEWTER();
+	static Material METAL_TUNGSTEN();
+	static Material METAL_BRASS();
+	static Material METAL_BRONZE();
+	static Material METAL_COPPER();
+	static Material METAL_GOLD();
+	static Material METAL_SILVER();
+	static Material METAL_CHROME();
+	static Material METAL_STEEL();
 
 	// Brushed metals
-	static GLMaterial BRUSHED_ALUMINUM();
-	static GLMaterial BRUSHED_STEEL();
+	static Material BRUSHED_ALUMINUM();
+	static Material BRUSHED_STEEL();
 
 	// Stone materials
-	static GLMaterial STONE_RUBY();
-	static GLMaterial STONE_EMERALD();
-	static GLMaterial STONE_TURQUOISE();
-	static GLMaterial STONE_PEARL();
-	static GLMaterial STONE_JADE();
-	static GLMaterial STONE_GRANITE();
-	static GLMaterial STONE_LIMESTONE();
-	static GLMaterial STONE_MARBLE();
-	static GLMaterial STONE_SLATE();
-	static GLMaterial STONE_SANDSTONE();
-	static GLMaterial STONE_BASALT();
-	static GLMaterial STONE_OBSIDIAN();
-	static GLMaterial STONE_TRAVERTINE();
-	static GLMaterial STONE_QUARTZITE();
-	static GLMaterial STONE_SOAPSTONE();
+	static Material STONE_RUBY();
+	static Material STONE_EMERALD();
+	static Material STONE_TURQUOISE();
+	static Material STONE_PEARL();
+	static Material STONE_JADE();
+	static Material STONE_GRANITE();
+	static Material STONE_LIMESTONE();
+	static Material STONE_MARBLE();
+	static Material STONE_SLATE();
+	static Material STONE_SANDSTONE();
+	static Material STONE_BASALT();
+	static Material STONE_OBSIDIAN();
+	static Material STONE_TRAVERTINE();
+	static Material STONE_QUARTZITE();
+	static Material STONE_SOAPSTONE();
 
 	// Some colored plastic and rubber materials
-	static GLMaterial RED_PLASTIC();
-	static GLMaterial GREEN_PLASTIC();
-	static GLMaterial BLUE_PLASTIC();
-	static GLMaterial CYAN_PLASTIC();
-	static GLMaterial YELLOW_PLASTIC();
-	static GLMaterial MAGENTA_PLASTIC();
-	static GLMaterial WHITE_PLASTIC();
-	static GLMaterial BLACK_PLASTIC();
-	static GLMaterial RED_RUBBER();
-	static GLMaterial GREEN_RUBBER();
-	static GLMaterial BLUE_RUBBER();
-	static GLMaterial CYAN_RUBBER();
-	static GLMaterial YELLOW_RUBBER();
-	static GLMaterial MAGENTA_RUBBER();
-	static GLMaterial WHITE_RUBBER();
-	static GLMaterial BLACK_RUBBER();
-	static GLMaterial DEFAULT_MAT();
+	static Material RED_PLASTIC();
+	static Material GREEN_PLASTIC();
+	static Material BLUE_PLASTIC();
+	static Material CYAN_PLASTIC();
+	static Material YELLOW_PLASTIC();
+	static Material MAGENTA_PLASTIC();
+	static Material WHITE_PLASTIC();
+	static Material BLACK_PLASTIC();
+	static Material RED_RUBBER();
+	static Material GREEN_RUBBER();
+	static Material BLUE_RUBBER();
+	static Material CYAN_RUBBER();
+	static Material YELLOW_RUBBER();
+	static Material MAGENTA_RUBBER();
+	static Material WHITE_RUBBER();
+	static Material BLACK_RUBBER();
+	static Material DEFAULT_MAT();
 
 	// Sheen materials
-	static GLMaterial FABRIC();
-	static GLMaterial VELVET_RED();
-	static GLMaterial SATIN_FABRIC();
-	static GLMaterial MICROFIBER_CLOTH();
+	static Material FABRIC();
+	static Material VELVET_RED();
+	static Material SATIN_FABRIC();
+	static Material MICROFIBER_CLOTH();
 
 	// Leather finishes
-	static GLMaterial LEATHER_BLACK();
-	static GLMaterial LEATHER_BROWN();
-	static GLMaterial LEATHER_RED();
-	static GLMaterial LEATHER_WHITE();
-	static GLMaterial LEATHER_OXBLOOD();
-	static GLMaterial LEATHER_TAN();
+	static Material LEATHER_BLACK();
+	static Material LEATHER_BROWN();
+	static Material LEATHER_RED();
+	static Material LEATHER_WHITE();
+	static Material LEATHER_OXBLOOD();
+	static Material LEATHER_TAN();
 
 	// Wood materials
 	// Wood materials
-	static GLMaterial WOOD();
-	static GLMaterial WOOD_BAMBOO();
-	static GLMaterial WOOD_CEDAR();
-	static GLMaterial WOOD_REDWOOD();
-	static GLMaterial WOOD_OAK();
-	static GLMaterial WOOD_PINE();
-	static GLMaterial WOOD_BIRCH();
-	static GLMaterial WOOD_WALNUT();
-	static GLMaterial WOOD_CHERRY();
-	static GLMaterial WOOD_TEAK();
-	static GLMaterial WOOD_MAPLE();
+	static Material WOOD();
+	static Material WOOD_BAMBOO();
+	static Material WOOD_CEDAR();
+	static Material WOOD_REDWOOD();
+	static Material WOOD_OAK();
+	static Material WOOD_PINE();
+	static Material WOOD_BIRCH();
+	static Material WOOD_WALNUT();
+	static Material WOOD_CHERRY();
+	static Material WOOD_TEAK();
+	static Material WOOD_MAPLE();
 
 
 	// Advanced PBR Materials
 	// === CLEARCOAT MATERIALS ===
 	// ORIGINAL METALLIC FINISHES	
-	static GLMaterial CAR_PAINT_METALLIC_BLUE();
-	static GLMaterial CAR_PAINT_DEEP_METALLIC_BLUE();
-	static GLMaterial CAR_PAINT_METALLIC_GREEN();
-	static GLMaterial CAR_PAINT_METALLIC_SILVER();
-	static GLMaterial CAR_PAINT_METALLIC_RED();
-	static GLMaterial CAR_PAINT_METALLIC_COPPER();
-	static GLMaterial CAR_PAINT_METALLIC_GOLD();
-	static GLMaterial CAR_PAINT_METALLIC_PURPLE();
-	static GLMaterial CAR_PAINT_PEARL();
+	static Material CAR_PAINT_METALLIC_BLUE();
+	static Material CAR_PAINT_DEEP_METALLIC_BLUE();
+	static Material CAR_PAINT_METALLIC_GREEN();
+	static Material CAR_PAINT_METALLIC_SILVER();
+	static Material CAR_PAINT_METALLIC_RED();
+	static Material CAR_PAINT_METALLIC_COPPER();
+	static Material CAR_PAINT_METALLIC_GOLD();
+	static Material CAR_PAINT_METALLIC_PURPLE();
+	static Material CAR_PAINT_PEARL();
 
 	// ORIGINAL NON-METALLIC FINISHES
-	static GLMaterial CAR_PAINT_GLOSSY_BLACK();
-	static GLMaterial CAR_PAINT_GLOSSY_WHITE();
-	static GLMaterial CAR_PAINT_MATTE_RED();
-	static GLMaterial CAR_PAINT_GLOSSY_YELLOW();
-	static GLMaterial CAR_PAINT_GLOSSY_ORANGE();
-	static GLMaterial CAR_PAINT_SATIN_GRAY();
-	static GLMaterial CAR_PAINT_RED();
-	static GLMaterial CAR_PAINT_WHITE();
+	static Material CAR_PAINT_GLOSSY_BLACK();
+	static Material CAR_PAINT_GLOSSY_WHITE();
+	static Material CAR_PAINT_MATTE_RED();
+	static Material CAR_PAINT_GLOSSY_YELLOW();
+	static Material CAR_PAINT_GLOSSY_ORANGE();
+	static Material CAR_PAINT_SATIN_GRAY();
+	static Material CAR_PAINT_RED();
+	static Material CAR_PAINT_WHITE();
 
 	// ORIGINAL SPECIAL FINISHES
-	static GLMaterial CAR_PAINT_PEARLESCENT_BLUE();
-	static GLMaterial CAR_PAINT_CANDY_APPLE_RED();
+	static Material CAR_PAINT_PEARLESCENT_BLUE();
+	static Material CAR_PAINT_CANDY_APPLE_RED();
 
 	// DARK SHADE VARIATIONS
-	static GLMaterial CAR_PAINT_MIDNIGHT_BLUE();
-	static GLMaterial CAR_PAINT_FOREST_GREEN();
-	static GLMaterial CAR_PAINT_CHARCOAL_GRAY();
-	static GLMaterial CAR_PAINT_BURGUNDY();
+	static Material CAR_PAINT_MIDNIGHT_BLUE();
+	static Material CAR_PAINT_FOREST_GREEN();
+	static Material CAR_PAINT_CHARCOAL_GRAY();
+	static Material CAR_PAINT_BURGUNDY();
 
 	// LIGHT SHADE VARIATIONS
-	static GLMaterial CAR_PAINT_POWDER_BLUE();
-	static GLMaterial CAR_PAINT_MINT_GREEN();
-	static GLMaterial CAR_PAINT_CREAM_YELLOW();
-	static GLMaterial CAR_PAINT_LAVENDER();
+	static Material CAR_PAINT_POWDER_BLUE();
+	static Material CAR_PAINT_MINT_GREEN();
+	static Material CAR_PAINT_CREAM_YELLOW();
+	static Material CAR_PAINT_LAVENDER();
 
 	// MEDIUM TONE VARIATIONS
-	static GLMaterial CAR_PAINT_TEAL();
-	static GLMaterial CAR_PAINT_CORAL();
-	static GLMaterial CAR_PAINT_SLATE_BLUE();
+	static Material CAR_PAINT_TEAL();
+	static Material CAR_PAINT_CORAL();
+	static Material CAR_PAINT_SLATE_BLUE();
 
 	// METALLIC VARIATIONS WITH DIFFERENT SHADES
-	static GLMaterial CAR_PAINT_METALLIC_CHAMPAGNE();
-	static GLMaterial CAR_PAINT_METALLIC_GUNMETAL();
-	static GLMaterial CAR_PAINT_METALLIC_BRONZE();
+	static Material CAR_PAINT_METALLIC_CHAMPAGNE();
+	static Material CAR_PAINT_METALLIC_GUNMETAL();
+	static Material CAR_PAINT_METALLIC_BRONZE();
 
 	// ADDITIONAL SPECIAL FINISHES
-	static GLMaterial CAR_PAINT_IRIDESCENT_GREEN();
+	static Material CAR_PAINT_IRIDESCENT_GREEN();
 
-	static GLMaterial MATTE_GREY();
-	static GLMaterial PIANO_BLACK();
+	static Material MATTE_GREY();
+	static Material PIANO_BLACK();
 
 
 	// === TRANSMISSION MATERIALS ===
-	static GLMaterial GLASS();
-	static GLMaterial FROSTED_GLASS();
-	static GLMaterial COLORED_GLASS_GREEN();
-	static GLMaterial CRYSTAL_QUARTZ();
+	static Material GLASS();
+	static Material FROSTED_GLASS();
+	static Material COLORED_GLASS_GREEN();
+	static Material CRYSTAL_QUARTZ();
 
 	// === EMISSIVE MATERIALS ===
-	static GLMaterial NEON_BLUE();
-	static GLMaterial NEON_GREEN();
-	static GLMaterial NEON_RED();
-	static GLMaterial NEON_YELLOW();
-	static GLMaterial LED_RED();
-	static GLMaterial LED_GREEN();
-	static GLMaterial LED_BLUE();
-	static GLMaterial LED_YELLOW();
-	static GLMaterial LED_WHITE();
+	static Material NEON_BLUE();
+	static Material NEON_GREEN();
+	static Material NEON_RED();
+	static Material NEON_YELLOW();
+	static Material LED_RED();
+	static Material LED_GREEN();
+	static Material LED_BLUE();
+	static Material LED_YELLOW();
+	static Material LED_WHITE();
 
 	// === COMPLEX MATERIALS (Multiple Properties) ===
-	static GLMaterial IRIDESCENT_SOAP_BUBBLE();
-	static GLMaterial CARBON_FIBER();
-	static GLMaterial WET_ASPHALT();
+	static Material IRIDESCENT_SOAP_BUBBLE();
+	static Material CARBON_FIBER();
+	static Material WET_ASPHALT();
 	//concrete materials
-	static GLMaterial CONCRETE();
-	static GLMaterial CONCRETE_LIGHT();
-	static GLMaterial CONCRETE_DARK();
-	static GLMaterial CONCRETE_POLISHED();
+	static Material CONCRETE();
+	static Material CONCRETE_LIGHT();
+	static Material CONCRETE_DARK();
+	static Material CONCRETE_POLISHED();
 
 	// Additional predefined materials for advanced use cases    
-	static GLMaterial WATER();
-	static GLMaterial DIAMOND();
-	static GLMaterial CERAMIC();
-	static GLMaterial SKIN();
-	static GLMaterial PAPER();
-	static GLMaterial METAL();
-	static GLMaterial PLASTIC();
-	static GLMaterial STONE();
-	static GLMaterial MIRROR_SILVER();
+	static Material WATER();
+	static Material DIAMOND();
+	static Material CERAMIC();
+	static Material SKIN();
+	static Material PAPER();
+	static Material METAL();
+	static Material PLASTIC();
+	static Material STONE();
+	static Material MIRROR_SILVER();
 
 
 	// Function to create a material with time-varying properties (for animations)
-	GLMaterial createAnimatedEmissive(const QVector3D& baseColor,
+	Material createAnimatedEmissive(const QVector3D& baseColor,
 		const QVector3D& emissiveColor,
 		float emissiveStrength,
 		float time);
 
 	// Function to blend two materials based on a factor (useful for layered materials)
-	GLMaterial blendMaterials(const GLMaterial& mat1,
-		const GLMaterial& mat2,
+	Material blendMaterials(const Material& mat1,
+		const Material& mat2,
 		float factor);
 
 
 
 	// ------------------------------------------------------------------
 	// Serialization helpers for the MaterialRegistry
-	// Construct a GLMaterial from a QVariantMap (as produced by JSON)
-	static GLMaterial fromVariantMap(const QVariantMap& m);
-	// Serialize the GLMaterial into a QVariantMap suitable for JSON writing
+	// Construct a Material from a QVariantMap (as produced by JSON)
+	static Material fromVariantMap(const QVariantMap& m);
+	// Serialize the Material into a QVariantMap suitable for JSON writing
 	QVariantMap toVariantMap() const;
 
 	bool isGLTFMaterial() const { return _isGLTFMaterial; }
@@ -1305,4 +1305,4 @@ private:
 	bool _isGLTFMaterial = false; // Whether this material was loaded from a glTF file
 };
 
-#endif // GLMATERIAL_H
+#endif // MATERIAL_H

@@ -5,9 +5,9 @@
 #include <glm/gtc/quaternion.hpp>
 #include <assimp/scene.h>
 #include <functional>
-#include "GLMaterial.h"
+#include "Material.h"
 #include "SceneMesh.h"
-#include "GLLights.h"
+#include "PunctualLights.h"
 #include "GltfLightData.h"
 #include <QByteArray>
 #include <QJsonDocument>
@@ -17,19 +17,19 @@
 class MaterialProcessor
 {
 public:
-	using ImageTextureUploadFn = std::function<unsigned int(GLMaterial::Texture&, const QImage&)>;
-	using Ktx2TextureUploadFn = std::function<unsigned int(const QString&, const std::string&, GLMaterial::Texture&)>;
+	using ImageTextureUploadFn = std::function<unsigned int(Material::Texture&, const QImage&)>;
+	using Ktx2TextureUploadFn = std::function<unsigned int(const QString&, const std::string&, Material::Texture&)>;
 
 	MaterialProcessor();
 	MaterialProcessor(std::string& folderPath);
 
 	void setFolderPath(const std::string& folderPath) { _folderPath = folderPath; }
 
-	void processAssimpColorAndMaterial(aiMaterial* material, GLMaterial& mat);
-	void setDefaultMaterial(GLMaterial& mat);
-	void processAssimpTextureMaps(aiMaterial* material, std::vector<GLMaterial::Texture>& textures, GLMaterial& mat);
-	void setTextureTransforms(const std::vector<GLMaterial::Texture>& textures, GLMaterial& mat);
-	void addExtensionMaps(GLMaterial& mat, std::vector<GLMaterial::Texture>& textures);
+	void processAssimpColorAndMaterial(aiMaterial* material, Material& mat);
+	void setDefaultMaterial(Material& mat);
+	void processAssimpTextureMaps(aiMaterial* material, std::vector<Material::Texture>& textures, Material& mat);
+	void setTextureTransforms(const std::vector<Material::Texture>& textures, Material& mat);
+	void addExtensionMaps(Material& mat, std::vector<Material::Texture>& textures);
 	void clearLoadedTextures() { _loadedTextures.clear(); }
 
 	// GLB cache accessors used by AssImpModelLoader free functions that need
@@ -54,7 +54,7 @@ public:
 
 	// Checks all material textures of a given type and loads the textures if they're not loaded yet.
 	// The required info is returned as a Texture struct.    
-	std::vector<GLMaterial::Texture> loadMaterialTextures(
+	std::vector<Material::Texture> loadMaterialTextures(
 		aiMaterial* mat,
 		aiTextureType type,
 		const std::string& typeName,
@@ -62,7 +62,7 @@ public:
 
 	bool checkImageForAlpha(const QImage& image);
 
-	void synthesizeADSAliases(std::vector<GLMaterial::Texture>& textures);
+	void synthesizeADSAliases(std::vector<Material::Texture>& textures);
 
 	void processGltf2CoreAndExtensions(
 		const QString& gltfPath,
@@ -70,8 +70,8 @@ public:
 		const QString& nodeName,
 		const aiMesh* currentMesh,
 		int materialIndex,
-		GLMaterial& outMaterial,
-		std::vector<GLMaterial::Texture>& outTextures);
+		Material& outMaterial,
+		std::vector<Material::Texture>& outTextures);
 
 	static QString extractJsonFromGLB(const QString& glbPath, std::vector<uint8_t>& outBinaryBuffer);
 
@@ -87,12 +87,12 @@ public:
 	void setKtx2TextureUploader(Ktx2TextureUploadFn uploader) { _ktx2TextureUploader = std::move(uploader); }
 
 private:
-	void setShadingModel(GLMaterial& mat, aiShadingMode shadingModel);
-	void setBlendMode(GLMaterial& mat, aiBlendMode blendMode);
+	void setShadingModel(Material& mat, aiShadingMode shadingModel);
+	void setBlendMode(Material& mat, aiBlendMode blendMode);
 
-	void validateMaterialConsistency(GLMaterial& mat);
+	void validateMaterialConsistency(Material& mat);
 
-	unsigned int createTextureOnGPU(GLMaterial::Texture& texture,
+	unsigned int createTextureOnGPU(Material::Texture& texture,
 		const std::vector<uint8_t>* glbBinaryBuffer = nullptr,
 		const QJsonArray* jsonBufferViews = nullptr,
 		const QJsonArray* jsonImages = nullptr);
@@ -103,7 +103,7 @@ private:
 
 	// Returns: pair<success, QImage>
 	std::pair<bool, QImage> decodeDataUri(const QString& dataUri);
-	bool decodeTextureImage(GLMaterial::Texture& texture,
+	bool decodeTextureImage(Material::Texture& texture,
 		QImage& outImage,
 		bool& outHasAlpha,
 		const std::vector<uint8_t>* glbBinaryBuffer = nullptr,
@@ -187,13 +187,13 @@ private:
 		aiMaterial* mat,
 		aiTextureType type,
 		unsigned int slotIndex,
-		GLMaterial::Texture& texture);
+		Material::Texture& texture);
 
-	void convertSpecularGlossinessToDielectric(GLMaterial& mat);
+	void convertSpecularGlossinessToDielectric(Material& mat);
 
 
 private:
-	std::vector<GLMaterial::Texture> _loadedTextures;	// Stores all the textures loaded so far, optimization to make sure textures aren't loaded more than once.
+	std::vector<Material::Texture> _loadedTextures;	// Stores all the textures loaded so far, optimization to make sure textures aren't loaded more than once.
 	std::string _folderPath; // Directory where textures are located
 
 	// simple cached JSON per file

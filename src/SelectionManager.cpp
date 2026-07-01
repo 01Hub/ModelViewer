@@ -1,6 +1,6 @@
 #include "SelectionManager.h"
 #include "GLWidget.h"
-#include "GLCamera.h"
+#include "Camera.h"
 #include "PickingHelper.h"
 #include "RenderableMesh.h"
 #include <QOpenGLFunctions_4_5_Core>
@@ -19,7 +19,7 @@
 
 SelectionManager::SelectionManager(
     GLWidget* glWidget,
-    GLCamera* primaryCamera,
+    Camera* primaryCamera,
     std::vector<SceneMeshRecord>& meshStore,
     const std::vector<int>& displayedObjectsIds,
     const std::vector<int>& hiddenObjectsIds,
@@ -392,7 +392,7 @@ void SelectionManager::getRayFromPixelCoords(const QPoint& pixel, QVector3D& ray
 }
 
 void SelectionManager::convertClickToRay(const QPoint& pixel, const QRect& viewport,
-                                        GLCamera* camera, QVector3D& orig, QVector3D& dir)
+                                        Camera* camera, QVector3D& orig, QVector3D& dir)
 {
     if (viewport.width() <= 0 || viewport.height() <= 0) {
         orig = QVector3D(0, 0, 0);
@@ -490,7 +490,7 @@ int SelectionManager::processSelection(const QPoint& pixel)
     GLint viewport[4];
     f->glGetIntegerv(GL_VIEWPORT, viewport);
 
-    GLCamera* selCamera = _glWidget->getCameraForPoint(pixel);
+    Camera* selCamera = _glWidget->getCameraForPoint(pixel);
     int selVpX = 0, selVpY = 0, selVpW = widgetWidth, selVpH = widgetHeight;
     if (_glWidget->isMultiViewActive())
     {

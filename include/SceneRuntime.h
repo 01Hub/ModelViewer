@@ -392,7 +392,7 @@ public:
 		return QUuid();
 	}
 
-	bool applyMaterialToMeshes(const std::vector<int>& ids, const GLMaterial& mat)
+	bool applyMaterialToMeshes(const std::vector<int>& ids, const Material& mat)
 	{
 		bool needsTransmission = false;
 		for (int id : ids)
@@ -416,7 +416,7 @@ public:
 		return needsTransmission;
 	}
 
-	void applyTextureMapsToMesh(int id, const GLMaterial& resolved)
+	void applyTextureMapsToMesh(int id, const Material& resolved)
 	{
 		try
 		{

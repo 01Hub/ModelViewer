@@ -4,7 +4,7 @@
 #include <QMatrix4x4>
 #include <QElapsedTimer>
 #include <QTimer>
-#include "GLMaterial.h"
+#include "Material.h"
 #include "ShaderProgram.h"
 
 #include <QDateTime>
@@ -55,7 +55,7 @@ public:
     explicit MaterialPreviewWidget(QWidget *parent = nullptr);
     ~MaterialPreviewWidget();
 
-    void setMaterial(const GLMaterial &mat);
+    void setMaterial(const Material &mat);
 
     void setPreviewShape(PreviewShape s);
 	void setEnvironment(EnvMode env) { _currentEnv = env; update(); }
@@ -68,16 +68,16 @@ public:
 
     void setPreviewRotation(float pitchDeg, float yawDeg);
 
-    void updateTextureSamplers(GLMaterial::TextureType type,
+    void updateTextureSamplers(Material::TextureType type,
         GLint wrapS = GL_REPEAT,
 		GLint wrapT = GL_REPEAT,
         GLint minFilter = GL_LINEAR_MIPMAP_LINEAR,
         GLint magFilter = GL_LINEAR,
         float aniso = 0.0f);
 
-    void applySamplerParametersToTexture(GLuint textureId, const GLMaterial::Texture& tex);
+    void applySamplerParametersToTexture(GLuint textureId, const Material::Texture& tex);
 
-    GLMaterial _currentMaterial = GLMaterial::METAL_ALUMINUM();
+    Material _currentMaterial = Material::METAL_ALUMINUM();
 protected:
     void initializeGL() override;
     void resizeGL(int w, int h) override;

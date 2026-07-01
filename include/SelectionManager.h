@@ -10,7 +10,7 @@
 #include <QVector3D>
 
 class GLWidget;
-class GLCamera;
+class Camera;
 class RenderableMesh;
 // Hover highlighting mode enumeration
 enum class HoverHighlightMode
@@ -48,7 +48,7 @@ class SelectionManager : public QObject
 public:
     explicit SelectionManager(
         GLWidget* glWidget,
-        GLCamera* primaryCamera,
+        Camera* primaryCamera,
         std::vector<SceneMeshRecord>& meshStore,
         const std::vector<int>& displayedObjectsIds,
         const std::vector<int>& hiddenObjectsIds,
@@ -102,7 +102,7 @@ private:
     // Helper methods for ray-casting
     void getRayFromPixelCoords(const QPoint& pixel, QVector3D& rayPos, QVector3D& rayDir);
     void convertClickToRay(const QPoint& pixel, const QRect& viewport,
-                          GLCamera* camera, QVector3D& rayPos, QVector3D& rayDir);
+                          Camera* camera, QVector3D& rayPos, QVector3D& rayDir);
 
     // State members
     QList<int> _selectedMeshIds;           // Currently selected mesh IDs
@@ -117,7 +117,7 @@ private:
 
     // References to GLWidget data (don't own these)
     GLWidget* _glWidget;
-    GLCamera* _primaryCamera;
+    Camera* _primaryCamera;
     std::vector<SceneMeshRecord>& _meshStore;
     const std::vector<int>& _displayedObjectsIds;
     const std::vector<int>& _hiddenObjectsIds;

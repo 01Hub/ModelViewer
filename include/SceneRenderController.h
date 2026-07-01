@@ -1,6 +1,6 @@
 #pragma once
 
-#include "GLLights.h"
+#include "PunctualLights.h"
 #include "RenderEnums.h"
 #include "ShaderProgram.h"
 
@@ -260,9 +260,9 @@ public:
     GLuint viewCubeLabelVBO() const { return _viewCubeLabelVBO; }
 
     // ---- Punctual lights GPU buffer ----------------------------------------
-    GLLights*       glLights()       { return _glLights.get(); }
-    const GLLights* glLights() const { return _glLights.get(); }
-    void initLights()                { _glLights = std::make_unique<GLLights>(); }
+    PunctualLights*       glLights()       { return _glLights.get(); }
+    const PunctualLights* glLights() const { return _glLights.get(); }
+    void initLights()                { _glLights = std::make_unique<PunctualLights>(); }
 
     // ---- Capping -----------------------------------------------------------
     bool   cappingEnabled()       const { return _cappingEnabled; }
@@ -617,7 +617,7 @@ private:
     unsigned int _viewCubeLabelVBO = 0;
 
     // ---- Punctual lights GPU buffer ----------------------------------------
-    std::unique_ptr<GLLights> _glLights;
+    std::unique_ptr<PunctualLights> _glLights;
 
     // ---- Capping -----------------------------------------------------------
     bool         _cappingEnabled = false;

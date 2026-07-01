@@ -19,12 +19,12 @@
 #include <QCloseEvent>
 #include <QUuid>
 
-#include "GLMaterial.h"
+#include "Material.h"
 
 // Cache structure for unsaved materials - stores material with its metadata
 struct CachedMaterial
 {
-	GLMaterial material;        // The actual material with all properties
+	Material material;        // The actual material with all properties
 	QString name;               // User-provided name at creation time (e.g., "Red Plastic")
 	QString group;              // Category/group at creation time (e.g., "Custom Materials")
 };
@@ -47,8 +47,8 @@ public:
 	~MaterialPropertiesPanel() override;
 
 	// Material binding
-	void bindMaterial(GLMaterial* material);
-	GLMaterial* material() const { return _material; }
+	void bindMaterial(Material* material);
+	Material* material() const { return _material; }
 
 	// Initialization
 	void initialize(ModelViewer* modelViewer, GLWidget* glWidget);
@@ -100,7 +100,7 @@ public:
 	float getIridescenceThinFilmThickness() const;
 
 	// Texture path getter
-	QString getTexturePath(GLMaterial::TextureType type) const;
+	QString getTexturePath(Material::TextureType type) const;
 
 	// Unsaved materials tracking (used by ModelViewer on close)
 	QSet<QString> getUnsavedMaterialKeys() const { return _unsavedMaterialKeys; }
@@ -113,17 +113,17 @@ public:
 	// Mesh material editing
 	void createUnsavedMaterialFromMesh(
 		const QString& meshName,
-		const GLMaterial& meshMaterial);
+		const Material& meshMaterial);
 	void setEditingMeshUuid(const QUuid& uuid);
 
 	// Cleanup helper for temporary mesh materials category
 	void removeEmptyMeshMaterialsCategory();
 
 signals:
-	void materialChanged(GLMaterial* material);
-	void materialApplied(const GLMaterial& material);
-	void meshMaterialApplied(const QUuid& meshUuid, const GLMaterial& material);
-	void textureSamplerChanged(GLMaterial* material, GLMaterial::TextureType type);
+	void materialChanged(Material* material);
+	void materialApplied(const Material& material);
+	void meshMaterialApplied(const QUuid& meshUuid, const Material& material);
+	void textureSamplerChanged(Material* material, Material::TextureType type);
 	void textureCacheClearRequested();
 	void detachRequested();
 
@@ -165,12 +165,12 @@ private slots:
 	void onIridescenceThinFilmThicknessChanged(double value);
 
 	// Texture handlers
-	void onTextureButtonClicked(GLMaterial::TextureType type);
+	void onTextureButtonClicked(Material::TextureType type);
 	void onClearAllTextures();
 
 	// Preset handlers
-	void onMaterialPresetSelected(const GLMaterial& material);
-	void onMaterialDoubleClicked(const GLMaterial& material);
+	void onMaterialPresetSelected(const Material& material);
+	void onMaterialDoubleClicked(const Material& material);
 	void onCreateNewMaterial();  // Create new material (in-memory, unsaved)
 	void onSaveToLibrary();      // Save or overwrite user material
 	void onSaveAsToLibrary();    // Save as new copy of current material
@@ -197,7 +197,7 @@ private:
 		QLabel* metaColorSpace = nullptr;        // sRGB / Linear
 		QLabel* metaPacking = nullptr;           // packed channel summary
 		QString key;                             // e.g., "albedo", "roughness"
-		GLMaterial::TextureType type;            // enum type
+		Material::TextureType type;            // enum type
 	};
 
 	// Texture management helpers
@@ -209,11 +209,11 @@ private:
 	QIcon makeIconFromFile(const QString& file, int edge = 90) const;
 	static QIcon makeCheckerIcon(int w = 90, int h = 90, int cell = 8);
 
-	// GLMaterial sync
-	void setTextureMapPath(GLMaterial::TextureType type, const QString& file);
-	void clearTextureMap(GLMaterial::TextureType type);
+	// Material sync
+	void setTextureMapPath(Material::TextureType type, const QString& file);
+	void clearTextureMap(Material::TextureType type);
 	void clearAllTexturesMaps();
-	QString textureMapPath(GLMaterial::TextureType type) const;
+	QString textureMapPath(Material::TextureType type) const;
 
 	// Material loading
 	void loadTextureImageFiles();  // Load texture image files from disk for current material
@@ -224,14 +224,14 @@ private:
 	void updateScalarUI();
 
 	// Texture operations
-	void updateTexturePreview(GLMaterial::TextureType type);
-	void updateTextureMetadata(GLMaterial::TextureType type);
-	void openPackingDialogFor(GLMaterial::TextureType type);
+	void updateTexturePreview(Material::TextureType type);
+	void updateTextureMetadata(Material::TextureType type);
+	void openPackingDialogFor(Material::TextureType type);
 
 	// Slot handlers
-	void onColorPickerClicked(GLMaterial::TextureType type);
-	void onFactorChanged(GLMaterial::TextureType type);
-	void onTransformButtonClicked(GLMaterial::TextureType type);
+	void onColorPickerClicked(Material::TextureType type);
+	void onFactorChanged(Material::TextureType type);
+	void onTransformButtonClicked(Material::TextureType type);
 	void onSearchTextChanged(const QString& text);
 
 	// Helper to update unsaved material in shared map when scalars change
@@ -263,12 +263,12 @@ private:
 
 	// Members
 	Ui::MaterialPropertiesPanel* _ui = nullptr;
-	GLMaterial* _material = nullptr;
+	Material* _material = nullptr;
 	ModelViewer* _modelViewer = nullptr;
 	GLWidget* _glWidget = nullptr;
 	MaterialPreviewWidget* _preview = nullptr;
 
-	QHash<GLMaterial::TextureType, MapSlot> _textureSlots;
+	QHash<Material::TextureType, MapSlot> _textureSlots;
 	QIcon _checkerIcon;
 
 	QString _lastUsedTextureFolder;

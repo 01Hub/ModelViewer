@@ -8,7 +8,7 @@
 #include "ExplodedViewRuntimeController.h"
 #include "SceneRenderController.h"
 #include "ViewportInteractionController.h"
-#include "GLCamera.h"
+#include "Camera.h"
 #include "MvfMeshPreparationWorker.h"
 #include "PlaneRenderable.h"
 #include "FloorPlane.h"
@@ -33,7 +33,7 @@
 #include <array>
 #include "ViewToolbar.h"
 #include "SceneUtils.h"
-#include "GLLights.h"
+#include "PunctualLights.h"
 #include "KTX2Loader.h"
 #include "SelectionManager.h"
 #include "TransformGizmo.h"
@@ -98,8 +98,8 @@ public:
 	bool isCameraUpAxisZUp() const { return _viewCtrl.cameraUpAxisZUp(); }
 	void setProjection(ViewProjection proj);
 	ViewProjection projection() const { return _viewCtrl.projection(); }
-	void setCameraMode(GLCamera::CameraMode mode);
-	GLCamera::CameraMode cameraMode() const;
+	void setCameraMode(Camera::CameraMode mode);
+	Camera::CameraMode cameraMode() const;
 
 	void setMultiView(bool active) { _viewCtrl.setMultiViewActive(active); }
 	void setRotationActive(bool active);
@@ -205,9 +205,9 @@ public:
 
 	void invertADSOpacityTexMap(const std::vector<int>& ids, const bool& inverted) { _sceneRuntime.invertAdsOpacityMaps(ids, inverted); }
 
-	void setMaterialToObjects(const std::vector<int>& ids, const GLMaterial& mat);
-	void setTexturesToObjects(const std::vector<int>& ids, const GLMaterial& mat);
-	void synchronizeTextureCache(const GLMaterial* material, GLMaterial::TextureType type);
+	void setMaterialToObjects(const std::vector<int>& ids, const Material& mat);
+	void setTexturesToObjects(const std::vector<int>& ids, const Material& mat);
+	void synchronizeTextureCache(const Material* material, Material::TextureType type);
 	void clearTextureCache();
 
 	void setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale);
@@ -506,9 +506,9 @@ public slots:
 	// In multi-view mode the ortho camera is set to the correct orientation
 	// (Top/Front/Left) before being returned; the isometric viewport returns
 	// the primary camera.  In single-view mode the primary camera is returned.
-	GLCamera* getCameraForPoint(const QPoint& pixel);
+	Camera* getCameraForPoint(const QPoint& pixel);
 
-	static GLMaterial resolveMaterialTextures(GLWidget* w, const GLMaterial& src);
+	static Material resolveMaterialTextures(GLWidget* w, const Material& src);
 
 	// Reads back all per-mesh texture slots for meshId via glGetTexImage and
 	// emits textureReadbackReady().  Must be called on the GL thread (or the
@@ -624,7 +624,7 @@ private:
 	void drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex = -1);
 	void drawMeshesWithClipping(QOpenGLShaderProgram* prog, bool transparentPass);
 	void drawSSSMeshesOnly(QOpenGLShaderProgram* prog, int activeClipPlaneIndex = -1);
-	void setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera);
+	void setCommonUniforms(QOpenGLShaderProgram* prog, Camera* camera);
 
 	// Visibility culling
 	void extractFrustumPlanes();
@@ -647,10 +647,10 @@ private:
 	void drawVertexNormals();
 	void drawFaceNormals();
 	void drawBoundingBoxOverlay();
-	void drawDebugOverlay(GLCamera* camera);
-	void drawAxis(GLCamera* camera);
+	void drawDebugOverlay(Camera* camera);
+	void drawAxis(Camera* camera);
 	void drawCornerAxis(CornerAxisPosition position);
-	void drawTransformGizmo(GLCamera* camera);
+	void drawTransformGizmo(Camera* camera);
 	void drawViewCube();
 	void drawViewCubeLabels(const QMatrix4x4& viewMatrix, const QMatrix4x4& projectionMatrix, float cubeScale);
 	BoundingSphere computeTransformGizmoSelectionSphere() const;
@@ -672,7 +672,7 @@ private:
 
 	void bindIBLTextures();
 
-	void render(GLCamera* camera);
+	void render(Camera* camera);
 	void renderToShadowBuffer();
 	void renderQuad();
 	void renderMeshWithDisplayMode(SceneMesh* mesh, DisplayMode mode);
@@ -759,7 +759,7 @@ private:
 
 	float highestModelZ() { return _viewCtrl.visibleHighestZ(); }
 	float lowestModelZ()  { return _viewCtrl.visibleLowestZ(); }
-	bool positionGameplayCameraForScene(GLCamera::CameraMode mode);
+	bool positionGameplayCameraForScene(Camera::CameraMode mode);
 
 	QList<int> sweepSelect(const QPoint& pixel, bool addToSelection = false);  // Sweep selection using rubber band
 	QVector3D get3dTranslationVectorFromMousePoints(const QPoint& start, const QPoint& end);
@@ -799,8 +799,8 @@ private:
 	GLuint createGPUTextureFromImage(const QImage& image, const TextureSamplerSettings& samplers);
 	GLuint uploadDecodedTextureImage(const QImage& image, const TextureSamplerSettings& samplers);
 	GLuint uploadKtx2TextureImage(const QString& path, const std::string& mapType, const TextureSamplerSettings& samplers);
-	GLuint uploadDecodedTexture(GLMaterial::Texture& texture, const QImage& image);
-	GLuint uploadKtx2Texture(const QString& path, const std::string& mapType, GLMaterial::Texture& texture);
+	GLuint uploadDecodedTexture(Material::Texture& texture, const QImage& image);
+	GLuint uploadKtx2Texture(const QString& path, const std::string& mapType, Material::Texture& texture);
 	UVMethod promptLargeModelUVDecision(int totalTriangles, UVMethod currentMethod);
 	void retainTexture(unsigned int texId);
 	void releaseTexture(unsigned int texId);
@@ -819,13 +819,13 @@ private:
 		
 	// --- Transmission Buffer Methods ---
 	void initTransmissionBuffer();
-	void renderToTransmissionBuffer(GLCamera* camera, const QColor& topColor, const QColor& botColor);
+	void renderToTransmissionBuffer(Camera* camera, const QColor& topColor, const QColor& botColor);
 	void cleanupTransmissionBuffer();
 	void resizeTransmissionBuffer(int width, int height);
 
 	// --- SSS (Subsurface Scattering) Buffer Methods ---
 	void initSSSBuffer();
-	void renderToSSSBuffer(GLCamera* camera);
+	void renderToSSSBuffer(Camera* camera);
 	void resizeSSSBuffer(int width, int height);
 	void cleanupSSSBuffer();
 
@@ -917,8 +917,8 @@ private:
 	PlaneRenderable* _clippingPlaneZX;
 
 
-	GLCamera* _primaryCamera;
-	GLCamera* _orthoViewsCamera;
+	Camera* _primaryCamera;
+	Camera* _orthoViewsCamera;
 
 	// Active glTF camera → AnimationRuntimeController (Phase 8)
 

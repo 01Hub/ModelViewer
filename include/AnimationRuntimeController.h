@@ -2,8 +2,8 @@
 
 #include "GltfAnimationData.h"
 #include "GltfLightData.h"
-#include "GLLights.h"
-#include "GLMaterial.h"
+#include "PunctualLights.h"
+#include "Material.h"
 #include "LightOrigin.h"
 
 class SceneGraph;
@@ -58,7 +58,7 @@ public:
 
         QHash<QUuid, RuntimeNodeTransform> defaultNodeTransformsByUuid;
         QHash<QUuid, QVector<float>>       defaultNodeMorphWeightsByUuid;
-        QHash<QUuid, GLMaterial>           defaultMeshMaterials;
+        QHash<QUuid, Material>           defaultMeshMaterials;
         QMultiHash<int, QUuid>             meshUuidsByMaterialIndex;
 
         QHash<QString, QUuid> nodeUuidByName;
@@ -71,7 +71,7 @@ public:
         QHash<QUuid, RuntimeNodeTransform>  nodeTransforms;
         QHash<QUuid, RuntimeNodeTransform>  meshTransforms;
         QHash<QUuid, QVector<float>>        morphWeights;
-        QHash<QUuid, GLMaterial>            animatedMaterials;
+        QHash<QUuid, Material>            animatedMaterials;
         QHash<int, bool>                    nodeVisibility;
         QHash<QUuid, QMatrix4x4>            worldTransforms;
         bool                                affectsShadowCasters = false;
@@ -220,13 +220,13 @@ public:
                                                         int targetNodeIndex,
                                                         const QString& fallbackNodeName = {});
 
-    static void applyTexturePointerValue(GLMaterial& material,
+    static void applyTexturePointerValue(Material& material,
                                           GltfAnimationTextureTarget textureTarget,
                                           GltfAnimationPointerProperty property,
                                           const QVector2D& vec2Value,
                                           float scalarValue);
 
-    static void applyMaterialFactorPointerValue(GLMaterial& material,
+    static void applyMaterialFactorPointerValue(Material& material,
                                                  GltfAnimationPointerProperty property,
                                                  const QVector4D& vec4Value);
 

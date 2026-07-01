@@ -4,7 +4,7 @@
 #include "ui_ModelViewer.h"
 
 #include "GLWidget.h"
-#include "GLMaterial.h"
+#include "Material.h"
 #include "SceneGraph.h"
 #include "SceneTreeWidget.h"
 #include "UVPromptDialog.h"
@@ -49,9 +49,9 @@ public:
 	QMap<QString, CachedMaterial>* getMaterialCache() { return &_materialCache; }
 	void registerOwnedUnsavedMaterial(const QString& materialKey) { _ownedUnsavedMaterials.insert(materialKey); }
 
-	void setMaterialToSelectedItems(const GLMaterial& mat);
-	void setTexturesToSelectedItems(const GLMaterial& mat);
-	void setTextureSamplersToSelectedItems(const GLMaterial* material, GLMaterial::TextureType type);
+	void setMaterialToSelectedItems(const Material& mat);
+	void setTexturesToSelectedItems(const Material& mat);
+	void setTextureSamplersToSelectedItems(const Material* material, Material::TextureType type);
 
 	void setTransformation();
 	void resetTransformation();
@@ -207,10 +207,10 @@ private slots:
 
 	void on_tabWidgetVizAttribs_currentChanged(int index);
 
-	void onPredefinedMaterialSelected(const GLMaterial& mat);
-	void onCustomMaterialApplied(const GLMaterial& mat);
+	void onPredefinedMaterialSelected(const Material& mat);
+	void onCustomMaterialApplied(const Material& mat);
 
-	void onTexturesApplied(const GLMaterial* mat = nullptr);
+	void onTexturesApplied(const Material* mat = nullptr);
 
 
 protected:
@@ -272,7 +272,7 @@ private:
 	GLWidget*   _glWidget;
 	SceneGraph* _sceneGraph;
 
-	GLMaterial _material;
+	Material _material;
 
 	bool _bHasTexture;
 

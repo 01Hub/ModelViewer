@@ -1,6 +1,6 @@
 #pragma once
 
-#include "GLMaterial.h"
+#include "Material.h"
 #include "GltfAnimationData.h"
 #include "GltfVariantData.h"
 #include "MeshVertex.h"
@@ -28,10 +28,10 @@ struct PreparedMvfMesh
 	QString      sourceFile;
 	QString      sourceNodeName;
 	QVector<GltfVariantMapping> variantMappings;
-	QMap<int, GLMaterial> allVariantMaterials;
+	QMap<int, Material> allVariantMaterials;
 	std::vector<Vertex>       vertices;
 	std::vector<unsigned int> indices;
-	GLMaterial   material;
+	Material   material;
 	QVector<GltfSkinJoint>   skinJoints;
 
 	// Morph targets (blend shapes) - position/normal/tangent deltas.

@@ -30,7 +30,7 @@ public:
     //  - creates one default material and assigns materialIndex = 0 to all meshes
     //
     // Later we can extend this to:
-    //  - rebuild full materials from current GLMaterial state
+    //  - rebuild full materials from current Material state
     //  - include lights
     //  - support multiple UV channels / vertex colors / tangents as needed
     // flattenTransforms: when true, every aiNode gets an identity transform and

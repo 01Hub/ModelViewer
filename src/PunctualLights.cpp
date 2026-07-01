@@ -1,17 +1,17 @@
-#include "GLLights.h"
+#include "PunctualLights.h"
 #include <QDebug>
 
-GLLights::GLLights() : uboHandle(0), lightCount(0)
+PunctualLights::PunctualLights() : uboHandle(0), lightCount(0)
 {
     initializeOpenGLFunctions();
 }
 
-GLLights::~GLLights()
+PunctualLights::~PunctualLights()
 {
     cleanup();
 }
 
-void GLLights::setLights(const std::vector<GPULight>& lightsData)
+void PunctualLights::setLights(const std::vector<GPULight>& lightsData)
 {
     lights = lightsData;
     lightCount = static_cast<int>(lights.size());
@@ -20,7 +20,7 @@ void GLLights::setLights(const std::vector<GPULight>& lightsData)
     {
         lightCount = MAX_LIGHTS;
         lights.resize(lightCount);
-        qWarning() << "GLLights::setLights: Clamping light count to" << MAX_LIGHTS;
+        qWarning() << "PunctualLights::setLights: Clamping light count to" << MAX_LIGHTS;
     }
 
     if (lightCount > 0)
@@ -28,10 +28,10 @@ void GLLights::setLights(const std::vector<GPULight>& lightsData)
         uploadData();
     }
 
-    qDebug() << "GLLights::setLights: Set" << lightCount << "lights with transforms applied";
+    qDebug() << "PunctualLights::setLights: Set" << lightCount << "lights with transforms applied";
 }
 
-void GLLights::createFallbackLight(const glm::vec3& position)
+void PunctualLights::createFallbackLight(const glm::vec3& position)
 {
     lights.clear();
     lightCount = 0;
@@ -52,11 +52,11 @@ void GLLights::createFallbackLight(const glm::vec3& position)
 
     uploadData();
 
-    qDebug() << "GLLights::createFallbackLight: Created fallback point light at"
+    qDebug() << "PunctualLights::createFallbackLight: Created fallback point light at"
         << position.x << "," << position.y << "," << position.z;
 }
 
-void GLLights::bind(GLuint shaderProgram, const char* blockName)
+void PunctualLights::bind(GLuint shaderProgram, const char* blockName)
 {
     if (lightCount == 0 || uboHandle == 0)
     {
@@ -66,7 +66,7 @@ void GLLights::bind(GLuint shaderProgram, const char* blockName)
     GLuint blockIndex = glGetUniformBlockIndex(shaderProgram, blockName);
     if (blockIndex == GL_INVALID_INDEX)
     {
-        qWarning() << "GLLights::bind: Could not find uniform block" << blockName;
+        qWarning() << "PunctualLights::bind: Could not find uniform block" << blockName;
         return;
     }
 
@@ -74,7 +74,7 @@ void GLLights::bind(GLuint shaderProgram, const char* blockName)
     glBindBufferBase(GL_UNIFORM_BUFFER, LIGHT_UBO_BINDING, uboHandle);
 }
 
-void GLLights::cleanup()
+void PunctualLights::cleanup()
 {
     if (uboHandle != 0)
     {
@@ -85,7 +85,7 @@ void GLLights::cleanup()
     lightCount = 0;
 }
 
-void GLLights::createUBO()
+void PunctualLights::createUBO()
 {
     if (uboHandle == 0)
     {
@@ -96,7 +96,7 @@ void GLLights::createUBO()
     }
 }
 
-void GLLights::uploadData()
+void PunctualLights::uploadData()
 {
     if (lightCount == 0)
     {
@@ -111,5 +111,5 @@ void GLLights::uploadData()
     glBufferSubData(GL_UNIFORM_BUFFER, 0, dataSize, lights.data());
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-    qDebug() << "GLLights::uploadData: Uploaded" << lightCount << "light(s) to GPU";
+    qDebug() << "PunctualLights::uploadData: Uploaded" << lightCount << "light(s) to GPU";
 }

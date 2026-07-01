@@ -8,13 +8,13 @@ class SceneMesh;
 #include <assimp/scene.h>
 #include <assimp/Exporter.hpp>
 #include "TextureLocationManager.h"
-#include "GLLights.h"
+#include "PunctualLights.h"
 #include "GltfCameraData.h"
 #include "GltfVariantData.h"
 #include "GltfAnimationData.h"
 #include "TexturePackingUtils.h"
 
-class GLMaterial;
+class Material;
 class RenderableMesh;
 struct Vertex;
 
@@ -163,13 +163,13 @@ public:
      * Uses caching to avoid redundant packing of the same M/R pairs.
      * Falls back gracefully if packing fails.
      *
-     * @param material Source GLMaterial with potential separate M/R textures
+     * @param material Source Material with potential separate M/R textures
      * @param texturePackage Resolved texture paths for the material
      * @param outputDirectory Directory to save packed texture
      * @return Path to packed texture file, or empty string on failure
      */
     QString packMetallicRoughnessIfSeparate(
-        const GLMaterial& material,
+        const Material& material,
         const TexturePackage& texturePackage,
         const QString& outputDirectory);
 
@@ -180,13 +180,13 @@ public:
      * packed texture using efficient scanLine() pixel access. Handles optional occlusion
      * texture (white default if missing).
      *
-     * @param material Source GLMaterial with separate ORM textures
+     * @param material Source Material with separate ORM textures
      * @param texturePackage Resolved texture paths for the material
      * @param outputDirectory Directory to save packed texture
      * @return Path to packed texture file, or empty string on failure
      */
     QString packORMIfSeparate(
-        const GLMaterial& material,
+        const Material& material,
         const TexturePackage& texturePackage,
         const QString& outputDirectory);
 
@@ -207,7 +207,7 @@ private:
         GLenum primitiveMode);
 
     /**
-     * @brief Create an Assimp material from GLMaterial with full PBR
+     * @brief Create an Assimp material from Material with full PBR
      *
      * Exports all properties: base color, metallic, roughness, transmission,
      * IOR, clearcoat, sheen, emissive, normal scale, etc.
@@ -216,14 +216,14 @@ private:
      * When material name is empty, uses meshName as fallback to prevent
      * Assimp from deduplicating materials with identical names.
      *
-     * @param material GLMaterial to convert
+     * @param material Material to convert
      * @param texturePackage Resolved texture paths and mappings
      * @param exportFileLocation Export file path for format detection
      * @param meshName Mesh name (used as fallback if material name is empty)
      * @return Allocated aiMaterial*, or nullptr on failure
      */
     aiMaterial* createMaterial(
-        const GLMaterial& material,
+        const Material& material,
         const TexturePackage& texturePackage,
         const QString& exportFileLocation,
         const QString& meshName = "");
@@ -231,17 +231,17 @@ private:
     /**
      * @brief Assign texture references to an Assimp material
      *
-     * Maps GLMaterial's 25 texture types to Assimp semantic types and
+     * Maps Material's 25 texture types to Assimp semantic types and
      * uses resolved relative paths from the texture package.
      * Called by createMaterial().
      *
      * @param aiMat Target Assimp material to populate
-     * @param material Source GLMaterial
+     * @param material Source Material
      * @param texturePackage Resolved texture paths and mappings
      */
     void assignTexturesToMaterial(
         aiMaterial* aiMat,
-        const GLMaterial& material,
+        const Material& material,
         const TexturePackage& texturePackage,
         bool useEmbeddedTextures,
         const QString& exportFileLocation,
@@ -252,7 +252,7 @@ private:
      *
      * Internal method that:
      * - Iterates through scene meshes paired with source mesh objects
-     * - Creates Assimp materials from GLMaterial data
+     * - Creates Assimp materials from Material data
      * - Assigns textures using texture package mappings
      * - Updates mesh material indices
      *
@@ -312,7 +312,7 @@ private:
      *
      * Assimp's OBJ exporter writes only classic Phong MTL keywords.  This
      * method re-opens the written .mtl, locates each material block by name,
-     * matches it to the source GLMaterial, and appends the de-facto PBR MTL
+     * matches it to the source Material, and appends the de-facto PBR MTL
      * extension lines that Blender, Substance Painter, Maya, and other
      * PBR-aware OBJ importers recognise:
      *   Pm  <metallicFactor>       map_Pm  <metallicTexture>
@@ -324,7 +324,7 @@ private:
      * built by packageTextures().
      *
      * @param mtlPath  Absolute path of the .mtl file to patch
-     * @param meshes   Source meshes (provides material names and GLMaterial data)
+     * @param meshes   Source meshes (provides material names and Material data)
      * @param pkg      Texture package (provides original → relative path mapping)
      */
     void patchMtlWithPbrExtensions(

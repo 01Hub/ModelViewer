@@ -1057,7 +1057,7 @@ void RenderableMesh::setupUniforms()
 
 	// Upload channel-packing parameters so the shader reads the correct channel
 	// with the correct scale/bias from each packed texture (e.g. ORM: R=AO, G=roughness, B=metallic).
-	// GLMaterial initialises sensible defaults (roughness→G, metallic→B, AO→R, all scale=1)
+	// Material initialises sensible defaults (roughness→G, metallic→B, AO→R, all scale=1)
 	// and detectAndAssignPacking() updates them when multiple maps share the same file.
 	// Without this upload the GLSL uniforms zero-initialise (scale=0) and texture
 	// contributions are silently discarded, making all textured materials appear roughness≈0.
@@ -1435,7 +1435,7 @@ void RenderableMesh::setupUniforms()
 	// send channel-packing uniforms now that samplers are bound to units
 	// Uniform naming: <base>Channel, <base>Invert, <base>Scale, <base>Bias
 	auto sendPackingUniform = [this](const QString& key, const char* base) {
-		GLMaterial::ChannelPacking p = _material.packingFor(key);
+		Material::ChannelPacking p = _material.packingFor(key);
 		int ch = p.channel;
 		if (ch < -1) ch = -1;
 		if (ch > 3) ch = 3;
@@ -1554,12 +1554,12 @@ void RenderableMesh::clearAllADSMaps()
 	markUniformsDirty();
 }
 
-GLMaterial RenderableMesh::getMaterial() const
+Material RenderableMesh::getMaterial() const
 {
 	return _material;
 }
 
-void RenderableMesh::setMaterial(const GLMaterial& material)
+void RenderableMesh::setMaterial(const Material& material)
 {
 	_material = material;
 	cacheBaseVolumeProperties();
@@ -1567,9 +1567,9 @@ void RenderableMesh::setMaterial(const GLMaterial& material)
 	markUniformsDirty();
 }
 
-void RenderableMesh::setTextureMaps(const GLMaterial& material)
+void RenderableMesh::setTextureMaps(const Material& material)
 {
-	// Resolved GLMaterial instances can carry shared texture ids from GLWidget's
+	// Resolved Material instances can carry shared texture ids from GLWidget's
 	// cache. Treat this call as a state sync only; deleting/recreating ids here
 	// can invalidate the very cached textures we are about to keep using.
 	_material = material;
@@ -1627,7 +1627,7 @@ void RenderableMesh::render()
 	if(_material.opacity() < 1.0f ||
 		_material.hasOpacityMap() || _material.hasTransmissionMap() ||
 		_material.transmission() > 0.0f ||
-		_material.blendMode() == GLMaterial::BlendMode::Alpha ||
+		_material.blendMode() == Material::BlendMode::Alpha ||
 		_material.alphaThreshold() > 0.0f || _materialState.hasTextureAlpha())
 	{
 		glEnable(GL_BLEND);
@@ -1920,9 +1920,9 @@ void RenderableMesh::setOpacity(const float& opacity)
 {
 	_material.setOpacity(opacity);	
 	if (opacity < 1.0f)
-		_material.setBlendMode(GLMaterial::BlendMode::Alpha);
+		_material.setBlendMode(Material::BlendMode::Alpha);
 	else
-		_material.setBlendMode(GLMaterial::BlendMode::Opaque);
+		_material.setBlendMode(Material::BlendMode::Opaque);
 	markUniformsDirty();
 }
 
@@ -2384,13 +2384,13 @@ bool RenderableMesh::isTransparent() const
 	if (_material.transmission() > 0.0f)
 		return true;
 	// If it's OPAQUE, it's NOT transparent
-	if (_material.blendMode() == GLMaterial::BlendMode::Opaque)
+	if (_material.blendMode() == Material::BlendMode::Opaque)
 		return false;
 	// If it has BLEND mode (not MASK or OPAQUE), it's transparent
-	if (_material.blendMode() == GLMaterial::BlendMode::Alpha)  // BLEND mode
+	if (_material.blendMode() == Material::BlendMode::Alpha)  // BLEND mode
 		return true;
 	// If it's masked, it's NOT transparent (exclude from FBO)
-	if (_material.blendMode() == GLMaterial::BlendMode::Masked)
+	if (_material.blendMode() == Material::BlendMode::Masked)
 		return false;
 
 	return (_material.opacity() < 0.999f) ||
@@ -2599,7 +2599,7 @@ void RenderableMesh::clearAllPBRMaps()
 	markUniformsDirty();
 }
 
-const GLMaterial* RenderableMesh::materialForVariant(int variantIndex) const
+const Material* RenderableMesh::materialForVariant(int variantIndex) const
 {
 	return _materialState.materialForVariant(variantIndex, getOriginalMaterialIndex());
 }

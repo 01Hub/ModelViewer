@@ -1,7 +1,7 @@
 #pragma once
 
 #include "SceneNode.h"
-#include "GLLights.h"
+#include "PunctualLights.h"
 #include "GltfAnimationData.h"
 #include "GltfCameraData.h"
 #include "GltfLightData.h"
@@ -135,7 +135,7 @@ public:
 
     // Build the flat GPU list from all currently-enabled per-file lights.
     // Call this whenever a light is toggled or a file is added/removed, then
-    // pass the result to GLLights::setLights().
+    // pass the result to PunctualLights::setLights().
     std::vector<GPULight> buildEnabledLightList() const;
 
     SceneNode* findFileNode(const QString& sourceFile) const;

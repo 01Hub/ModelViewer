@@ -1,4 +1,4 @@
-﻿#include "GLMaterial.h"
+﻿#include "Material.h"
 #include <cmath>
 #include <QVector>
 #include <iostream>
@@ -6,7 +6,7 @@
 #include <string>
 #include <limits>
 
-GLMaterial::GLMaterial()
+Material::Material()
 {
 	*this = DEFAULT_MAT();
 	// Sensible defaults (e.g., glTF ORM: O=R, R=G, M=B)
@@ -16,7 +16,7 @@ GLMaterial::GLMaterial()
 	_opacityPacking = { 3, false, 1.0f, 0.0f }; // A (common), tweak if assets prefer R
 }
 
-GLMaterial::GLMaterial(QVector3D ambient, QVector3D diffuse, QVector3D specular, QVector3D emissive, float shininess, bool metallic, float opacity)
+Material::Material(QVector3D ambient, QVector3D diffuse, QVector3D specular, QVector3D emissive, float shininess, bool metallic, float opacity)
 {
 	_ambient.setX(std::clamp(ambient.x(), 0.0f, 1.0f));
 	_ambient.setY(std::clamp(ambient.y(), 0.0f, 1.0f));
@@ -69,7 +69,7 @@ GLMaterial::GLMaterial(QVector3D ambient, QVector3D diffuse, QVector3D specular,
 	updateConsistency();
 }
 
-GLMaterial::GLMaterial(QVector3D albedo, float metalness, float roughness, float opacity)
+Material::Material(QVector3D albedo, float metalness, float roughness, float opacity)
 {
 	_albedoColor.setX(std::clamp(albedo.x(), 0.0f, 1.0f));
 	_albedoColor.setY(std::clamp(albedo.y(), 0.0f, 1.0f));
@@ -110,7 +110,7 @@ GLMaterial::GLMaterial(QVector3D albedo, float metalness, float roughness, float
 	updateConsistency();
 }
 
-GLMaterial::~GLMaterial()
+Material::~Material()
 {
 }
 
@@ -118,7 +118,7 @@ GLMaterial::~GLMaterial()
 // Unified Texture Setters/Getters
 // ============================================================================
 
-void GLMaterial::setTexture(TextureType type, const Texture& texture)
+void Material::setTexture(TextureType type, const Texture& texture)
 {
 	Q_ASSERT(static_cast<size_t>(type) < static_cast<size_t>(TextureType::Count));
 	const std::string previousPath = _textures[static_cast<size_t>(type)].path;
@@ -143,13 +143,13 @@ void GLMaterial::setTexture(TextureType type, const Texture& texture)
 	}
 }
 
-const GLMaterial::Texture& GLMaterial::texture(TextureType type) const
+const Material::Texture& Material::texture(TextureType type) const
 {
 	Q_ASSERT(static_cast<size_t>(type) < static_cast<size_t>(TextureType::Count));
 	return _textures[static_cast<size_t>(type)];
 }
 
-GLMaterial::Texture& GLMaterial::texture(TextureType type)
+Material::Texture& Material::texture(TextureType type)
 {
 	Q_ASSERT(static_cast<size_t>(type) < static_cast<size_t>(TextureType::Count));
 	return _textures[static_cast<size_t>(type)];
@@ -158,7 +158,7 @@ GLMaterial::Texture& GLMaterial::texture(TextureType type)
 // ============================================================================
 // TextureType to String Helper
 // ============================================================================
-QString GLMaterial::textureTypeToString(TextureType type)
+QString Material::textureTypeToString(TextureType type)
 {
 	switch (type)
 	{
@@ -195,7 +195,7 @@ QString GLMaterial::textureTypeToString(TextureType type)
 // ============================================================================
 // String to TextureType Helper
 // ============================================================================
-GLMaterial::TextureType GLMaterial::stringToTextureType(const QString& name)
+Material::TextureType Material::stringToTextureType(const QString& name)
 {
 	if (name == "Albedo")                   return TextureType::Albedo;
 	if (name == "Metallic")                 return TextureType::Metallic;
@@ -227,7 +227,7 @@ GLMaterial::TextureType GLMaterial::stringToTextureType(const QString& name)
 }
 
 
-void GLMaterial::setAmbient(const QVector3D& ambient)
+void Material::setAmbient(const QVector3D& ambient)
 {
 	_ambient.setX(std::clamp(ambient.x(), 0.0f, 1.0f));
 	_ambient.setY(std::clamp(ambient.y(), 0.0f, 1.0f));
@@ -235,7 +235,7 @@ void GLMaterial::setAmbient(const QVector3D& ambient)
 }
 
 
-void GLMaterial::setDiffuse(const QVector3D& diffuse)
+void Material::setDiffuse(const QVector3D& diffuse)
 {
 	_diffuse.setX(std::clamp(diffuse.x(), 0.0f, 1.0f));
 	_diffuse.setY(std::clamp(diffuse.y(), 0.0f, 1.0f));
@@ -243,7 +243,7 @@ void GLMaterial::setDiffuse(const QVector3D& diffuse)
 }
 
 
-void GLMaterial::setSpecular(const QVector3D& specular)
+void Material::setSpecular(const QVector3D& specular)
 {
 	_specular.setX(std::clamp(specular.x(), 0.0f, 1.0f));
 	_specular.setY(std::clamp(specular.y(), 0.0f, 1.0f));
@@ -251,7 +251,7 @@ void GLMaterial::setSpecular(const QVector3D& specular)
 }
 
 
-void GLMaterial::setEmissive(const QVector3D& emissive)
+void Material::setEmissive(const QVector3D& emissive)
 {
 	_emissive.setX(std::clamp(emissive.x(), 0.0f, 1.0f));
 	_emissive.setY(std::clamp(emissive.y(), 0.0f, 1.0f));
@@ -259,19 +259,19 @@ void GLMaterial::setEmissive(const QVector3D& emissive)
 }
 
 
-void GLMaterial::setShininess(float shininess)
+void Material::setShininess(float shininess)
 {
 	_shininess = shininess;
 }
 
 
 
-void GLMaterial::setMetallic(bool metallic)
+void Material::setMetallic(bool metallic)
 {
 	_metallic = metallic;
 }
 
-void GLMaterial::setAlbedoColor(const QVector3D& albedoColor)
+void Material::setAlbedoColor(const QVector3D& albedoColor)
 {
 	_albedoColor.setX(std::clamp(albedoColor.x(), 0.0f, 1.0f));
 	_albedoColor.setY(std::clamp(albedoColor.y(), 0.0f, 1.0f));
@@ -280,24 +280,24 @@ void GLMaterial::setAlbedoColor(const QVector3D& albedoColor)
 
 
 
-void GLMaterial::setMetalness(float metalness)
+void Material::setMetalness(float metalness)
 {
 	_metalness = metalness;
 }
 
 
-void GLMaterial::setRoughness(float roughness)
+void Material::setRoughness(float roughness)
 {
 	_roughness = roughness;
 }
 
 
-void GLMaterial::setOpacity(float opacity)
+void Material::setOpacity(float opacity)
 {
 	_opacity = opacity;	
 }
 
-GLMaterial GLMaterial::getPredefinedMaterial(GLMaterial::PredefinedMaterials type)
+Material Material::getPredefinedMaterial(Material::PredefinedMaterials type)
 {
 	switch (type)
 	{
@@ -379,9 +379,9 @@ GLMaterial GLMaterial::getPredefinedMaterial(GLMaterial::PredefinedMaterials typ
 	}
 }
 
-GLMaterial GLMaterial::METAL_BRASS()
+Material Material::METAL_BRASS()
 {
-	GLMaterial mat({ 0.329412f, 0.223529f, 0.027451f },
+	Material mat({ 0.329412f, 0.223529f, 0.027451f },
 		{ 0.780392f, 0.568627f, 0.113725f },
 		{ 0.992157f, 0.941176f, 0.807843f },
 		{ 0.0, 0.0, 0.0 },
@@ -399,9 +399,9 @@ GLMaterial GLMaterial::METAL_BRASS()
 	return mat;
 }
 
-GLMaterial GLMaterial::METAL_BRONZE()
+Material Material::METAL_BRONZE()
 {
-	GLMaterial mat({ 0.2125f, 0.1275f, 0.054f },
+	Material mat({ 0.2125f, 0.1275f, 0.054f },
 		{ 0.714f, 0.4284f, 0.18144f },
 		{ 0.393548f, 0.271906f, 0.166721f },
 		{ 0.0, 0.0, 0.0 },
@@ -418,9 +418,9 @@ GLMaterial GLMaterial::METAL_BRONZE()
 	return mat;
 }
 
-GLMaterial GLMaterial::METAL_COPPER()
+Material Material::METAL_COPPER()
 {
-	GLMaterial mat({ 0.19125f, 0.0735f, 0.0225f },
+	Material mat({ 0.19125f, 0.0735f, 0.0225f },
 		{ 0.7038f, 0.27048f, 0.0828f },
 		{ 0.256777f, 0.137622f, 0.086014f },
 		{ 0.0, 0.0, 0.0 },
@@ -437,9 +437,9 @@ GLMaterial GLMaterial::METAL_COPPER()
 	return mat;
 }
 
-GLMaterial GLMaterial::METAL_GOLD()
+Material Material::METAL_GOLD()
 {
-	GLMaterial mat({ 0.24725f, 0.1995f, 0.0745f },
+	Material mat({ 0.24725f, 0.1995f, 0.0745f },
 		{ 0.75164f, 0.60648f, 0.22648f },
 		{ 0.628281f, 0.555802f, 0.366065f },
 		{ 0.0, 0.0, 0.0 },
@@ -456,9 +456,9 @@ GLMaterial GLMaterial::METAL_GOLD()
 	return mat;
 }
 
-GLMaterial GLMaterial::METAL_SILVER()
+Material Material::METAL_SILVER()
 {
-	GLMaterial mat({ 0.19225f, 0.19225f, 0.19225f },
+	Material mat({ 0.19225f, 0.19225f, 0.19225f },
 		{ 0.50754f, 0.50654f, 0.50754f },
 		{ 0.508273f, 0.508273f, 0.508273f },
 		{ 0.0, 0.0, 0.0 },
@@ -475,9 +475,9 @@ GLMaterial GLMaterial::METAL_SILVER()
 	return mat;
 }
 
-GLMaterial GLMaterial::METAL_CHROME()
+Material Material::METAL_CHROME()
 {
-	GLMaterial mat({ 0.25f, 0.25f, 0.25f },
+	Material mat({ 0.25f, 0.25f, 0.25f },
 		{ 0.4f, 0.4f, 0.4f },
 		{ 0.774597f, 0.774597f, 0.774597f },
 		{ 0.0, 0.0, 0.0 },
@@ -494,9 +494,9 @@ GLMaterial GLMaterial::METAL_CHROME()
 	return mat;
 }
 
-GLMaterial GLMaterial::METAL_STEEL()
+Material Material::METAL_STEEL()
 {
-	GLMaterial mat({ 0.25f, 0.25f, 0.25f },
+	Material mat({ 0.25f, 0.25f, 0.25f },
 		{ 0.4f, 0.4f, 0.4f },
 		{ 0.774597f, 0.774597f, 0.774597f },
 		{ 0.0, 0.0, 0.0 },
@@ -515,9 +515,9 @@ GLMaterial GLMaterial::METAL_STEEL()
 }
 
 // ----------------- Brushed Metals -----------------
-GLMaterial GLMaterial::BRUSHED_ALUMINUM()
+Material Material::BRUSHED_ALUMINUM()
 {
-	GLMaterial mat({ 0.06f, 0.06f, 0.06f },      // ambient
+	Material mat({ 0.06f, 0.06f, 0.06f },      // ambient
 		{ 0.7f, 0.7f, 0.7f },         // diffuse
 		{ 0.5f, 0.5f, 0.5f },         // specular
 		{ 0.0f, 0.0f, 0.0f },
@@ -533,9 +533,9 @@ GLMaterial GLMaterial::BRUSHED_ALUMINUM()
 	return mat;
 }
 
-GLMaterial GLMaterial::BRUSHED_STEEL()
+Material Material::BRUSHED_STEEL()
 {
-	GLMaterial mat({ 0.05f, 0.05f, 0.05f },
+	Material mat({ 0.05f, 0.05f, 0.05f },
 		{ 0.55f, 0.55f, 0.55f },
 		{ 0.45f, 0.45f, 0.45f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -552,9 +552,9 @@ GLMaterial GLMaterial::BRUSHED_STEEL()
 }
 
 // --------------------- Stone Materials ---------------------
-GLMaterial GLMaterial::STONE_RUBY()
+Material Material::STONE_RUBY()
 {
-	GLMaterial mat({ 0.17450f, 0.01175f, 0.01175f },
+	Material mat({ 0.17450f, 0.01175f, 0.01175f },
 		{ 0.61424f, 0.04136f, 0.04136f },
 		{ 0.727811f, 0.626959f, 0.626959f },
 		{ 0.0, 0.0, 0.0 },
@@ -572,9 +572,9 @@ GLMaterial GLMaterial::STONE_RUBY()
 	return mat;
 }
 
-GLMaterial GLMaterial::STONE_EMERALD()
+Material Material::STONE_EMERALD()
 {
-	GLMaterial mat({ 0.0215f, 0.1745f, 0.0215f },
+	Material mat({ 0.0215f, 0.1745f, 0.0215f },
 		{ 0.07568f, 0.61424f, 0.07568f },
 		{ 0.633000f, 0.727811f, 0.633000f },
 		{ 0.0, 0.0, 0.0 },
@@ -592,9 +592,9 @@ GLMaterial GLMaterial::STONE_EMERALD()
 	return mat;
 }
 
-GLMaterial GLMaterial::STONE_TURQUOISE()
+Material Material::STONE_TURQUOISE()
 {
-	GLMaterial mat({ 0.1f, 0.18725f, 0.1745f },
+	Material mat({ 0.1f, 0.18725f, 0.1745f },
 		{ 0.396f, 0.74151f, 0.69102f },
 		{ 0.297254f, 0.30829f, 0.306678f },
 		{ 0.0, 0.0, 0.0 },
@@ -611,9 +611,9 @@ GLMaterial GLMaterial::STONE_TURQUOISE()
 	return mat;
 }
 
-GLMaterial GLMaterial::STONE_PEARL()
+Material Material::STONE_PEARL()
 {
-	GLMaterial mat({ 0.25000f, 0.20725f, 0.20725f },
+	Material mat({ 0.25000f, 0.20725f, 0.20725f },
 		{ 1.000f, 0.829f, 0.829f },
 		{ 0.296648f, 0.296648f, 0.299948f },
 		{ 0.0, 0.0, 0.0 },
@@ -633,9 +633,9 @@ GLMaterial GLMaterial::STONE_PEARL()
 	return mat;
 }
 
-GLMaterial GLMaterial::STONE_JADE()
+Material Material::STONE_JADE()
 {
-	GLMaterial mat({ 0.135f, 0.2225f, 0.1575f },
+	Material mat({ 0.135f, 0.2225f, 0.1575f },
 		{ 0.54f, 0.89f, 0.63f },
 		{ 0.316228f, 0.316228f, 0.316228f },
 		{ 0.0, 0.0, 0.0 },
@@ -653,9 +653,9 @@ GLMaterial GLMaterial::STONE_JADE()
 	return mat;
 }
 
-GLMaterial GLMaterial::STONE_OBSIDIAN()
+Material Material::STONE_OBSIDIAN()
 {
-	GLMaterial mat({ 0.05375f, 0.05f, 0.06625f },
+	Material mat({ 0.05375f, 0.05f, 0.06625f },
 		{ 0.18275f, 0.17f, 0.22525f },
 		{ 0.332741f, 0.328634f, 0.346435f },
 		{ 0.0, 0.0, 0.0 },
@@ -673,9 +673,9 @@ GLMaterial GLMaterial::STONE_OBSIDIAN()
 }
 
 // Plastic materials - corrected roughness values
-GLMaterial GLMaterial::RED_PLASTIC()
+Material Material::RED_PLASTIC()
 {
-	GLMaterial mat({ 0.0f, 0.0f, 0.0f },
+	Material mat({ 0.0f, 0.0f, 0.0f },
 		{ 0.5f, 0.0f, 0.0f },
 		{ 0.7f, 0.6f, 0.6f },
 		{ 0.0, 0.0, 0.0 },
@@ -692,9 +692,9 @@ GLMaterial GLMaterial::RED_PLASTIC()
 	return mat;
 }
 
-GLMaterial GLMaterial::GREEN_PLASTIC()
+Material Material::GREEN_PLASTIC()
 {
-	GLMaterial mat({ 0.0f, 0.0f, 0.0f },
+	Material mat({ 0.0f, 0.0f, 0.0f },
 		{ 0.1f, 0.35f, 0.1f },
 		{ 0.45f, 0.55f, 0.45f },
 		{ 0.0, 0.0, 0.0 },
@@ -711,9 +711,9 @@ GLMaterial GLMaterial::GREEN_PLASTIC()
 	return mat;
 }
 
-GLMaterial GLMaterial::BLUE_PLASTIC()
+Material Material::BLUE_PLASTIC()
 {
-	GLMaterial mat({ 0.0f, 0.0f, 0.0f },
+	Material mat({ 0.0f, 0.0f, 0.0f },
 		{ 0.0f, 0.0f, 0.5f },
 		{ 0.6f, 0.6f, 0.7f },
 		{ 0.0, 0.0, 0.0 },
@@ -728,9 +728,9 @@ GLMaterial GLMaterial::BLUE_PLASTIC()
 	return mat;
 }
 
-GLMaterial GLMaterial::CYAN_PLASTIC()
+Material Material::CYAN_PLASTIC()
 {
-	GLMaterial mat({ 0.0f, 0.1f, 0.06f },
+	Material mat({ 0.0f, 0.1f, 0.06f },
 		{ 0.0f, 0.50980392f, 0.50980392f },
 		{ 0.50196078f, 0.50196078f, 0.50196078f },
 		{ 0.0, 0.0, 0.0 },
@@ -747,9 +747,9 @@ GLMaterial GLMaterial::CYAN_PLASTIC()
 	return mat;
 }
 
-GLMaterial GLMaterial::YELLOW_PLASTIC()
+Material Material::YELLOW_PLASTIC()
 {
-	GLMaterial mat({ 0.0f, 0.0f, 0.0f },
+	Material mat({ 0.0f, 0.0f, 0.0f },
 		{ 0.5f, 0.5f, 0.0f },
 		{ 0.6f, 0.6f, 0.5f },
 		{ 0.0, 0.0, 0.0 },
@@ -766,9 +766,9 @@ GLMaterial GLMaterial::YELLOW_PLASTIC()
 	return mat;
 }
 
-GLMaterial GLMaterial::MAGENTA_PLASTIC()
+Material Material::MAGENTA_PLASTIC()
 {
-	GLMaterial mat({ 0.0f, 0.0f, 0.0f },
+	Material mat({ 0.0f, 0.0f, 0.0f },
 		{ 0.5f, 0.0f, 0.5f },
 		{ 0.6f, 0.5f, 0.6f },
 		{ 0.0, 0.0, 0.0 },
@@ -783,9 +783,9 @@ GLMaterial GLMaterial::MAGENTA_PLASTIC()
 	return mat;
 }
 
-GLMaterial GLMaterial::WHITE_PLASTIC()
+Material Material::WHITE_PLASTIC()
 {
-	GLMaterial mat({ 0.0f, 0.0f, 0.0f },
+	Material mat({ 0.0f, 0.0f, 0.0f },
 		{ 0.55f, 0.55f, 0.55f },
 		{ 0.7f, 0.7f, 0.7f },
 		{ 0.0, 0.0, 0.0 },
@@ -802,9 +802,9 @@ GLMaterial GLMaterial::WHITE_PLASTIC()
 	return mat;
 }
 
-GLMaterial GLMaterial::BLACK_PLASTIC()
+Material Material::BLACK_PLASTIC()
 {
-	GLMaterial mat({ 0.0f, 0.0f, 0.0f },
+	Material mat({ 0.0f, 0.0f, 0.0f },
 		{ 0.01f, 0.01f, 0.01f },
 		{ 0.5f, 0.5f, 0.5f },
 		{ 0.0, 0.0, 0.0 },
@@ -822,9 +822,9 @@ GLMaterial GLMaterial::BLACK_PLASTIC()
 }
 
 // Rubber materials - keep high roughness
-GLMaterial GLMaterial::RED_RUBBER()
+Material Material::RED_RUBBER()
 {
-	GLMaterial mat({ 0.05f, 0.0f, 0.0f },
+	Material mat({ 0.05f, 0.0f, 0.0f },
 		{ 0.7f, 0.4f, 0.4f },
 		{ 0.7f, 0.04f, 0.04f },
 		{ 0.0, 0.0, 0.0 },
@@ -841,9 +841,9 @@ GLMaterial GLMaterial::RED_RUBBER()
 	return mat;
 }
 
-GLMaterial GLMaterial::GREEN_RUBBER()
+Material Material::GREEN_RUBBER()
 {
-	GLMaterial mat({ 0.0f, 0.05f, 0.0f },
+	Material mat({ 0.0f, 0.05f, 0.0f },
 		{ 0.4f, 0.5f, 0.4f },
 		{ 0.04f, 0.7f, 0.04f },
 		{ 0.0, 0.0, 0.0 },
@@ -860,9 +860,9 @@ GLMaterial GLMaterial::GREEN_RUBBER()
 	return mat;
 }
 
-GLMaterial GLMaterial::BLUE_RUBBER()
+Material Material::BLUE_RUBBER()
 {
-	GLMaterial mat({ 0.0f, 0.0f, 0.05f },
+	Material mat({ 0.0f, 0.0f, 0.05f },
 		{ 0.4f, 0.4f, 0.5f },
 		{ 0.04f, 0.04f, 0.7f },
 		{ 0.0, 0.0, 0.0 },
@@ -877,9 +877,9 @@ GLMaterial GLMaterial::BLUE_RUBBER()
 	return mat;
 }
 
-GLMaterial GLMaterial::CYAN_RUBBER()
+Material Material::CYAN_RUBBER()
 {
-	GLMaterial mat({ 0.0f, 0.05f, 0.05f },
+	Material mat({ 0.0f, 0.05f, 0.05f },
 		{ 0.4f, 0.5f, 0.5f },
 		{ 0.04f, 0.7f, 0.7f },
 		{ 0.0, 0.0, 0.0 },
@@ -896,9 +896,9 @@ GLMaterial GLMaterial::CYAN_RUBBER()
 	return mat;
 }
 
-GLMaterial GLMaterial::YELLOW_RUBBER()
+Material Material::YELLOW_RUBBER()
 {
-	GLMaterial mat({ 0.05f, 0.05f, 0.0f },
+	Material mat({ 0.05f, 0.05f, 0.0f },
 		{ 0.5f, 0.5f, 0.4f },
 		{ 0.7f, 0.7f, 0.04f },
 		{ 0.0, 0.0, 0.0 },
@@ -915,9 +915,9 @@ GLMaterial GLMaterial::YELLOW_RUBBER()
 	return mat;
 }
 
-GLMaterial GLMaterial::MAGENTA_RUBBER()
+Material Material::MAGENTA_RUBBER()
 {
-	GLMaterial mat({ 0.05f, 0.0f, 0.05f },
+	Material mat({ 0.05f, 0.0f, 0.05f },
 		{ 0.5f, 0.4f, 0.5f },
 		{ 0.7f, 0.04f, 0.7f },
 		{ 0.0, 0.0, 0.0 },
@@ -932,9 +932,9 @@ GLMaterial GLMaterial::MAGENTA_RUBBER()
 	return mat;
 }
 
-GLMaterial GLMaterial::WHITE_RUBBER()
+Material Material::WHITE_RUBBER()
 {
-	GLMaterial mat({ 0.05f, 0.05f, 0.05f },
+	Material mat({ 0.05f, 0.05f, 0.05f },
 		{ 0.5f, 0.5f, 0.5f },
 		{ 0.7f, 0.7f, 0.7f },
 		{ 0.0, 0.0, 0.0 },
@@ -951,9 +951,9 @@ GLMaterial GLMaterial::WHITE_RUBBER()
 	return mat;
 }
 
-GLMaterial GLMaterial::BLACK_RUBBER()
+Material Material::BLACK_RUBBER()
 {
-	GLMaterial mat({ 0.02f, 0.02f, 0.02f },
+	Material mat({ 0.02f, 0.02f, 0.02f },
 		{ 0.01f, 0.01f, 0.01f },
 		{ 0.4f, 0.4f, 0.4f },
 		{ 0.0, 0.0, 0.0 },
@@ -972,9 +972,9 @@ GLMaterial GLMaterial::BLACK_RUBBER()
 
 // === NEW ADDITIONAL MATERIALS ===
 
-GLMaterial GLMaterial::GLASS()
+Material Material::GLASS()
 {
-	GLMaterial mat({ 0.02f, 0.02f, 0.02f },         // ambient - very low
+	Material mat({ 0.02f, 0.02f, 0.02f },         // ambient - very low
 		{ 0.1f, 0.1f, 0.1f },             // diffuse - low for transparency
 		{ 0.9f, 0.9f, 0.9f },             // specular - high reflectivity
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -993,9 +993,9 @@ GLMaterial GLMaterial::GLASS()
 	return mat;
 }
 
-GLMaterial GLMaterial::WATER()
+Material Material::WATER()
 {
-	GLMaterial mat({ 0.01f, 0.02f, 0.04f },         // ambient - very low, slight blue tint
+	Material mat({ 0.01f, 0.02f, 0.04f },         // ambient - very low, slight blue tint
 		{ 0.1f, 0.3f, 0.5f },             // diffuse - blue tint
 		{ 0.8f, 0.9f, 1.0f },             // specular - high with blue tint
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -1014,9 +1014,9 @@ GLMaterial GLMaterial::WATER()
 	return mat;
 }
 
-GLMaterial GLMaterial::DIAMOND()
+Material Material::DIAMOND()
 {
-	GLMaterial mat({ 0.02f, 0.02f, 0.02f },         // ambient - very low
+	Material mat({ 0.02f, 0.02f, 0.02f },         // ambient - very low
 		{ 0.9f, 0.9f, 0.9f },             // diffuse - high reflectivity
 		{ 1.0f, 1.0f, 1.0f },             // specular - maximum reflectivity
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -1035,9 +1035,9 @@ GLMaterial GLMaterial::DIAMOND()
 	return mat;
 }
 
-GLMaterial GLMaterial::CERAMIC()
+Material Material::CERAMIC()
 {
-	GLMaterial mat({ 0.16f, 0.16f, 0.16f },         // ambient
+	Material mat({ 0.16f, 0.16f, 0.16f },         // ambient
 		{ 0.8f, 0.8f, 0.8f },             // diffuse
 		{ 0.6f, 0.6f, 0.6f },             // specular
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -1054,9 +1054,9 @@ GLMaterial GLMaterial::CERAMIC()
 	return mat;
 }
 
-GLMaterial GLMaterial::FABRIC()
+Material Material::FABRIC()
 {
-	GLMaterial mat({ 0.03f, 0.02f, 0.016f },        // ambient
+	Material mat({ 0.03f, 0.02f, 0.016f },        // ambient
 		{ 0.6f, 0.4f, 0.3f },             // diffuse
 		{ 0.1f, 0.1f, 0.1f },             // specular - very low for matte fabric
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -1075,9 +1075,9 @@ GLMaterial GLMaterial::FABRIC()
 	return mat;
 }
 
-GLMaterial GLMaterial::SKIN()
+Material Material::SKIN()
 {
-	GLMaterial mat({ 0.16f, 0.12f, 0.08f },         // ambient - warm tones
+	Material mat({ 0.16f, 0.12f, 0.08f },         // ambient - warm tones
 		{ 0.8f, 0.6f, 0.4f },             // diffuse - skin tone
 		{ 0.3f, 0.3f, 0.3f },             // specular - moderate reflectivity
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -1095,9 +1095,9 @@ GLMaterial GLMaterial::SKIN()
 	return mat;
 }
 
-GLMaterial GLMaterial::PAPER()
+Material Material::PAPER()
 {
-	GLMaterial mat({ 0.27f, 0.27f, 0.255f },        // ambient - high for diffuse material
+	Material mat({ 0.27f, 0.27f, 0.255f },        // ambient - high for diffuse material
 		{ 0.9f, 0.9f, 0.85f },            // diffuse - off-white
 		{ 0.05f, 0.05f, 0.05f },          // specular - very low for matte
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -1115,9 +1115,9 @@ GLMaterial GLMaterial::PAPER()
 	return mat;
 }
 
-GLMaterial GLMaterial::WOOD()
+Material Material::WOOD()
 {
-	GLMaterial mat({ 0.12f, 0.08f, 0.04f },         // ambient - brown wood tones
+	Material mat({ 0.12f, 0.08f, 0.04f },         // ambient - brown wood tones
 		{ 0.6f, 0.4f, 0.2f },             // diffuse - wood color
 		{ 0.1f, 0.1f, 0.1f },             // specular - low reflectivity
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -1134,9 +1134,9 @@ GLMaterial GLMaterial::WOOD()
 	return mat;
 }
 
-GLMaterial GLMaterial::WOOD_BAMBOO()
+Material Material::WOOD_BAMBOO()
 {
-	GLMaterial mat({ 0.10f, 0.09f, 0.06f },   // ambient - pale yellow tint
+	Material mat({ 0.10f, 0.09f, 0.06f },   // ambient - pale yellow tint
 		{ 0.85f, 0.78f, 0.55f },              // diffuse - light yellowish
 		{ 0.12f, 0.12f, 0.10f },              // specular - low
 		{ 0.0f, 0.0f, 0.0f },
@@ -1152,9 +1152,9 @@ GLMaterial GLMaterial::WOOD_BAMBOO()
 	return mat;
 }
 
-GLMaterial GLMaterial::WOOD_CEDAR()
+Material Material::WOOD_CEDAR()
 {
-	GLMaterial mat({ 0.10f, 0.05f, 0.04f },   // reddish tint
+	Material mat({ 0.10f, 0.05f, 0.04f },   // reddish tint
 		{ 0.65f, 0.28f, 0.20f },              // diffuse - warm red-brown
 		{ 0.15f, 0.12f, 0.10f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1170,9 +1170,9 @@ GLMaterial GLMaterial::WOOD_CEDAR()
 	return mat;
 }
 
-GLMaterial GLMaterial::WOOD_REDWOOD()
+Material Material::WOOD_REDWOOD()
 {
-	GLMaterial mat({ 0.12f, 0.05f, 0.03f },
+	Material mat({ 0.12f, 0.05f, 0.03f },
 		{ 0.72f, 0.25f, 0.18f },              // redder
 		{ 0.15f, 0.12f, 0.10f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1188,9 +1188,9 @@ GLMaterial GLMaterial::WOOD_REDWOOD()
 	return mat;
 }
 
-GLMaterial GLMaterial::WOOD_OAK()
+Material Material::WOOD_OAK()
 {
-	GLMaterial mat({ 0.12f, 0.10f, 0.07f },
+	Material mat({ 0.12f, 0.10f, 0.07f },
 		{ 0.65f, 0.52f, 0.35f },              // warm golden brown
 		{ 0.14f, 0.14f, 0.12f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1206,9 +1206,9 @@ GLMaterial GLMaterial::WOOD_OAK()
 	return mat;
 }
 
-GLMaterial GLMaterial::WOOD_PINE()
+Material Material::WOOD_PINE()
 {
-	GLMaterial mat({ 0.11f, 0.10f, 0.08f },
+	Material mat({ 0.11f, 0.10f, 0.08f },
 		{ 0.90f, 0.80f, 0.55f },              // pale yellowish
 		{ 0.12f, 0.12f, 0.10f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1224,9 +1224,9 @@ GLMaterial GLMaterial::WOOD_PINE()
 	return mat;
 }
 
-GLMaterial GLMaterial::WOOD_BIRCH()
+Material Material::WOOD_BIRCH()
 {
-	GLMaterial mat({ 0.12f, 0.12f, 0.11f },
+	Material mat({ 0.12f, 0.12f, 0.11f },
 		{ 0.95f, 0.87f, 0.70f },              // creamy white
 		{ 0.14f, 0.14f, 0.12f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1242,9 +1242,9 @@ GLMaterial GLMaterial::WOOD_BIRCH()
 	return mat;
 }
 
-GLMaterial GLMaterial::WOOD_WALNUT()
+Material Material::WOOD_WALNUT()
 {
-	GLMaterial mat({ 0.08f, 0.06f, 0.05f },
+	Material mat({ 0.08f, 0.06f, 0.05f },
 		{ 0.35f, 0.22f, 0.12f },              // dark brown
 		{ 0.12f, 0.12f, 0.10f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1260,9 +1260,9 @@ GLMaterial GLMaterial::WOOD_WALNUT()
 	return mat;
 }
 
-GLMaterial GLMaterial::WOOD_CHERRY()
+Material Material::WOOD_CHERRY()
 {
-	GLMaterial mat({ 0.10f, 0.06f, 0.05f },
+	Material mat({ 0.10f, 0.06f, 0.05f },
 		{ 0.70f, 0.30f, 0.25f },              // reddish brown
 		{ 0.15f, 0.12f, 0.10f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1278,9 +1278,9 @@ GLMaterial GLMaterial::WOOD_CHERRY()
 	return mat;
 }
 
-GLMaterial GLMaterial::WOOD_TEAK()
+Material Material::WOOD_TEAK()
 {
-	GLMaterial mat({ 0.10f, 0.08f, 0.05f },
+	Material mat({ 0.10f, 0.08f, 0.05f },
 		{ 0.55f, 0.38f, 0.20f },              // golden medium brown
 		{ 0.14f, 0.12f, 0.10f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1296,9 +1296,9 @@ GLMaterial GLMaterial::WOOD_TEAK()
 	return mat;
 }
 
-GLMaterial GLMaterial::WOOD_MAPLE()
+Material Material::WOOD_MAPLE()
 {
-	GLMaterial mat({ 0.12f, 0.11f, 0.09f },
+	Material mat({ 0.12f, 0.11f, 0.09f },
 		{ 0.88f, 0.77f, 0.58f },              // light creamy brown
 		{ 0.14f, 0.14f, 0.12f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1315,9 +1315,9 @@ GLMaterial GLMaterial::WOOD_MAPLE()
 }
 
 
-GLMaterial GLMaterial::METAL()
+Material Material::METAL()
 {
-	GLMaterial mat({ 0.04f, 0.04f, 0.04f },         // ambient - low for metal
+	Material mat({ 0.04f, 0.04f, 0.04f },         // ambient - low for metal
 		{ 0.2f, 0.2f, 0.2f },             // diffuse - low for metal
 		{ 0.8f, 0.8f, 0.8f },             // specular - high reflectivity
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -1334,9 +1334,9 @@ GLMaterial GLMaterial::METAL()
 	return mat;
 }
 
-GLMaterial GLMaterial::PLASTIC()
+Material Material::PLASTIC()
 {
-	GLMaterial mat({ 0.12f, 0.12f, 0.16f },         // ambient
+	Material mat({ 0.12f, 0.12f, 0.16f },         // ambient
 		{ 0.6f, 0.6f, 0.8f },             // diffuse
 		{ 0.5f, 0.5f, 0.5f },             // specular
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -1353,9 +1353,9 @@ GLMaterial GLMaterial::PLASTIC()
 	return mat;
 }
 
-GLMaterial GLMaterial::STONE()
+Material Material::STONE()
 {
-	GLMaterial mat({ 0.1f, 0.1f, 0.1f },    // ambient
+	Material mat({ 0.1f, 0.1f, 0.1f },    // ambient
 		{ 0.5f, 0.5f, 0.5f },				// diffuse
 		{ 0.05f, 0.05f, 0.05f },			// specular - very low
 		{ 0.0f, 0.0f, 0.0f },				// emissive
@@ -1372,9 +1372,9 @@ GLMaterial GLMaterial::STONE()
 	return mat;
 }
 
-GLMaterial GLMaterial::MIRROR_SILVER()
+Material Material::MIRROR_SILVER()
 {
-	GLMaterial mat(
+	Material mat(
 		QVector3D(0.06f, 0.06f, 0.06f),     // ambient (small - scene/IBL will dominate)
 		QVector3D(0.02f, 0.02f, 0.02f),     // diffuse (metals have ~no diffuse; tiny placeholder)
 		QVector3D(0.95f, 0.94f, 0.90f),     // specular (F0-like for silver)
@@ -1405,9 +1405,9 @@ GLMaterial GLMaterial::MIRROR_SILVER()
 }
 
 // === CLEARCOAT MATERIALS ===
-GLMaterial GLMaterial::CAR_PAINT_RED()
+Material Material::CAR_PAINT_RED()
 {
-	GLMaterial mat({ 0.1f, 0.02f, 0.02f },	// ambient
+	Material mat({ 0.1f, 0.02f, 0.02f },	// ambient
 		{ 0.8f, 0.1f, 0.1f },				// diffuse - bright red base
 		{ 0.9f, 0.9f, 0.9f },				// specular - high for clearcoat
 		{ 0.0f, 0.0f, 0.0f },				// emissive
@@ -1428,9 +1428,9 @@ GLMaterial GLMaterial::CAR_PAINT_RED()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_METALLIC_BLUE()
+Material Material::CAR_PAINT_METALLIC_BLUE()
 {
-	GLMaterial mat({ 0.02f, 0.05f, 0.15f },         // ambient
+	Material mat({ 0.02f, 0.05f, 0.15f },         // ambient
 		{ 0.1f, 0.3f, 0.8f },             // diffuse - metallic blue
 		{ 0.9f, 0.9f, 0.9f },             // specular
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -1450,9 +1450,9 @@ GLMaterial GLMaterial::CAR_PAINT_METALLIC_BLUE()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_WHITE()
+Material Material::CAR_PAINT_WHITE()
 {
-	GLMaterial mat({ 0.15f, 0.15f, 0.15f },          // ambient - neutral gray
+	Material mat({ 0.15f, 0.15f, 0.15f },          // ambient - neutral gray
 		{ 0.95f, 0.95f, 0.95f },                     // diffuse - bright white
 		{ 0.45f, 0.45f, 0.45f },                     // specular - strong gloss
 		{ 0.0f, 0.0f, 0.0f },
@@ -1470,9 +1470,9 @@ GLMaterial GLMaterial::CAR_PAINT_WHITE()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_METALLIC_GREEN()
+Material Material::CAR_PAINT_METALLIC_GREEN()
 {
-	GLMaterial mat({ 0.08f, 0.10f, 0.08f },
+	Material mat({ 0.08f, 0.10f, 0.08f },
 		{ 0.05f, 0.55f, 0.20f },                     // diffuse - metallic green tint
 		{ 0.40f, 0.45f, 0.40f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1490,9 +1490,9 @@ GLMaterial GLMaterial::CAR_PAINT_METALLIC_GREEN()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_PEARL()
+Material Material::CAR_PAINT_PEARL()
 {
-	GLMaterial mat({ 0.15f, 0.14f, 0.13f },
+	Material mat({ 0.15f, 0.14f, 0.13f },
 		{ 0.92f, 0.92f, 0.85f },                     // diffuse - off-white pearl
 		{ 0.50f, 0.48f, 0.45f },                     // strong gloss
 		{ 0.0f, 0.0f, 0.0f },
@@ -1510,9 +1510,9 @@ GLMaterial GLMaterial::CAR_PAINT_PEARL()
 	return mat;
 }
 
-GLMaterial GLMaterial::MATTE_GREY()
+Material Material::MATTE_GREY()
 {
-	GLMaterial mat({ 0.12f, 0.12f, 0.12f },
+	Material mat({ 0.12f, 0.12f, 0.12f },
 		{ 0.45f, 0.45f, 0.45f },                     // diffuse - medium grey
 		{ 0.15f, 0.15f, 0.15f },                     // weak specular
 		{ 0.0f, 0.0f, 0.0f },
@@ -1531,9 +1531,9 @@ GLMaterial GLMaterial::MATTE_GREY()
 }
 
 
-GLMaterial GLMaterial::PIANO_BLACK()
+Material Material::PIANO_BLACK()
 {
-	GLMaterial mat({ 0.01f, 0.01f, 0.01f },         // ambient - very dark
+	Material mat({ 0.01f, 0.01f, 0.01f },         // ambient - very dark
 		{ 0.05f, 0.05f, 0.05f },          // diffuse - very dark base
 		{ 0.95f, 0.95f, 0.95f },          // specular - high reflectivity
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -1554,9 +1554,9 @@ GLMaterial GLMaterial::PIANO_BLACK()
 }
 // METALLIC CAR PAINTS
 
-GLMaterial GLMaterial::CAR_PAINT_METALLIC_SILVER()
+Material Material::CAR_PAINT_METALLIC_SILVER()
 {
-	GLMaterial mat({ 0.12f, 0.12f, 0.12f },
+	Material mat({ 0.12f, 0.12f, 0.12f },
 		{ 0.75f, 0.76f, 0.78f },                     // diffuse - bright silver
 		{ 0.85f, 0.85f, 0.85f },                     // high reflectivity
 		{ 0.0f, 0.0f, 0.0f },
@@ -1573,9 +1573,9 @@ GLMaterial GLMaterial::CAR_PAINT_METALLIC_SILVER()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_DEEP_METALLIC_BLUE()
+Material Material::CAR_PAINT_DEEP_METALLIC_BLUE()
 {
-	GLMaterial mat({ 0.05f, 0.08f, 0.15f },
+	Material mat({ 0.05f, 0.08f, 0.15f },
 		{ 0.15f, 0.35f, 0.75f },                     // diffuse - deep metallic blue
 		{ 0.45f, 0.50f, 0.65f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1592,9 +1592,9 @@ GLMaterial GLMaterial::CAR_PAINT_DEEP_METALLIC_BLUE()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_METALLIC_RED()
+Material Material::CAR_PAINT_METALLIC_RED()
 {
-	GLMaterial mat({ 0.15f, 0.05f, 0.05f },
+	Material mat({ 0.15f, 0.05f, 0.05f },
 		{ 0.78f, 0.15f, 0.12f },                     // diffuse - bright metallic red
 		{ 0.60f, 0.40f, 0.40f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1611,9 +1611,9 @@ GLMaterial GLMaterial::CAR_PAINT_METALLIC_RED()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_METALLIC_COPPER()
+Material Material::CAR_PAINT_METALLIC_COPPER()
 {
-	GLMaterial mat({ 0.18f, 0.12f, 0.08f },
+	Material mat({ 0.18f, 0.12f, 0.08f },
 		{ 0.85f, 0.45f, 0.25f },                     // diffuse - warm copper
 		{ 0.70f, 0.55f, 0.45f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1630,9 +1630,9 @@ GLMaterial GLMaterial::CAR_PAINT_METALLIC_COPPER()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_METALLIC_GOLD()
+Material Material::CAR_PAINT_METALLIC_GOLD()
 {
-	GLMaterial mat({ 0.20f, 0.18f, 0.10f },
+	Material mat({ 0.20f, 0.18f, 0.10f },
 		{ 0.90f, 0.75f, 0.35f },                     // diffuse - rich gold
 		{ 0.75f, 0.68f, 0.50f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1649,9 +1649,9 @@ GLMaterial GLMaterial::CAR_PAINT_METALLIC_GOLD()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_METALLIC_PURPLE()
+Material Material::CAR_PAINT_METALLIC_PURPLE()
 {
-	GLMaterial mat({ 0.12f, 0.08f, 0.15f },
+	Material mat({ 0.12f, 0.08f, 0.15f },
 		{ 0.55f, 0.25f, 0.70f },                     // diffuse - deep metallic purple
 		{ 0.55f, 0.45f, 0.60f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1670,9 +1670,9 @@ GLMaterial GLMaterial::CAR_PAINT_METALLIC_PURPLE()
 
 // NON-METALLIC CAR PAINTS
 
-GLMaterial GLMaterial::CAR_PAINT_GLOSSY_BLACK()
+Material Material::CAR_PAINT_GLOSSY_BLACK()
 {
-	GLMaterial mat({ 0.05f, 0.05f, 0.05f },
+	Material mat({ 0.05f, 0.05f, 0.05f },
 		{ 0.08f, 0.08f, 0.08f },                     // diffuse - deep black
 		{ 0.95f, 0.95f, 0.95f },                     // high gloss reflection
 		{ 0.0f, 0.0f, 0.0f },
@@ -1689,9 +1689,9 @@ GLMaterial GLMaterial::CAR_PAINT_GLOSSY_BLACK()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_GLOSSY_WHITE()
+Material Material::CAR_PAINT_GLOSSY_WHITE()
 {
-	GLMaterial mat({ 0.85f, 0.85f, 0.85f },
+	Material mat({ 0.85f, 0.85f, 0.85f },
 		{ 0.95f, 0.95f, 0.95f },                     // diffuse - pure white
 		{ 0.90f, 0.90f, 0.90f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1708,9 +1708,9 @@ GLMaterial GLMaterial::CAR_PAINT_GLOSSY_WHITE()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_MATTE_RED()
+Material Material::CAR_PAINT_MATTE_RED()
 {
-	GLMaterial mat({ 0.45f, 0.08f, 0.08f },
+	Material mat({ 0.45f, 0.08f, 0.08f },
 		{ 0.75f, 0.12f, 0.12f },                     // diffuse - vibrant red
 		{ 0.15f, 0.15f, 0.15f },                     // low reflectivity for matte
 		{ 0.0f, 0.0f, 0.0f },
@@ -1727,9 +1727,9 @@ GLMaterial GLMaterial::CAR_PAINT_MATTE_RED()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_GLOSSY_YELLOW()
+Material Material::CAR_PAINT_GLOSSY_YELLOW()
 {
-	GLMaterial mat({ 0.65f, 0.60f, 0.15f },
+	Material mat({ 0.65f, 0.60f, 0.15f },
 		{ 0.95f, 0.85f, 0.15f },                     // diffuse - bright yellow
 		{ 0.85f, 0.85f, 0.75f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1746,9 +1746,9 @@ GLMaterial GLMaterial::CAR_PAINT_GLOSSY_YELLOW()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_GLOSSY_ORANGE()
+Material Material::CAR_PAINT_GLOSSY_ORANGE()
 {
-	GLMaterial mat({ 0.55f, 0.35f, 0.12f },
+	Material mat({ 0.55f, 0.35f, 0.12f },
 		{ 0.90f, 0.45f, 0.15f },                     // diffuse - vibrant orange
 		{ 0.80f, 0.70f, 0.60f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1765,9 +1765,9 @@ GLMaterial GLMaterial::CAR_PAINT_GLOSSY_ORANGE()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_SATIN_GRAY()
+Material Material::CAR_PAINT_SATIN_GRAY()
 {
-	GLMaterial mat({ 0.35f, 0.35f, 0.35f },
+	Material mat({ 0.35f, 0.35f, 0.35f },
 		{ 0.55f, 0.55f, 0.55f },                     // diffuse - medium gray
 		{ 0.45f, 0.45f, 0.45f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1786,9 +1786,9 @@ GLMaterial GLMaterial::CAR_PAINT_SATIN_GRAY()
 
 // DARK SHADE VARIATIONS
 
-GLMaterial GLMaterial::CAR_PAINT_MIDNIGHT_BLUE()
+Material Material::CAR_PAINT_MIDNIGHT_BLUE()
 {
-	GLMaterial mat({ 0.03f, 0.05f, 0.12f },
+	Material mat({ 0.03f, 0.05f, 0.12f },
 		{ 0.08f, 0.15f, 0.35f },                     // diffuse - very dark blue
 		{ 0.85f, 0.85f, 0.90f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1805,9 +1805,9 @@ GLMaterial GLMaterial::CAR_PAINT_MIDNIGHT_BLUE()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_FOREST_GREEN()
+Material Material::CAR_PAINT_FOREST_GREEN()
 {
-	GLMaterial mat({ 0.05f, 0.12f, 0.06f },
+	Material mat({ 0.05f, 0.12f, 0.06f },
 		{ 0.12f, 0.35f, 0.15f },                     // diffuse - deep forest green
 		{ 0.75f, 0.85f, 0.75f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1824,9 +1824,9 @@ GLMaterial GLMaterial::CAR_PAINT_FOREST_GREEN()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_CHARCOAL_GRAY()
+Material Material::CAR_PAINT_CHARCOAL_GRAY()
 {
-	GLMaterial mat({ 0.15f, 0.15f, 0.15f },
+	Material mat({ 0.15f, 0.15f, 0.15f },
 		{ 0.25f, 0.25f, 0.25f },                     // diffuse - dark charcoal
 		{ 0.80f, 0.80f, 0.80f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1843,9 +1843,9 @@ GLMaterial GLMaterial::CAR_PAINT_CHARCOAL_GRAY()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_BURGUNDY()
+Material Material::CAR_PAINT_BURGUNDY()
 {
-	GLMaterial mat({ 0.18f, 0.06f, 0.08f },
+	Material mat({ 0.18f, 0.06f, 0.08f },
 		{ 0.45f, 0.12f, 0.18f },                     // diffuse - deep burgundy
 		{ 0.75f, 0.65f, 0.68f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1864,9 +1864,9 @@ GLMaterial GLMaterial::CAR_PAINT_BURGUNDY()
 
 // LIGHT SHADE VARIATIONS
 
-GLMaterial GLMaterial::CAR_PAINT_POWDER_BLUE()
+Material Material::CAR_PAINT_POWDER_BLUE()
 {
-	GLMaterial mat({ 0.65f, 0.75f, 0.85f },
+	Material mat({ 0.65f, 0.75f, 0.85f },
 		{ 0.75f, 0.85f, 0.95f },                     // diffuse - soft powder blue
 		{ 0.85f, 0.88f, 0.92f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1883,9 +1883,9 @@ GLMaterial GLMaterial::CAR_PAINT_POWDER_BLUE()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_MINT_GREEN()
+Material Material::CAR_PAINT_MINT_GREEN()
 {
-	GLMaterial mat({ 0.70f, 0.85f, 0.75f },
+	Material mat({ 0.70f, 0.85f, 0.75f },
 		{ 0.80f, 0.95f, 0.85f },                     // diffuse - light mint green
 		{ 0.82f, 0.92f, 0.85f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1902,9 +1902,9 @@ GLMaterial GLMaterial::CAR_PAINT_MINT_GREEN()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_CREAM_YELLOW()
+Material Material::CAR_PAINT_CREAM_YELLOW()
 {
-	GLMaterial mat({ 0.88f, 0.85f, 0.70f },
+	Material mat({ 0.88f, 0.85f, 0.70f },
 		{ 0.95f, 0.92f, 0.78f },                     // diffuse - soft cream yellow
 		{ 0.90f, 0.88f, 0.82f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1921,9 +1921,9 @@ GLMaterial GLMaterial::CAR_PAINT_CREAM_YELLOW()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_LAVENDER()
+Material Material::CAR_PAINT_LAVENDER()
 {
-	GLMaterial mat({ 0.75f, 0.70f, 0.85f },
+	Material mat({ 0.75f, 0.70f, 0.85f },
 		{ 0.85f, 0.78f, 0.95f },                     // diffuse - soft lavender
 		{ 0.88f, 0.82f, 0.92f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1942,9 +1942,9 @@ GLMaterial GLMaterial::CAR_PAINT_LAVENDER()
 
 // MEDIUM TONE VARIATIONS
 
-GLMaterial GLMaterial::CAR_PAINT_TEAL()
+Material Material::CAR_PAINT_TEAL()
 {
-	GLMaterial mat({ 0.25f, 0.45f, 0.42f },
+	Material mat({ 0.25f, 0.45f, 0.42f },
 		{ 0.35f, 0.65f, 0.58f },                     // diffuse - medium teal
 		{ 0.70f, 0.85f, 0.82f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1961,9 +1961,9 @@ GLMaterial GLMaterial::CAR_PAINT_TEAL()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_CORAL()
+Material Material::CAR_PAINT_CORAL()
 {
-	GLMaterial mat({ 0.65f, 0.45f, 0.35f },
+	Material mat({ 0.65f, 0.45f, 0.35f },
 		{ 0.85f, 0.58f, 0.45f },                     // diffuse - warm coral
 		{ 0.88f, 0.75f, 0.68f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -1980,9 +1980,9 @@ GLMaterial GLMaterial::CAR_PAINT_CORAL()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_SLATE_BLUE()
+Material Material::CAR_PAINT_SLATE_BLUE()
 {
-	GLMaterial mat({ 0.35f, 0.38f, 0.55f },
+	Material mat({ 0.35f, 0.38f, 0.55f },
 		{ 0.48f, 0.52f, 0.75f },                     // diffuse - medium slate blue
 		{ 0.75f, 0.78f, 0.88f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -2001,9 +2001,9 @@ GLMaterial GLMaterial::CAR_PAINT_SLATE_BLUE()
 
 // METALLIC VARIATIONS WITH DIFFERENT SHADES
 
-GLMaterial GLMaterial::CAR_PAINT_METALLIC_CHAMPAGNE()
+Material Material::CAR_PAINT_METALLIC_CHAMPAGNE()
 {
-	GLMaterial mat({ 0.45f, 0.42f, 0.35f },
+	Material mat({ 0.45f, 0.42f, 0.35f },
 		{ 0.75f, 0.68f, 0.55f },                     // diffuse - warm champagne
 		{ 0.82f, 0.78f, 0.68f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -2020,9 +2020,9 @@ GLMaterial GLMaterial::CAR_PAINT_METALLIC_CHAMPAGNE()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_METALLIC_GUNMETAL()
+Material Material::CAR_PAINT_METALLIC_GUNMETAL()
 {
-	GLMaterial mat({ 0.18f, 0.20f, 0.22f },
+	Material mat({ 0.18f, 0.20f, 0.22f },
 		{ 0.35f, 0.38f, 0.42f },                     // diffuse - dark gunmetal
 		{ 0.65f, 0.68f, 0.72f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -2039,9 +2039,9 @@ GLMaterial GLMaterial::CAR_PAINT_METALLIC_GUNMETAL()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_METALLIC_BRONZE()
+Material Material::CAR_PAINT_METALLIC_BRONZE()
 {
-	GLMaterial mat({ 0.35f, 0.25f, 0.15f },
+	Material mat({ 0.35f, 0.25f, 0.15f },
 		{ 0.68f, 0.45f, 0.28f },                     // diffuse - rich bronze
 		{ 0.78f, 0.65f, 0.48f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -2060,9 +2060,9 @@ GLMaterial GLMaterial::CAR_PAINT_METALLIC_BRONZE()
 
 // SPECIAL FINISHES
 
-GLMaterial GLMaterial::CAR_PAINT_PEARLESCENT_BLUE()
+Material Material::CAR_PAINT_PEARLESCENT_BLUE()
 {
-	GLMaterial mat({ 0.10f, 0.15f, 0.25f },
+	Material mat({ 0.10f, 0.15f, 0.25f },
 		{ 0.35f, 0.55f, 0.85f },                     // diffuse - pearl blue
 		{ 0.60f, 0.65f, 0.70f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -2079,9 +2079,9 @@ GLMaterial GLMaterial::CAR_PAINT_PEARLESCENT_BLUE()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_CANDY_APPLE_RED()
+Material Material::CAR_PAINT_CANDY_APPLE_RED()
 {
-	GLMaterial mat({ 0.25f, 0.05f, 0.05f },
+	Material mat({ 0.25f, 0.05f, 0.05f },
 		{ 0.85f, 0.08f, 0.08f },                     // diffuse - deep candy red
 		{ 0.90f, 0.70f, 0.70f },                     // high gloss with red tint
 		{ 0.0f, 0.0f, 0.0f },
@@ -2098,9 +2098,9 @@ GLMaterial GLMaterial::CAR_PAINT_CANDY_APPLE_RED()
 	return mat;
 }
 
-GLMaterial GLMaterial::CAR_PAINT_IRIDESCENT_GREEN()
+Material Material::CAR_PAINT_IRIDESCENT_GREEN()
 {
-	GLMaterial mat({ 0.15f, 0.25f, 0.18f },
+	Material mat({ 0.15f, 0.25f, 0.18f },
 		{ 0.28f, 0.65f, 0.45f },                     // diffuse - iridescent green
 		{ 0.55f, 0.75f, 0.65f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -2119,9 +2119,9 @@ GLMaterial GLMaterial::CAR_PAINT_IRIDESCENT_GREEN()
 
 // === SHEEN MATERIALS ===
 
-GLMaterial GLMaterial::VELVET_RED()
+Material Material::VELVET_RED()
 {
-	GLMaterial mat({ 0.15f, 0.03f, 0.03f },         // ambient
+	Material mat({ 0.15f, 0.03f, 0.03f },         // ambient
 		{ 0.6f, 0.1f, 0.1f },             // diffuse - deep red
 		{ 0.05f, 0.05f, 0.05f },          // specular - very low
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -2141,9 +2141,9 @@ GLMaterial GLMaterial::VELVET_RED()
 	return mat;
 }
 
-GLMaterial GLMaterial::SATIN_FABRIC()
+Material Material::SATIN_FABRIC()
 {
-	GLMaterial mat({ 0.18f, 0.18f, 0.12f },         // ambient - cream color
+	Material mat({ 0.18f, 0.18f, 0.12f },         // ambient - cream color
 		{ 0.9f, 0.9f, 0.6f },             // diffuse - silk-like cream
 		{ 0.1f, 0.1f, 0.1f },             // specular - low base specular
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -2163,9 +2163,9 @@ GLMaterial GLMaterial::SATIN_FABRIC()
 	return mat;
 }
 
-GLMaterial GLMaterial::MICROFIBER_CLOTH()
+Material Material::MICROFIBER_CLOTH()
 {
-	GLMaterial mat({ 0.08f, 0.1f, 0.12f },          // ambient - blue-gray
+	Material mat({ 0.08f, 0.1f, 0.12f },          // ambient - blue-gray
 		{ 0.4f, 0.5f, 0.6f },             // diffuse - blue-gray fabric
 		{ 0.02f, 0.02f, 0.02f },          // specular - very low
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -2186,9 +2186,9 @@ GLMaterial GLMaterial::MICROFIBER_CLOTH()
 }
 
 // ----------------- Leather Materials -----------------
-GLMaterial GLMaterial::LEATHER_BLACK()
+Material Material::LEATHER_BLACK()
 {
-	GLMaterial mat({ 0.03f, 0.03f, 0.03f },
+	Material mat({ 0.03f, 0.03f, 0.03f },
 		{ 0.12f, 0.12f, 0.12f },
 		{ 0.2f, 0.2f, 0.2f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -2204,9 +2204,9 @@ GLMaterial GLMaterial::LEATHER_BLACK()
 	return mat;
 }
 
-GLMaterial GLMaterial::LEATHER_BROWN()
+Material Material::LEATHER_BROWN()
 {
-	GLMaterial mat({ 0.05f, 0.03f, 0.02f },
+	Material mat({ 0.05f, 0.03f, 0.02f },
 		{ 0.35f, 0.22f, 0.15f },
 		{ 0.2f, 0.2f, 0.2f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -2222,9 +2222,9 @@ GLMaterial GLMaterial::LEATHER_BROWN()
 	return mat;
 }
 
-GLMaterial GLMaterial::LEATHER_RED()
+Material Material::LEATHER_RED()
 {
-	GLMaterial mat({ 0.08f, 0.02f, 0.02f },
+	Material mat({ 0.08f, 0.02f, 0.02f },
 		{ 0.55f, 0.18f, 0.18f },
 		{ 0.2f, 0.2f, 0.2f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -2240,9 +2240,9 @@ GLMaterial GLMaterial::LEATHER_RED()
 	return mat;
 }
 
-GLMaterial GLMaterial::LEATHER_WHITE()
+Material Material::LEATHER_WHITE()
 {
-	GLMaterial mat({ 0.10f, 0.10f, 0.10f },
+	Material mat({ 0.10f, 0.10f, 0.10f },
 		{ 0.85f, 0.85f, 0.85f },
 		{ 0.2f, 0.2f, 0.2f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -2258,9 +2258,9 @@ GLMaterial GLMaterial::LEATHER_WHITE()
 	return mat;
 }
 
-GLMaterial GLMaterial::LEATHER_OXBLOOD()
+Material Material::LEATHER_OXBLOOD()
 {
-	GLMaterial mat({ 0.07f, 0.02f, 0.03f },
+	Material mat({ 0.07f, 0.02f, 0.03f },
 		{ 0.45f, 0.10f, 0.12f },
 		{ 0.2f, 0.2f, 0.2f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -2276,9 +2276,9 @@ GLMaterial GLMaterial::LEATHER_OXBLOOD()
 	return mat;
 }
 
-GLMaterial GLMaterial::LEATHER_TAN()
+Material Material::LEATHER_TAN()
 {
-	GLMaterial mat({ 0.06f, 0.04f, 0.02f },          // ambient - warm brown
+	Material mat({ 0.06f, 0.04f, 0.02f },          // ambient - warm brown
 		{ 0.60f, 0.40f, 0.25f },          // diffuse - tan color
 		{ 0.2f, 0.2f, 0.2f },             // specular - soft highlights
 		{ 0.0f, 0.0f, 0.0f },
@@ -2296,9 +2296,9 @@ GLMaterial GLMaterial::LEATHER_TAN()
 
 
 // === TRANSMISSION MATERIALS ===
-GLMaterial GLMaterial::FROSTED_GLASS()
+Material Material::FROSTED_GLASS()
 {
-	GLMaterial mat({ 0.05f, 0.05f, 0.05f },         // ambient
+	Material mat({ 0.05f, 0.05f, 0.05f },         // ambient
 		{ 0.1f, 0.1f, 0.1f },             // diffuse - low for transparency
 		{ 0.8f, 0.8f, 0.8f },             // specular - high
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -2318,9 +2318,9 @@ GLMaterial GLMaterial::FROSTED_GLASS()
 	return mat;
 }
 
-GLMaterial GLMaterial::COLORED_GLASS_GREEN()
+Material Material::COLORED_GLASS_GREEN()
 {
-	GLMaterial mat({ 0.02f, 0.05f, 0.02f },         // ambient - slight green tint
+	Material mat({ 0.02f, 0.05f, 0.02f },         // ambient - slight green tint
 		{ 0.1f, 0.3f, 0.1f },             // diffuse - green tint
 		{ 0.9f, 0.9f, 0.9f },             // specular - high
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -2340,9 +2340,9 @@ GLMaterial GLMaterial::COLORED_GLASS_GREEN()
 	return mat;
 }
 
-GLMaterial GLMaterial::CRYSTAL_QUARTZ()
+Material Material::CRYSTAL_QUARTZ()
 {
-	GLMaterial mat({ 0.03f, 0.03f, 0.03f },         // ambient
+	Material mat({ 0.03f, 0.03f, 0.03f },         // ambient
 		{ 0.9f, 0.9f, 0.95f },            // diffuse - slightly blue-white
 		{ 0.95f, 0.95f, 1.0f },           // specular - very high
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -2364,9 +2364,9 @@ GLMaterial GLMaterial::CRYSTAL_QUARTZ()
 
 // === EMISSIVE MATERIALS ===
 
-GLMaterial GLMaterial::NEON_BLUE()
+Material Material::NEON_BLUE()
 {
-	GLMaterial mat({ 0.05f, 0.15f, 0.4f },          // ambient - blue glow
+	Material mat({ 0.05f, 0.15f, 0.4f },          // ambient - blue glow
 		{ 0.2f, 0.6f, 1.0f },             // diffuse - bright blue
 		{ 0.8f, 0.9f, 1.0f },             // specular
 		{ 0.1f, 0.4f, 1.0f },             // emissive - bright blue emission
@@ -2385,9 +2385,9 @@ GLMaterial GLMaterial::NEON_BLUE()
 	return mat;
 }
 
-GLMaterial GLMaterial::NEON_GREEN()
+Material Material::NEON_GREEN()
 {
-	GLMaterial mat({ 0.05f, 0.4f, 0.05f },          // ambient - green glow
+	Material mat({ 0.05f, 0.4f, 0.05f },          // ambient - green glow
 		{ 0.2f, 0.8f, 0.2f },             // diffuse - bright green
 		{ 0.8f, 1.0f, 0.8f },             // specular
 		{ 0.1f, 1.0f, 0.1f },             // emissive - bright green emission
@@ -2404,9 +2404,9 @@ GLMaterial GLMaterial::NEON_GREEN()
 	return mat;
 }
 
-GLMaterial GLMaterial::NEON_RED()
+Material Material::NEON_RED()
 {
-	GLMaterial mat({ 0.4f, 0.05f, 0.05f },          // ambient - red glow
+	Material mat({ 0.4f, 0.05f, 0.05f },          // ambient - red glow
 		{ 0.8f, 0.2f, 0.2f },             // diffuse - bright red
 		{ 1.0f, 0.8f, 0.8f },             // specular
 		{ 1.0f, 0.1f, 0.1f },             // emissive - bright red emission
@@ -2423,9 +2423,9 @@ GLMaterial GLMaterial::NEON_RED()
 	return mat;
 }
 
-GLMaterial GLMaterial::NEON_YELLOW()
+Material Material::NEON_YELLOW()
 {
-	GLMaterial mat({ 0.4f, 0.4f, 0.05f },          // ambient - yellow glow
+	Material mat({ 0.4f, 0.4f, 0.05f },          // ambient - yellow glow
 		{ 0.8f, 0.8f, 0.2f },             // diffuse - bright yellow
 		{ 1.0f, 1.0f, 0.8f },             // specular
 		{ 1.0f, 1.0f, 0.1f },             // emissive - bright yellow emission
@@ -2442,9 +2442,9 @@ GLMaterial GLMaterial::NEON_YELLOW()
 	return mat;
 }
 
-GLMaterial GLMaterial::LED_BLUE()
+Material Material::LED_BLUE()
 {
-	GLMaterial mat({ 0.2f, 0.2f, 0.2f },            // ambient
+	Material mat({ 0.2f, 0.2f, 0.2f },            // ambient
 		{ 0.8f, 0.8f, 1.0f },             // diffuse - bright blue
 		{ 0.9f, 0.9f, 1.0f },             // specular
 		{ 0.1f, 0.1f, 1.0f },             // emissive - bright blue emission
@@ -2461,9 +2461,9 @@ GLMaterial GLMaterial::LED_BLUE()
 	return mat;
 }
 
-GLMaterial GLMaterial::LED_GREEN()
+Material Material::LED_GREEN()
 {
-	GLMaterial mat({ 0.2f, 0.2f, 0.2f },            // ambient
+	Material mat({ 0.2f, 0.2f, 0.2f },            // ambient
 		{ 0.8f, 1.0f, 0.8f },             // diffuse - bright green
 		{ 0.9f, 1.0f, 0.9f },             // specular
 		{ 0.1f, 1.0f, 0.1f },             // emissive - bright green emission
@@ -2480,9 +2480,9 @@ GLMaterial GLMaterial::LED_GREEN()
 	return mat;
 }
 
-GLMaterial GLMaterial::LED_RED()
+Material Material::LED_RED()
 {
-	GLMaterial mat({ 0.2f, 0.2f, 0.2f },            // ambient
+	Material mat({ 0.2f, 0.2f, 0.2f },            // ambient
 		{ 0.8f, 0.4f, 0.4f },             // diffuse - bright red
 		{ 1.0f, 0.6f, 0.6f },             // specular
 		{ 1.0f, 0.1f, 0.1f },             // emissive - bright red emission
@@ -2499,9 +2499,9 @@ GLMaterial GLMaterial::LED_RED()
 	return mat;
 }
 
-GLMaterial GLMaterial::LED_YELLOW()
+Material Material::LED_YELLOW()
 {
-	GLMaterial mat({ 0.2f, 0.2f, 0.2f },            // ambient
+	Material mat({ 0.2f, 0.2f, 0.2f },            // ambient
 		{ 0.8f, 0.8f, 0.4f },             // diffuse - bright yellow
 		{ 0.9f, 0.9f, 0.6f },             // specular
 		{ 1.0f, 1.0f, 0.1f },             // emissive - bright yellow emission
@@ -2518,9 +2518,9 @@ GLMaterial GLMaterial::LED_YELLOW()
 	return mat;
 }
 
-GLMaterial GLMaterial::LED_WHITE()
+Material Material::LED_WHITE()
 {
-	GLMaterial mat({ 0.2f, 0.2f, 0.2f },            // ambient
+	Material mat({ 0.2f, 0.2f, 0.2f },            // ambient
 		{ 0.8f, 0.8f, 0.8f },             // diffuse
 		{ 0.9f, 0.9f, 0.9f },             // specular
 		{ 1.0f, 1.0f, 0.95f },            // emissive - warm white
@@ -2541,9 +2541,9 @@ GLMaterial GLMaterial::LED_WHITE()
 
 // === COMPLEX MATERIALS (Multiple Properties) ===
 
-GLMaterial GLMaterial::IRIDESCENT_SOAP_BUBBLE()
+Material Material::IRIDESCENT_SOAP_BUBBLE()
 {
-	GLMaterial mat({ 0.01f, 0.01f, 0.01f },         // ambient - very low
+	Material mat({ 0.01f, 0.01f, 0.01f },         // ambient - very low
 		{ 0.05f, 0.05f, 0.05f },          // diffuse - very low for transparency
 		{ 0.98f, 0.98f, 0.98f },          // specular - very high
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -2565,9 +2565,9 @@ GLMaterial GLMaterial::IRIDESCENT_SOAP_BUBBLE()
 	return mat;
 }
 
-GLMaterial GLMaterial::CARBON_FIBER()
+Material Material::CARBON_FIBER()
 {
-	GLMaterial mat({ 0.02f, 0.02f, 0.02f },         // ambient - very dark
+	Material mat({ 0.02f, 0.02f, 0.02f },         // ambient - very dark
 		{ 0.1f, 0.1f, 0.1f },             // diffuse - dark base
 		{ 0.6f, 0.6f, 0.6f },             // specular - moderate
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -2587,9 +2587,9 @@ GLMaterial GLMaterial::CARBON_FIBER()
 	return mat;
 }
 
-GLMaterial GLMaterial::WET_ASPHALT()
+Material Material::WET_ASPHALT()
 {
-	GLMaterial mat({ 0.01f, 0.01f, 0.01f },         // ambient - very dark
+	Material mat({ 0.01f, 0.01f, 0.01f },         // ambient - very dark
 		{ 0.08f, 0.08f, 0.08f },          // diffuse - dark asphalt
 		{ 0.4f, 0.4f, 0.4f },             // specular - wet surface
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -2609,9 +2609,9 @@ GLMaterial GLMaterial::WET_ASPHALT()
 	return mat;
 }
 
-GLMaterial GLMaterial::CONCRETE()
+Material Material::CONCRETE()
 {
-	GLMaterial mat({ 0.08f, 0.08f, 0.08f },   // ambient - neutral gray
+	Material mat({ 0.08f, 0.08f, 0.08f },   // ambient - neutral gray
 		{ 0.55f, 0.55f, 0.55f },              // diffuse - medium gray
 		{ 0.10f, 0.10f, 0.10f },              // specular - low reflectivity
 		{ 0.0f, 0.0f, 0.0f },
@@ -2627,9 +2627,9 @@ GLMaterial GLMaterial::CONCRETE()
 	return mat;
 }
 
-GLMaterial GLMaterial::CONCRETE_LIGHT()
+Material Material::CONCRETE_LIGHT()
 {
-	GLMaterial mat({ 0.09f, 0.09f, 0.09f },
+	Material mat({ 0.09f, 0.09f, 0.09f },
 		{ 0.75f, 0.75f, 0.75f },              // lighter gray
 		{ 0.12f, 0.12f, 0.12f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -2645,9 +2645,9 @@ GLMaterial GLMaterial::CONCRETE_LIGHT()
 	return mat;
 }
 
-GLMaterial GLMaterial::CONCRETE_DARK()
+Material Material::CONCRETE_DARK()
 {
-	GLMaterial mat({ 0.06f, 0.06f, 0.06f },
+	Material mat({ 0.06f, 0.06f, 0.06f },
 		{ 0.30f, 0.30f, 0.30f },              // darker gray
 		{ 0.08f, 0.08f, 0.08f },
 		{ 0.0f, 0.0f, 0.0f },
@@ -2663,9 +2663,9 @@ GLMaterial GLMaterial::CONCRETE_DARK()
 	return mat;
 }
 
-GLMaterial GLMaterial::CONCRETE_POLISHED()
+Material Material::CONCRETE_POLISHED()
 {
-	GLMaterial mat({ 0.08f, 0.08f, 0.08f },
+	Material mat({ 0.08f, 0.08f, 0.08f },
 		{ 0.60f, 0.60f, 0.60f },              // medium-light gray
 		{ 0.25f, 0.25f, 0.25f },              // stronger highlights
 		{ 0.0f, 0.0f, 0.0f },
@@ -2682,9 +2682,9 @@ GLMaterial GLMaterial::CONCRETE_POLISHED()
 }
 
 
-GLMaterial GLMaterial::STONE_GRANITE()
+Material Material::STONE_GRANITE()
 {
-	GLMaterial mat({ 0.12f, 0.11f, 0.11f },        // ambient
+	Material mat({ 0.12f, 0.11f, 0.11f },        // ambient
 		{ 0.6f, 0.55f, 0.55f },          // diffuse  
 		{ 0.05f, 0.05f, 0.05f },         // specular
 		{ 0.0f, 0.0f, 0.0f },            // emissive
@@ -2702,9 +2702,9 @@ GLMaterial GLMaterial::STONE_GRANITE()
 	return mat;
 }
 
-GLMaterial GLMaterial::STONE_LIMESTONE()
+Material Material::STONE_LIMESTONE()
 {
-	GLMaterial mat({ 0.15f, 0.146f, 0.136f },       // ambient
+	Material mat({ 0.15f, 0.146f, 0.136f },       // ambient
 		{ 0.75f, 0.73f, 0.68f },          // diffuse
 		{ 0.02f, 0.02f, 0.02f },          // specular
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -2721,9 +2721,9 @@ GLMaterial GLMaterial::STONE_LIMESTONE()
 	return mat;
 }
 
-GLMaterial GLMaterial::STONE_MARBLE()
+Material Material::STONE_MARBLE()
 {
-	GLMaterial mat({ 0.18f, 0.18f, 0.18f },         // ambient
+	Material mat({ 0.18f, 0.18f, 0.18f },         // ambient
 		{ 0.9f, 0.9f, 0.9f },             // diffuse
 		{ 0.2f, 0.2f, 0.2f },             // specular
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -2740,9 +2740,9 @@ GLMaterial GLMaterial::STONE_MARBLE()
 	return mat;
 }
 
-GLMaterial GLMaterial::STONE_SLATE()
+Material Material::STONE_SLATE()
 {
-	GLMaterial mat({ 0.03f, 0.036f, 0.044f },       // ambient
+	Material mat({ 0.03f, 0.036f, 0.044f },       // ambient
 		{ 0.15f, 0.18f, 0.22f },          // diffuse
 		{ 0.01f, 0.01f, 0.01f },          // specular
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -2759,9 +2759,9 @@ GLMaterial GLMaterial::STONE_SLATE()
 	return mat;
 }
 
-GLMaterial GLMaterial::STONE_SANDSTONE()
+Material Material::STONE_SANDSTONE()
 {
-	GLMaterial mat({ 0.152f, 0.128f, 0.096f },      // ambient
+	Material mat({ 0.152f, 0.128f, 0.096f },      // ambient
 		{ 0.76f, 0.64f, 0.48f },          // diffuse
 		{ 0.03f, 0.03f, 0.03f },          // specular
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -2778,9 +2778,9 @@ GLMaterial GLMaterial::STONE_SANDSTONE()
 	return mat;
 }
 
-GLMaterial GLMaterial::STONE_BASALT()
+Material Material::STONE_BASALT()
 {
-	GLMaterial mat({ 0.02f, 0.02f, 0.02f },         // ambient
+	Material mat({ 0.02f, 0.02f, 0.02f },         // ambient
 		{ 0.1f, 0.1f, 0.1f },             // diffuse
 		{ 0.02f, 0.02f, 0.02f },          // specular
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -2797,9 +2797,9 @@ GLMaterial GLMaterial::STONE_BASALT()
 	return mat;
 }
 
-GLMaterial GLMaterial::STONE_TRAVERTINE()
+Material Material::STONE_TRAVERTINE()
 {
-	GLMaterial mat({ 0.17f, 0.16f, 0.14f },         // ambient
+	Material mat({ 0.17f, 0.16f, 0.14f },         // ambient
 		{ 0.85f, 0.8f, 0.7f },            // diffuse
 		{ 0.02f, 0.02f, 0.02f },          // specular
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -2816,9 +2816,9 @@ GLMaterial GLMaterial::STONE_TRAVERTINE()
 	return mat;
 }
 
-GLMaterial GLMaterial::STONE_QUARTZITE()
+Material Material::STONE_QUARTZITE()
 {
-	GLMaterial mat({ 0.16f, 0.17f, 0.18f },         // ambient
+	Material mat({ 0.16f, 0.17f, 0.18f },         // ambient
 		{ 0.8f, 0.85f, 0.9f },            // diffuse
 		{ 0.3f, 0.3f, 0.3f },             // specular
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -2835,9 +2835,9 @@ GLMaterial GLMaterial::STONE_QUARTZITE()
 	return mat;
 }
 
-GLMaterial GLMaterial::STONE_SOAPSTONE()
+Material Material::STONE_SOAPSTONE()
 {
-	GLMaterial mat({ 0.05f, 0.06f, 0.056f },        // ambient
+	Material mat({ 0.05f, 0.06f, 0.056f },        // ambient
 		{ 0.25f, 0.3f, 0.28f },           // diffuse
 		{ 0.01f, 0.01f, 0.01f },          // specular
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -2854,9 +2854,9 @@ GLMaterial GLMaterial::STONE_SOAPSTONE()
 	return mat;
 }
 
-GLMaterial GLMaterial::METAL_TITANIUM()
+Material Material::METAL_TITANIUM()
 {
-	GLMaterial mat({ 0.11f, 0.116f, 0.124f },       // ambient
+	Material mat({ 0.11f, 0.116f, 0.124f },       // ambient
 		{ 0.55f, 0.58f, 0.62f },          // diffuse
 		{ 0.7f, 0.7f, 0.7f },             // specular
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -2873,9 +2873,9 @@ GLMaterial GLMaterial::METAL_TITANIUM()
 	return mat;
 }
 
-GLMaterial GLMaterial::METAL_PLATINUM()
+Material Material::METAL_PLATINUM()
 {
-	GLMaterial mat({ 0.164f, 0.164f, 0.17f },       // ambient
+	Material mat({ 0.164f, 0.164f, 0.17f },       // ambient
 		{ 0.82f, 0.82f, 0.85f },          // diffuse
 		{ 0.9f, 0.9f, 0.9f },             // specular
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -2892,9 +2892,9 @@ GLMaterial GLMaterial::METAL_PLATINUM()
 	return mat;
 }
 
-GLMaterial GLMaterial::METAL_MAGNESIUM()
+Material Material::METAL_MAGNESIUM()
 {
-	GLMaterial mat({ 0.18f, 0.18f, 0.19f },         // ambient
+	Material mat({ 0.18f, 0.18f, 0.19f },         // ambient
 		{ 0.9f, 0.9f, 0.95f },            // diffuse
 		{ 0.7f, 0.7f, 0.75f },            // specular
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -2911,9 +2911,9 @@ GLMaterial GLMaterial::METAL_MAGNESIUM()
 	return mat;
 }
 
-GLMaterial GLMaterial::METAL_ZINC()
+Material Material::METAL_ZINC()
 {
-	GLMaterial mat({ 0.13f, 0.14f, 0.15f },         // ambient
+	Material mat({ 0.13f, 0.14f, 0.15f },         // ambient
 		{ 0.65f, 0.7f, 0.75f },           // diffuse
 		{ 0.7f, 0.7f, 0.7f },             // specular
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -2930,9 +2930,9 @@ GLMaterial GLMaterial::METAL_ZINC()
 	return mat;
 }
 
-GLMaterial GLMaterial::METAL_NICKEL()
+Material Material::METAL_NICKEL()
 {
-	GLMaterial mat({ 0.144f, 0.144f, 0.148f },      // ambient
+	Material mat({ 0.144f, 0.144f, 0.148f },      // ambient
 		{ 0.72f, 0.72f, 0.74f },          // diffuse
 		{ 0.85f, 0.85f, 0.85f },          // specular
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -2949,9 +2949,9 @@ GLMaterial GLMaterial::METAL_NICKEL()
 	return mat;
 }
 
-GLMaterial GLMaterial::METAL_ALUMINUM()
+Material Material::METAL_ALUMINUM()
 {
-	GLMaterial mat({ 0.182f, 0.184f, 0.184f },      // ambient
+	Material mat({ 0.182f, 0.184f, 0.184f },      // ambient
 		{ 0.91f, 0.92f, 0.92f },          // diffuse
 		{ 0.95f, 0.95f, 0.95f },          // specular
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -2968,9 +2968,9 @@ GLMaterial GLMaterial::METAL_ALUMINUM()
 	return mat;
 }
 
-GLMaterial GLMaterial::METAL_IRON_RAW()
+Material Material::METAL_IRON_RAW()
 {
-	GLMaterial mat({ 0.09f, 0.09f, 0.094f },        // ambient
+	Material mat({ 0.09f, 0.09f, 0.094f },        // ambient
 		{ 0.45f, 0.45f, 0.47f },          // diffuse
 		{ 0.6f, 0.6f, 0.6f },             // specular
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -2987,9 +2987,9 @@ GLMaterial GLMaterial::METAL_IRON_RAW()
 	return mat;
 }
 
-GLMaterial GLMaterial::METAL_COBALT()
+Material Material::METAL_COBALT()
 {
-	GLMaterial mat({ 0.08f, 0.09f, 0.12f },         // ambient
+	Material mat({ 0.08f, 0.09f, 0.12f },         // ambient
 		{ 0.4f, 0.45f, 0.6f },            // diffuse
 		{ 0.7f, 0.7f, 0.75f },            // specular
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -3006,9 +3006,9 @@ GLMaterial GLMaterial::METAL_COBALT()
 	return mat;
 }
 
-GLMaterial GLMaterial::METAL_PEWTER()
+Material Material::METAL_PEWTER()
 {
-	GLMaterial mat({ 0.12f, 0.12f, 0.124f },        // ambient
+	Material mat({ 0.12f, 0.12f, 0.124f },        // ambient
 		{ 0.6f, 0.6f, 0.62f },            // diffuse
 		{ 0.55f, 0.55f, 0.55f },          // specular
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -3025,9 +3025,9 @@ GLMaterial GLMaterial::METAL_PEWTER()
 	return mat;
 }
 
-GLMaterial GLMaterial::METAL_TUNGSTEN()
+Material Material::METAL_TUNGSTEN()
 {
-	GLMaterial mat({ 0.06f, 0.06f, 0.066f },        // ambient
+	Material mat({ 0.06f, 0.06f, 0.066f },        // ambient
 		{ 0.3f, 0.3f, 0.33f },            // diffuse
 		{ 0.85f, 0.85f, 0.9f },           // specular
 		{ 0.0f, 0.0f, 0.0f },             // emissive
@@ -3045,9 +3045,9 @@ GLMaterial GLMaterial::METAL_TUNGSTEN()
 }
 
 
-GLMaterial GLMaterial::DEFAULT_MAT()
+Material Material::DEFAULT_MAT()
 {
-	GLMaterial mat(
+	Material mat(
 		QVector3D(0.108f, 0.108f, 0.108f),   // ambient (~ albedo * 0.12)
 		QVector3D(0.90f, 0.90f, 0.90f),      // diffuse
 		QVector3D(0.04f, 0.04f, 0.04f),      // specular (dielectric F0)
@@ -3075,7 +3075,7 @@ GLMaterial GLMaterial::DEFAULT_MAT()
 	return mat;
 }
 
-void GLMaterial::setAlbedoFromADS()
+void Material::setAlbedoFromADS()
 {
 	QVector3D col;
 	if (_metallic)
@@ -3092,7 +3092,7 @@ void GLMaterial::setAlbedoFromADS()
 // internal helper: convert canonical PBR fields into legacy ADS fields
 // - This is intentionally one-way: it writes ADS fields computed from PBR canonical fields
 // - It does NOT change canonical PBR fields (albedo, metalness, roughness, ior, etc.)
-void GLMaterial::convertPBRtoADS()
+void Material::convertPBRtoADS()
 {
 	// Local copies for clarity
 	const QVector3D albedo = _albedoColor;
@@ -3127,7 +3127,7 @@ void GLMaterial::convertPBRtoADS()
 }
 
 
-void GLMaterial::updateConsistency()
+void Material::updateConsistency()
 {
 	// 1) First, ensure basic ranges are respected
 	clampValues();
@@ -3165,7 +3165,7 @@ void GLMaterial::updateConsistency()
 
 
 
-void GLMaterial::clampValues()
+void Material::clampValues()
 {
 	// Clamp legacy properties
 	_ambient = QVector3D(
@@ -3232,7 +3232,7 @@ void GLMaterial::clampValues()
 	_metallicRoughnessTexCoord = qMax(0, _metallicRoughnessTexCoord);
 }
 
-void GLMaterial::ensureADSConsistency()
+void Material::ensureADSConsistency()
 {
 	// This function can be called to update any material that might have
 	// incomplete ADS values based on its PBR properties
@@ -3279,7 +3279,7 @@ void GLMaterial::ensureADSConsistency()
 }
 
 
-void GLMaterial::assignAutoPackingForPath(const QString& path)
+void Material::assignAutoPackingForPath(const QString& path)
 {
 	if (path.isEmpty()) return;
 
@@ -3426,70 +3426,70 @@ static GLenum stringToGLEnum(const QString& s)
 // TextureType <-> String Conversion (for texture metadata serialization)
 // ============================================================================
 
-static QString textureTypeToString(GLMaterial::TextureType type)
+static QString textureTypeToString(Material::TextureType type)
 {
 	switch (type) {
-		case GLMaterial::TextureType::Albedo: return "albedo";
-		case GLMaterial::TextureType::Metallic: return "metallic";
-		case GLMaterial::TextureType::Roughness: return "roughness";
-		case GLMaterial::TextureType::Normal: return "normal";
-		case GLMaterial::TextureType::AmbientOcclusion: return "ao";
-		case GLMaterial::TextureType::Opacity: return "opacity";
-		case GLMaterial::TextureType::Emissive: return "emissive";
-		case GLMaterial::TextureType::Height: return "height";
-		case GLMaterial::TextureType::Transmission: return "transmission";
-		case GLMaterial::TextureType::IOR: return "ior";
-		case GLMaterial::TextureType::SheenColor: return "sheenColor";
-		case GLMaterial::TextureType::SheenRoughness: return "sheenRoughness";
-		case GLMaterial::TextureType::ClearcoatColor: return "clearcoatColor";
-		case GLMaterial::TextureType::ClearcoatRoughness: return "clearcoatRoughness";
-		case GLMaterial::TextureType::ClearcoatNormal: return "clearcoatNormal";
-		case GLMaterial::TextureType::Iridescence: return "iridescence";
-		case GLMaterial::TextureType::IridescenceThickness: return "iridescenceThickness";
-		case GLMaterial::TextureType::SpecularFactor: return "specularFactor";
-		case GLMaterial::TextureType::SpecularColor: return "specularColor";
-		case GLMaterial::TextureType::Anisotropy: return "anisotropy";
-		case GLMaterial::TextureType::DiffuseTransmission: return "diffuseTransmission";
-		case GLMaterial::TextureType::DiffuseTransmissionColor: return "diffuseTransmissionColor";
-		case GLMaterial::TextureType::Thickness: return "thickness";
-		case GLMaterial::TextureType::Diffuse: return "diffuse";
-		case GLMaterial::TextureType::SpecularGlossiness: return "specularGlossiness";
+		case Material::TextureType::Albedo: return "albedo";
+		case Material::TextureType::Metallic: return "metallic";
+		case Material::TextureType::Roughness: return "roughness";
+		case Material::TextureType::Normal: return "normal";
+		case Material::TextureType::AmbientOcclusion: return "ao";
+		case Material::TextureType::Opacity: return "opacity";
+		case Material::TextureType::Emissive: return "emissive";
+		case Material::TextureType::Height: return "height";
+		case Material::TextureType::Transmission: return "transmission";
+		case Material::TextureType::IOR: return "ior";
+		case Material::TextureType::SheenColor: return "sheenColor";
+		case Material::TextureType::SheenRoughness: return "sheenRoughness";
+		case Material::TextureType::ClearcoatColor: return "clearcoatColor";
+		case Material::TextureType::ClearcoatRoughness: return "clearcoatRoughness";
+		case Material::TextureType::ClearcoatNormal: return "clearcoatNormal";
+		case Material::TextureType::Iridescence: return "iridescence";
+		case Material::TextureType::IridescenceThickness: return "iridescenceThickness";
+		case Material::TextureType::SpecularFactor: return "specularFactor";
+		case Material::TextureType::SpecularColor: return "specularColor";
+		case Material::TextureType::Anisotropy: return "anisotropy";
+		case Material::TextureType::DiffuseTransmission: return "diffuseTransmission";
+		case Material::TextureType::DiffuseTransmissionColor: return "diffuseTransmissionColor";
+		case Material::TextureType::Thickness: return "thickness";
+		case Material::TextureType::Diffuse: return "diffuse";
+		case Material::TextureType::SpecularGlossiness: return "specularGlossiness";
 		default: return "";
 	}
 }
 
-static GLMaterial::TextureType stringToTextureType(const QString& key)
+static Material::TextureType stringToTextureType(const QString& key)
 {
-	if (key == "albedo") return GLMaterial::TextureType::Albedo;
-	if (key == "metallic") return GLMaterial::TextureType::Metallic;
-	if (key == "roughness") return GLMaterial::TextureType::Roughness;
-	if (key == "normal") return GLMaterial::TextureType::Normal;
-	if (key == "ao") return GLMaterial::TextureType::AmbientOcclusion;
-	if (key == "opacity") return GLMaterial::TextureType::Opacity;
-	if (key == "emissive") return GLMaterial::TextureType::Emissive;
-	if (key == "height") return GLMaterial::TextureType::Height;
-	if (key == "transmission") return GLMaterial::TextureType::Transmission;
-	if (key == "ior") return GLMaterial::TextureType::IOR;
-	if (key == "sheenColor") return GLMaterial::TextureType::SheenColor;
-	if (key == "sheenRoughness") return GLMaterial::TextureType::SheenRoughness;
-	if (key == "clearcoatColor") return GLMaterial::TextureType::ClearcoatColor;
-	if (key == "clearcoatRoughness") return GLMaterial::TextureType::ClearcoatRoughness;
-	if (key == "clearcoatNormal") return GLMaterial::TextureType::ClearcoatNormal;
-	if (key == "iridescence") return GLMaterial::TextureType::Iridescence;
-	if (key == "iridescenceThickness") return GLMaterial::TextureType::IridescenceThickness;
-	if (key == "specularFactor") return GLMaterial::TextureType::SpecularFactor;
-	if (key == "specularColor") return GLMaterial::TextureType::SpecularColor;
-	if (key == "anisotropy") return GLMaterial::TextureType::Anisotropy;
-	if (key == "diffuseTransmission") return GLMaterial::TextureType::DiffuseTransmission;
-	if (key == "diffuseTransmissionColor") return GLMaterial::TextureType::DiffuseTransmissionColor;
-	if (key == "thickness") return GLMaterial::TextureType::Thickness;
-	if (key == "diffuse") return GLMaterial::TextureType::Diffuse;
-	if (key == "specularGlossiness") return GLMaterial::TextureType::SpecularGlossiness;
+	if (key == "albedo") return Material::TextureType::Albedo;
+	if (key == "metallic") return Material::TextureType::Metallic;
+	if (key == "roughness") return Material::TextureType::Roughness;
+	if (key == "normal") return Material::TextureType::Normal;
+	if (key == "ao") return Material::TextureType::AmbientOcclusion;
+	if (key == "opacity") return Material::TextureType::Opacity;
+	if (key == "emissive") return Material::TextureType::Emissive;
+	if (key == "height") return Material::TextureType::Height;
+	if (key == "transmission") return Material::TextureType::Transmission;
+	if (key == "ior") return Material::TextureType::IOR;
+	if (key == "sheenColor") return Material::TextureType::SheenColor;
+	if (key == "sheenRoughness") return Material::TextureType::SheenRoughness;
+	if (key == "clearcoatColor") return Material::TextureType::ClearcoatColor;
+	if (key == "clearcoatRoughness") return Material::TextureType::ClearcoatRoughness;
+	if (key == "clearcoatNormal") return Material::TextureType::ClearcoatNormal;
+	if (key == "iridescence") return Material::TextureType::Iridescence;
+	if (key == "iridescenceThickness") return Material::TextureType::IridescenceThickness;
+	if (key == "specularFactor") return Material::TextureType::SpecularFactor;
+	if (key == "specularColor") return Material::TextureType::SpecularColor;
+	if (key == "anisotropy") return Material::TextureType::Anisotropy;
+	if (key == "diffuseTransmission") return Material::TextureType::DiffuseTransmission;
+	if (key == "diffuseTransmissionColor") return Material::TextureType::DiffuseTransmissionColor;
+	if (key == "thickness") return Material::TextureType::Thickness;
+	if (key == "diffuse") return Material::TextureType::Diffuse;
+	if (key == "specularGlossiness") return Material::TextureType::SpecularGlossiness;
 
-	return GLMaterial::TextureType::Albedo; // Default fallback
+	return Material::TextureType::Albedo; // Default fallback
 }
 
-GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
+Material Material::fromVariantMap(const QVariantMap& m)
 {
 	// small local readers
 	auto readVec3 = [](const QVariant& v, const QVector3D& fallback) -> QVector3D {
@@ -3525,7 +3525,7 @@ GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 		return v.toBool();
 		};
 
-	GLMaterial mat; // default constructed material
+	Material mat; // default constructed material
 
 	// Note: Legacy ADS fields may exist in old JSON files but will be overwritten by
 	// updateConsistency() which always derives ADS from PBR values. We read them for
@@ -3756,10 +3756,10 @@ GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 		for (auto it = textureMetadataMap.begin(); it != textureMetadataMap.end(); ++it)
 		{
 			QString typeKey = it.key();
-			GLMaterial::TextureType type = stringToTextureType(typeKey);
+			Material::TextureType type = stringToTextureType(typeKey);
 			QVariantMap texMetadata = it.value().toMap();
 
-			GLMaterial::Texture tex;
+			Material::Texture tex;
 			tex.path = texMetadata.value("path").toString().toStdString();
 
 			// Reconstruct scale (2D vector)
@@ -3791,7 +3791,7 @@ GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 			if (texMetadata.contains("packing"))
 			{
 				QVariantMap packingMap = texMetadata.value("packing").toMap();
-				GLMaterial::ChannelPacking packing;
+				Material::ChannelPacking packing;
 				packing.channel = packingMap.value("channel").toInt();
 				packing.invert = packingMap.value("invert").toBool();
 				packing.scale = readFloat(packingMap.value("scale"), packing.scale);
@@ -3816,7 +3816,7 @@ GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 }
 
 
-QVariantMap GLMaterial::toVariantMap() const
+QVariantMap Material::toVariantMap() const
 {
 	QVariantMap m;
 
@@ -3997,12 +3997,12 @@ QVariantMap GLMaterial::toVariantMap() const
 
 // === HELPER FUNCTIONS FOR ADVANCED MATERIALS ===
 // Function to create a material with time-varying properties (for animations)
-GLMaterial GLMaterial::createAnimatedEmissive(const QVector3D& baseColor,
+Material Material::createAnimatedEmissive(const QVector3D& baseColor,
 	const QVector3D& emissiveColor,
 	float emissiveStrength,
 	float time)
 {
-	GLMaterial mat;
+	Material mat;
 
 	mat.setAmbient(baseColor * 0.1f);
 	mat.setDiffuse(baseColor);
@@ -4029,14 +4029,14 @@ GLMaterial GLMaterial::createAnimatedEmissive(const QVector3D& baseColor,
 }
 
 // Function to blend two materials based on a factor (useful for layered materials)
-GLMaterial GLMaterial::blendMaterials(const GLMaterial& mat1,
-	const GLMaterial& mat2,
+Material Material::blendMaterials(const Material& mat1,
+	const Material& mat2,
 	float factor)
 {
 	factor = std::clamp(factor, 0.0f, 1.0f);
 	float invFactor = 1.0f - factor;
 
-	GLMaterial result;
+	Material result;
 
 	// Blend ADS properties
 	result.setAmbient(mat1.ambient() * invFactor + mat2.ambient() * factor);
@@ -4066,7 +4066,7 @@ GLMaterial GLMaterial::blendMaterials(const GLMaterial& mat1,
 	return result;
 }
 
-GLMaterial::ChannelPacking GLMaterial::packingFor(const QString& key) const
+Material::ChannelPacking Material::packingFor(const QString& key) const
 {
 	if (key == "metallic")   return _metallicPacking;
 	if (key == "roughness")  return _roughnessPacking;
@@ -4076,7 +4076,7 @@ GLMaterial::ChannelPacking GLMaterial::packingFor(const QString& key) const
 	return ChannelPacking{};
 }
 
-void GLMaterial::setPackingFor(const QString& key, const ChannelPacking& p)
+void Material::setPackingFor(const QString& key, const ChannelPacking& p)
 {
 	if (key == "metallic") { _metallicPacking = p; return; }
 	if (key == "roughness") { _roughnessPacking = p; return; }
@@ -4086,7 +4086,7 @@ void GLMaterial::setPackingFor(const QString& key, const ChannelPacking& p)
 }
 
 // Sync internal texture parameters to UI-exposed properties
-void GLMaterial::syncTextureParameters()
+void Material::syncTextureParameters()
 {
 	// Albedo / Base Color Texture
 	{
@@ -4367,7 +4367,7 @@ void GLMaterial::syncTextureParameters()
 }
 
 // Material validation
-bool GLMaterial::isValid() const
+bool Material::isValid() const
 {
 	// Check if all material properties are within valid ranges
 
@@ -4400,7 +4400,7 @@ bool GLMaterial::isValid() const
 
 	return true;
 }
-void GLMaterial::validateAndFix()
+void Material::validateAndFix()
 {
 	// Clamp color components to valid range [0.0, 1.0]
 	auto clampColor = [](float& component) {
@@ -4445,7 +4445,7 @@ void GLMaterial::validateAndFix()
 }
 
 // Conversion utilities
-void GLMaterial::convertToBlinnPhong()
+void Material::convertToBlinnPhong()
 {
 	// Convert PBR material to Blinn-Phong approximation
 
@@ -4480,7 +4480,7 @@ void GLMaterial::convertToBlinnPhong()
 	_shadingModel = ShadingModel::BlinnPhong;
 }
 
-void GLMaterial::convertToPBR()
+void Material::convertToPBR()
 {
 	// Convert Blinn-Phong material to PBR approximation
 
@@ -4538,13 +4538,13 @@ static inline void printVec3(std::ostream& os, const QVector3D& v)
 	os << "(" << v.x() << ", " << v.y() << ", " << v.z() << ")";
 }
 
-std::ostream& operator<<(std::ostream& os, const GLMaterial& m)
+std::ostream& operator<<(std::ostream& os, const Material& m)
 {
 	// Formatting
 	os << std::boolalpha;
 	os << std::fixed << std::setprecision(4);
 
-	os << "GLMaterial {\n";
+	os << "Material {\n";
 
 	// --- Legacy/primary colors and params
 	os << "  _ambient: "; printVec3(os, m._ambient); os << "\n";
@@ -4607,7 +4607,7 @@ std::ostream& operator<<(std::ostream& os, const GLMaterial& m)
 	os << "    _iridescenceThicknessTextureId: " << m._iridescenceThicknessTextureId << "\n";
 	
 	// --- Texture coordinate sets / transforms
-	auto printTT = [&os](const GLMaterial::TextureTransform& t) {
+	auto printTT = [&os](const Material::TextureTransform& t) {
 		os << "{texCoord=" << t.texCoord << ", texScale=";
 		printVec2(os, t.texScale);
 		os << ", texOffset="; printVec2(os, t.texOffset);
@@ -4720,7 +4720,7 @@ std::ostream& operator<<(std::ostream& os, const GLMaterial& m)
 		<< " UV offset: (" << m._uvOffsetU << ", " << m._uvOffsetV << ")\n";
 
 	// --- Channel packings (inspect fields)
-	auto printPacking = [&os](const GLMaterial::ChannelPacking& p) {
+	auto printPacking = [&os](const Material::ChannelPacking& p) {
 		os << "{channel=" << p.channel << ", invert=" << p.invert
 			<< ", scale=" << p.scale << ", bias=" << p.bias << "}";
 		};

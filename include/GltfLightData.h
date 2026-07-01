@@ -1,6 +1,6 @@
 #pragma once
 
-#include "GLLights.h"
+#include "PunctualLights.h"
 #include <QString>
 #include <QVector>
 

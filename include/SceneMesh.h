@@ -7,7 +7,7 @@
 #include "RenderableMesh.h"
 #include "MeshImportAdaptor.h"
 #include "MeshAnimationState.h"
-// GLMaterial, Vertex, MorphTargetData — transitive via RenderableMesh.h
+// Material, Vertex, MorphTargetData — transitive via RenderableMesh.h
 
 class SceneMesh : public RenderableMesh
 {
@@ -15,7 +15,7 @@ public:
 
 	/*  Functions  */
 	// Constructor
-	SceneMesh(QOpenGLShaderProgram* shader, QString name, std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<GLMaterial::Texture> textures, GLMaterial material, bool skipOptimization = false, GLenum primitiveMode = GL_TRIANGLES);
+	SceneMesh(QOpenGLShaderProgram* shader, QString name, std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<Material::Texture> textures, Material material, bool skipOptimization = false, GLenum primitiveMode = GL_TRIANGLES);
 	~SceneMesh();
 	virtual SceneMesh* clone();
 	void setProg(QOpenGLShaderProgram* prog) override;
@@ -30,7 +30,7 @@ public:
 
     std::vector<unsigned int> indices() const;
 
-    std::vector<GLMaterial::Texture> textures() const;
+    std::vector<Material::Texture> textures() const;
 
 	void getMeshData(std::vector<Vertex>& vertices,
 		std::vector<unsigned int>& indices) const;
@@ -131,7 +131,7 @@ public:
 	void clearOpacityADSMap() override;
 	void clearAllADSMaps() override;
 
-	virtual void setTextureMaps(const GLMaterial& material) override;
+	virtual void setTextureMaps(const Material& material) override;
 	void deleteTextures() override;
 	void replaceOrAppendTexture(const std::string& type, GLuint id, bool hasAlpha);
 
@@ -171,9 +171,9 @@ private:
 	/*  Mesh Data  */
 	// _indices → RenderableMesh (protected) — SceneMesh uses the inherited field directly
 	// Reference alias into _materialState.textures() — same zero-churn pattern
-	// as GLMaterial& _material in SceneMesh. Initialised in the constructor
+	// as Material& _material in SceneMesh. Initialised in the constructor
 	// init-list; all existing _textures.xxx call sites remain unchanged.
-	std::vector<GLMaterial::Texture>& _textures;
+	std::vector<Material::Texture>& _textures;
 
 	// Reference alias into _animState.currentMorphWeights() — avoids churn at call sites.
 	QVector<float>& _currentMorphWeights;

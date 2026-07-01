@@ -12,12 +12,12 @@ class SceneMesh;
 #include <QByteArray>
 #include <vector>
 
-#include "GLLights.h"
+#include "PunctualLights.h"
 #include "GltfCameraData.h"
 #include "GltfVariantData.h"
 #include "GltfAnimationData.h"
 
-#include "GLMaterial.h"
+#include "Material.h"
 
 class RenderableMesh;
 /**
@@ -178,16 +178,16 @@ public:
         const QVector<MeshVariantExportEntry>& entries);
 
     /**
-     * Register the GLMaterial for each non-default variant material so the
+     * Register the Material for each non-default variant material so the
      * post-processor can patch texture indices, transforms, and samplers for
      * materials that are not matched to any source SceneMesh.
      *
-     * @param variantMats  Map from JSON material array index to the GLMaterial.
+     * @param variantMats  Map from JSON material array index to the Material.
      *                     Only non-default (extra) variant materials need to be
      *                     registered here; the default material is already handled
      *                     by the main material-patching pass.
      */
-    static void setVariantMaterialData(const QMap<int, GLMaterial>& variantMats);
+    static void setVariantMaterialData(const QMap<int, Material>& variantMats);
 
     static void clearVariantExportData();
 
@@ -213,7 +213,7 @@ private:
     // that share identical textures but have different transform properties
     struct MaterialSignature
     {
-        QString name;                           // Material name from GLMaterial
+        QString name;                           // Material name from Material
         QSet<QString> textureFilePaths;         // Actual texture file paths
 
         // Texture binding: texture type + path + coordinate + transforms
@@ -308,8 +308,8 @@ private:
     static const SceneMesh* sourceMeshForMaterial(
         int materialIndex,
         const std::vector<SceneMesh*>& meshes);
-    static GLMaterial defaultMaterialForMesh(const SceneMesh* mesh);
-    static GLMaterial sourceMaterialForJsonMaterial(
+    static Material defaultMaterialForMesh(const SceneMesh* mesh);
+    static Material sourceMaterialForJsonMaterial(
         int materialIndex,
         const std::vector<SceneMesh*>& meshes);
     static bool mergeOpacityIntoBaseColorTextures(
@@ -330,11 +330,11 @@ private:
 
     static QStringList _variantNames;
     static QVector<MeshVariantExportEntry> _variantEntries;
-    // GLMaterials for non-default variant materials keyed by JSON material index.
+    // Materials for non-default variant materials keyed by JSON material index.
     // Set by setVariantMaterialData; allows the secondary post-processing pass to
     // patch texture indices / transforms / samplers for materials that have no
     // corresponding source SceneMesh in the main patching loop.
-    static QMap<int, GLMaterial> _variantMatByJsonIdx;
+    static QMap<int, Material> _variantMatByJsonIdx;
 
     // Pointer-animation injection state (set by setPointerAnimationData).
     static QVector<GltfAnimationData> _pointerAnimData;

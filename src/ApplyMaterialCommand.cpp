@@ -6,7 +6,7 @@
 ApplyMaterialCommand::ApplyMaterialCommand(ModelViewer* viewer,
     GLWidget* glWidget,
     const QVector<QUuid>& meshUuids,
-    const GLMaterial& newMaterial,
+    const Material& newMaterial,
     const QString& materialName,
     const QString& text)
     : ModelViewerCommand(viewer, glWidget, text)
@@ -49,7 +49,7 @@ void ApplyMaterialCommand::redo()
     applyMaterials(_newMaterials);
 }
 
-void ApplyMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materials)
+void ApplyMaterialCommand::applyMaterials(const QMap<QUuid, Material>& materials)
 {
     // Ensure the correct GL context before any GPU-backed material updates.
     if (!_glWidget)
@@ -65,7 +65,7 @@ void ApplyMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materia
     for (auto it = materials.begin(); it != materials.end(); ++it)
     {
         const QUuid& uuid = it.key();
-        const GLMaterial& mat = it.value();
+        const Material& mat = it.value();
 
         int index = _glWidget->getIndexByUuid(uuid);
         if (index < 0)
@@ -79,8 +79,8 @@ void ApplyMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materia
             continue;
 
         // Resolve texture paths to GPU texture IDs and sampler state, then
-        // make the resolved GLMaterial the authoritative mesh state.
-        GLMaterial resolved = GLWidget::resolveMaterialTextures(_glWidget, mat);
+        // make the resolved Material the authoritative mesh state.
+        Material resolved = GLWidget::resolveMaterialTextures(_glWidget, mat);
         resolved.setIsGLTFMaterial(true);
 
         mesh->setMaterial(resolved);

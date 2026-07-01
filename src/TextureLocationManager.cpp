@@ -1,6 +1,6 @@
 #include "TextureLocationManager.h"
 #include "SceneMesh.h"
-#include "GLMaterial.h"
+#include "Material.h"
 
 #include <QFile>
 #include <QDir>
@@ -149,9 +149,9 @@ TexturePackage TextureLocationManager::packageTextures(
         const auto& material = mesh->getMaterial();
 
         // Iterate through all texture types (25 total)
-        for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i)
+        for (int i = 0; i < static_cast<int>(Material::TextureType::Count); ++i)
         {
-            auto type = static_cast<GLMaterial::TextureType>(i);
+            auto type = static_cast<Material::TextureType>(i);
             const auto& tex = material.texture(type);
 
             if (tex.path.empty()) continue;
@@ -225,9 +225,9 @@ TexturePackage TextureLocationManager::packageTextures(
         {
             for (const auto& varMat : mesh->allVariantMaterials())
             {
-                for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i)
+                for (int i = 0; i < static_cast<int>(Material::TextureType::Count); ++i)
                 {
-                    auto type = static_cast<GLMaterial::TextureType>(i);
+                    auto type = static_cast<Material::TextureType>(i);
                     const auto& tex = varMat.texture(type);
                     if (tex.path.empty()) continue;
 

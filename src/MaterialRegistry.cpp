@@ -1,5 +1,5 @@
 #include "MaterialRegistry.h"
-#include "GLMaterial.h"
+#include "Material.h"
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -76,7 +76,7 @@ bool MaterialRegistry::loadFromJsonFile(const QString& path, QString* err)
                     Item item;
                     item.key = itObj.value(QStringLiteral("key")).toString();
                     item.name = itObj.value(QStringLiteral("name")).toString(item.key);
-                    // Save whole object as variant map (so GLMaterial::fromVariantMap can consume)
+                    // Save whole object as variant map (so Material::fromVariantMap can consume)
                     item.props = jsonObjectToVariantMap(itObj);
                     // remove name/key from props to avoid duplication (optional)
                     item.props.remove(QStringLiteral("key"));
@@ -140,14 +140,14 @@ bool MaterialRegistry::hasKey(const QString& key) const
     return _rawByKey.contains(key);
 }
 
-GLMaterial MaterialRegistry::materialForKey(const QString& key)
+Material MaterialRegistry::materialForKey(const QString& key)
 {
     // check cache
     {
         QMutexLocker locker(&_cacheMutex);
         if (_cache.contains(key))
         {
-            QSharedPointer<GLMaterial> ptr = _cache.value(key);
+            QSharedPointer<Material> ptr = _cache.value(key);
             if (!ptr.isNull()) return *ptr;
         }
     }
@@ -156,16 +156,16 @@ GLMaterial MaterialRegistry::materialForKey(const QString& key)
     if (!_rawByKey.contains(key))
     {
         // Not found: return default material (call default ctor)
-        return GLMaterial();
+        return Material();
     }
     QVariantMap props = _rawByKey.value(key);
 
-    GLMaterial mat = GLMaterial::fromVariantMap(props);
+    Material mat = Material::fromVariantMap(props);
 
     // cache
     {
         QMutexLocker locker(&_cacheMutex);
-        _cache.insert(key, QSharedPointer<GLMaterial>(new GLMaterial(mat)));
+        _cache.insert(key, QSharedPointer<Material>(new Material(mat)));
     }
 
     return mat;
