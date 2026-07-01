@@ -507,7 +507,7 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
     QHash<QString, int> textureIndexBySignature;
 
     auto buildMaterialJsonObject =
-        [&](const Material& material,
+        [&](const ::Material& material,
             const QString& id,
             const QString& nameForFallback) -> QJsonObject
     {
@@ -549,11 +549,11 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
         mvfPbr.insert(QStringLiteral("sheenRoughness"), material.sheenRoughness());
 
         for (int textureTypeIndex = 0;
-             textureTypeIndex < static_cast<int>(Material::TextureType::Count);
+             textureTypeIndex < static_cast<int>(::Material::TextureType::Count);
              ++textureTypeIndex)
         {
-            const auto type = static_cast<Material::TextureType>(textureTypeIndex);
-            Material::Texture texture = material.texture(type);
+            const auto type = static_cast<::Material::TextureType>(textureTypeIndex);
+            ::Material::Texture texture = material.texture(type);
             if (texture.path.empty())
             {
                 const QString canonicalPath = texturePathForType(material, type);
@@ -1009,7 +1009,7 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
             }
         }
 
-        const Material material = mesh->getMaterial();
+        const ::Material material = mesh->getMaterial();
         QJsonObject materialObj = buildMaterialJsonObject(
             material,
             meshUuid.toString(QUuid::WithoutBraces),
