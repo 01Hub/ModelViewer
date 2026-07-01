@@ -3320,7 +3320,8 @@ void evaluatePunctualLight(in PunctualLight light, out vec3 lightDir, out vec3 l
 	float spotAttenuation = 1.0;
 	if (light.type == LightType_Spot)
 	{
-		float actualCos = dot(normalize(light.direction), normalize(-pointToLight));
+		vec3 lightDirWorld = normalize(light.direction);
+		float actualCos = dot(lightDirWorld, normalize(-pointToLight));
 		if (actualCos > light.outerConeCos)
 		{
 			if (actualCos < light.innerConeCos)
@@ -3921,6 +3922,10 @@ vec4 calculatePBRLightingKHR(int renderMode, float side)
 
 	if (hasPunctualLights && usePunctualLights)
 	{
+		// Punctual lights have no shadow map; the shadow factor (lightFactor) is
+		// computed from the default directional light's shadow map and must not
+		// attenuate punctual light contributions.
+		const float punctualLightFactor = 1.0;
 		for (int i = 0; i < lightCount; ++i)
 		{
 			vec3 lightDir;
@@ -3934,7 +3939,7 @@ vec4 calculatePBRLightingKHR(int renderMode, float side)
 
 			vec3 directDiffuse;
 			vec3 directSpecular;
-			evaluateBaseDirect(frame, params, lightDir, lightIntensity, lightFactor, directDiffuse, directSpecular);
+			evaluateBaseDirect(frame, params, lightDir, lightIntensity, punctualLightFactor, directDiffuse, directSpecular);
 
 			if (length(params.sheenColor) > 0.0)
 			{
@@ -3948,12 +3953,12 @@ vec4 calculatePBRLightingKHR(int renderMode, float side)
 					1.0 - sheenStrength * computeSheenScaling(NdotL, params.sheenRoughness));
 				directDiffuse *= l_albedoSheenScaling;
 				directSpecular *= l_albedoSheenScaling;
-				layers.sheenDirect += evaluateSheenDirect(frame, params, lightDir, lightIntensity, lightFactor);
+				layers.sheenDirect += evaluateSheenDirect(frame, params, lightDir, lightIntensity, punctualLightFactor);
 			}
 
 			if (params.clearcoat > 0.0)
 			{
-				layers.clearcoatDirect += evaluateClearcoatDirect(frame, params, lightDir, lightIntensity, lightFactor);
+				layers.clearcoatDirect += evaluateClearcoatDirect(frame, params, lightDir, lightIntensity, punctualLightFactor);
 			}
 
 			layers.baseDirectDiffuse += directDiffuse;
