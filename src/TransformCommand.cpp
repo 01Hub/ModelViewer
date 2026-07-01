@@ -1,21 +1,21 @@
 #include "TransformCommand.h"
 #include "ModelViewer.h"
-#include "GLWidget.h"
-#include "TriangleMesh.h"
+#include "ViewportWidget.h"
+#include "RenderableMesh.h"
 
 TransformCommand::TransformCommand(ModelViewer* viewer,
-    GLWidget* glWidget,
+    ViewportWidget* viewportWidget,
     const QVector<QUuid>& meshUuids,
     const QVector3D& newTranslation,
     const QVector3D& newRotation,
     const QVector3D& newScale,
     const QString& text)
-    : ModelViewerCommand(viewer, glWidget, text)
+    : ModelViewerCommand(viewer, viewportWidget, text)
 {
     // Capture old states for all meshes before transformation
     for (const QUuid& uuid : meshUuids)
     {
-        TriangleMesh* mesh = _glWidget->getMeshByUuid(uuid);
+        SceneMesh* mesh = _viewportWidget->getMeshByUuid(uuid);
         if (mesh)
         {
             TransformState oldState;
@@ -39,13 +39,13 @@ TransformCommand::TransformCommand(ModelViewer* viewer,
 }
 
 TransformCommand::TransformCommand(ModelViewer* viewer,
-    GLWidget* glWidget,
+    ViewportWidget* viewportWidget,
     const QMap<QUuid, TransformState>& oldStates,
     const QMap<QUuid, TransformState>& newStates,
     const QString& text,
     bool fitView,
     Target target)
-    : ModelViewerCommand(viewer, glWidget, text),
+    : ModelViewerCommand(viewer, viewportWidget, text),
       _oldStates(oldStates),
       _newStates(newStates),
       _fitView(fitView),
@@ -55,7 +55,7 @@ TransformCommand::TransformCommand(ModelViewer* viewer,
 
 void TransformCommand::undo()
 {
-    if (!_viewer || !_glWidget)
+    if (!_viewer || !_viewportWidget)
         return;
 
     // Apply old transformation states (meshes that were permanently deleted
@@ -65,7 +65,7 @@ void TransformCommand::undo()
 
 void TransformCommand::redo()
 {
-    if (!_viewer || !_glWidget)
+    if (!_viewer || !_viewportWidget)
         return;
 
     // Apply new transformation states
@@ -74,7 +74,7 @@ void TransformCommand::redo()
 
 void TransformCommand::applyTransformStates(const QMap<QUuid, TransformState>& states)
 {
-    // Build map of index -> TransformState for GLWidget
+    // Build map of index -> TransformState for ViewportWidget
     QMap<int, TransformState> indexedStates;
 
     for (auto it = states.begin(); it != states.end(); ++it)
@@ -82,7 +82,7 @@ void TransformCommand::applyTransformStates(const QMap<QUuid, TransformState>& s
         const QUuid& uuid = it.key();
 
         // Get current index
-        int index = _glWidget->getIndexByUuid(uuid);
+        int index = _viewportWidget->getIndexByUuid(uuid);
         if (index >= 0)
         {
             indexedStates[index] = it.value();
@@ -93,11 +93,11 @@ void TransformCommand::applyTransformStates(const QMap<QUuid, TransformState>& s
     if (!indexedStates.isEmpty())
     {
         if (_target == Target::ExplodedViewTransform)
-            _glWidget->applyExplodedViewTransforms(indexedStates, _fitView);
+            _viewportWidget->applyExplodedViewTransforms(indexedStates, _fitView);
         else
-            _glWidget->applyTransforms(indexedStates, _fitView);
+            _viewportWidget->applyTransforms(indexedStates, _fitView);
         _viewer->syncLightPositionUiToScene();
-        _glWidget->update();
+        _viewportWidget->update();
 
         // Update panel to show current transform values
         _viewer->updateTransformationValues();

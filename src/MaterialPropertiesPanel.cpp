@@ -1,5 +1,5 @@
 #include "ChannelPackingEditorDialog.h"
-#include "GLMaterial.h"
+#include "Material.h"
 #include "LanguageManager.h"
 #include "MaterialLibraryWidget.h"
 #include "MaterialPreviewWidget.h"
@@ -167,7 +167,7 @@ namespace
 		return fallback;
 	}
 
-	QString channelPackingSummary(const GLMaterial::ChannelPacking& packing)
+	QString channelPackingSummary(const Material::ChannelPacking& packing)
 	{
 		static const char* channels[] = { "R", "G", "B", "A" };
 		QString summary = (packing.channel >= 0 && packing.channel < 4)
@@ -286,7 +286,7 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 		connect(_ui->btnAttenuationColor, &QPushButton::clicked, this, &MaterialPropertiesPanel::onAttenuationColorPicked);
 
 	// Initialize material to default and bind
-	bindMaterial(new GLMaterial());
+	bindMaterial(new Material());
 
 	// Connect tree widget material selection signals
 	connectMaterialLibrarySignals();
@@ -306,7 +306,7 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 				// Get the currently selected material from the library
 				if (libraryWidget->sharedMaterialMap().contains(materialKey))
 				{
-					GLMaterial defaultMat = libraryWidget->sharedMaterialMap()[materialKey]();
+					Material defaultMat = libraryWidget->sharedMaterialMap()[materialKey]();
 					// Call our handler directly to load textures and update preview
 					onMaterialPresetSelected(defaultMat);
 				}
@@ -495,7 +495,7 @@ void MaterialPropertiesPanel::closeEvent(QCloseEvent* event)
 // Public API - Material Binding
 // ============================================================================
 
-void MaterialPropertiesPanel::bindMaterial(GLMaterial* material)
+void MaterialPropertiesPanel::bindMaterial(Material* material)
 {
 	_material = material;
 	if (!_material)
@@ -538,17 +538,17 @@ void MaterialPropertiesPanel::bindMaterial(GLMaterial* material)
 	emit materialChanged(_material);
 }
 
-void MaterialPropertiesPanel::initialize(ModelViewer* modelViewer, GLWidget* glWidget)
+void MaterialPropertiesPanel::initialize(ModelViewer* modelViewer, ViewportWidget* viewportWidget)
 {
 	_modelViewer = modelViewer;
-	_glWidget = glWidget;
+	_viewportWidget = viewportWidget;
 
 	qDebug() << "MaterialPropertiesPanel::initialize called with modelViewer:" << (modelViewer ? "non-null" : "NULL");
 
-	// Pass GLWidget reference to preview widget for environment settings
-	if (_preview && _glWidget)
+	// Pass ViewportWidget reference to preview widget for environment settings
+	if (_preview && _viewportWidget)
 	{
-		_preview->setGLWidget(_glWidget);
+		_preview->setViewportWidget(_viewportWidget);
 	}
 
 	// Get reference to the MDI-scoped material cache from ModelViewer
@@ -574,7 +574,7 @@ void MaterialPropertiesPanel::setDetached(bool detached)
 
 			// NOTE: The preview widget is now kept in the main window/main thread
 			// so we don't need to load environment maps locally
-			// The preview widget will continue to use the GLWidget's environment maps
+			// The preview widget will continue to use the ViewportWidget's environment maps
 		}
 		else
 		{
@@ -677,13 +677,13 @@ int MaterialPropertiesPanel::getBlendMode() const { return _material ? static_ca
 bool MaterialPropertiesPanel::getTwoSided() const { return _material ? _material->twoSided() : false; }
 bool MaterialPropertiesPanel::getWireframe() const { return _material ? _material->wireframe() : false; }
 float MaterialPropertiesPanel::getAlphaThreshold() const { return _material ? _material->alphaThreshold() : 0.5f; }
-bool MaterialPropertiesPanel::getUnlit() const { return _material && _material->shadingModel() == GLMaterial::ShadingModel::Unlit; }
+bool MaterialPropertiesPanel::getUnlit() const { return _material && _material->shadingModel() == Material::ShadingModel::Unlit; }
 float MaterialPropertiesPanel::getIridescenceStrength() const { return _material ? _material->iridescenceFactor() : 0.0f; }
 float MaterialPropertiesPanel::getIridescenceThickness() const { return _material ? _material->iridescenceThicknessMin() : 100.0f; }
 float MaterialPropertiesPanel::getIridescenceIOR() const { return _material ? _material->iridescenceIor() : 1.3f; }
 float MaterialPropertiesPanel::getIridescenceThinFilmThickness() const { return _material ? _material->iridescenceThicknessMax() : 400.0f; }
 
-QString MaterialPropertiesPanel::getTexturePath(GLMaterial::TextureType type) const
+QString MaterialPropertiesPanel::getTexturePath(Material::TextureType type) const
 {
 	return textureMapPath(type);
 }
@@ -836,8 +836,8 @@ void MaterialPropertiesPanel::onAttenuationColorPicked()
 	}
 }
 
-void MaterialPropertiesPanel::onShadingModelChanged(int index) { if (_material && !_updateInProgress) { _material->setShadingModel(static_cast<GLMaterial::ShadingModel>(index)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onBlendModeChanged(int index) { if (_material && !_updateInProgress) { _material->setBlendMode(static_cast<GLMaterial::BlendMode>(index)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onShadingModelChanged(int index) { if (_material && !_updateInProgress) { _material->setShadingModel(static_cast<Material::ShadingModel>(index)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onBlendModeChanged(int index) { if (_material && !_updateInProgress) { _material->setBlendMode(static_cast<Material::BlendMode>(index)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
 void MaterialPropertiesPanel::onTwoSidedToggled(bool checked) { if (_material && !_updateInProgress) { _material->setTwoSided(checked); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
 void MaterialPropertiesPanel::onWireframeToggled(bool checked) { if (_material && !_updateInProgress) { _material->setWireframe(checked); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
 void MaterialPropertiesPanel::onAlphaThresholdChanged(double value) { if (_material && !_updateInProgress) { _material->setAlphaThreshold(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
@@ -856,7 +856,7 @@ void MaterialPropertiesPanel::registerTextureMaps()
 	if (!_ui) return;
 
 	// Helper lambda to safely insert texture slots
-	auto insertSlot = [this](GLMaterial::TextureType type, QPushButton* btn, QLabel* lbl,
+	auto insertSlot = [this](Material::TextureType type, QPushButton* btn, QLabel* lbl,
 		QToolButton* gear, QToolButton* transform, const QString& key) {
 			if (!btn) return;  // Button is required
 
@@ -873,36 +873,36 @@ void MaterialPropertiesPanel::registerTextureMaps()
 
 	// Register texture types that have UI buttons defined in the UI file
 	// Only include textures where the button exists
-	if (_ui->btnAlbedoTex) insertSlot(GLMaterial::TextureType::Albedo, _ui->btnAlbedoTex, _ui->lblAlbedo, nullptr, _ui->toolButtonAlbedoTexTrsf, "albedo");
-	if (_ui->btnNormalTex) insertSlot(GLMaterial::TextureType::Normal, _ui->btnNormalTex, _ui->lblNormal, nullptr, _ui->toolButtonNormalTexTrsf, "normal");
-	if (_ui->btnMetallicTex) insertSlot(GLMaterial::TextureType::Metallic, _ui->btnMetallicTex, _ui->lblMetallic, _ui->gearMetallic, _ui->toolButtonMetallicTexTrsf, "metallic");
-	if (_ui->btnRoughnessTex) insertSlot(GLMaterial::TextureType::Roughness, _ui->btnRoughnessTex, _ui->lblRoughnessTex, _ui->gearRoughness, _ui->toolButtonRoughTexTrsf, "roughness");
-	if (_ui->btnAOTex) insertSlot(GLMaterial::TextureType::AmbientOcclusion, _ui->btnAOTex, _ui->lblAmbientOcclusion, _ui->gearAO, _ui->toolButtonAOTexTrsf, "ao");
-	if (_ui->btnOpacityTex) insertSlot(GLMaterial::TextureType::Opacity, _ui->btnOpacityTex, _ui->lblOpacityTex, _ui->gearOpacity, _ui->toolButtonOpacTexTrsf, "opacity");
-	if (_ui->btnEmissiveTex) insertSlot(GLMaterial::TextureType::Emissive, _ui->btnEmissiveTex, _ui->lblEmissiveTex, nullptr, _ui->toolButtonEmissiveTexTrsf, "emissive");
-	if (_ui->btnHeightTex) insertSlot(GLMaterial::TextureType::Height, _ui->btnHeightTex, _ui->lblHeightScaleLabel, nullptr, _ui->toolButtonHeightTexTrsf, "height");
-	if (_ui->btnTransmissionTex) insertSlot(GLMaterial::TextureType::Transmission, _ui->btnTransmissionTex, _ui->lblTransmissionTex, nullptr, _ui->toolButtonTransTexTrsf, "transmission");
-	if (_ui->btnIORTex) insertSlot(GLMaterial::TextureType::IOR, _ui->btnIORTex, _ui->lblIOR, nullptr, _ui->toolButtonIORTexTrsf, "ior");
-	if (_ui->btnSheenColorTex) insertSlot(GLMaterial::TextureType::SheenColor, _ui->btnSheenColorTex, _ui->lblSheenColor, nullptr, _ui->toolButtonSheenColTexTrsf, "sheen_color");
-	if (_ui->btnSheenRoughTex) insertSlot(GLMaterial::TextureType::SheenRoughness, _ui->btnSheenRoughTex, nullptr, nullptr, _ui->toolButtonSheenRghTexTrsf, "sheen_rough");
-	if (_ui->btnCCColorTex) insertSlot(GLMaterial::TextureType::ClearcoatColor, _ui->btnCCColorTex, nullptr, nullptr, _ui->toolButtonClearCColTexTrsf, "clearcoat_color");
-	if (_ui->btnCCRoughTex) insertSlot(GLMaterial::TextureType::ClearcoatRoughness, _ui->btnCCRoughTex, nullptr, nullptr, _ui->toolButtonClearCRghTexTrsf, "clearcoat_rough");
-	if (_ui->btnCCNormalTex) insertSlot(GLMaterial::TextureType::ClearcoatNormal, _ui->btnCCNormalTex, nullptr, nullptr, _ui->toolButtonClearCNorTexTrsf, "clearcoat_normal");
-	if (_ui->btnIridFactorTex) insertSlot(GLMaterial::TextureType::Iridescence, _ui->btnIridFactorTex, nullptr, nullptr, _ui->toolButtonIridColTexTrsf, "iridescence");
-	if (_ui->btnIridescenceThicknessTex) insertSlot(GLMaterial::TextureType::IridescenceThickness, _ui->btnIridescenceThicknessTex, nullptr, nullptr, _ui->toolButtonIridRghTexTrsf, "iridescence_thickness");
-	if (_ui->btnSpecFactorColorTex) insertSlot(GLMaterial::TextureType::SpecularFactor, _ui->btnSpecFactorColorTex, nullptr, nullptr, _ui->toolButtonSpecFactorTexTrsf, "specular_factor");
-	if (_ui->btnSpecColorColorTex) insertSlot(GLMaterial::TextureType::SpecularColor, _ui->btnSpecColorColorTex, nullptr, nullptr, _ui->toolButtonSpecColorTexTrsf, "specular_color");
-	if (_ui->btnAnisotropyColorTex) insertSlot(GLMaterial::TextureType::Anisotropy, _ui->btnAnisotropyColorTex, nullptr, nullptr, _ui->toolButtonAnisotropyTexTrsf, "anisotropy");
-	if (_ui->btnDiffuseTransTex) insertSlot(GLMaterial::TextureType::DiffuseTransmission, _ui->btnDiffuseTransTex, nullptr, nullptr, _ui->toolButtonDiffuseTransTexTrsf, "diffuse_transmission");
-	if (_ui->btnDiffuseTransColorTex) insertSlot(GLMaterial::TextureType::DiffuseTransmissionColor, _ui->btnDiffuseTransColorTex, nullptr, nullptr, _ui->toolButtonDiffuseTransColorTexTrsf, "diffuse_transmission_color");
-	if (_ui->btnThicknessTex) insertSlot(GLMaterial::TextureType::Thickness, _ui->btnThicknessTex, _ui->lblThicknessTex, nullptr, _ui->toolButtonThicknessTexTrsf, "thickness");
+	if (_ui->btnAlbedoTex) insertSlot(Material::TextureType::Albedo, _ui->btnAlbedoTex, _ui->lblAlbedo, nullptr, _ui->toolButtonAlbedoTexTrsf, "albedo");
+	if (_ui->btnNormalTex) insertSlot(Material::TextureType::Normal, _ui->btnNormalTex, _ui->lblNormal, nullptr, _ui->toolButtonNormalTexTrsf, "normal");
+	if (_ui->btnMetallicTex) insertSlot(Material::TextureType::Metallic, _ui->btnMetallicTex, _ui->lblMetallic, _ui->gearMetallic, _ui->toolButtonMetallicTexTrsf, "metallic");
+	if (_ui->btnRoughnessTex) insertSlot(Material::TextureType::Roughness, _ui->btnRoughnessTex, _ui->lblRoughnessTex, _ui->gearRoughness, _ui->toolButtonRoughTexTrsf, "roughness");
+	if (_ui->btnAOTex) insertSlot(Material::TextureType::AmbientOcclusion, _ui->btnAOTex, _ui->lblAmbientOcclusion, _ui->gearAO, _ui->toolButtonAOTexTrsf, "ao");
+	if (_ui->btnOpacityTex) insertSlot(Material::TextureType::Opacity, _ui->btnOpacityTex, _ui->lblOpacityTex, _ui->gearOpacity, _ui->toolButtonOpacTexTrsf, "opacity");
+	if (_ui->btnEmissiveTex) insertSlot(Material::TextureType::Emissive, _ui->btnEmissiveTex, _ui->lblEmissiveTex, nullptr, _ui->toolButtonEmissiveTexTrsf, "emissive");
+	if (_ui->btnHeightTex) insertSlot(Material::TextureType::Height, _ui->btnHeightTex, _ui->lblHeightScaleLabel, nullptr, _ui->toolButtonHeightTexTrsf, "height");
+	if (_ui->btnTransmissionTex) insertSlot(Material::TextureType::Transmission, _ui->btnTransmissionTex, _ui->lblTransmissionTex, nullptr, _ui->toolButtonTransTexTrsf, "transmission");
+	if (_ui->btnIORTex) insertSlot(Material::TextureType::IOR, _ui->btnIORTex, _ui->lblIOR, nullptr, _ui->toolButtonIORTexTrsf, "ior");
+	if (_ui->btnSheenColorTex) insertSlot(Material::TextureType::SheenColor, _ui->btnSheenColorTex, _ui->lblSheenColor, nullptr, _ui->toolButtonSheenColTexTrsf, "sheen_color");
+	if (_ui->btnSheenRoughTex) insertSlot(Material::TextureType::SheenRoughness, _ui->btnSheenRoughTex, nullptr, nullptr, _ui->toolButtonSheenRghTexTrsf, "sheen_rough");
+	if (_ui->btnCCColorTex) insertSlot(Material::TextureType::ClearcoatColor, _ui->btnCCColorTex, nullptr, nullptr, _ui->toolButtonClearCColTexTrsf, "clearcoat_color");
+	if (_ui->btnCCRoughTex) insertSlot(Material::TextureType::ClearcoatRoughness, _ui->btnCCRoughTex, nullptr, nullptr, _ui->toolButtonClearCRghTexTrsf, "clearcoat_rough");
+	if (_ui->btnCCNormalTex) insertSlot(Material::TextureType::ClearcoatNormal, _ui->btnCCNormalTex, nullptr, nullptr, _ui->toolButtonClearCNorTexTrsf, "clearcoat_normal");
+	if (_ui->btnIridFactorTex) insertSlot(Material::TextureType::Iridescence, _ui->btnIridFactorTex, nullptr, nullptr, _ui->toolButtonIridColTexTrsf, "iridescence");
+	if (_ui->btnIridescenceThicknessTex) insertSlot(Material::TextureType::IridescenceThickness, _ui->btnIridescenceThicknessTex, nullptr, nullptr, _ui->toolButtonIridRghTexTrsf, "iridescence_thickness");
+	if (_ui->btnSpecFactorColorTex) insertSlot(Material::TextureType::SpecularFactor, _ui->btnSpecFactorColorTex, nullptr, nullptr, _ui->toolButtonSpecFactorTexTrsf, "specular_factor");
+	if (_ui->btnSpecColorColorTex) insertSlot(Material::TextureType::SpecularColor, _ui->btnSpecColorColorTex, nullptr, nullptr, _ui->toolButtonSpecColorTexTrsf, "specular_color");
+	if (_ui->btnAnisotropyColorTex) insertSlot(Material::TextureType::Anisotropy, _ui->btnAnisotropyColorTex, nullptr, nullptr, _ui->toolButtonAnisotropyTexTrsf, "anisotropy");
+	if (_ui->btnDiffuseTransTex) insertSlot(Material::TextureType::DiffuseTransmission, _ui->btnDiffuseTransTex, nullptr, nullptr, _ui->toolButtonDiffuseTransTexTrsf, "diffuse_transmission");
+	if (_ui->btnDiffuseTransColorTex) insertSlot(Material::TextureType::DiffuseTransmissionColor, _ui->btnDiffuseTransColorTex, nullptr, nullptr, _ui->toolButtonDiffuseTransColorTexTrsf, "diffuse_transmission_color");
+	if (_ui->btnThicknessTex) insertSlot(Material::TextureType::Thickness, _ui->btnThicknessTex, _ui->lblThicknessTex, nullptr, _ui->toolButtonThicknessTexTrsf, "thickness");
 }
 
 void MaterialPropertiesPanel::setupTextureMetadataUI()
 {
 	if (!_ui) return;
 
-	auto assignExistingMeta = [this](GLMaterial::TextureType type,
+	auto assignExistingMeta = [this](Material::TextureType type,
 		const char* uvName, const char* colorName, const char* packingName)
 	{
 		auto it = _textureSlots.find(type);
@@ -914,29 +914,29 @@ void MaterialPropertiesPanel::setupTextureMetadataUI()
 		it->metaPacking = findChild<QLabel*>(QString::fromLatin1(packingName));
 	};
 
-	assignExistingMeta(GLMaterial::TextureType::Albedo, "lblAlbedoMetaUV", "lblAlbedoMetaColorSpace", "lblAlbedoMetaPacking");
-	assignExistingMeta(GLMaterial::TextureType::Opacity, "lblOpacityMetaUV", "lblOpacityMetaColorSpace", "lblOpacityMetaPacking");
-	assignExistingMeta(GLMaterial::TextureType::Emissive, "lblEmissiveMetaUV", "lblEmissiveMetaColorSpace", "lblEmissiveMetaPacking");
-	assignExistingMeta(GLMaterial::TextureType::Metallic, "lblMetallicMetaUV", "lblMetallicMetaColorSpace", "lblMetallicMetaPacking");
-	assignExistingMeta(GLMaterial::TextureType::AmbientOcclusion, "lblAOMetaUV", "lblAOMetaColorSpace", "lblAOMetaPacking");
-	assignExistingMeta(GLMaterial::TextureType::Height, "lblHeightMetaUV", "lblHeightMetaColorSpace", "lblHeightMetaPacking");
-	assignExistingMeta(GLMaterial::TextureType::Roughness, "lblRoughnessMetaUV", "lblRoughnessMetaColorSpace", "lblRoughnessMetaPacking");
-	assignExistingMeta(GLMaterial::TextureType::Normal, "lblNormalMetaUV", "lblNormalMetaColorSpace", "lblNormalMetaPacking");
-	assignExistingMeta(GLMaterial::TextureType::ClearcoatColor, "lblCCColorMetaUV", "lblCCColorMetaColorSpace", "lblCCColorMetaPacking");
-	assignExistingMeta(GLMaterial::TextureType::ClearcoatRoughness, "lblCCRoughMetaUV", "lblCCRoughMetaColorSpace", "lblCCRoughMetaPacking");
-	assignExistingMeta(GLMaterial::TextureType::ClearcoatNormal, "lblCCNormalMetaUV", "lblCCNormalMetaColorSpace", "lblCCNormalMetaPacking");
-	assignExistingMeta(GLMaterial::TextureType::SheenColor, "lblSheenColorMetaUV", "lblSheenColorMetaColorSpace", "lblSheenColorMetaPacking");
-	assignExistingMeta(GLMaterial::TextureType::SheenRoughness, "lblSheenRoughMetaUV", "lblSheenRoughMetaColorSpace", "lblSheenRoughMetaPacking");
-	assignExistingMeta(GLMaterial::TextureType::Iridescence, "lblIridFactorMetaUV", "lblIridFactorMetaColorSpace", "lblIridFactorMetaPacking");
-	assignExistingMeta(GLMaterial::TextureType::IridescenceThickness, "lblIridThicknessMetaUV", "lblIridThicknessMetaColorSpace", "lblIridThicknessMetaPacking");
-	assignExistingMeta(GLMaterial::TextureType::Transmission, "lblTransmissionMetaUV", "lblTransmissionMetaColorSpace", "lblTransmissionMetaPacking");
-	assignExistingMeta(GLMaterial::TextureType::IOR, "lblIORMetaUV", "lblIORMetaColorSpace", "lblIORMetaPacking");
-	assignExistingMeta(GLMaterial::TextureType::Thickness, "lblThicknessMetaUV", "lblThicknessMetaColorSpace", "lblThicknessMetaPacking");
-	assignExistingMeta(GLMaterial::TextureType::SpecularFactor, "lblSpecFactorMetaUV", "lblSpecFactorMetaColorSpace", "lblSpecFactorMetaPacking");
-	assignExistingMeta(GLMaterial::TextureType::SpecularColor, "lblSpecColorMetaUV", "lblSpecColorMetaColorSpace", "lblSpecColorMetaPacking");
-	assignExistingMeta(GLMaterial::TextureType::Anisotropy, "lblAnisotropyMetaUV", "lblAnisotropyMetaColorSpace", "lblAnisotropyMetaPacking");
-	assignExistingMeta(GLMaterial::TextureType::DiffuseTransmission, "lblDiffuseTransMetaUV", "lblDiffuseTransMetaColorSpace", "lblDiffuseTransMetaPacking");
-	assignExistingMeta(GLMaterial::TextureType::DiffuseTransmissionColor, "lblDiffuseTransColorMetaUV", "lblDiffuseTransColorMetaColorSpace", "lblDiffuseTransColorMetaPacking");
+	assignExistingMeta(Material::TextureType::Albedo, "lblAlbedoMetaUV", "lblAlbedoMetaColorSpace", "lblAlbedoMetaPacking");
+	assignExistingMeta(Material::TextureType::Opacity, "lblOpacityMetaUV", "lblOpacityMetaColorSpace", "lblOpacityMetaPacking");
+	assignExistingMeta(Material::TextureType::Emissive, "lblEmissiveMetaUV", "lblEmissiveMetaColorSpace", "lblEmissiveMetaPacking");
+	assignExistingMeta(Material::TextureType::Metallic, "lblMetallicMetaUV", "lblMetallicMetaColorSpace", "lblMetallicMetaPacking");
+	assignExistingMeta(Material::TextureType::AmbientOcclusion, "lblAOMetaUV", "lblAOMetaColorSpace", "lblAOMetaPacking");
+	assignExistingMeta(Material::TextureType::Height, "lblHeightMetaUV", "lblHeightMetaColorSpace", "lblHeightMetaPacking");
+	assignExistingMeta(Material::TextureType::Roughness, "lblRoughnessMetaUV", "lblRoughnessMetaColorSpace", "lblRoughnessMetaPacking");
+	assignExistingMeta(Material::TextureType::Normal, "lblNormalMetaUV", "lblNormalMetaColorSpace", "lblNormalMetaPacking");
+	assignExistingMeta(Material::TextureType::ClearcoatColor, "lblCCColorMetaUV", "lblCCColorMetaColorSpace", "lblCCColorMetaPacking");
+	assignExistingMeta(Material::TextureType::ClearcoatRoughness, "lblCCRoughMetaUV", "lblCCRoughMetaColorSpace", "lblCCRoughMetaPacking");
+	assignExistingMeta(Material::TextureType::ClearcoatNormal, "lblCCNormalMetaUV", "lblCCNormalMetaColorSpace", "lblCCNormalMetaPacking");
+	assignExistingMeta(Material::TextureType::SheenColor, "lblSheenColorMetaUV", "lblSheenColorMetaColorSpace", "lblSheenColorMetaPacking");
+	assignExistingMeta(Material::TextureType::SheenRoughness, "lblSheenRoughMetaUV", "lblSheenRoughMetaColorSpace", "lblSheenRoughMetaPacking");
+	assignExistingMeta(Material::TextureType::Iridescence, "lblIridFactorMetaUV", "lblIridFactorMetaColorSpace", "lblIridFactorMetaPacking");
+	assignExistingMeta(Material::TextureType::IridescenceThickness, "lblIridThicknessMetaUV", "lblIridThicknessMetaColorSpace", "lblIridThicknessMetaPacking");
+	assignExistingMeta(Material::TextureType::Transmission, "lblTransmissionMetaUV", "lblTransmissionMetaColorSpace", "lblTransmissionMetaPacking");
+	assignExistingMeta(Material::TextureType::IOR, "lblIORMetaUV", "lblIORMetaColorSpace", "lblIORMetaPacking");
+	assignExistingMeta(Material::TextureType::Thickness, "lblThicknessMetaUV", "lblThicknessMetaColorSpace", "lblThicknessMetaPacking");
+	assignExistingMeta(Material::TextureType::SpecularFactor, "lblSpecFactorMetaUV", "lblSpecFactorMetaColorSpace", "lblSpecFactorMetaPacking");
+	assignExistingMeta(Material::TextureType::SpecularColor, "lblSpecColorMetaUV", "lblSpecColorMetaColorSpace", "lblSpecColorMetaPacking");
+	assignExistingMeta(Material::TextureType::Anisotropy, "lblAnisotropyMetaUV", "lblAnisotropyMetaColorSpace", "lblAnisotropyMetaPacking");
+	assignExistingMeta(Material::TextureType::DiffuseTransmission, "lblDiffuseTransMetaUV", "lblDiffuseTransMetaColorSpace", "lblDiffuseTransMetaPacking");
+	assignExistingMeta(Material::TextureType::DiffuseTransmissionColor, "lblDiffuseTransColorMetaUV", "lblDiffuseTransColorMetaColorSpace", "lblDiffuseTransColorMetaPacking");
 
 	for (auto it = _textureSlots.begin(); it != _textureSlots.end(); ++it)
 		updateTextureMetadata(it.key());
@@ -1077,12 +1077,12 @@ QIcon MaterialPropertiesPanel::makeCheckerIcon(int w, int h, int cell)
 	return QIcon(QPixmap::fromImage(checkerImg));
 }
 
-void MaterialPropertiesPanel::setTextureMapPath(GLMaterial::TextureType type, const QString& file)
+void MaterialPropertiesPanel::setTextureMapPath(Material::TextureType type, const QString& file)
 {
 	if (!_material) return;
 	_lastUsedTextureFolder = QFileInfo(file).dir().absolutePath();
 
-	GLMaterial::Texture tex = _material->texture(type);
+	Material::Texture tex = _material->texture(type);
 	tex.path = file.toStdString();
 	_material->setTexture(type, tex);
 
@@ -1094,86 +1094,86 @@ void MaterialPropertiesPanel::setTextureMapPath(GLMaterial::TextureType type, co
 	emit textureSamplerChanged(_material, type);
 }
 
-void MaterialPropertiesPanel::clearTextureMap(GLMaterial::TextureType type)
+void MaterialPropertiesPanel::clearTextureMap(Material::TextureType type)
 {
 	if (!_material) return;
 
 	// Clear using NEW API (for preview and new code paths)
-	GLMaterial::Texture resetTex;
-	resetTex.type = GLMaterial::textureTypeToString(type).toStdString();
+	Material::Texture resetTex;
+	resetTex.type = Material::textureTypeToString(type).toStdString();
 	_material->setTexture(type, resetTex);
 
 	// ALSO clear using OLD API (for compatibility with onCustomMaterialApplied)
 	// The old API stores texture paths in separate fields that are used when applying materials
 	switch (type)
 	{
-	case GLMaterial::TextureType::Albedo:
+	case Material::TextureType::Albedo:
 		_material->clearAlbedoMap();
 		break;
-	case GLMaterial::TextureType::Normal:
+	case Material::TextureType::Normal:
 		_material->clearNormalMap();
 		break;
-	case GLMaterial::TextureType::Metallic:
+	case Material::TextureType::Metallic:
 		_material->clearMetallicMap();
 		break;
-	case GLMaterial::TextureType::Roughness:
+	case Material::TextureType::Roughness:
 		_material->clearRoughnessMap();
 		break;
-	case GLMaterial::TextureType::AmbientOcclusion:
+	case Material::TextureType::AmbientOcclusion:
 		_material->clearAOMap();
 		break;
-	case GLMaterial::TextureType::Opacity:
+	case Material::TextureType::Opacity:
 		_material->clearOpacityMap();
 		break;
-	case GLMaterial::TextureType::Emissive:
+	case Material::TextureType::Emissive:
 		_material->clearEmissiveMap();
 		break;
-	case GLMaterial::TextureType::Height:
+	case Material::TextureType::Height:
 		_material->clearHeightMap();
 		break;
-	case GLMaterial::TextureType::Transmission:
+	case Material::TextureType::Transmission:
 		_material->clearTransmissionMap();
 		break;
-	case GLMaterial::TextureType::IOR:
+	case Material::TextureType::IOR:
 		_material->clearIORMap();
 		break;
-	case GLMaterial::TextureType::SheenColor:
+	case Material::TextureType::SheenColor:
 		_material->clearSheenColorMap();
 		break;
-	case GLMaterial::TextureType::SheenRoughness:
+	case Material::TextureType::SheenRoughness:
 		_material->clearSheenRoughnessMap();
 		break;
-	case GLMaterial::TextureType::ClearcoatColor:
+	case Material::TextureType::ClearcoatColor:
 		_material->clearClearcoatColorMap();
 		break;
-	case GLMaterial::TextureType::ClearcoatRoughness:
+	case Material::TextureType::ClearcoatRoughness:
 		_material->clearClearcoatRoughnessMap();
 		break;
-	case GLMaterial::TextureType::ClearcoatNormal:
+	case Material::TextureType::ClearcoatNormal:
 		_material->clearClearcoatNormalMap();
 		break;
-	case GLMaterial::TextureType::Iridescence:
+	case Material::TextureType::Iridescence:
 		_material->clearIridescenceMap();
 		break;
-	case GLMaterial::TextureType::IridescenceThickness:
+	case Material::TextureType::IridescenceThickness:
 		_material->clearIridescenceThicknessMap();
 		break;
-	case GLMaterial::TextureType::SpecularFactor:
+	case Material::TextureType::SpecularFactor:
 		_material->clearSpecularFactorMap();
 		break;
-	case GLMaterial::TextureType::SpecularColor:
+	case Material::TextureType::SpecularColor:
 		_material->clearSpecularColorMap();
 		break;
-	case GLMaterial::TextureType::Anisotropy:
+	case Material::TextureType::Anisotropy:
 		_material->clearAnisotropyMap();
 		break;
-	case GLMaterial::TextureType::DiffuseTransmission:
+	case Material::TextureType::DiffuseTransmission:
 		_material->clearDiffuseTransmissionMap();
 		break;
-	case GLMaterial::TextureType::DiffuseTransmissionColor:
+	case Material::TextureType::DiffuseTransmissionColor:
 		_material->clearDiffuseTransmissionColorMap();
 		break;
-	case GLMaterial::TextureType::Thickness:
+	case Material::TextureType::Thickness:
 		_material->clearThicknessMap();
 		break;
 	default:
@@ -1209,7 +1209,7 @@ void MaterialPropertiesPanel::clearAllTexturesMaps()
 	emit textureCacheClearRequested();
 }
 
-QString MaterialPropertiesPanel::textureMapPath(GLMaterial::TextureType type) const
+QString MaterialPropertiesPanel::textureMapPath(Material::TextureType type) const
 {
 	if (!_material) return QString();
 	return QString::fromStdString(_material->texture(type).path);
@@ -1289,7 +1289,7 @@ void MaterialPropertiesPanel::updateScalarUI()
 	// Simply call loadScalarValuesFromMaterial to refresh all scalar controls
 	loadScalarValuesFromMaterial();
 }
-void MaterialPropertiesPanel::updateTexturePreview(GLMaterial::TextureType type)
+void MaterialPropertiesPanel::updateTexturePreview(Material::TextureType type)
 {
 	if (!_material || !_textureSlots.contains(type))
 		return;
@@ -1305,7 +1305,7 @@ void MaterialPropertiesPanel::updateTexturePreview(GLMaterial::TextureType type)
 		applyButtonImageIcon(slot, path);
 }
 
-void MaterialPropertiesPanel::updateTextureMetadata(GLMaterial::TextureType type)
+void MaterialPropertiesPanel::updateTextureMetadata(Material::TextureType type)
 {
 	if (!_ui || !_textureSlots.contains(type))
 		return;
@@ -1326,51 +1326,51 @@ void MaterialPropertiesPanel::updateTextureMetadata(GLMaterial::TextureType type
 		slot.metaPacking->setEnabled(enabled);
 	};
 
-	auto defaultColorSpace = [](GLMaterial::TextureType textureType) -> QString {
+	auto defaultColorSpace = [](Material::TextureType textureType) -> QString {
 		switch (textureType)
 		{
-		case GLMaterial::TextureType::Albedo:
-		case GLMaterial::TextureType::Emissive:
-		case GLMaterial::TextureType::SheenColor:
-		case GLMaterial::TextureType::ClearcoatColor:
-		case GLMaterial::TextureType::SpecularColor:
-		case GLMaterial::TextureType::DiffuseTransmissionColor:
+		case Material::TextureType::Albedo:
+		case Material::TextureType::Emissive:
+		case Material::TextureType::SheenColor:
+		case Material::TextureType::ClearcoatColor:
+		case Material::TextureType::SpecularColor:
+		case Material::TextureType::DiffuseTransmissionColor:
 			return QStringLiteral("sRGB");
 		default:
 			return QStringLiteral("Linear");
 		}
 	};
 
-	auto defaultPacking = [](GLMaterial::TextureType textureType) -> QString {
+	auto defaultPacking = [](Material::TextureType textureType) -> QString {
 		switch (textureType)
 		{
-		case GLMaterial::TextureType::Albedo:
-		case GLMaterial::TextureType::Normal:
-		case GLMaterial::TextureType::Emissive:
-		case GLMaterial::TextureType::SheenColor:
-		case GLMaterial::TextureType::ClearcoatNormal:
-		case GLMaterial::TextureType::SpecularColor:
-		case GLMaterial::TextureType::Anisotropy:
-		case GLMaterial::TextureType::DiffuseTransmissionColor:
+		case Material::TextureType::Albedo:
+		case Material::TextureType::Normal:
+		case Material::TextureType::Emissive:
+		case Material::TextureType::SheenColor:
+		case Material::TextureType::ClearcoatNormal:
+		case Material::TextureType::SpecularColor:
+		case Material::TextureType::Anisotropy:
+		case Material::TextureType::DiffuseTransmissionColor:
 			return QStringLiteral("RGB");
-		case GLMaterial::TextureType::Metallic:
-		case GLMaterial::TextureType::Roughness:
-		case GLMaterial::TextureType::AmbientOcclusion:
-		case GLMaterial::TextureType::Opacity:
+		case Material::TextureType::Metallic:
+		case Material::TextureType::Roughness:
+		case Material::TextureType::AmbientOcclusion:
+		case Material::TextureType::Opacity:
 			return QStringLiteral("-");
-		case GLMaterial::TextureType::Height:
-		case GLMaterial::TextureType::Transmission:
-		case GLMaterial::TextureType::IOR:
-		case GLMaterial::TextureType::ClearcoatColor:
-		case GLMaterial::TextureType::Iridescence:
+		case Material::TextureType::Height:
+		case Material::TextureType::Transmission:
+		case Material::TextureType::IOR:
+		case Material::TextureType::ClearcoatColor:
+		case Material::TextureType::Iridescence:
 			return QStringLiteral("R");
-		case GLMaterial::TextureType::ClearcoatRoughness:
-		case GLMaterial::TextureType::IridescenceThickness:
-		case GLMaterial::TextureType::Thickness:
+		case Material::TextureType::ClearcoatRoughness:
+		case Material::TextureType::IridescenceThickness:
+		case Material::TextureType::Thickness:
 			return QStringLiteral("G");
-		case GLMaterial::TextureType::SheenRoughness:
-		case GLMaterial::TextureType::SpecularFactor:
-		case GLMaterial::TextureType::DiffuseTransmission:
+		case Material::TextureType::SheenRoughness:
+		case Material::TextureType::SpecularFactor:
+		case Material::TextureType::DiffuseTransmission:
 			return QStringLiteral("A");
 		default:
 			return QStringLiteral("-");
@@ -1384,22 +1384,22 @@ void MaterialPropertiesPanel::updateTextureMetadata(GLMaterial::TextureType type
 		return;
 	}
 
-	const GLMaterial::Texture tex = _material->texture(type);
+	const Material::Texture tex = _material->texture(type);
 	slot.metaUv->setText(tr("UV%1").arg(tex.texCoordIndex));
 	slot.metaColorSpace->setText(defaultColorSpace(type));
 
 	switch (type)
 	{
-	case GLMaterial::TextureType::Metallic:
+	case Material::TextureType::Metallic:
 		slot.metaPacking->setText(channelPackingSummary(_material->packingFor(QStringLiteral("metallic"))));
 		break;
-	case GLMaterial::TextureType::Roughness:
+	case Material::TextureType::Roughness:
 		slot.metaPacking->setText(channelPackingSummary(_material->packingFor(QStringLiteral("roughness"))));
 		break;
-	case GLMaterial::TextureType::AmbientOcclusion:
+	case Material::TextureType::AmbientOcclusion:
 		slot.metaPacking->setText(channelPackingSummary(_material->packingFor(QStringLiteral("ao"))));
 		break;
-	case GLMaterial::TextureType::Opacity:
+	case Material::TextureType::Opacity:
 		slot.metaPacking->setText(channelPackingSummary(_material->packingFor(QStringLiteral("opacity"))));
 		break;
 	default:
@@ -1410,25 +1410,25 @@ void MaterialPropertiesPanel::updateTextureMetadata(GLMaterial::TextureType type
 	setMetaEnabled(!textureMapPath(type).isEmpty());
 }
 
-void MaterialPropertiesPanel::openPackingDialogFor(GLMaterial::TextureType type)
+void MaterialPropertiesPanel::openPackingDialogFor(Material::TextureType type)
 {
 	if (!_material) return;
 
 	// Convert TextureType to string key used by material packing
-	auto keyFromType = [](GLMaterial::TextureType t)->QString {
-		if (t == GLMaterial::TextureType::Metallic) return "metallic";
-		if (t == GLMaterial::TextureType::Roughness) return "roughness";
-		if (t == GLMaterial::TextureType::AmbientOcclusion) return "ao";
-		if (t == GLMaterial::TextureType::Opacity) return "opacity";
+	auto keyFromType = [](Material::TextureType t)->QString {
+		if (t == Material::TextureType::Metallic) return "metallic";
+		if (t == Material::TextureType::Roughness) return "roughness";
+		if (t == Material::TextureType::AmbientOcclusion) return "ao";
+		if (t == Material::TextureType::Opacity) return "opacity";
 		return QString();
 		};
 
 	// Pretty name for the window title
-	auto pretty = [](GLMaterial::TextureType t)->QString {
-		if (t == GLMaterial::TextureType::Metallic) return tr("Metallic");
-		if (t == GLMaterial::TextureType::Roughness) return tr("Roughness");
-		if (t == GLMaterial::TextureType::AmbientOcclusion) return tr("Ambient Occlusion");
-		if (t == GLMaterial::TextureType::Opacity) return tr("Opacity");
+	auto pretty = [](Material::TextureType t)->QString {
+		if (t == Material::TextureType::Metallic) return tr("Metallic");
+		if (t == Material::TextureType::Roughness) return tr("Roughness");
+		if (t == Material::TextureType::AmbientOcclusion) return tr("Ambient Occlusion");
+		if (t == Material::TextureType::Opacity) return tr("Opacity");
 		return tr("Texture");
 		};
 
@@ -1439,7 +1439,7 @@ void MaterialPropertiesPanel::openPackingDialogFor(GLMaterial::TextureType type)
 	ChannelPackingEditorDialog dlg(this);
 
 	// Show dialog with current (or default) packing
-	GLMaterial::ChannelPacking cur{};
+	Material::ChannelPacking cur{};
 	if (_material) cur = _material->packingFor(key);
 	dlg.setCurrentPacking(cur, pretty(type));
 
@@ -1458,7 +1458,7 @@ void MaterialPropertiesPanel::openPackingDialogFor(GLMaterial::TextureType type)
 		}
 	}
 }
-void MaterialPropertiesPanel::onTransformButtonClicked(GLMaterial::TextureType type)
+void MaterialPropertiesPanel::onTransformButtonClicked(Material::TextureType type)
 {
 	if (!_material) return;
 
@@ -1602,9 +1602,9 @@ void MaterialPropertiesPanel::loadTextureImageFiles()
 	int texturesLoaded = 0;
 
 	// Iterate through all texture types and load them
-	for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i)
+	for (int i = 0; i < static_cast<int>(Material::TextureType::Count); ++i)
 	{
-		GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
+		Material::TextureType type = static_cast<Material::TextureType>(i);
 		QString path = QString::fromStdString(_material->texture(type).path);
 
 		if (path.isEmpty())
@@ -1622,103 +1622,103 @@ void MaterialPropertiesPanel::loadTextureImageFiles()
 		bool loaded = false;
 		switch (type)
 		{
-		case GLMaterial::TextureType::Albedo:
+		case Material::TextureType::Albedo:
 			_material->setAlbedoMap(path);
 			loaded = true;
 			break;
-		case GLMaterial::TextureType::Normal:
+		case Material::TextureType::Normal:
 			_material->setNormalMap(path);
 			loaded = true;
 			break;
-		case GLMaterial::TextureType::Metallic:
+		case Material::TextureType::Metallic:
 			_material->setMetallicMap(path);
 			loaded = true;
 			break;
-		case GLMaterial::TextureType::Roughness:
+		case Material::TextureType::Roughness:
 			_material->setRoughnessMap(path);
 			loaded = true;
 			break;
-		case GLMaterial::TextureType::AmbientOcclusion:
+		case Material::TextureType::AmbientOcclusion:
 			_material->setAOMap(path);
 			loaded = true;
 			break;
-		case GLMaterial::TextureType::Opacity:
+		case Material::TextureType::Opacity:
 			_material->setOpacityMap(path);
 			loaded = true;
 			break;
-		case GLMaterial::TextureType::Emissive:
+		case Material::TextureType::Emissive:
 			_material->setEmissiveMap(path);
 			loaded = true;
 			break;
-		case GLMaterial::TextureType::Height:
+		case Material::TextureType::Height:
 			_material->setHeightMap(path);
 			loaded = true;
 			break;
-		case GLMaterial::TextureType::Transmission:
+		case Material::TextureType::Transmission:
 			_material->setTransmissionMap(path);
 			loaded = true;
 			break;
-		case GLMaterial::TextureType::IOR:
+		case Material::TextureType::IOR:
 			_material->setIORMap(path);
 			loaded = true;
 			break;
-		case GLMaterial::TextureType::SheenColor:
+		case Material::TextureType::SheenColor:
 			_material->setSheenColorMap(path);
 			loaded = true;
 			break;
-		case GLMaterial::TextureType::SheenRoughness:
+		case Material::TextureType::SheenRoughness:
 			_material->setSheenRoughnessMap(path);
 			loaded = true;
 			break;
-		case GLMaterial::TextureType::ClearcoatColor:
+		case Material::TextureType::ClearcoatColor:
 			_material->setClearcoatColorMap(path);
 			loaded = true;
 			break;
-		case GLMaterial::TextureType::ClearcoatRoughness:
+		case Material::TextureType::ClearcoatRoughness:
 			_material->setClearcoatRoughnessMap(path);
 			loaded = true;
 			break;
-		case GLMaterial::TextureType::ClearcoatNormal:
+		case Material::TextureType::ClearcoatNormal:
 			_material->setClearcoatNormalMap(path);
 			loaded = true;
 			break;
-		case GLMaterial::TextureType::Iridescence:
+		case Material::TextureType::Iridescence:
 			_material->setIridescenceMap(path);
 			loaded = true;
 			break;
-		case GLMaterial::TextureType::IridescenceThickness:
+		case Material::TextureType::IridescenceThickness:
 			_material->setIridescenceThicknessMap(path);
 			loaded = true;
 			break;
-		case GLMaterial::TextureType::SpecularFactor:
+		case Material::TextureType::SpecularFactor:
 			_material->setSpecularFactorMap(path);
 			loaded = true;
 			break;
-		case GLMaterial::TextureType::SpecularColor:
+		case Material::TextureType::SpecularColor:
 			_material->setSpecularColorMap(path);
 			loaded = true;
 			break;
-		case GLMaterial::TextureType::Anisotropy:
+		case Material::TextureType::Anisotropy:
 			_material->setAnisotropyMap(path);
 			loaded = true;
 			break;
-		case GLMaterial::TextureType::DiffuseTransmission:
+		case Material::TextureType::DiffuseTransmission:
 			_material->setDiffuseTransmissionMap(path);
 			loaded = true;
 			break;
-		case GLMaterial::TextureType::DiffuseTransmissionColor:
+		case Material::TextureType::DiffuseTransmissionColor:
 			_material->setDiffuseTransmissionColorMap(path);
 			loaded = true;
 			break;
-		case GLMaterial::TextureType::Thickness:
+		case Material::TextureType::Thickness:
 			_material->setThicknessMap(path);
 			loaded = true;
 			break;
-		case GLMaterial::TextureType::Diffuse:
+		case Material::TextureType::Diffuse:
 			_material->setDiffuseMap(path);
 			loaded = true;
 			break;
-		case GLMaterial::TextureType::SpecularGlossiness:
+		case Material::TextureType::SpecularGlossiness:
 			_material->setSpecularGlossinessMap(path);
 			loaded = true;
 			break;
@@ -1784,40 +1784,40 @@ void MaterialPropertiesPanel::loadMaterialTexturesFromKey(const QString& materia
 
 	QString baseDir = PathUtils::getDataDirectory() + "/";
 
-	// Texture type mapping: JSON key -> texture path key -> GLMaterial::TextureType
-	static const QMap<QString, QPair<QString, GLMaterial::TextureType>> textureMap = {
-		{"Albedo", {"albedoMapPath", GLMaterial::TextureType::Albedo}},
-		{"Normal", {"normalMapPath", GLMaterial::TextureType::Normal}},
-		{"Metallic", {"metallicMapPath", GLMaterial::TextureType::Metallic}},
-		{"Roughness", {"roughnessMapPath", GLMaterial::TextureType::Roughness}},
-		{"Height", {"heightMapPath", GLMaterial::TextureType::Height}},
-		{"AmbientOcclusion", {"aoMapPath", GLMaterial::TextureType::AmbientOcclusion}},
-		{"Emissive", {"emissiveMapPath", GLMaterial::TextureType::Emissive}},
-		{"Opacity", {"opacityMapPath", GLMaterial::TextureType::Opacity}},
-		{"Transmission", {"transmissionMapPath", GLMaterial::TextureType::Transmission}},
-		{"IOR", {"iorMapPath", GLMaterial::TextureType::IOR}},
-		{"SheenColor", {"sheenColorMapPath", GLMaterial::TextureType::SheenColor}},
-		{"SheenRoughness", {"sheenRoughnessMapPath", GLMaterial::TextureType::SheenRoughness}},
-		{"ClearcoatColor", {"clearcoatColorMapPath", GLMaterial::TextureType::ClearcoatColor}},
-		{"ClearcoatRoughness", {"clearcoatRoughnessMapPath", GLMaterial::TextureType::ClearcoatRoughness}},
-		{"ClearcoatNormal", {"clearcoatNormalMapPath", GLMaterial::TextureType::ClearcoatNormal}},
-		{"SpecularFactor", {"specularFactorMapPath", GLMaterial::TextureType::SpecularFactor}},
-		{"SpecularColor", {"specularColorMapPath", GLMaterial::TextureType::SpecularColor}},
-		{"Anisotropy", {"anisotropyMapPath", GLMaterial::TextureType::Anisotropy}},
-		{"Iridescence", {"iridescenceMapPath", GLMaterial::TextureType::Iridescence}},
-		{"IridescenceThickness", {"iridescenceThicknessMapPath", GLMaterial::TextureType::IridescenceThickness}},
-		{"DiffuseTransmission", {"diffuseTransmissionMapPath", GLMaterial::TextureType::DiffuseTransmission}},
-		{"DiffuseTransmissionColor", {"diffuseTransmissionColorMapPath", GLMaterial::TextureType::DiffuseTransmissionColor}},
-		{"Thickness", {"thicknessMapPath", GLMaterial::TextureType::Thickness}},
-		{"Diffuse", {"diffuseMapPath", GLMaterial::TextureType::Diffuse}},
-		{"SpecularGlossiness", {"specularGlossinessMapPath", GLMaterial::TextureType::SpecularGlossiness}}
+	// Texture type mapping: JSON key -> texture path key -> Material::TextureType
+	static const QMap<QString, QPair<QString, Material::TextureType>> textureMap = {
+		{"Albedo", {"albedoMapPath", Material::TextureType::Albedo}},
+		{"Normal", {"normalMapPath", Material::TextureType::Normal}},
+		{"Metallic", {"metallicMapPath", Material::TextureType::Metallic}},
+		{"Roughness", {"roughnessMapPath", Material::TextureType::Roughness}},
+		{"Height", {"heightMapPath", Material::TextureType::Height}},
+		{"AmbientOcclusion", {"aoMapPath", Material::TextureType::AmbientOcclusion}},
+		{"Emissive", {"emissiveMapPath", Material::TextureType::Emissive}},
+		{"Opacity", {"opacityMapPath", Material::TextureType::Opacity}},
+		{"Transmission", {"transmissionMapPath", Material::TextureType::Transmission}},
+		{"IOR", {"iorMapPath", Material::TextureType::IOR}},
+		{"SheenColor", {"sheenColorMapPath", Material::TextureType::SheenColor}},
+		{"SheenRoughness", {"sheenRoughnessMapPath", Material::TextureType::SheenRoughness}},
+		{"ClearcoatColor", {"clearcoatColorMapPath", Material::TextureType::ClearcoatColor}},
+		{"ClearcoatRoughness", {"clearcoatRoughnessMapPath", Material::TextureType::ClearcoatRoughness}},
+		{"ClearcoatNormal", {"clearcoatNormalMapPath", Material::TextureType::ClearcoatNormal}},
+		{"SpecularFactor", {"specularFactorMapPath", Material::TextureType::SpecularFactor}},
+		{"SpecularColor", {"specularColorMapPath", Material::TextureType::SpecularColor}},
+		{"Anisotropy", {"anisotropyMapPath", Material::TextureType::Anisotropy}},
+		{"Iridescence", {"iridescenceMapPath", Material::TextureType::Iridescence}},
+		{"IridescenceThickness", {"iridescenceThicknessMapPath", Material::TextureType::IridescenceThickness}},
+		{"DiffuseTransmission", {"diffuseTransmissionMapPath", Material::TextureType::DiffuseTransmission}},
+		{"DiffuseTransmissionColor", {"diffuseTransmissionColorMapPath", Material::TextureType::DiffuseTransmissionColor}},
+		{"Thickness", {"thicknessMapPath", Material::TextureType::Thickness}},
+		{"Diffuse", {"diffuseMapPath", Material::TextureType::Diffuse}},
+		{"SpecularGlossiness", {"specularGlossinessMapPath", Material::TextureType::SpecularGlossiness}}
 	};
 
 	// Load each texture from JSON using OLD API setters (for compatibility with onCustomMaterialApplied)
 	for (auto it = textureMap.constBegin(); it != textureMap.constEnd(); ++it)
 	{
 		const QString& jsonKey = it.value().first;
-		const GLMaterial::TextureType type = it.value().second;
+		const Material::TextureType type = it.value().second;
 
 		if (materialObj.contains(jsonKey))
 		{
@@ -1829,84 +1829,84 @@ void MaterialPropertiesPanel::loadMaterialTexturesFromKey(const QString& materia
 				{
 					// Set BOTH old and new API to ensure compatibility with all texture-reading code paths:
 					// - Old API (setAlbedoMap, etc.): Used by onCustomMaterialApplied() handler
-					// - New API (setTexture with TextureType): Used by GLWidget::setTexturesToObjects() for main viewer
+					// - New API (setTexture with TextureType): Used by ViewportWidget::setTexturesToObjects() for main viewer
 
 					// First, set the OLD API (for onCustomMaterialApplied handler)
 					switch (type)
 					{
-					case GLMaterial::TextureType::Albedo:
+					case Material::TextureType::Albedo:
 						_material->setAlbedoMap(fullPath);
 						break;
-					case GLMaterial::TextureType::Metallic:
+					case Material::TextureType::Metallic:
 						_material->setMetallicMap(fullPath);
 						break;
-					case GLMaterial::TextureType::Roughness:
+					case Material::TextureType::Roughness:
 						_material->setRoughnessMap(fullPath);
 						break;
-					case GLMaterial::TextureType::Normal:
+					case Material::TextureType::Normal:
 						_material->setNormalMap(fullPath);
 						break;
-					case GLMaterial::TextureType::AmbientOcclusion:
+					case Material::TextureType::AmbientOcclusion:
 						_material->setAOMap(fullPath);
 						break;
-					case GLMaterial::TextureType::Opacity:
+					case Material::TextureType::Opacity:
 						_material->setOpacityMap(fullPath);
 						break;
-					case GLMaterial::TextureType::Emissive:
+					case Material::TextureType::Emissive:
 						_material->setEmissiveMap(fullPath);
 						break;
-					case GLMaterial::TextureType::Height:
+					case Material::TextureType::Height:
 						_material->setHeightMap(fullPath);
 						break;
-					case GLMaterial::TextureType::Transmission:
+					case Material::TextureType::Transmission:
 						_material->setTransmissionMap(fullPath);
 						break;
-					case GLMaterial::TextureType::IOR:
+					case Material::TextureType::IOR:
 						_material->setIORMap(fullPath);
 						break;
-					case GLMaterial::TextureType::SheenColor:
+					case Material::TextureType::SheenColor:
 						_material->setSheenColorMap(fullPath);
 						break;
-					case GLMaterial::TextureType::SheenRoughness:
+					case Material::TextureType::SheenRoughness:
 						_material->setSheenRoughnessMap(fullPath);
 						break;
-					case GLMaterial::TextureType::ClearcoatColor:
+					case Material::TextureType::ClearcoatColor:
 						_material->setClearcoatColorMap(fullPath);
 						break;
-					case GLMaterial::TextureType::ClearcoatRoughness:
+					case Material::TextureType::ClearcoatRoughness:
 						_material->setClearcoatRoughnessMap(fullPath);
 						break;
-					case GLMaterial::TextureType::ClearcoatNormal:
+					case Material::TextureType::ClearcoatNormal:
 						_material->setClearcoatNormalMap(fullPath);
 						break;
-					case GLMaterial::TextureType::Iridescence:
+					case Material::TextureType::Iridescence:
 						_material->setIridescenceMap(fullPath);
 						break;
-					case GLMaterial::TextureType::IridescenceThickness:
+					case Material::TextureType::IridescenceThickness:
 						_material->setIridescenceThicknessMap(fullPath);
 						break;
-					case GLMaterial::TextureType::SpecularFactor:
+					case Material::TextureType::SpecularFactor:
 						_material->setSpecularFactorMap(fullPath);
 						break;
-					case GLMaterial::TextureType::SpecularColor:
+					case Material::TextureType::SpecularColor:
 						_material->setSpecularColorMap(fullPath);
 						break;
-					case GLMaterial::TextureType::Anisotropy:
+					case Material::TextureType::Anisotropy:
 						_material->setAnisotropyMap(fullPath);
 						break;
-					case GLMaterial::TextureType::DiffuseTransmission:
+					case Material::TextureType::DiffuseTransmission:
 						_material->setDiffuseTransmissionMap(fullPath);
 						break;
-					case GLMaterial::TextureType::DiffuseTransmissionColor:
+					case Material::TextureType::DiffuseTransmissionColor:
 						_material->setDiffuseTransmissionColorMap(fullPath);
 						break;
-					case GLMaterial::TextureType::Thickness:
+					case Material::TextureType::Thickness:
 						_material->setThicknessMap(fullPath);
 						break;
-					case GLMaterial::TextureType::Diffuse:
+					case Material::TextureType::Diffuse:
 						_material->setDiffuseMap(fullPath);
 						break;
-					case GLMaterial::TextureType::SpecularGlossiness:
+					case Material::TextureType::SpecularGlossiness:
 						_material->setSpecularGlossinessMap(fullPath);
 						break;
 					default:
@@ -1914,7 +1914,7 @@ void MaterialPropertiesPanel::loadMaterialTexturesFromKey(const QString& materia
 						continue;
 					}
 
-					// Also set the NEW API (for GLWidget::setTexturesToObjects used in main viewer)
+					// Also set the NEW API (for ViewportWidget::setTexturesToObjects used in main viewer)
 					auto tex = _material->texture(type);
 					tex.path = fullPath.toStdString();
 					_material->setTexture(type, tex);
@@ -1960,7 +1960,7 @@ QString MaterialPropertiesPanel::currentPresetMetadataPath() const
 	return root + "/" + _currentPresetFolder + "/material.json";
 }
 
-void MaterialPropertiesPanel::onTextureButtonClicked(GLMaterial::TextureType type)
+void MaterialPropertiesPanel::onTextureButtonClicked(Material::TextureType type)
 {
 	QString texFolder = _lastUsedTextureFolder;
 	if (texFolder.isEmpty())
@@ -1980,7 +1980,7 @@ void MaterialPropertiesPanel::onClearAllTextures()
 		clearAllTexturesMaps();
 }
 
-void MaterialPropertiesPanel::onMaterialPresetSelected(const GLMaterial& mat)
+void MaterialPropertiesPanel::onMaterialPresetSelected(const Material& mat)
 {
 	// IMPORTANT: Save any unsaved texture changes from current material before switching
 	saveCurrentMaterialTexturesBeforeSwitch();
@@ -1996,7 +1996,7 @@ void MaterialPropertiesPanel::onMaterialPresetSelected(const GLMaterial& mat)
 	}
 
 	// Create a copy of the material to work with
-	if (!_material) _material = new GLMaterial();
+	if (!_material) _material = new Material();
 	*_material = mat;
 	// Ensure ADS values are recalculated after copy assignment
 	// (copy assignment operator doesn't call updateConsistency)
@@ -2051,10 +2051,10 @@ void MaterialPropertiesPanel::onMaterialPresetSelected(const GLMaterial& mat)
 						else
 						{
 							// For preset materials, restore ONLY textures to preserve fresh scalar defaults
-							const GLMaterial& cachedMaterial = cachedIt.value().material;
-							for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i)
+							const Material& cachedMaterial = cachedIt.value().material;
+							for (int i = 0; i < static_cast<int>(Material::TextureType::Count); ++i)
 							{
-								GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
+								Material::TextureType type = static_cast<Material::TextureType>(i);
 								const auto& cachedTex = cachedMaterial.texture(type);
 								// Only restore texture if it has a valid path in the cache
 								if (!cachedTex.path.empty())
@@ -2093,7 +2093,7 @@ void MaterialPropertiesPanel::onMaterialPresetSelected(const GLMaterial& mat)
 	// Selecting from tree just loads the material for editing/preview
 }
 
-void MaterialPropertiesPanel::onMaterialDoubleClicked(const GLMaterial& mat)
+void MaterialPropertiesPanel::onMaterialDoubleClicked(const Material& mat)
 {
 	// IMPORTANT: Save any unsaved texture changes from current material before switching
 	saveCurrentMaterialTexturesBeforeSwitch();
@@ -2101,7 +2101,7 @@ void MaterialPropertiesPanel::onMaterialDoubleClicked(const GLMaterial& mat)
 	updateUnsavedMaterialInMap();
 
 	// Load and bind material for preview (same as single-click)
-	if (!_material) _material = new GLMaterial();
+	if (!_material) _material = new Material();
 	*_material = mat;
 	// Ensure ADS values are recalculated after copy assignment
 	_material->updateConsistency();
@@ -2152,10 +2152,10 @@ void MaterialPropertiesPanel::onMaterialDoubleClicked(const GLMaterial& mat)
 						else
 						{
 							// For preset materials, restore ONLY textures to preserve fresh scalar defaults
-							const GLMaterial& cachedMaterial = cachedIt.value().material;
-							for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i)
+							const Material& cachedMaterial = cachedIt.value().material;
+							for (int i = 0; i < static_cast<int>(Material::TextureType::Count); ++i)
 							{
-								GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
+								Material::TextureType type = static_cast<Material::TextureType>(i);
 								const auto& cachedTex = cachedMaterial.texture(type);
 								// Only restore texture if it has a valid path in the cache
 								if (!cachedTex.path.empty())
@@ -2260,7 +2260,7 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 		// User confirmed both name and category - now proceed with save and cleanup
 		// Generate a unique UUID key for this new material
 		QString newKey = QUuid::createUuid().toString(QUuid::WithoutBraces);
-		GLMaterial mat = *_material;
+		Material mat = *_material;
 
 		// Create user material folder and copy texture files
 		QString userRoot = MaterialLibraryWidget::userMaterialsRootPath();
@@ -2280,10 +2280,10 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 		// Copy texture files
 		QString materialFolderCanonical = QFileInfo(materialFolder).canonicalFilePath();
 
-		for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i)
+		for (int i = 0; i < static_cast<int>(Material::TextureType::Count); ++i)
 		{
-			GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
-			GLMaterial::Texture tex = mat.texture(type);
+			Material::TextureType type = static_cast<Material::TextureType>(i);
+			Material::Texture tex = mat.texture(type);
 
 			if (tex.path.empty()) continue;
 
@@ -2336,14 +2336,14 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 
 		// Update shared map with the saved material
 		{
-			GLMaterial matWithAbsolutePaths = mat;
+			Material matWithAbsolutePaths = mat;
 			QString materialFolder = QDir(userRoot).filePath(newKey);
 
 			// Restore absolute paths from relative paths
-			for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i)
+			for (int i = 0; i < static_cast<int>(Material::TextureType::Count); ++i)
 			{
-				GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
-				GLMaterial::Texture tex = matWithAbsolutePaths.texture(type);
+				Material::TextureType type = static_cast<Material::TextureType>(i);
+				Material::Texture tex = matWithAbsolutePaths.texture(type);
 
 				if (tex.path.empty()) continue;
 
@@ -2356,7 +2356,7 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 				}
 			}
 
-			auto& mutableSharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+			auto& mutableSharedMap = const_cast<QMap<QString, std::function<Material()>>&>(
 				MaterialLibraryWidget::sharedMaterialMap());
 			mutableSharedMap[newKey] = [material = matWithAbsolutePaths]() { return material; };
 		}
@@ -2373,8 +2373,8 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 			// Load the newly saved material into preview
 			if (libraryWidget->sharedMaterialMap().contains(newKey))
 			{
-				GLMaterial savedMat = libraryWidget->sharedMaterialMap()[newKey]();
-				_material = new GLMaterial(savedMat);
+				Material savedMat = libraryWidget->sharedMaterialMap()[newKey]();
+				_material = new Material(savedMat);
 				loadTextureImageFiles();
 				bindMaterial(_material);
 			}
@@ -2389,7 +2389,7 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 		{
 			_unsavedMaterialKeys.remove(originalMeshKey);
 
-			auto& sharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+			auto& sharedMap = const_cast<QMap<QString, std::function<Material()>>&>(
 				MaterialLibraryWidget::sharedMaterialMap());
 			sharedMap.remove(originalMeshKey);
 
@@ -2451,7 +2451,7 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 	}
 
 	// Get current material copy
-	GLMaterial mat = *_material;
+	Material mat = *_material;
 
 	// Derive defaults from selected tree item (if any)
 	QString key = _currentMaterialKey;
@@ -2497,7 +2497,7 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 		if (groupLabel.isEmpty()) groupLabel = _currentMaterialGroup.isEmpty() ? "User Materials" : _currentMaterialGroup;
 
 		// IMPORTANT: Copy any new/modified textures to the material folder
-		GLMaterial mat = *_material;
+		Material mat = *_material;
 		QString userRoot = MaterialLibraryWidget::userMaterialsRootPath();
 		QString materialFolder = QDir(userRoot).filePath(key);
 		QDir materialDir(materialFolder);
@@ -2512,10 +2512,10 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 		// CRITICAL: Convert ALL absolute paths to relative, and only write successfully copied files
 		QString materialFolderCanonical = QFileInfo(materialFolder).canonicalFilePath();
 
-		for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i)
+		for (int i = 0; i < static_cast<int>(Material::TextureType::Count); ++i)
 		{
-			GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
-			GLMaterial::Texture tex = mat.texture(type);
+			Material::TextureType type = static_cast<Material::TextureType>(i);
+			Material::Texture tex = mat.texture(type);
 
 			if (tex.path.empty()) continue;
 
@@ -2580,15 +2580,15 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 		// The JSON has relative paths, but shared map needs absolute paths for runtime
 		if (saved)
 		{
-			GLMaterial matWithAbsolutePaths = mat;
+			Material matWithAbsolutePaths = mat;
 			QString userRoot = MaterialLibraryWidget::userMaterialsRootPath();
 			QString materialFolder = QDir(userRoot).filePath(key);
 
 			// Restore absolute paths from relative paths for shared map
-			for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i)
+			for (int i = 0; i < static_cast<int>(Material::TextureType::Count); ++i)
 			{
-				GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
-				GLMaterial::Texture tex = matWithAbsolutePaths.texture(type);
+				Material::TextureType type = static_cast<Material::TextureType>(i);
+				Material::Texture tex = matWithAbsolutePaths.texture(type);
 
 				if (tex.path.empty()) continue;
 
@@ -2603,7 +2603,7 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 				}
 			}
 
-			auto& sharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+			auto& sharedMap = const_cast<QMap<QString, std::function<Material()>>&>(
 				MaterialLibraryWidget::sharedMaterialMap());
 			sharedMap[key] = [material = matWithAbsolutePaths]() { return material; };
 			qDebug() << "Updated shared map for overwritten material:" << key;
@@ -2833,10 +2833,10 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 	// If a texture cannot be copied, skip it (don't write invalid absolute paths to JSON)
 	QString materialFolderCanonical = QFileInfo(materialFolder).canonicalFilePath();
 
-	for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i)
+	for (int i = 0; i < static_cast<int>(Material::TextureType::Count); ++i)
 	{
-		GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
-		GLMaterial::Texture tex = mat.texture(type);
+		Material::TextureType type = static_cast<Material::TextureType>(i);
+		Material::Texture tex = mat.texture(type);
 
 		if (tex.path.empty()) continue; // Skip unloaded textures
 
@@ -2932,7 +2932,7 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 	if (!_currentMaterialKey.isEmpty() && _unsavedMaterialKeys.contains(_currentMaterialKey) && isNewlyCreatedMaterial)
 	{
 		// Remove from s_materialMap
-		auto& sharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+		auto& sharedMap = const_cast<QMap<QString, std::function<Material()>>&>(
 			MaterialLibraryWidget::sharedMaterialMap());
 		sharedMap.remove(_currentMaterialKey);
 
@@ -2973,15 +2973,15 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 	// BUT: Convert relative texture paths back to absolute paths for the shared map
 	// The JSON file has relative paths, but the runtime needs absolute paths
 	{
-		GLMaterial matWithAbsolutePaths = mat;
+		Material matWithAbsolutePaths = mat;
 		QString userRoot = MaterialLibraryWidget::userMaterialsRootPath();
 		QString materialFolder = QDir(userRoot).filePath(key);
 
 		// Restore absolute paths from relative paths
-		for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i)
+		for (int i = 0; i < static_cast<int>(Material::TextureType::Count); ++i)
 		{
-			GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
-			GLMaterial::Texture tex = matWithAbsolutePaths.texture(type);
+			Material::TextureType type = static_cast<Material::TextureType>(i);
+			Material::Texture tex = matWithAbsolutePaths.texture(type);
 
 			if (tex.path.empty()) continue;
 
@@ -2996,7 +2996,7 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 			}
 		}
 
-		auto& sharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+		auto& sharedMap = const_cast<QMap<QString, std::function<Material()>>&>(
 			MaterialLibraryWidget::sharedMaterialMap());
 		sharedMap[key] = [material = matWithAbsolutePaths]() { return material; };
 		qDebug() << "Updated shared map lambda for saved material:" << key;
@@ -3014,7 +3014,7 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 		// because saveUserMaterialToUserLocation() only writes JSON, doesn't update maps
 		auto& mutableGroups = const_cast<QVector<QPair<QString, QVector<QPair<QString, QString>>>>&>(
 			MaterialLibraryWidget::sharedGroups());
-		auto& mutableMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+		auto& mutableMap = const_cast<QMap<QString, std::function<Material()>>&>(
 			MaterialLibraryWidget::sharedMaterialMap());
 		mutableGroups.clear();
 		mutableMap.clear();
@@ -3037,11 +3037,11 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 		if (libWidget->sharedMaterialMap().contains(key))
 		{
 			// Get the material from the cache (lambda already resolved relative paths to absolute)
-			GLMaterial savedMat = libWidget->sharedMaterialMap()[key]();
+			Material savedMat = libWidget->sharedMaterialMap()[key]();
 
 			// Load material directly into panel without going through signal handlers
 			// This prevents materialApplied from being emitted
-			_material = new GLMaterial(savedMat);
+			_material = new Material(savedMat);
 
 			// IMPORTANT: Load texture image files BEFORE bindMaterial()
 			// bindMaterial() calls updatePreview(), so textures must be loaded first
@@ -3072,7 +3072,7 @@ void MaterialPropertiesPanel::onSaveAsToLibrary()
 	}
 
 	// Save As always creates a new user material (copy of current material)
-	GLMaterial mat = *_material;
+	Material mat = *_material;
 
 	QString name;
 	QString groupLabel;
@@ -3176,10 +3176,10 @@ void MaterialPropertiesPanel::onSaveAsToLibrary()
 	// If a texture cannot be copied, skip it (don't write invalid absolute paths to JSON)
 	QString materialFolderCanonical = QFileInfo(materialFolder).canonicalFilePath();
 
-	for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i)
+	for (int i = 0; i < static_cast<int>(Material::TextureType::Count); ++i)
 	{
-		GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
-		GLMaterial::Texture tex = mat.texture(type);
+		Material::TextureType type = static_cast<Material::TextureType>(i);
+		Material::Texture tex = mat.texture(type);
 
 		if (tex.path.empty()) continue;
 
@@ -3272,15 +3272,15 @@ void MaterialPropertiesPanel::onSaveAsToLibrary()
 
 	// Update shared map with the saved material
 	{
-		GLMaterial matWithAbsolutePaths = mat;
+		Material matWithAbsolutePaths = mat;
 		QString userRoot = MaterialLibraryWidget::userMaterialsRootPath();
 		QString materialFolder = QDir(userRoot).filePath(key);
 
 		// Restore absolute paths from relative paths
-		for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i)
+		for (int i = 0; i < static_cast<int>(Material::TextureType::Count); ++i)
 		{
-			GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
-			GLMaterial::Texture tex = matWithAbsolutePaths.texture(type);
+			Material::TextureType type = static_cast<Material::TextureType>(i);
+			Material::Texture tex = matWithAbsolutePaths.texture(type);
 
 			if (tex.path.empty()) continue;
 
@@ -3293,7 +3293,7 @@ void MaterialPropertiesPanel::onSaveAsToLibrary()
 			}
 		}
 
-		auto& mutableSharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+		auto& mutableSharedMap = const_cast<QMap<QString, std::function<Material()>>&>(
 			MaterialLibraryWidget::sharedMaterialMap());
 		mutableSharedMap[key] = [material = matWithAbsolutePaths]() { return material; };
 	}
@@ -3315,8 +3315,8 @@ void MaterialPropertiesPanel::onSaveAsToLibrary()
 		// Load the newly saved material into preview
 		if (libraryWidget->sharedMaterialMap().contains(key))
 		{
-			GLMaterial savedMat = libraryWidget->sharedMaterialMap()[key]();
-			_material = new GLMaterial(savedMat);
+			Material savedMat = libraryWidget->sharedMaterialMap()[key]();
+			_material = new Material(savedMat);
 			loadTextureImageFiles();
 			bindMaterial(_material);
 		}
@@ -3337,7 +3337,7 @@ void MaterialPropertiesPanel::onSaveAsToLibrary()
 			_unsavedMaterialKeys.remove(oldMeshKey);
 
 			// Remove from shared map
-			auto& sharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+			auto& sharedMap = const_cast<QMap<QString, std::function<Material()>>&>(
 				MaterialLibraryWidget::sharedMaterialMap());
 			sharedMap.remove(oldMeshKey);
 
@@ -3388,7 +3388,7 @@ void MaterialPropertiesPanel::onRefreshSelectedMaterialFromLibrary()
 	const auto& sharedMap = MaterialLibraryWidget::sharedMaterialMap();
 	if (sharedMap.contains(key))
 	{
-		GLMaterial freshMaterial = sharedMap[key]();
+		Material freshMaterial = sharedMap[key]();
 		*_material = freshMaterial;
 		loadTextureImageFiles();
 		bindMaterial(_material);
@@ -3532,7 +3532,7 @@ void MaterialPropertiesPanel::onDeleteMaterial()
 	if (isUnsavedMaterial)
 	{
 		// Remove from s_materialMap
-		auto& sharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+		auto& sharedMap = const_cast<QMap<QString, std::function<Material()>>&>(
 			MaterialLibraryWidget::sharedMaterialMap());
 		sharedMap.remove(materialKey);
 
@@ -4005,7 +4005,7 @@ void MaterialPropertiesPanel::onCreateNewMaterial()
 	QString materialKey = QUuid::createUuid().toString(QUuid::WithoutBraces);
 
 	// Copy current material - this copies all scalars and texture paths
-	GLMaterial newMaterial = *_material;
+	Material newMaterial = *_material;
 
 	// Ensure ADS values are recalculated from PBR for in-session consistency
 	// (copy constructor doesn't call updateConsistency, so ADS may be stale)
@@ -4020,13 +4020,13 @@ void MaterialPropertiesPanel::onCreateNewMaterial()
 	// Add to the shared material map in memory
 	// For unsaved materials, capture the CREATING MDI instance so other MDIs can query the live cache
 	// This enables cross-MDI visibility with real-time synchronization of modifications
-	auto& sharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+	auto& sharedMap = const_cast<QMap<QString, std::function<Material()>>&>(
 		MaterialLibraryWidget::sharedMaterialMap());
 
 	// Capture the creating MDI (_modelViewer) and material key
 	// The lambda queries the live cache, not a static copy
 	// This ensures other MDIs see modifications in real-time
-	sharedMap[materialKey] = [this, materialKey]() -> GLMaterial {
+	sharedMap[materialKey] = [this, materialKey]() -> Material {
 		// Query the live cache from the creating MDI
 		if (_modelViewer && _materialCacheRef)
 		{
@@ -4037,7 +4037,7 @@ void MaterialPropertiesPanel::onCreateNewMaterial()
 			}
 		}
 		// Fallback: return a default material if cache lookup fails
-		return GLMaterial();
+		return Material();
 		};
 
 	// Add to the appropriate group in s_groups
@@ -4098,7 +4098,7 @@ void MaterialPropertiesPanel::onCreateNewMaterial()
 	// CRITICAL: Load the new material into _material for editing
 	// Since signals are blocked above, onMaterialPresetSelected() is NOT called,
 	// so we must manually load the material and update the UI
-	if (!_material) _material = new GLMaterial();
+	if (!_material) _material = new Material();
 	*_material = newMaterial;
 	_material->updateConsistency();
 	qDebug() << "Loaded new material into _material - albedo:" << _material->albedoColor();
@@ -4119,11 +4119,11 @@ void MaterialPropertiesPanel::connectMaterialLibrarySignals()
 	{
 		// Single-click: update preview immediately (for editing)
 		connect(libraryWidget, &MaterialLibraryWidget::materialPreview,
-			this, [this](const GLMaterial& mat) { onMaterialPresetSelected(mat); });
+			this, [this](const Material& mat) { onMaterialPresetSelected(mat); });
 
 		// Double-click: apply material to selected mesh in main viewer
 		connect(libraryWidget, &MaterialLibraryWidget::materialSelected,
-			this, [this](const GLMaterial& mat) { onMaterialDoubleClicked(mat); });
+			this, [this](const Material& mat) { onMaterialDoubleClicked(mat); });
 	}
 }
 
@@ -4537,7 +4537,7 @@ void MaterialPropertiesPanel::restorePreviewFrame(QFrame* previewFrame)
 
 void MaterialPropertiesPanel::createUnsavedMaterialFromMesh(
 	const QString& meshName,
-	const GLMaterial& meshMaterial)
+	const Material& meshMaterial)
 {
 	MaterialLibraryWidget* libraryWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget);
 	if (!libraryWidget)
@@ -4550,17 +4550,17 @@ void MaterialPropertiesPanel::createUnsavedMaterialFromMesh(
 	QString materialKey = "__mesh_" + QUuid::createUuid().toString(QUuid::WithoutBraces);
 
 	// Copy the mesh material and ensure consistency
-	GLMaterial newMaterial = meshMaterial;
+	Material newMaterial = meshMaterial;
 	newMaterial.updateConsistency();
 
 	qDebug() << "Creating unsaved material from mesh:" << meshName
 		<< "Key:" << materialKey;
 
 	// ========== Add to shared material map (s_materialMap) ==========
-	auto& sharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+	auto& sharedMap = const_cast<QMap<QString, std::function<Material()>>&>(
 		MaterialLibraryWidget::sharedMaterialMap());
 
-	sharedMap[materialKey] = [this, materialKey]() -> GLMaterial {
+	sharedMap[materialKey] = [this, materialKey]() -> Material {
 		if (_modelViewer && _materialCacheRef)
 		{
 			auto it = _materialCacheRef->find(materialKey);
@@ -4569,7 +4569,7 @@ void MaterialPropertiesPanel::createUnsavedMaterialFromMesh(
 				return it.value().material;
 			}
 		}
-		return GLMaterial();
+		return Material();
 		};
 
 	// ========== Add to shared groups (s_groups) ==========
@@ -4635,7 +4635,7 @@ void MaterialPropertiesPanel::createUnsavedMaterialFromMesh(
 	libraryWidget->blockSignals(false);
 
 	// ========== Load material into panel ==========
-	if (!_material) _material = new GLMaterial();
+	if (!_material) _material = new Material();
 	*_material = newMaterial;
 	_material->updateConsistency();
 	bindMaterial(_material);

@@ -1,12 +1,12 @@
 #include "VisibilityCommand.h"
 #include "ModelViewer.h"
-#include "GLWidget.h"
+#include "ViewportWidget.h"
 
 VisibilityCommand::VisibilityCommand(ModelViewer* viewer,
-    GLWidget* glWidget,
+    ViewportWidget* viewportWidget,
     const QSet<QUuid>& newVisibleUuids,
     const QString& text)
-    : ModelViewerCommand(viewer, glWidget, text)
+    : ModelViewerCommand(viewer, viewportWidget, text)
     , _newVisibleUuids(newVisibleUuids)
 {
     // Capture the current visibility state before the change
@@ -25,7 +25,7 @@ void VisibilityCommand::redo()
 
 void VisibilityCommand::applyVisibility(const QSet<QUuid>& visibleUuids)
 {
-    if (!_viewer || !_glWidget)
+    if (!_viewer || !_viewportWidget)
         return;
 
     // Use the non-undo version to prevent recursion

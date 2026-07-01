@@ -7,11 +7,11 @@
 #include <string>
 #include <vector>
 
-#include "AssImpMesh.h"
+#include "SceneMesh.h"
 #include "BoundingBox.h"
 #include "MaterialProcessor.h"
 #include "MeshAnalyzer.h"
-#include "TriangleMesh.h"
+#include "RenderableMesh.h"
 #include "UVGenerator.h"
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
@@ -22,6 +22,7 @@
 #include <gp_Trsf.hxx>
 #include <QFileInfo>
 #include <QImage>
+#include <QMatrix4x4>
 #include <QString>
 #include <Quantity_Color.hxx>
 #include <TDataStd_Name.hxx>
@@ -35,7 +36,7 @@
 #include <XCAFDoc_Location.hxx>
 #include <XCAFDoc_ShapeTool.hxx>
 
-#include "GLLights.h"
+#include "PunctualLights.h"
 #include "GltfAnimationData.h"
 #include "GltfCameraData.h"
 #include "GltfVariantData.h"
@@ -79,6 +80,7 @@ enum class SceneUpAxis
 	ZUp,
 	YUp
 };
+Q_DECLARE_METATYPE(SceneUpAxis)
 
 struct SceneMeshInfo
 {
@@ -98,8 +100,8 @@ struct AssImpMeshData
 	QString name;
 	std::vector<Vertex> vertices;
 	std::vector<unsigned int> indices;
-	std::vector<GLMaterial::Texture> textures;
-	GLMaterial material;
+	std::vector<Material::Texture> textures;
+	Material material;
 	GLenum primitiveMode = GL_TRIANGLES;
 	bool hasNegativeScale = false;
 	// Index of this mesh in aiScene::mMeshes[] at load time.
@@ -115,15 +117,16 @@ struct AssImpMeshData
 	QString sourceFile;
 	QString sourceNodeName;
 	bool preserveNodeTransform = false;
+	QMatrix4x4 nodeWorldTransform;
 
 	// KHR_materials_variants: which material index maps to which variants.
 	// Empty when the source file has no variant extension.
 	QVector<GltfVariantMapping> variantMappings;
 
-	// Pre-built GLMaterial for every material index referenced by variants
+	// Pre-built Material for every material index referenced by variants
 	// (including the default material at key originalMaterialIndex).
 	// Populated during processMesh() so variant switching requires no I/O.
-	QMap<int, GLMaterial> allVariantMaterials;
+	QMap<int, Material> allVariantMaterials;
 
 	// Skinning support for animated glTF meshes.
 	QVector<GltfSkinJoint> skinJoints;
@@ -167,7 +170,7 @@ public:
 	void setUVGenerationMethod(const UVMethod& uvMethod) { _selectedUVMethod = uvMethod; }
 	UVMethod getUVGenerationMethod() const { return _selectedUVMethod; }
 
-	bool regenerateUVs(AssImpMesh* mesh, UVMethod method, const UVConfig& config);
+	bool regenerateUVs(SceneMesh* mesh, UVMethod method, const UVConfig& config);
 
 	// Auto scale and orient the model to fit the scene's coordinate system
 	void setAutoScaleActive(bool autoScale) { _autoScale = autoScale; }
@@ -198,6 +201,7 @@ signals:
 	void verticesProcessed(float percent);
 	void nodeMeshProgressUpdated(int processedNodes, int totalNodes, int processedMeshes, int totalMeshes, bool uvProcessed);
 	void meshBatchReady(AssImpMeshDataBatch batch);
+	void sceneUpAxisDetected(SceneUpAxis sceneUpAxis, bool autoOrientCameraEnabled);
 	void loadingFinished(bool successFlag, const aiScene* scene);
 	void loadingCancelled();
 	void lightsLoaded(const GltfLightData& lights);

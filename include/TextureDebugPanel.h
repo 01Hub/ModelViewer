@@ -4,7 +4,7 @@
 #include <QSet>
 #include <QVector>
 
-#include "GLWidget.h" // TextureSlotInfo
+#include "ViewportWidget.h" // TextureSlotInfo
 
 class QCheckBox;
 class QComboBox;
@@ -14,7 +14,7 @@ class QLabel;
 class QPushButton;
 class QScrollArea;
 class QWidget;
-class GLWidget;
+class ViewportWidget;
 class ModelViewer;
 
 // ---------------------------------------------------------------------------
@@ -46,7 +46,7 @@ class TextureDebugPanel : public QDialog
 public:
 	explicit TextureDebugPanel(QWidget* parent = nullptr);
 
-	void setGLWidget(GLWidget* gl);
+	void setViewportWidget(ViewportWidget* viewportWidget);
 	void setModelViewer(ModelViewer* mv);
 
 public slots:
@@ -58,7 +58,7 @@ public slots:
 	// cleanup) instead of going directly to hide().
 	void reject() override;
 
-	// Called by GLWidget after the GL readback completes.
+	// Called by ViewportWidget after the GL readback completes.
 	// NOTE: parameter named 'slotInfos', not 'slots' — 'slots' is a Qt macro.
 	void onTextureReadbackReady(const QVector<TextureSlotInfo>& slotInfos,
 	                            const QString& meshName);
@@ -99,11 +99,11 @@ private:
 	QSet<int> activeUnits() const;
 
 	// Re-evaluates the full enabled/disabled checkbox state and calls
-	// GLWidget::applyDebugTextureState.  Called whenever a thumbnail is toggled.
+	// ViewportWidget::applyDebugTextureState.  Called whenever a thumbnail is toggled.
 	void applyCurrentTextureState();
 
 	// ---- data ---------------------------------------------------------------
-	GLWidget*    _glWidget    = nullptr;
+	ViewportWidget*    _viewportWidget    = nullptr;
 	ModelViewer* _modelViewer = nullptr;
 	int          _currentMeshId = -1;
 

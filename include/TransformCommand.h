@@ -66,7 +66,7 @@ public:
     /**
      * @brief Construct a transform command
      * @param viewer The ModelViewer instance
-     * @param glWidget The GLWidget instance
+     * @param glWidget The ViewportWidget instance
      * @param meshUuids The UUIDs of meshes to transform
      * @param newTranslation New translation value for all meshes
      * @param newRotation New rotation value for all meshes (degrees)
@@ -74,7 +74,7 @@ public:
      * @param text Description (default: "Transform")
      */
     TransformCommand(ModelViewer* viewer,
-        GLWidget* glWidget,
+        ViewportWidget* viewportWidget,
         const QVector<QUuid>& meshUuids,
         const QVector3D& newTranslation,
         const QVector3D& newRotation,
@@ -82,7 +82,7 @@ public:
         const QString& text = QObject::tr("Transform"));
 
     TransformCommand(ModelViewer* viewer,
-        GLWidget* glWidget,
+        ViewportWidget* viewportWidget,
         const QMap<QUuid, TransformState>& oldStates,
         const QMap<QUuid, TransformState>& newStates,
         const QString& text = QObject::tr("Transform"),

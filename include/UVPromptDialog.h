@@ -3,7 +3,7 @@
 #include <QDialog>
 #include <QCheckBox>
 
-#include <AssImpMesh.h>
+#include "SceneMesh.h"
 
 class QLabel;
 class QRadioButton;

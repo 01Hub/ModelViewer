@@ -1,7 +1,7 @@
 #include "ClippingPlanesEditor.h"
 #include "ui_ClippingPlanesEditor.h"
 #include "LanguageManager.h"
-#include "GLWidget.h"
+#include "ViewportWidget.h"
 #include "PathUtils.h"
 #include <QCheckBox>
 #include <QKeyEvent>
@@ -31,8 +31,8 @@ class TextureButtonDropFilter : public QObject
 {
 public:
 	// pass the specific UI button and the GL view; parent the filter to 'parent'
-	explicit TextureButtonDropFilter(QPushButton* button, GLWidget* glView, QObject* parent = nullptr)
-		: QObject(parent), _button(button), _glView(glView)
+	explicit TextureButtonDropFilter(QPushButton* button, ViewportWidget* viewportWidget, QObject* parent = nullptr)
+		: QObject(parent), _button(button), _viewportWidget(viewportWidget)
 	{
 	}
 
@@ -85,11 +85,11 @@ protected:
 							_button->setToolTip(QFileInfo(local).fileName());
 						}
 
-						if (_glView)
+						if (_viewportWidget)
 						{
-							_glView->setHatchTexture(local);
-							_glView->updateClippingPlane();
-							_glView->update();
+							_viewportWidget->setHatchTexture(local);
+							_viewportWidget->updateClippingPlane();
+							_viewportWidget->update();
 						}
 
 						de->acceptProposedAction();
@@ -105,7 +105,7 @@ protected:
 
 private:
 	QPushButton* _button = nullptr;
-	GLWidget* _glView = nullptr;
+	ViewportWidget* _viewportWidget = nullptr;
 };
 
 class OverlayEditorCheckBoxStyle : public QProxyStyle
@@ -174,9 +174,9 @@ void installOverlayEditorCheckBoxStyle(QCheckBox* box)
 }
 
 
-ClippingPlanesEditor::ClippingPlanesEditor(GLWidget* parent) :
+ClippingPlanesEditor::ClippingPlanesEditor(ViewportWidget* parent) :
 	QWidget(parent),
-	_glView(parent)
+	_viewportWidget(parent)
 {
 	setupUi(this);
 	for (QCheckBox* box : findChildren<QCheckBox*>())
@@ -189,7 +189,7 @@ ClippingPlanesEditor::ClippingPlanesEditor(GLWidget* parent) :
 	// enable drag/drop on the single texture button (no header changes)
 	pushButtonTexture->setAcceptDrops(true);
 	// parent the filter to 'this' so it will be deleted with the editor
-	pushButtonTexture->installEventFilter(new TextureButtonDropFilter(pushButtonTexture, _glView, this));
+	pushButtonTexture->installEventFilter(new TextureButtonDropFilter(pushButtonTexture, _viewportWidget, this));
 }
 
 ClippingPlanesEditor::~ClippingPlanesEditor()
@@ -288,77 +288,77 @@ void ClippingPlanesEditor::keyPressEvent(QKeyEvent* e)
 
 void ClippingPlanesEditor::on_checkBoxXY_toggled(bool checked)
 {
-	_glView->setXYClippingEnabled(checked);	
-	_glView->updateClippingPlane();
-	_glView->update();
+	_viewportWidget->setXYClippingEnabled(checked);	
+	_viewportWidget->updateClippingPlane();
+	_viewportWidget->update();
 }
 
 void ClippingPlanesEditor::on_checkBoxYZ_toggled(bool checked)
 {
-	_glView->setYZClippingEnabled(checked);	
-	_glView->updateClippingPlane();
-	_glView->update();
+	_viewportWidget->setYZClippingEnabled(checked);	
+	_viewportWidget->updateClippingPlane();
+	_viewportWidget->update();
 }
 
 void ClippingPlanesEditor::on_checkBoxZX_toggled(bool checked)
 {	
-	_glView->setZXClippingEnabled(checked);
-	_glView->updateClippingPlane();
-	_glView->update();
+	_viewportWidget->setZXClippingEnabled(checked);
+	_viewportWidget->updateClippingPlane();
+	_viewportWidget->update();
 }
 
 void ClippingPlanesEditor::on_checkBoxFlipXY_toggled(bool checked)
 {
-	_glView->setClippingZFlipped(checked);	
-	_glView->updateClippingPlane();
-	_glView->update();
+	_viewportWidget->setClippingZFlipped(checked);	
+	_viewportWidget->updateClippingPlane();
+	_viewportWidget->update();
 }
 
 void ClippingPlanesEditor::on_checkBoxFlipYZ_toggled(bool checked)
 {
-	_glView->setClippingXFlipped(checked);	
-	_glView->updateClippingPlane();
-	_glView->update();
+	_viewportWidget->setClippingXFlipped(checked);	
+	_viewportWidget->updateClippingPlane();
+	_viewportWidget->update();
 }
 
 void ClippingPlanesEditor::on_checkBoxFlipZX_toggled(bool checked)
 {
-	_glView->setClippingYFlipped(checked);
-	_glView->updateClippingPlane();
-	_glView->update();
+	_viewportWidget->setClippingYFlipped(checked);
+	_viewportWidget->updateClippingPlane();
+	_viewportWidget->update();
 }
 
 void ClippingPlanesEditor::on_checkBoxCapping_toggled(bool checked)
 {
-	_glView->setCappingPlanesEnabled(checked);
-	_glView->updateClippingPlane();
-	_glView->update();
+	_viewportWidget->setCappingPlanesEnabled(checked);
+	_viewportWidget->updateClippingPlane();
+	_viewportWidget->update();
 }
 
 void ClippingPlanesEditor::on_checkBoxDynamicCapping_toggled(bool checked)
 {
-	_glView->setSectionCapsDynamicEnabled(checked);
+	_viewportWidget->setSectionCapsDynamicEnabled(checked);
 }
 
 void ClippingPlanesEditor::on_doubleSpinBoxXYCoeff_valueChanged(double val)
 {
-	_glView->setClippingZCoeff(val);
-	_glView->updateClippingPlane();
-	_glView->update();
+	_viewportWidget->setClippingZCoeff(val);
+	_viewportWidget->updateClippingPlane();
+	_viewportWidget->update();
 }
 
 void ClippingPlanesEditor::on_doubleSpinBoxYZCoeff_valueChanged(double val)
 {
-	_glView->setClippingXCoeff(val);	
-	_glView->updateClippingPlane();
-	_glView->update();
+	_viewportWidget->setClippingXCoeff(val);	
+	_viewportWidget->updateClippingPlane();
+	_viewportWidget->update();
 }
 
 void ClippingPlanesEditor::on_doubleSpinBoxZXCoeff_valueChanged(double val)
 {
-	_glView->setClippingYCoeff(val);
-	_glView->updateClippingPlane();
-	_glView->update();
+	_viewportWidget->setClippingYCoeff(val);
+	_viewportWidget->updateClippingPlane();
+	_viewportWidget->update();
 }
 
 void ClippingPlanesEditor::on_pushButtonResetCoeffs_clicked()
@@ -370,37 +370,37 @@ void ClippingPlanesEditor::on_pushButtonResetCoeffs_clicked()
 
 void ClippingPlanesEditor::on_radioButtonProcedural_toggled(bool checked)
 {
-	_glView->setClippingPlaneHatchMode(checked ? ClippingPlaneHatchMode::PROCEDURAL : ClippingPlaneHatchMode::TEXTURE);
-	_glView->updateClippingPlane();
-	_glView->update();
+	_viewportWidget->setClippingPlaneHatchMode(checked ? ClippingPlaneHatchMode::PROCEDURAL : ClippingPlaneHatchMode::TEXTURE);
+	_viewportWidget->updateClippingPlane();
+	_viewportWidget->update();
 }
 
 void ClippingPlanesEditor::on_comboBoxHatchMode_currentIndexChanged(int index)
 {
-	_glView->setClippingPlaneHatchPattern(static_cast<HatchPattern>(index));
-	_glView->updateClippingPlane();
-	_glView->update();
+	_viewportWidget->setClippingPlaneHatchPattern(static_cast<HatchPattern>(index));
+	_viewportWidget->updateClippingPlane();
+	_viewportWidget->update();
 }
 
 void ClippingPlanesEditor::on_spinBoxHatchTiling_valueChanged(int val)
 {
-	_glView->setHatchTiling(val);
-	_glView->updateClippingPlane();
-	_glView->update();
+	_viewportWidget->setHatchTiling(val);
+	_viewportWidget->updateClippingPlane();
+	_viewportWidget->update();
 }
 
 void ClippingPlanesEditor::on_doubleSpinBoxThickness_valueChanged(double val)
 {
-	_glView->setHatchLineThickness(static_cast<float>(val));
-	_glView->updateClippingPlane();
-	_glView->update();
+	_viewportWidget->setHatchLineThickness(static_cast<float>(val));
+	_viewportWidget->updateClippingPlane();
+	_viewportWidget->update();
 }
 
 void ClippingPlanesEditor::on_doubleSpinBoxIntensity_valueChanged(double val)
 {
-	_glView->setHatchIntensity(static_cast<float>(val));
-	_glView->updateClippingPlane();
-	_glView->update();
+	_viewportWidget->setHatchIntensity(static_cast<float>(val));
+	_viewportWidget->updateClippingPlane();
+	_viewportWidget->update();
 }
 
 void ClippingPlanesEditor::on_pushButtonHatchColor_clicked()
@@ -413,9 +413,9 @@ void ClippingPlanesEditor::on_pushButtonHatchColor_clicked()
 			.arg(color.name())
 			.arg(color.lightness() < 128 ? "#FFFFFF" : "#000000")
 		);
-		_glView->setHatchLineColor(color);
-		_glView->updateClippingPlane();
-		_glView->update();
+		_viewportWidget->setHatchLineColor(color);
+		_viewportWidget->updateClippingPlane();
+		_viewportWidget->update();
 	}
 }
 
@@ -442,9 +442,9 @@ void ClippingPlanesEditor::on_pushButtonTexture_clicked()
 		// optionally use tooltip for the filename
 		pushButtonTexture->setToolTip(QFileInfo(filePath).fileName());
 
-		_glView->setHatchTexture(filePath);
-		_glView->updateClippingPlane();
-		_glView->update();
+		_viewportWidget->setHatchTexture(filePath);
+		_viewportWidget->updateClippingPlane();
+		_viewportWidget->update();
 	}
 	else
 	{
@@ -483,5 +483,5 @@ void ClippingPlanesEditor::resetProceduralTextureValues()
 	doubleSpinBoxThickness->setValue(0.05);
 	doubleSpinBoxIntensity->setValue(1.0f);
 	pushButtonHatchColor->setStyleSheet("background-color: #000000; color: #FFFFFF;");
-	_glView->setHatchLineColor(QColor(0, 0, 0));
+	_viewportWidget->setHatchLineColor(QColor(0, 0, 0));
 }

@@ -53,7 +53,7 @@ struct SceneNode
     SceneNode*        parent   = nullptr;
     QList<SceneNode*> children;
 
-    // Ordered list of TriangleMesh UUIDs that belong to this node.
+    // Ordered list of SceneMesh UUIDs that belong to this node.
     // Leaf nodes (those with meshes) carry entries here; pure assembly nodes
     // (containers) have an empty list and rely on their children.
     QList<QUuid> meshUuids;

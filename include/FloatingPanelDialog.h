@@ -1,5 +1,5 @@
-#ifndef FLOATINGPANELDIALOG_H
-#define FLOATINGPANELDIALOG_H
+#pragma once
+
 
 #include <QDialog>
 #include <QIcon>
@@ -75,5 +75,3 @@ private:
     QPoint       _lockedPosition;
     bool         _restoringLockedPosition = false;
 };
-
-#endif // FLOATINGPANELDIALOG_H

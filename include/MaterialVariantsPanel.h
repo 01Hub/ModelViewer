@@ -28,7 +28,7 @@ class SceneGraph;
 // Single-click applies immediately (no Apply button needed).
 //
 // Transparency: call setDetachedOverlayMode(true) when the navigation panel
-// is detached as a GLWidget overlay.  Mirrors SceneTreeWidget's approach:
+// is detached as a ViewportWidget overlay.  Mirrors SceneTreeWidget's approach:
 // palette base colours are zeroed, autoFillBackground disabled, and the
 // custom paintEvent paints a semi-transparent fill.
 // ---------------------------------------------------------------------------
@@ -53,7 +53,7 @@ public:
     void refresh();
 
     // Enable / disable the frosted-glass rendering used when the navigation
-    // panel is floating as a GLWidget overlay.
+    // panel is floating as a ViewportWidget overlay.
     void setDetachedOverlayMode(bool enabled);
     void refreshDetachedOverlayTheme();
 

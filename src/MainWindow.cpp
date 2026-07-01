@@ -15,7 +15,7 @@
 #include "ModelViewer.h"
 #include "ThemeManager.h"
 #include "LanguageManager.h"
-#include "GLWidget.h"
+#include "ViewportWidget.h"
 #include <QtOpenGL>
 #include <QProgressBar>
 #include <QPushButton>
@@ -214,7 +214,7 @@ ModelViewer* MainWindow::createMdiChild()
 	{
 		QSettings s(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 		const int fov = s.value("fieldOfViewSpinBox", 45).toInt();
-		viewer->getGLView()->setPerspFOV(fov);
+		viewer->getViewportWidget()->setPerspFOV(fov);
 	}
 
 	return viewer;
@@ -611,7 +611,7 @@ void MainWindow::showEvent(QShowEvent* event)
 	if (_bFirstTime)
 	{
 		//std::vector<int> mod = { 5 };
-		//_viewers[0]->getGLView()->setDisplayList(mod);
+		//_viewers[0]->getViewportWidget()->setDisplayList(mod);
 		_viewers[0]->showMaximized();
 		_viewers[0]->updateDisplayList();
 
@@ -679,7 +679,7 @@ void MainWindow::on_actionNew_triggered()
 	ui->mdiArea->addSubWindow(viewer);
 	viewer->showMaximized();
 	//std::vector<int> mod = { 5 };
-	//viewer->getGLView()->setDisplayList(mod);
+	//viewer->getViewportWidget()->setDisplayList(mod);
 	viewer->updateDisplayList();
 }
 
@@ -726,9 +726,9 @@ void MainWindow::cancelFileLoading()
 {
 	if (activeMdiChild())
 	{
-		GLWidget* view = activeMdiChild()->getGLView();
-		if (view)
-			view->cancelAssImpModelLoading();
+		ViewportWidget* viewportWidget = activeMdiChild()->getViewportWidget();
+		if (viewportWidget)
+			viewportWidget->cancelAssImpModelLoading();
 	}
 }
 
@@ -819,15 +819,15 @@ void MainWindow::on_actionSettings_triggered()
 				int idx = settingsDialog->renderingAnisotropyIndex();
 				if (idx < 0 || idx >= static_cast<int>(sizeof(anIsoVals) / sizeof(anIsoVals[0])))
 					idx = 0;
-				viewer->getGLView()->setAnisotropicFilteringLevel(anIsoVals[idx]);
-				viewer->getGLView()->setShowCenterAxisOverride(settingsDialog->displayShowCenterTrihedron());
-				viewer->getGLView()->setShowCornerAxisOverride(settingsDialog->displayShowCornerTrihedron());
-				viewer->getGLView()->setShowViewCubeOverride(settingsDialog->displayShowViewCube());
-				viewer->getGLView()->setCornerAxisPosition(static_cast<CornerAxisPosition>(settingsDialog->displayCornerTrihedronPosition()));
-				viewer->getGLView()->getSelectionManager()->setHoverHighlightMode(settingsDialog->displayHoverHighlightMode());
-				viewer->getGLView()->setPerspFOV(settingsDialog->displayFieldOfView());
-				viewer->getGLView()->getViewToolbar()->setFeatureEdgeModesVisible(settingsDialog->displayShowWireframe());
-                viewer->getGLView()->setDebugOverlayAvailability(
+				viewer->getViewportWidget()->setAnisotropicFilteringLevel(anIsoVals[idx]);
+				viewer->getViewportWidget()->setShowCenterAxisOverride(settingsDialog->displayShowCenterTrihedron());
+				viewer->getViewportWidget()->setShowCornerAxisOverride(settingsDialog->displayShowCornerTrihedron());
+				viewer->getViewportWidget()->setShowViewCubeOverride(settingsDialog->displayShowViewCube());
+				viewer->getViewportWidget()->setCornerAxisPosition(static_cast<CornerAxisPosition>(settingsDialog->displayCornerTrihedronPosition()));
+				viewer->getViewportWidget()->getSelectionManager()->setHoverHighlightMode(settingsDialog->displayHoverHighlightMode());
+				viewer->getViewportWidget()->setPerspFOV(settingsDialog->displayFieldOfView());
+				viewer->getViewportWidget()->getViewToolbar()->setFeatureEdgeModesVisible(settingsDialog->displayShowWireframe());
+                viewer->getViewportWidget()->setDebugOverlayAvailability(
                     settingsDialog->displayShowBoundingBox(),
                     settingsDialog->displayShowVertexNormals(),
                     settingsDialog->displayShowFaceNormals());
@@ -909,7 +909,7 @@ void MainWindow::updateMenus()
 	if (hasMdiChild)
 	{
 		ui->actionSave->setEnabled(activeMdiChild()->documentModified());	
-		ui->actionSave_As->setEnabled(!activeMdiChild()->getGLView()->getMeshStore().empty());
+		ui->actionSave_As->setEnabled(!activeMdiChild()->getViewportWidget()->getMeshStore().empty());
 	}
 #ifndef QT_NO_CLIPBOARD
 	//pasteAct->setEnabled(hasMdiChild);

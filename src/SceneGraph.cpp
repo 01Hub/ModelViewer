@@ -77,7 +77,7 @@ void SceneGraph::appendFromScene(const aiScene*                   scene,
     // Store per-file punctual lights (full GltfLightData with names, already
     // set by the caller before or after this call via setLightData()).
     // appendFromScene itself does not touch _lightDataByFile — the caller
-    // (GLWidget) calls setLightData() separately, which emits lightDataChanged().
+    // (ViewportWidget) calls setLightData() separately, which emits lightDataChanged().
 
     // --- Synthetic file-level node ------------------------------------------
     // This sits directly under _root and provides a clean per-import boundary
@@ -295,7 +295,7 @@ void SceneGraph::rebuildFromMvf(const QJsonArray& documentNodes,
     //   Old MVF files pre-date both keys.  We apply a narrow structural heuristic: if
     //   assimpRoot->localTransform matches one of the seven known auto-orient patterns
     //   (identity or +-90 degree cardinal-axis rotation with optional uniform scale), treat it
-    //   as the correction.  User gizmo transforms live in TriangleMesh::_transformation and
+    //   as the correction.  User gizmo transforms live in RenderableMesh::_transformation and
     //   never reach SceneNode::localTransform, so there is no collision with user edits.
     auto looksLikeAutoOrientCorrection = [](const aiMatrix4x4& m) -> bool
     {

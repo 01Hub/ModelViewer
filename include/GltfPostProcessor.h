@@ -1,5 +1,7 @@
-#ifndef GLTF_POSTPROCESSOR_H
-#define GLTF_POSTPROCESSOR_H
+#pragma once
+
+
+class SceneMesh;
 
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -10,15 +12,14 @@
 #include <QByteArray>
 #include <vector>
 
-#include "GLLights.h"
+#include "PunctualLights.h"
 #include "GltfCameraData.h"
 #include "GltfVariantData.h"
 #include "GltfAnimationData.h"
 
-#include "GLMaterial.h"
+#include "Material.h"
 
-class TriangleMesh; // Forward declaration
-
+class RenderableMesh;
 /**
  * Post-process exported glTF JSON to add missing optional properties
  *
@@ -60,7 +61,7 @@ public:
      */
     static bool postProcessGltfJsonWithMaterials(
         QJsonObject& gltfJson,
-        const std::vector<TriangleMesh*>& meshes,
+        const std::vector<SceneMesh*>& meshes,
         const std::vector<GPULight>& lights,
         std::function<void(const QString&)> logCallback = nullptr,
         const QString& textureSubfolder = "textures",
@@ -87,7 +88,7 @@ public:
      */
     static bool postProcessGltfFileWithMaterials(
         const QString& filePath,
-        const std::vector<TriangleMesh*>& meshes,
+        const std::vector<SceneMesh*>& meshes,
         const std::vector<GPULight>& lights,
         std::function<void(const QString&)> logCallback = nullptr,
         const QString& textureSubfolder = "textures",
@@ -116,7 +117,7 @@ public:
      */
     static bool postProcessGlbFileWithMaterials(
         const QString& filePath,
-        const std::vector<TriangleMesh*>& meshes,
+        const std::vector<SceneMesh*>& meshes,
         const std::vector<GPULight>& lights,
         std::function<void(const QString&)> logCallback = nullptr,
         const QString& textureSubfolder = "textures",
@@ -177,16 +178,16 @@ public:
         const QVector<MeshVariantExportEntry>& entries);
 
     /**
-     * Register the GLMaterial for each non-default variant material so the
+     * Register the Material for each non-default variant material so the
      * post-processor can patch texture indices, transforms, and samplers for
-     * materials that are not matched to any source TriangleMesh.
+     * materials that are not matched to any source SceneMesh.
      *
-     * @param variantMats  Map from JSON material array index to the GLMaterial.
+     * @param variantMats  Map from JSON material array index to the Material.
      *                     Only non-default (extra) variant materials need to be
      *                     registered here; the default material is already handled
      *                     by the main material-patching pass.
      */
-    static void setVariantMaterialData(const QMap<int, GLMaterial>& variantMats);
+    static void setVariantMaterialData(const QMap<int, Material>& variantMats);
 
     static void clearVariantExportData();
 
@@ -212,7 +213,7 @@ private:
     // that share identical textures but have different transform properties
     struct MaterialSignature
     {
-        QString name;                           // Material name from GLMaterial
+        QString name;                           // Material name from Material
         QSet<QString> textureFilePaths;         // Actual texture file paths
 
         // Texture binding: texture type + path + coordinate + transforms
@@ -246,7 +247,7 @@ private:
 
     static MaterialSignature buildSignatureForMesh(
         int meshIdx,
-        const class TriangleMesh* mesh,
+        const SceneMesh* mesh,
         std::function<void(const QString&)> logCallback);
 
     // Find material signature index for a JSON material. Returns -1 if not found.
@@ -277,23 +278,23 @@ private:
     static bool fixOcclusionTextureInfo(QJsonObject& parent, const QString& key, float occlusionStrength = 1.0f);
     static bool fixNormalTextureScale(
         QJsonObject& gltfJson,
-        const std::vector<TriangleMesh*>& meshes,
+        const std::vector<SceneMesh*>& meshes,
         std::function<void(const QString&)> logCallback);
     static bool fixClearcoatNormalTextureScale(
         QJsonObject& gltfJson,
-        const std::vector<TriangleMesh*>& meshes,
+        const std::vector<SceneMesh*>& meshes,
         std::function<void(const QString&)> logCallback);
     static bool fixSpecularExtension(
         QJsonObject& gltfJson,
-        const std::vector<TriangleMesh*>& meshes,
+        const std::vector<SceneMesh*>& meshes,
         std::function<void(const QString&)> logCallback = nullptr);
     static bool fixMetallicFactor(
         QJsonObject& gltfJson,
-        const std::vector<TriangleMesh*>& meshes,
+        const std::vector<SceneMesh*>& meshes,
         std::function<void(const QString&)> logCallback = nullptr);
     static bool fixSpecularTextures(
         QJsonObject& gltfJson,
-        const std::vector<TriangleMesh*>& meshes,
+        const std::vector<SceneMesh*>& meshes,
         std::function<void(const QString&)> logCallback = nullptr);
     static int findOrCreateTexture(
         QJsonObject& gltfJson,
@@ -304,16 +305,16 @@ private:
     static void log(const QString& message, std::function<void(const QString&)> callback);
 
 private:
-    static const TriangleMesh* sourceMeshForMaterial(
+    static const SceneMesh* sourceMeshForMaterial(
         int materialIndex,
-        const std::vector<TriangleMesh*>& meshes);
-    static GLMaterial defaultMaterialForMesh(const TriangleMesh* mesh);
-    static GLMaterial sourceMaterialForJsonMaterial(
+        const std::vector<SceneMesh*>& meshes);
+    static Material defaultMaterialForMesh(const SceneMesh* mesh);
+    static Material sourceMaterialForJsonMaterial(
         int materialIndex,
-        const std::vector<TriangleMesh*>& meshes);
+        const std::vector<SceneMesh*>& meshes);
     static bool mergeOpacityIntoBaseColorTextures(
         QJsonObject& gltfJson,
-        const std::vector<TriangleMesh*>& meshes,
+        const std::vector<SceneMesh*>& meshes,
         const QString& exportFilePath,
         QByteArray* glbBinaryChunk,
         std::function<void(const QString&)> logCallback);
@@ -329,11 +330,11 @@ private:
 
     static QStringList _variantNames;
     static QVector<MeshVariantExportEntry> _variantEntries;
-    // GLMaterials for non-default variant materials keyed by JSON material index.
+    // Materials for non-default variant materials keyed by JSON material index.
     // Set by setVariantMaterialData; allows the secondary post-processing pass to
     // patch texture indices / transforms / samplers for materials that have no
-    // corresponding source TriangleMesh in the main patching loop.
-    static QMap<int, GLMaterial> _variantMatByJsonIdx;
+    // corresponding source SceneMesh in the main patching loop.
+    static QMap<int, Material> _variantMatByJsonIdx;
 
     // Pointer-animation injection state (set by setPointerAnimationData).
     static QVector<GltfAnimationData> _pointerAnimData;
@@ -359,5 +360,3 @@ private:
         QByteArray*  glbBinaryChunk,  // nullptr for .gltf, non-null for .glb
         std::function<void(const QString&)> logCallback);
 };
-
-#endif // GLTF_POSTPROCESSOR_H

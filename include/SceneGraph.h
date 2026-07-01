@@ -1,7 +1,7 @@
 #pragma once
 
 #include "SceneNode.h"
-#include "GLLights.h"
+#include "PunctualLights.h"
 #include "GltfAnimationData.h"
 #include "GltfCameraData.h"
 #include "GltfLightData.h"
@@ -31,7 +31,7 @@ struct SceneGraphWorldTransforms
 //   - the export path (calls reconstructAsScene() instead of walking
 //     _globalScene, which may contain stale / deleted meshes)
 //
-// Lifetime: owned by ModelViewer.  Neither GLWidget nor any command class
+// Lifetime: owned by ModelViewer.  Neither ViewportWidget nor any command class
 // should hold or delete SceneGraph directly.
 //
 // Thread safety: all methods must be called from the main (UI) thread.
@@ -53,7 +53,7 @@ public:
     // scene              — the aiScene* returned by AssImpModelLoader::getScene()
     //                      BEFORE it is deep-copied and merged into _globalScene.
     // sourceFile         — absolute path of the file that was loaded.
-    // meshUuidsInOrder   — UUIDs of every TriangleMesh created from this file,
+    // meshUuidsInOrder   — UUIDs of every SceneMesh created from this file,
     //                      in the same DFS order that
     //                      AssImpModelLoader::processNode() visited them.
     //                      The cursor-based DFS inside buildSubtree() assigns
@@ -135,7 +135,7 @@ public:
 
     // Build the flat GPU list from all currently-enabled per-file lights.
     // Call this whenever a light is toggled or a file is added/removed, then
-    // pass the result to GLLights::setLights().
+    // pass the result to PunctualLights::setLights().
     std::vector<GPULight> buildEnabledLightList() const;
 
     SceneNode* findFileNode(const QString& sourceFile) const;
@@ -247,7 +247,7 @@ signals:
 
     // Emitted when punctual light data is added, removed, or an individual
     // light's enabled state changes.  PunctualLightsPanel connects to this
-    // to refresh its tree; GLWidget connects to rebuild the GPU light list.
+    // to refresh its tree; ViewportWidget connects to rebuild the GPU light list.
     void lightDataChanged();
 
 private:

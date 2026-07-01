@@ -1,5 +1,5 @@
-#ifndef QUICKHELPDIALOG_H
-#define QUICKHELPDIALOG_H
+#pragma once
+
 
 #include <QDialog>
 #include <QLabel>
@@ -44,5 +44,3 @@ private:
     QPushButton* _closeButton;
 	QCheckBox* _showOnStartupCheckBox;
 };
-
-#endif // QUICKHELPDIALOG_H

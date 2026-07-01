@@ -1,5 +1,5 @@
 ﻿#include "MaterialPreviewWidget.h"
-#include "GLWidget.h"
+#include "ViewportWidget.h"
 #include <cmath>
 #include "PathUtils.h"
 #include <QMouseEvent>
@@ -306,7 +306,7 @@ MaterialPreviewWidget::~MaterialPreviewWidget()
 	doneCurrent();
 }
 
-void MaterialPreviewWidget::setMaterial(const GLMaterial& mat)
+void MaterialPreviewWidget::setMaterial(const Material& mat)
 {
 	_currentMaterial = mat;
 	update();
@@ -630,10 +630,10 @@ void MaterialPreviewWidget::paintGL()
 	//  uAOChannel         (int)  uAOInvert (int)         uAOScale         (float) uAOBias         (float)
 	//  uOpacityChannel    (int)  uOpacityInvert (int)    uOpacityScale    (float) uOpacityBias    (float)
 	//
-	// GLMaterial::packingFor(key) returns the ChannelPacking for keys: "metallic","roughness","ao","opacity".
+	// Material::packingFor(key) returns the ChannelPacking for keys: "metallic","roughness","ao","opacity".
 
 	auto sendPacking = [this](const QString& key, const char* uniformBase) {
-		GLMaterial::ChannelPacking p = _currentMaterial.packingFor(key);
+		Material::ChannelPacking p = _currentMaterial.packingFor(key);
 		if (key == "opacity" && _currentMaterial.isOpacityMapInverted())
 			p.invert = !p.invert;
 		// channel (use -1 for none; shader will handle)
@@ -651,7 +651,7 @@ void MaterialPreviewWidget::paintGL()
 	sendPacking("opacity", "opacity");
 
 	// ----- Send texture transforms (scale, offset, rotation) -----
-	auto sendTextureTransforms = [this](const char* baseName, GLMaterial::TextureType type) {
+	auto sendTextureTransforms = [this](const char* baseName, Material::TextureType type) {
 		auto tex = _currentMaterial.texture(type);
 		_shader->setUniformValue(QString("%1Scale").arg(baseName).toUtf8().constData(),
 			QVector2D(tex.scale.x, tex.scale.y));
@@ -662,31 +662,31 @@ void MaterialPreviewWidget::paintGL()
 		};
 
 	// Send transforms for each texture type
-	sendTextureTransforms("albedo", GLMaterial::TextureType::Albedo);
-	sendTextureTransforms("normal", GLMaterial::TextureType::Normal);
-	sendTextureTransforms("metalness", GLMaterial::TextureType::Metallic);
-	sendTextureTransforms("roughness", GLMaterial::TextureType::Roughness);
-	sendTextureTransforms("AO", GLMaterial::TextureType::AmbientOcclusion);
-	sendTextureTransforms("height", GLMaterial::TextureType::Height);
-	sendTextureTransforms("opacity", GLMaterial::TextureType::Opacity);
-	sendTextureTransforms("emissive", GLMaterial::TextureType::Emissive);
-	sendTextureTransforms("sheenColor", GLMaterial::TextureType::SheenColor);
-	sendTextureTransforms("sheenRoughness", GLMaterial::TextureType::SheenRoughness);
-	sendTextureTransforms("clearcoatColor", GLMaterial::TextureType::ClearcoatColor);
-	sendTextureTransforms("clearcoatRoughness", GLMaterial::TextureType::ClearcoatRoughness);
-	sendTextureTransforms("clearcoatNormal", GLMaterial::TextureType::ClearcoatNormal);
-	sendTextureTransforms("transmission", GLMaterial::TextureType::Transmission);
-	sendTextureTransforms("ior", GLMaterial::TextureType::IOR);
-	sendTextureTransforms("specularFactor", GLMaterial::TextureType::SpecularFactor);
-	sendTextureTransforms("specularColor", GLMaterial::TextureType::SpecularColor);
-	sendTextureTransforms("anisotropy", GLMaterial::TextureType::Anisotropy);
-	sendTextureTransforms("iridescence", GLMaterial::TextureType::Iridescence);
-	sendTextureTransforms("iridescenceThickness", GLMaterial::TextureType::IridescenceThickness);
-	sendTextureTransforms("diffuseTransmission", GLMaterial::TextureType::DiffuseTransmission);
-	sendTextureTransforms("diffuseTransmissionColor", GLMaterial::TextureType::DiffuseTransmissionColor);
-	sendTextureTransforms("thickness", GLMaterial::TextureType::Thickness);
-	sendTextureTransforms("diffuse", GLMaterial::TextureType::Diffuse);
-	sendTextureTransforms("specularGlossiness", GLMaterial::TextureType::SpecularGlossiness);
+	sendTextureTransforms("albedo", Material::TextureType::Albedo);
+	sendTextureTransforms("normal", Material::TextureType::Normal);
+	sendTextureTransforms("metalness", Material::TextureType::Metallic);
+	sendTextureTransforms("roughness", Material::TextureType::Roughness);
+	sendTextureTransforms("AO", Material::TextureType::AmbientOcclusion);
+	sendTextureTransforms("height", Material::TextureType::Height);
+	sendTextureTransforms("opacity", Material::TextureType::Opacity);
+	sendTextureTransforms("emissive", Material::TextureType::Emissive);
+	sendTextureTransforms("sheenColor", Material::TextureType::SheenColor);
+	sendTextureTransforms("sheenRoughness", Material::TextureType::SheenRoughness);
+	sendTextureTransforms("clearcoatColor", Material::TextureType::ClearcoatColor);
+	sendTextureTransforms("clearcoatRoughness", Material::TextureType::ClearcoatRoughness);
+	sendTextureTransforms("clearcoatNormal", Material::TextureType::ClearcoatNormal);
+	sendTextureTransforms("transmission", Material::TextureType::Transmission);
+	sendTextureTransforms("ior", Material::TextureType::IOR);
+	sendTextureTransforms("specularFactor", Material::TextureType::SpecularFactor);
+	sendTextureTransforms("specularColor", Material::TextureType::SpecularColor);
+	sendTextureTransforms("anisotropy", Material::TextureType::Anisotropy);
+	sendTextureTransforms("iridescence", Material::TextureType::Iridescence);
+	sendTextureTransforms("iridescenceThickness", Material::TextureType::IridescenceThickness);
+	sendTextureTransforms("diffuseTransmission", Material::TextureType::DiffuseTransmission);
+	sendTextureTransforms("diffuseTransmissionColor", Material::TextureType::DiffuseTransmissionColor);
+	sendTextureTransforms("thickness", Material::TextureType::Thickness);
+	sendTextureTransforms("diffuse", Material::TextureType::Diffuse);
+	sendTextureTransforms("specularGlossiness", Material::TextureType::SpecularGlossiness);
 
 	_shader->setUniformValue("clearcoatNormalIntensity", _currentMaterial.clearcoatNormalScale());
 
@@ -775,28 +775,28 @@ void MaterialPreviewWidget::paintGL()
 	applyEnvPreset(_currentEnv, _profile);
 
 	// Bind BRDF LUT (always available from main viewer)
-	// MaterialPreviewWidget has its own GL context, so texture units don't conflict with main GLWidget/TriangleMesh
+	// MaterialPreviewWidget has its own GL context, so texture units don't conflict with main ViewportWidget/SceneMesh
 	GLuint brdfLut = 0;
-	if (_glWidget)
-		brdfLut = _glWidget->getBrdfLUT();
+	if (_viewportWidget)
+		brdfLut = _viewportWidget->getBrdfLUT();
 
 	glActiveTexture(GL_TEXTURE25);
 	glBindTexture(GL_TEXTURE_2D, brdfLut);
 	_shader->setUniformValue("brdfLUT", 25);
 
 	const bool useViewerIBL = (_currentEnv == EnvMode::ViewerIBL);
-	const bool viewerIBLAvailable = useViewerIBL && _glWidget && _glWidget->isEnvironmentMapEnabled();
-	const bool presetAvailable = !useViewerIBL && _glWidget;  // Preset environments are always available from GLWidget
+	const bool viewerIBLAvailable = useViewerIBL && _viewportWidget && _viewportWidget->isEnvironmentMapEnabled();
+	const bool presetAvailable = !useViewerIBL && _viewportWidget;  // Preset environments are always available from ViewportWidget
 	const bool specularIBLAvailable = viewerIBLAvailable || presetAvailable;
 
-	// Use GLWidget's environment maps (ViewerIBL or presets)
+	// Use ViewportWidget's environment maps (ViewerIBL or presets)
 	// Index: 0=ViewerIBL, 1=Studio, 2=Outdoor, 3=Office
 	if (viewerIBLAvailable || !useViewerIBL)
 	{
 		int envIndex = 0;  // Default to ViewerIBL
 
 		// Map current environment mode to index
-		if (!useViewerIBL && _glWidget)
+		if (!useViewerIBL && _viewportWidget)
 		{
 			if (_currentEnv == EnvMode::Studio)
 				envIndex = 1;
@@ -806,16 +806,16 @@ void MaterialPreviewWidget::paintGL()
 				envIndex = 3;
 		}
 
-		// Get maps from GLWidget
-		GLuint envMap = _glWidget ? _glWidget->getEnvironmentMap(envIndex) : 0;
-		GLuint irrMap = _glWidget ? _glWidget->getIrradianceMap(envIndex) : 0;
-		GLuint prefilterMap = _glWidget ? _glWidget->getPrefilterMap(envIndex) : 0;
-		GLuint sheenPrefilterMap = _glWidget ? _glWidget->getSheenPrefilterMap(envIndex) : 0;
-		GLuint charlieLut = _glWidget ? _glWidget->getCharlieLUT() : 0;
-		GLuint sheenELut = _glWidget ? _glWidget->getSheenELUT() : 0;
+		// Get maps from ViewportWidget
+		GLuint envMap = _viewportWidget ? _viewportWidget->getEnvironmentMap(envIndex) : 0;
+		GLuint irrMap = _viewportWidget ? _viewportWidget->getIrradianceMap(envIndex) : 0;
+		GLuint prefilterMap = _viewportWidget ? _viewportWidget->getPrefilterMap(envIndex) : 0;
+		GLuint sheenPrefilterMap = _viewportWidget ? _viewportWidget->getSheenPrefilterMap(envIndex) : 0;
+		GLuint charlieLut = _viewportWidget ? _viewportWidget->getCharlieLUT() : 0;
+		GLuint sheenELut = _viewportWidget ? _viewportWidget->getSheenELUT() : 0;
 
 		// Use consistent IBL exposure for all environments (presets use same exposure as ViewerIBL)
-		float iblExposure = _glWidget ? _glWidget->getIBLExposure() : 1.0f;
+		float iblExposure = _viewportWidget ? _viewportWidget->getIBLExposure() : 1.0f;
 
 		// MaterialPreviewWidget has its own GL context, so we can safely use any texture units without conflicts
 		glActiveTexture(GL_TEXTURE23);
@@ -829,8 +829,8 @@ void MaterialPreviewWidget::paintGL()
 		glActiveTexture(GL_TEXTURE26);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, prefilterMap);
 		_shader->setUniformValue("prefilterMap", 26);
-		int previewPrefilterMips = (_glWidget && _glWidget->getPrefilterMipLevels() > 0)
-			? static_cast<int>(_glWidget->getPrefilterMipLevels())
+		int previewPrefilterMips = (_viewportWidget && _viewportWidget->getPrefilterMipLevels() > 0)
+			? static_cast<int>(_viewportWidget->getPrefilterMipLevels())
 			: 9;
 		_shader->setUniformValue("prefilterMipLevels", previewPrefilterMips);
 		glActiveTexture(GL_TEXTURE27);
@@ -839,8 +839,8 @@ void MaterialPreviewWidget::paintGL()
 		glBindTexture(GL_TEXTURE_2D, sheenELut);
 		glActiveTexture(GL_TEXTURE29);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, sheenPrefilterMap);
-		int previewSheenPrefilterMips = (_glWidget && _glWidget->getSheenPrefilterMipLevels() > 0)
-			? static_cast<int>(_glWidget->getSheenPrefilterMipLevels())
+		int previewSheenPrefilterMips = (_viewportWidget && _viewportWidget->getSheenPrefilterMipLevels() > 0)
+			? static_cast<int>(_viewportWidget->getSheenPrefilterMipLevels())
 			: 5;
 		_shader->setUniformValue("sheenPrefilterMipLevels", previewSheenPrefilterMips);
 
@@ -859,14 +859,14 @@ void MaterialPreviewWidget::paintGL()
 
 		// Enable environment specular contribution ONLY for PBR mode
 		// In ADS mode, IBL should be disabled since it's Blinn-Phong, not PBR
-		float specIntensity = (_glWidget && _glWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING) ? 1.0f : 0.0f;
+		float specIntensity = (_viewportWidget && _viewportWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING) ? 1.0f : 0.0f;
 		_shader->setUniformValue("envSpecularIntensity", specIntensity);
 	}
 
 	_shader->setUniformValue("texViewMode", static_cast<int>(_texViewMode));
-	_shader->setUniformValue("renderingMode", _glWidget ? static_cast<int>(_glWidget->getRenderingMode()) : 1);
+	_shader->setUniformValue("renderingMode", _viewportWidget ? static_cast<int>(_viewportWidget->getRenderingMode()) : 1);
 	_shader->setUniformValue("envMapEnabled", specularIBLAvailable);
-	_shader->setUniformValue("useIBL", useViewerIBL ? (_glWidget ? _glWidget->isIBLEnabled() : true) : true);
+	_shader->setUniformValue("useIBL", useViewerIBL ? (_viewportWidget ? _viewportWidget->isIBLEnabled() : true) : true);
 
 	const MeshGL* mesh = nullptr;
 	switch (_currentShape)
@@ -975,12 +975,12 @@ void MaterialPreviewWidget::applyEnvPreset(EnvMode mode, PreviewProfile profile)
 
 	// --- Selective brightening for ADS mode (non-PBR) ---
 	// In ADS mode, boost diffuse intensity to compensate for lack of PBR tone mapping/gamma effects
-	if (_glWidget && _glWidget->getRenderingMode() == RenderingMode::ADS_BLINN_PHONG)
+	if (_viewportWidget && _viewportWidget->getRenderingMode() == RenderingMode::ADS_BLINN_PHONG)
 	{
 		envDiffuse *= 1.3f;  // Brighten ADS mode for better visibility and WYSIWYG preview
 	}
 
-	// --- Note: Preset environments (Studio, Outdoor, Office) are now loaded from GLWidget HDR files ---
+	// --- Note: Preset environments (Studio, Outdoor, Office) are now loaded from ViewportWidget HDR files ---
 	// --- We no longer generate procedural maps for presets; they use prefiltered HDR data ---
 	_lastEnvMode = mode;
 
@@ -992,7 +992,7 @@ void MaterialPreviewWidget::applyEnvPreset(EnvMode mode, PreviewProfile profile)
 	_shader->setUniformValue("envDiffuseIntensity", envDiffuse);
 
 	// Viewer IBL mode configures specular IBL when binding the main viewer maps.
-	float specIntensity = (mode == EnvMode::ViewerIBL && _glWidget && _glWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING) ? 1.0f : 0.0f;
+	float specIntensity = (mode == EnvMode::ViewerIBL && _viewportWidget && _viewportWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING) ? 1.0f : 0.0f;
 	_shader->setUniformValue("envSpecularIntensity", specIntensity);
 
 	_shader->setUniformValue("lights[0].position", L0);
@@ -1005,11 +1005,11 @@ void MaterialPreviewWidget::applyEnvPreset(EnvMode mode, PreviewProfile profile)
 	_shader->setUniformValue("lights[3].color", c3);
 	_shader->setUniformValue("numLights", 4);
 
-	// Environment tone mapping and gamma settings (from GLWidget, matches main_scene.frag)
-	bool hdrToneMapping = _glWidget ? _glWidget->isHDRToneMappingEnabled() : true;
-	bool gammaCorrection = _glWidget ? _glWidget->isGammaCorrectionEnabled() : true;
-	float screenGamma = _glWidget ? _glWidget->getScreenGamma() : 2.2f;
-	int toneMapMode = _glWidget ? static_cast<int>(_glWidget->getHDRToneMappingMode()) : 0;
+	// Environment tone mapping and gamma settings (from ViewportWidget, matches main_scene.frag)
+	bool hdrToneMapping = _viewportWidget ? _viewportWidget->isHDRToneMappingEnabled() : true;
+	bool gammaCorrection = _viewportWidget ? _viewportWidget->isGammaCorrectionEnabled() : true;
+	float screenGamma = _viewportWidget ? _viewportWidget->getScreenGamma() : 2.2f;
+	int toneMapMode = _viewportWidget ? static_cast<int>(_viewportWidget->getHDRToneMappingMode()) : 0;
 
 	_shader->setUniformValue("hdrToneMapping", hdrToneMapping);
 	_shader->setUniformValue("gammaCorrection", gammaCorrection);
@@ -1427,34 +1427,34 @@ bool MaterialPreviewWidget::shouldReload(const QString& path, const GpuTexCache&
 
 // Add this helper function BEFORE syncTextureFromMaterial():
 
-static GLMaterial::TextureType samplerNameToTextureType(const char* uniformSamplerName)
+static Material::TextureType samplerNameToTextureType(const char* uniformSamplerName)
 {
-	if (std::strcmp(uniformSamplerName, "albedoMap") == 0) return GLMaterial::TextureType::Albedo;
-	else if (std::strcmp(uniformSamplerName, "metalnessMap") == 0) return GLMaterial::TextureType::Metallic;
-	else if (std::strcmp(uniformSamplerName, "roughnessMap") == 0) return GLMaterial::TextureType::Roughness;
-	else if (std::strcmp(uniformSamplerName, "normalMap") == 0) return GLMaterial::TextureType::Normal;
-	else if (std::strcmp(uniformSamplerName, "AOMap") == 0) return GLMaterial::TextureType::AmbientOcclusion;
-	else if (std::strcmp(uniformSamplerName, "heightMap") == 0) return GLMaterial::TextureType::Height;
-	else if (std::strcmp(uniformSamplerName, "opacityMap") == 0) return GLMaterial::TextureType::Opacity;
-	else if (std::strcmp(uniformSamplerName, "emissiveMap") == 0) return GLMaterial::TextureType::Emissive;
-	else if (std::strcmp(uniformSamplerName, "sheenColorMap") == 0) return GLMaterial::TextureType::SheenColor;
-	else if (std::strcmp(uniformSamplerName, "sheenRoughnessMap") == 0) return GLMaterial::TextureType::SheenRoughness;
-	else if (std::strcmp(uniformSamplerName, "clearcoatColorMap") == 0) return GLMaterial::TextureType::ClearcoatColor;
-	else if (std::strcmp(uniformSamplerName, "clearcoatRoughnessMap") == 0) return GLMaterial::TextureType::ClearcoatRoughness;
-	else if (std::strcmp(uniformSamplerName, "clearcoatNormalMap") == 0) return GLMaterial::TextureType::ClearcoatNormal;
-	else if (std::strcmp(uniformSamplerName, "IORMap") == 0 || std::strcmp(uniformSamplerName, "iorMap") == 0) return GLMaterial::TextureType::IOR;
-	else if (std::strcmp(uniformSamplerName, "transmissionMap") == 0) return GLMaterial::TextureType::Transmission;
-	else if (std::strcmp(uniformSamplerName, "iridescenceMap") == 0) return GLMaterial::TextureType::Iridescence;
-	else if (std::strcmp(uniformSamplerName, "iridescenceThicknessMap") == 0) return GLMaterial::TextureType::IridescenceThickness;
-	else if (std::strcmp(uniformSamplerName, "specularFactorMap") == 0) return GLMaterial::TextureType::SpecularFactor;
-	else if (std::strcmp(uniformSamplerName, "specularColorMap") == 0) return GLMaterial::TextureType::SpecularColor;
-	else if (std::strcmp(uniformSamplerName, "anisotropyMap") == 0) return GLMaterial::TextureType::Anisotropy;
-	else if (std::strcmp(uniformSamplerName, "diffuseTransmissionMap") == 0) return GLMaterial::TextureType::DiffuseTransmission;
-	else if (std::strcmp(uniformSamplerName, "diffuseTransmissionColorMap") == 0) return GLMaterial::TextureType::DiffuseTransmissionColor;
-	else if (std::strcmp(uniformSamplerName, "thicknessMap") == 0) return GLMaterial::TextureType::Thickness;
-	else if (std::strcmp(uniformSamplerName, "diffuseMap") == 0) return GLMaterial::TextureType::Diffuse;
-	else if (std::strcmp(uniformSamplerName, "specularGlossinessMap") == 0) return GLMaterial::TextureType::SpecularGlossiness;
-	return GLMaterial::TextureType::Albedo;
+	if (std::strcmp(uniformSamplerName, "albedoMap") == 0) return Material::TextureType::Albedo;
+	else if (std::strcmp(uniformSamplerName, "metalnessMap") == 0) return Material::TextureType::Metallic;
+	else if (std::strcmp(uniformSamplerName, "roughnessMap") == 0) return Material::TextureType::Roughness;
+	else if (std::strcmp(uniformSamplerName, "normalMap") == 0) return Material::TextureType::Normal;
+	else if (std::strcmp(uniformSamplerName, "AOMap") == 0) return Material::TextureType::AmbientOcclusion;
+	else if (std::strcmp(uniformSamplerName, "heightMap") == 0) return Material::TextureType::Height;
+	else if (std::strcmp(uniformSamplerName, "opacityMap") == 0) return Material::TextureType::Opacity;
+	else if (std::strcmp(uniformSamplerName, "emissiveMap") == 0) return Material::TextureType::Emissive;
+	else if (std::strcmp(uniformSamplerName, "sheenColorMap") == 0) return Material::TextureType::SheenColor;
+	else if (std::strcmp(uniformSamplerName, "sheenRoughnessMap") == 0) return Material::TextureType::SheenRoughness;
+	else if (std::strcmp(uniformSamplerName, "clearcoatColorMap") == 0) return Material::TextureType::ClearcoatColor;
+	else if (std::strcmp(uniformSamplerName, "clearcoatRoughnessMap") == 0) return Material::TextureType::ClearcoatRoughness;
+	else if (std::strcmp(uniformSamplerName, "clearcoatNormalMap") == 0) return Material::TextureType::ClearcoatNormal;
+	else if (std::strcmp(uniformSamplerName, "IORMap") == 0 || std::strcmp(uniformSamplerName, "iorMap") == 0) return Material::TextureType::IOR;
+	else if (std::strcmp(uniformSamplerName, "transmissionMap") == 0) return Material::TextureType::Transmission;
+	else if (std::strcmp(uniformSamplerName, "iridescenceMap") == 0) return Material::TextureType::Iridescence;
+	else if (std::strcmp(uniformSamplerName, "iridescenceThicknessMap") == 0) return Material::TextureType::IridescenceThickness;
+	else if (std::strcmp(uniformSamplerName, "specularFactorMap") == 0) return Material::TextureType::SpecularFactor;
+	else if (std::strcmp(uniformSamplerName, "specularColorMap") == 0) return Material::TextureType::SpecularColor;
+	else if (std::strcmp(uniformSamplerName, "anisotropyMap") == 0) return Material::TextureType::Anisotropy;
+	else if (std::strcmp(uniformSamplerName, "diffuseTransmissionMap") == 0) return Material::TextureType::DiffuseTransmission;
+	else if (std::strcmp(uniformSamplerName, "diffuseTransmissionColorMap") == 0) return Material::TextureType::DiffuseTransmissionColor;
+	else if (std::strcmp(uniformSamplerName, "thicknessMap") == 0) return Material::TextureType::Thickness;
+	else if (std::strcmp(uniformSamplerName, "diffuseMap") == 0) return Material::TextureType::Diffuse;
+	else if (std::strcmp(uniformSamplerName, "specularGlossinessMap") == 0) return Material::TextureType::SpecularGlossiness;
+	return Material::TextureType::Albedo;
 }
 
 // ============================================================================
@@ -1469,7 +1469,7 @@ void MaterialPreviewWidget::syncTextureFromMaterial(
 	const char* uniformUseName,
 	bool srgb)
 {
-	GLMaterial::TextureType type = samplerNameToTextureType(uniformSamplerName);
+	Material::TextureType type = samplerNameToTextureType(uniformSamplerName);
 	const auto& texData = _currentMaterial.texture(type);
 	if (shouldReload(path, cache, texData.wrapS, texData.wrapT, texData.minFilter, texData.magFilter))
 	{
@@ -1481,7 +1481,7 @@ void MaterialPreviewWidget::syncTextureFromMaterial(
 
 		if (!path.isEmpty())
 		{
-			GLMaterial::TextureType type = samplerNameToTextureType(uniformSamplerName);
+			Material::TextureType type = samplerNameToTextureType(uniformSamplerName);
 			const auto& texData = _currentMaterial.texture(type);
 			cache.id = TextureUtil::loadTexture2DFromFile(
 				path.toUtf8().constData(),
@@ -1559,7 +1559,7 @@ void MaterialPreviewWidget::syncTextureFromMaterial(
 
 	// Sync GPU ID and path to unified storage
 	type = samplerNameToTextureType(uniformSamplerName);
-	GLMaterial::Texture tex = texData;
+	Material::Texture tex = texData;
 	tex.id = cache.id;
 	tex.path = path.toStdString();	
 	_currentMaterial.setTexture(type, tex);
@@ -1680,9 +1680,9 @@ void MaterialPreviewWidget::clearTextureCache()
 	_specularGlossinessTex = GpuTexCache();
 }
 
-void MaterialPreviewWidget::updateTextureSamplers(GLMaterial::TextureType type, GLint wrapS, GLint wrapT, GLint minFilter, GLint magFilter, float aniso)
+void MaterialPreviewWidget::updateTextureSamplers(Material::TextureType type, GLint wrapS, GLint wrapT, GLint minFilter, GLint magFilter, float aniso)
 {
-	GLMaterial::Texture& tex = _currentMaterial.texture(type);
+	Material::Texture& tex = _currentMaterial.texture(type);
 
 	tex.wrapS = wrapS;
 	tex.wrapT = wrapT;
@@ -1694,31 +1694,31 @@ void MaterialPreviewWidget::updateTextureSamplers(GLMaterial::TextureType type, 
 	GpuTexCache* cacheToInvalidate = nullptr;
 	switch (type)
 	{
-	case GLMaterial::TextureType::Albedo:               cacheToInvalidate = &_albedoTex; break;
-	case GLMaterial::TextureType::Metallic:             cacheToInvalidate = &_metallicTex; break;
-	case GLMaterial::TextureType::Roughness:            cacheToInvalidate = &_roughnessTex; break;
-	case GLMaterial::TextureType::Normal:               cacheToInvalidate = &_normalTex; break;
-	case GLMaterial::TextureType::AmbientOcclusion:     cacheToInvalidate = &_aoTex; break;
-	case GLMaterial::TextureType::Height:               cacheToInvalidate = &_heightTex; break;
-	case GLMaterial::TextureType::Opacity:              cacheToInvalidate = &_opacityTex; break;
-	case GLMaterial::TextureType::Emissive:             cacheToInvalidate = &_emissiveTex; break;
-	case GLMaterial::TextureType::SheenColor:           cacheToInvalidate = &_sheenColorTex; break;
-	case GLMaterial::TextureType::SheenRoughness:       cacheToInvalidate = &_sheenRoughnessTex; break;
-	case GLMaterial::TextureType::ClearcoatColor:       cacheToInvalidate = &_clearcoatColorTex; break;
-	case GLMaterial::TextureType::ClearcoatRoughness:   cacheToInvalidate = &_clearcoatRoughnessTex; break;
-	case GLMaterial::TextureType::ClearcoatNormal:      cacheToInvalidate = &_clearcoatNormalTex; break;
-	case GLMaterial::TextureType::IOR:                  cacheToInvalidate = &_iorTex; break;
-	case GLMaterial::TextureType::Transmission:         cacheToInvalidate = &_transmissionTex; break;
-	case GLMaterial::TextureType::SpecularFactor:       cacheToInvalidate = &_specularFactorTex; break;
-	case GLMaterial::TextureType::SpecularColor:        cacheToInvalidate = &_specularColorTex; break;
-	case GLMaterial::TextureType::Anisotropy:           cacheToInvalidate = &_anisotropyTex; break;
-	case GLMaterial::TextureType::Iridescence:          cacheToInvalidate = &_iridescenceTex; break;
-	case GLMaterial::TextureType::IridescenceThickness: cacheToInvalidate = &_iridescenceThicknessTex; break;
-	case GLMaterial::TextureType::DiffuseTransmission:  cacheToInvalidate = &_diffuseTransmissionTex; break;
-	case GLMaterial::TextureType::DiffuseTransmissionColor: cacheToInvalidate = &_diffuseTransmissionColorTex; break;
-	case GLMaterial::TextureType::Thickness:            cacheToInvalidate = &_thicknessTex; break;
-	case GLMaterial::TextureType::Diffuse:              cacheToInvalidate = &_diffuseTex; break;
-	case GLMaterial::TextureType::SpecularGlossiness:   cacheToInvalidate = &_specularGlossinessTex; break;
+	case Material::TextureType::Albedo:               cacheToInvalidate = &_albedoTex; break;
+	case Material::TextureType::Metallic:             cacheToInvalidate = &_metallicTex; break;
+	case Material::TextureType::Roughness:            cacheToInvalidate = &_roughnessTex; break;
+	case Material::TextureType::Normal:               cacheToInvalidate = &_normalTex; break;
+	case Material::TextureType::AmbientOcclusion:     cacheToInvalidate = &_aoTex; break;
+	case Material::TextureType::Height:               cacheToInvalidate = &_heightTex; break;
+	case Material::TextureType::Opacity:              cacheToInvalidate = &_opacityTex; break;
+	case Material::TextureType::Emissive:             cacheToInvalidate = &_emissiveTex; break;
+	case Material::TextureType::SheenColor:           cacheToInvalidate = &_sheenColorTex; break;
+	case Material::TextureType::SheenRoughness:       cacheToInvalidate = &_sheenRoughnessTex; break;
+	case Material::TextureType::ClearcoatColor:       cacheToInvalidate = &_clearcoatColorTex; break;
+	case Material::TextureType::ClearcoatRoughness:   cacheToInvalidate = &_clearcoatRoughnessTex; break;
+	case Material::TextureType::ClearcoatNormal:      cacheToInvalidate = &_clearcoatNormalTex; break;
+	case Material::TextureType::IOR:                  cacheToInvalidate = &_iorTex; break;
+	case Material::TextureType::Transmission:         cacheToInvalidate = &_transmissionTex; break;
+	case Material::TextureType::SpecularFactor:       cacheToInvalidate = &_specularFactorTex; break;
+	case Material::TextureType::SpecularColor:        cacheToInvalidate = &_specularColorTex; break;
+	case Material::TextureType::Anisotropy:           cacheToInvalidate = &_anisotropyTex; break;
+	case Material::TextureType::Iridescence:          cacheToInvalidate = &_iridescenceTex; break;
+	case Material::TextureType::IridescenceThickness: cacheToInvalidate = &_iridescenceThicknessTex; break;
+	case Material::TextureType::DiffuseTransmission:  cacheToInvalidate = &_diffuseTransmissionTex; break;
+	case Material::TextureType::DiffuseTransmissionColor: cacheToInvalidate = &_diffuseTransmissionColorTex; break;
+	case Material::TextureType::Thickness:            cacheToInvalidate = &_thicknessTex; break;
+	case Material::TextureType::Diffuse:              cacheToInvalidate = &_diffuseTex; break;
+	case Material::TextureType::SpecularGlossiness:   cacheToInvalidate = &_specularGlossinessTex; break;
 	default:
 		return;
 	}
@@ -1732,7 +1732,7 @@ void MaterialPreviewWidget::updateTextureSamplers(GLMaterial::TextureType type, 
 	}
 }
 
-void MaterialPreviewWidget::applySamplerParametersToTexture(GLuint textureId, const GLMaterial::Texture& tex)
+void MaterialPreviewWidget::applySamplerParametersToTexture(GLuint textureId, const Material::Texture& tex)
 {
 	if (textureId == 0) return;
 

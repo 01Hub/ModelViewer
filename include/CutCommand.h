@@ -24,7 +24,7 @@ class CutCommand : public ModelViewerCommand
 {
 public:
     CutCommand(ModelViewer*                 viewer,
-               GLWidget*                    glWidget,
+               ViewportWidget*                    viewportWidget,
                const QList<ClipboardEntry>& entries,
                const QSet<QUuid>&           cutMeshUuids,
                const QSet<QUuid>&           cutNodeUuids,

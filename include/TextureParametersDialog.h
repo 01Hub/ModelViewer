@@ -1,5 +1,5 @@
-#ifndef TEXTUREPARAMETERSDIALOG_H
-#define TEXTUREPARAMETERSDIALOG_H
+#pragma once
+
 
 #include <QDialog>
 #include <QVector2D>
@@ -32,7 +32,7 @@ public:
         }
     };
 
-    // Structure for texture transform (from GLMaterial)
+    // Structure for texture transform (from Material)
     struct TextureTransform
     {
         int texCoord = 0;
@@ -84,5 +84,3 @@ private:
     Ui::TextureParametersDialog* _ui;
     QString _currentTextureType;
 };
-
-#endif // TEXTUREPARAMETERSDIALOG_H

@@ -1,5 +1,5 @@
-#ifndef TRIANGLE_H
-#define TRIANGLE_H
+#pragma once
+
 
 #include <QObject>
 #include <QVector3D>
@@ -29,5 +29,3 @@ protected:
 	QVector3D _vertex1;
 	QVector3D _vertex2;
 };
-
-#endif // TRIANGLE_H

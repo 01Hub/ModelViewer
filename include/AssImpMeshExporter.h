@@ -1,4 +1,6 @@
 #pragma once
+class SceneMesh;
+
 
 #include <QObject>
 #include <QString>
@@ -6,14 +8,14 @@
 #include <assimp/scene.h>
 #include <assimp/Exporter.hpp>
 #include "TextureLocationManager.h"
-#include "GLLights.h"
+#include "PunctualLights.h"
 #include "GltfCameraData.h"
 #include "GltfVariantData.h"
 #include "GltfAnimationData.h"
 #include "TexturePackingUtils.h"
 
-class GLMaterial;
-class TriangleMesh;
+class Material;
+class RenderableMesh;
 struct Vertex;
 
 /**
@@ -80,7 +82,7 @@ public:
     ~AssImpMeshExporter() = default;
 
     /**
-     * @brief Export a vector of TriangleMesh objects to a 3D file format
+     * @brief Export a vector of SceneMesh objects to a 3D file format
      *
      * This is the main export function. It:
      * 1. Packages and copies all textures from materials
@@ -89,14 +91,14 @@ public:
      * 4. Sets up proper scene hierarchy with transforms
      * 5. Exports via Assimp to the target format (determined by extension)
      *
-     * @param meshes Vector of TriangleMesh pointers to export
+     * @param meshes Vector of SceneMesh pointers to export
      * @param exportPath Output file path (e.g., "scene.glb", "model.obj")
      * @param settings Export configuration options
      * @return aiReturn_SUCCESS on success, aiReturn_FAILURE on error
      */
     aiReturn exportMeshes(
         const aiScene* scene,
-        const std::vector<TriangleMesh*>& meshes,
+        const std::vector<SceneMesh*>& meshes,
         const QString& exportPath,
         const ExportSettings& settings);
 
@@ -122,7 +124,7 @@ public:
      */
     aiReturn exportScene(
         aiScene* scene,
-        const std::vector<TriangleMesh*>& meshes,
+        const std::vector<SceneMesh*>& meshes,
         const std::string& exportPath);
 
     /**
@@ -135,7 +137,7 @@ public:
      */
     aiReturn exportScene(
         aiScene* scene,
-        const std::vector<TriangleMesh*>& meshes,
+        const std::vector<SceneMesh*>& meshes,
         const std::string& exportPath,
         const ExportSettings& settings);
 
@@ -161,13 +163,13 @@ public:
      * Uses caching to avoid redundant packing of the same M/R pairs.
      * Falls back gracefully if packing fails.
      *
-     * @param material Source GLMaterial with potential separate M/R textures
+     * @param material Source Material with potential separate M/R textures
      * @param texturePackage Resolved texture paths for the material
      * @param outputDirectory Directory to save packed texture
      * @return Path to packed texture file, or empty string on failure
      */
     QString packMetallicRoughnessIfSeparate(
-        const GLMaterial& material,
+        const Material& material,
         const TexturePackage& texturePackage,
         const QString& outputDirectory);
 
@@ -178,13 +180,13 @@ public:
      * packed texture using efficient scanLine() pixel access. Handles optional occlusion
      * texture (white default if missing).
      *
-     * @param material Source GLMaterial with separate ORM textures
+     * @param material Source Material with separate ORM textures
      * @param texturePackage Resolved texture paths for the material
      * @param outputDirectory Directory to save packed texture
      * @return Path to packed texture file, or empty string on failure
      */
     QString packORMIfSeparate(
-        const GLMaterial& material,
+        const Material& material,
         const TexturePackage& texturePackage,
         const QString& outputDirectory);
 
@@ -205,7 +207,7 @@ private:
         GLenum primitiveMode);
 
     /**
-     * @brief Create an Assimp material from GLMaterial with full PBR
+     * @brief Create an Assimp material from Material with full PBR
      *
      * Exports all properties: base color, metallic, roughness, transmission,
      * IOR, clearcoat, sheen, emissive, normal scale, etc.
@@ -214,14 +216,14 @@ private:
      * When material name is empty, uses meshName as fallback to prevent
      * Assimp from deduplicating materials with identical names.
      *
-     * @param material GLMaterial to convert
+     * @param material Material to convert
      * @param texturePackage Resolved texture paths and mappings
      * @param exportFileLocation Export file path for format detection
      * @param meshName Mesh name (used as fallback if material name is empty)
      * @return Allocated aiMaterial*, or nullptr on failure
      */
     aiMaterial* createMaterial(
-        const GLMaterial& material,
+        const Material& material,
         const TexturePackage& texturePackage,
         const QString& exportFileLocation,
         const QString& meshName = "");
@@ -229,17 +231,17 @@ private:
     /**
      * @brief Assign texture references to an Assimp material
      *
-     * Maps GLMaterial's 25 texture types to Assimp semantic types and
+     * Maps Material's 25 texture types to Assimp semantic types and
      * uses resolved relative paths from the texture package.
      * Called by createMaterial().
      *
      * @param aiMat Target Assimp material to populate
-     * @param material Source GLMaterial
+     * @param material Source Material
      * @param texturePackage Resolved texture paths and mappings
      */
     void assignTexturesToMaterial(
         aiMaterial* aiMat,
-        const GLMaterial& material,
+        const Material& material,
         const TexturePackage& texturePackage,
         bool useEmbeddedTextures,
         const QString& exportFileLocation,
@@ -250,7 +252,7 @@ private:
      *
      * Internal method that:
      * - Iterates through scene meshes paired with source mesh objects
-     * - Creates Assimp materials from GLMaterial data
+     * - Creates Assimp materials from Material data
      * - Assigns textures using texture package mappings
      * - Updates mesh material indices
      *
@@ -258,12 +260,12 @@ private:
      */
     void applyMaterialsToScene(
         aiScene* scene,
-        const std::vector<TriangleMesh*>& meshes,
+        const std::vector<SceneMesh*>& meshes,
         const QString& exportFileLocation);
 
     /**
      * @brief Remove stale mesh entries from a copied aiScene so it matches the
-     *        surviving TriangleMesh vector in _meshStore.
+     *        surviving SceneMesh vector in _meshStore.
      *
      * When meshes are deleted by the user, _meshStore shrinks but _globalScene
      * (and any deep copy of it) still contains the original mesh and node
@@ -272,7 +274,7 @@ private:
      * indices, which makes the Assimp exporter dereference freed memory.
      *
      * This method walks scene->mMeshes[], identifies entries whose names do not
-     * appear in the surviving TriangleMesh vector, removes them and frees their
+     * appear in the surviving SceneMesh vector, removes them and frees their
      * memory, and remaps all aiNode mesh index references accordingly.  After
      * this call scene->mNumMeshes == meshes.size() and the two arrays are in
      * 1-to-1 correspondence by position.
@@ -280,11 +282,11 @@ private:
      * Must be called BEFORE applyMaterialsToScene().
      *
      * @param scene   Deep-copied aiScene (modified in-place)
-     * @param meshes  Surviving TriangleMesh* from _meshStore
+     * @param meshes  Surviving SceneMesh* from _meshStore
      */
     void syncSceneToMeshStore(
         aiScene* scene,
-        const std::vector<TriangleMesh*>& meshes);
+        const std::vector<SceneMesh*>& meshes);
 
     /**
      * @brief Translate absolute texture paths in every aiMaterial to relative
@@ -310,7 +312,7 @@ private:
      *
      * Assimp's OBJ exporter writes only classic Phong MTL keywords.  This
      * method re-opens the written .mtl, locates each material block by name,
-     * matches it to the source GLMaterial, and appends the de-facto PBR MTL
+     * matches it to the source Material, and appends the de-facto PBR MTL
      * extension lines that Blender, Substance Painter, Maya, and other
      * PBR-aware OBJ importers recognise:
      *   Pm  <metallicFactor>       map_Pm  <metallicTexture>
@@ -322,12 +324,12 @@ private:
      * built by packageTextures().
      *
      * @param mtlPath  Absolute path of the .mtl file to patch
-     * @param meshes   Source meshes (provides material names and GLMaterial data)
+     * @param meshes   Source meshes (provides material names and Material data)
      * @param pkg      Texture package (provides original → relative path mapping)
      */
     void patchMtlWithPbrExtensions(
         const QString& mtlPath,
-        const std::vector<TriangleMesh*>& meshes,
+        const std::vector<SceneMesh*>& meshes,
         const TexturePackage& pkg);
 
     /**
@@ -422,10 +424,10 @@ private:
     /**
      * @brief Check if any of the meshes have GLB virtual paths
      *
-     * @param meshes List of TriangleMesh pointers
+     * @param meshes List of SceneMesh pointers
      * @return true if any mesh has a GLB virtual path, false otherwise
      */
-    bool hasGlbVirtualPaths(const std::vector<TriangleMesh*>& meshes);
+    bool hasGlbVirtualPaths(const std::vector<SceneMesh*>& meshes);
 
 
     // === Logging utilities ===

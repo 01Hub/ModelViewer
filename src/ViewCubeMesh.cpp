@@ -74,14 +74,14 @@ bool rayTriangleIntersect(const QVector3D& origin,
 }
 
 ViewCubeMesh::ViewCubeMesh(QOpenGLShaderProgram* prog, float size, float chamferRatio)
-	: GridMesh(prog, "ViewCube", 1, 1),
+	: RenderableMesh(prog, "ViewCube"),
 	  _size(size),
 	  _chamferRatio(chamferRatio)
 {
 	setParameters(size, chamferRatio);
 }
 
-TriangleMesh* ViewCubeMesh::clone()
+RenderableMesh* ViewCubeMesh::clone()
 {
 	return new ViewCubeMesh(_prog, _size, _chamferRatio);
 }
@@ -180,9 +180,10 @@ void ViewCubeMesh::setParameters(float size, float chamferRatio)
 
 	initBuffers(&indices, &points, &normals, nullptr, nullptr, nullptr, nullptr);
 
-	_boundingSphere.setCenter(0.0f, 0.0f, 0.0f);
-	_boundingSphere.setRadius(std::sqrt(3.0f) * halfExtent);
-	_boundingBox.setLimits(-halfExtent, halfExtent, -halfExtent, halfExtent, -halfExtent, halfExtent);
+	BoundingSphere bs; bs.setCenter(0.0f, 0.0f, 0.0f); bs.setRadius(std::sqrt(3.0f) * halfExtent);
+	_instanceState.setBoundingSphere(bs);
+	BoundingBox bb; bb.setLimits(-halfExtent, halfExtent, -halfExtent, halfExtent, -halfExtent, halfExtent);
+	_instanceState.setBoundingBox(bb);
 }
 
 void ViewCubeMesh::renderRegion(int regionId)

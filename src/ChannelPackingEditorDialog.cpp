@@ -57,7 +57,7 @@ ChannelPackingEditorDialog::ChannelPackingEditorDialog(QWidget* parent)
     setLayout(vbox);
 }
 
-void ChannelPackingEditorDialog::setCurrentPacking(const GLMaterial::ChannelPacking& p, const QString& mapDisplayName)
+void ChannelPackingEditorDialog::setCurrentPacking(const Material::ChannelPacking& p, const QString& mapDisplayName)
 {
     setWindowTitle(tr("Channel Packing — %1").arg(mapDisplayName));
     // channel in 0..3, clamp just in case
@@ -72,9 +72,9 @@ void ChannelPackingEditorDialog::setCurrentPacking(const GLMaterial::ChannelPack
     _biasSpin->setValue(p.bias);
 }
 
-GLMaterial::ChannelPacking ChannelPackingEditorDialog::packing() const
+Material::ChannelPacking ChannelPackingEditorDialog::packing() const
 {
-    GLMaterial::ChannelPacking p;
+    Material::ChannelPacking p;
     p.channel = _channelCombo->currentData().toInt();
     p.invert = _invertCheck->isChecked();
     p.scale = static_cast<float>(_scaleSpin->value());

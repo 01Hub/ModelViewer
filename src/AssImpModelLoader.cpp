@@ -34,6 +34,16 @@ using namespace std;
 
 namespace
 {
+QMatrix4x4 aiToQMatrix4x4(const aiMatrix4x4& matrix)
+{
+	QMatrix4x4 result;
+	result.setRow(0, QVector4D(matrix.a1, matrix.a2, matrix.a3, matrix.a4));
+	result.setRow(1, QVector4D(matrix.b1, matrix.b2, matrix.b3, matrix.b4));
+	result.setRow(2, QVector4D(matrix.c1, matrix.c2, matrix.c3, matrix.c4));
+	result.setRow(3, QVector4D(matrix.d1, matrix.d2, matrix.d3, matrix.d4));
+	return result;
+}
+
 glm::vec3 computeFallbackTangent(const glm::vec3& normal)
 {
 	const glm::vec3 safeNormal = glm::length(normal) > 0.0001f
@@ -954,6 +964,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	const bool isGltfLike = qPath.endsWith(".gltf", Qt::CaseInsensitive) ||
 		qPath.endsWith(".glb", Qt::CaseInsensitive);
 	_sceneUpAxis = detectSceneUpAxis(_scene, path);
+	emit sceneUpAxisDetected(_sceneUpAxis, _autoOrient);
 
 	// Capture original glTF material indices before deduplication so import,
 	// variants, and export continue to share the authored material numbering.
@@ -1158,7 +1169,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		}
 	}
 
-	// Emit lights for GLWidget to handle
+	// Emit lights for ViewportWidget to handle
 	emit lightsLoaded(parsedLights);
 	emit loadingFinished(true, _scene);
 }
@@ -1239,7 +1250,7 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	// Data to fill
 	vector<Vertex> vertices;
 	vector<unsigned int> indices;
-	vector<GLMaterial::Texture> textures;
+	vector<Material::Texture> textures;
 	
 	_needsUVGeneration = false;
 
@@ -1621,7 +1632,7 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	}
 
 	// Process materials
-	GLMaterial mat = GLMaterial::DEFAULT_MAT();
+	Material mat = Material::DEFAULT_MAT();
 	//if (mesh->mMaterialIndex != 0)
 
 	// DEBUG: Log the material index assignment
@@ -1707,6 +1718,7 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	meshData.sourceFile = QString::fromStdString(_path);
 	meshData.sourceNodeName = QString::fromUtf8(nodeName);
 	meshData.preserveNodeTransform = true;
+	meshData.nodeWorldTransform = aiToQMatrix4x4(transform);
 	meshData.skinJoints = skinJoints;
 	meshData.morphTargets = morphTargets;
 	meshData.defaultMorphWeights = defaultMorphWeights;
@@ -1738,7 +1750,7 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	}
 
 	// -----------------------------------------------------------------------
-	// KHR_materials_variants: pre-build GLMaterial for every variant material
+	// KHR_materials_variants: pre-build Material for every variant material
 	// referenced by this primitive.  We do this here, while the scene + JSON
 	// caches are warm, so variant switching at runtime requires no I/O.
 	// -----------------------------------------------------------------------
@@ -1761,8 +1773,8 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 			if (matIdx < 0 || matIdx >= static_cast<int>(scene->mNumMaterials))
 				continue;
 
-			GLMaterial varMat;
-			std::vector<GLMaterial::Texture> varTextures;
+			Material varMat;
+			std::vector<Material::Texture> varTextures;
 			_materialProcessor.processAssimpColorAndMaterial(scene->mMaterials[matIdx], varMat);
 
 			if (isGltf || isGlb)
@@ -1953,7 +1965,7 @@ QString AssImpModelLoader::getErrorMessage() const
 	return _errorMessage;
 }
 
-bool AssImpModelLoader::regenerateUVs(AssImpMesh* mesh,
+bool AssImpModelLoader::regenerateUVs(SceneMesh* mesh,
 	UVMethod method,
 	const UVConfig& config)
 {

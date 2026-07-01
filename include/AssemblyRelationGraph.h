@@ -6,7 +6,7 @@
 #include <QSet>
 #include <QUuid>
 
-class GLWidget;
+class ViewportWidget;
 class SceneGraph;
 
 namespace AssemblyRelationGraph
@@ -37,11 +37,11 @@ struct AutoPlacementHints
 QString makeMeshPairKey(const QUuid& a, const QUuid& b);
 
 AutoPlacementHints buildAutoPlacementHints(const QSet<QUuid>& assemblyUuids,
-                                           const GLWidget* glWidget,
+                                           const ViewportWidget* viewportWidget,
                                            const SceneGraph* sceneGraph);
 
 QJsonObject buildInspectionJson(const QSet<QUuid>& assemblyUuids,
-                                const GLWidget* glWidget,
+                                const ViewportWidget* viewportWidget,
                                 const SceneGraph* sceneGraph);
 
 }

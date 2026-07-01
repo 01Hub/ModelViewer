@@ -1,6 +1,6 @@
 #pragma once
 
-#include "GLLights.h"
+#include "PunctualLights.h"
 #include <QString>
 #include <QVector>
 
@@ -20,12 +20,12 @@
 //
 // PunctualLightsPanel reads them to build its tree widget (one top-level item
 // per file, one child item per light, with individual checkboxes).
-// GLWidget calls SceneGraph::buildEnabledLightList() to assemble the flat
+// ViewportWidget calls SceneGraph::buildEnabledLightList() to assemble the flat
 // std::vector<GPULight> that is uploaded to the UBO before each frame.
 //
 // Important distinction
 // ---------------------
-// The "system default light" (GLWidget::_lightPosition, used for shadow map
+// The "system default light" (ViewportWidget::_lightPosition, used for shadow map
 // generation and the Blinn-Phong pass) is completely separate and is not
 // represented here.  GltfLightData covers only KHR_lights_punctual lights that
 // originate from a loaded model file.  If no file has punctual lights the UBO

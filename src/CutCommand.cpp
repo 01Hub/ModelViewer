@@ -2,12 +2,12 @@
 #include "ModelViewer.h"
 
 CutCommand::CutCommand(ModelViewer*                 viewer,
-                       GLWidget*                    glWidget,
+                       ViewportWidget*                    viewportWidget,
                        const QList<ClipboardEntry>& entries,
                        const QSet<QUuid>&           cutMeshUuids,
                        const QSet<QUuid>&           cutNodeUuids,
                        const QString&               text)
-    : ModelViewerCommand(viewer, glWidget, text)
+    : ModelViewerCommand(viewer, viewportWidget, text)
     , _entries(entries)
     , _cutMeshUuids(cutMeshUuids)
     , _cutNodeUuids(cutNodeUuids)

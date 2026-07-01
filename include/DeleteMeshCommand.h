@@ -14,7 +14,7 @@
 #include <QString>
 
 class ModelViewer;
-class GLWidget;
+class ViewportWidget;
 
 /**
  * @brief Undoable command for deleting meshes
@@ -26,7 +26,7 @@ class DeleteMeshCommand : public ModelViewerCommand
 {
 public:
     DeleteMeshCommand(ModelViewer* viewer,
-        GLWidget* glWidget,
+        ViewportWidget* viewportWidget,
         const QVector<QUuid>& meshUuids,
         const QString& text = QObject::tr("Delete"));
 

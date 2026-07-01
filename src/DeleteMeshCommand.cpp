@@ -1,23 +1,23 @@
 #include "DeleteMeshCommand.h"
-#include "GLWidget.h"
+#include "ViewportWidget.h"
 #include "ModelViewer.h"
 #include "SceneGraph.h"
-#include "TriangleMesh.h"
+#include "RenderableMesh.h"
 
 #include <algorithm>
 #include <climits>
 
 DeleteMeshCommand::DeleteMeshCommand(ModelViewer* viewer,
-    GLWidget* glWidget,
+    ViewportWidget* viewportWidget,
     const QVector<QUuid>& meshUuids,
     const QString& text)
-    : ModelViewerCommand(viewer, glWidget, text)
+    : ModelViewerCommand(viewer, viewportWidget, text)
     , _meshUuids(meshUuids)
 {
     // Store original indices for each mesh
     for (const QUuid& uuid : meshUuids)
     {
-        int index = _glWidget->getIndexByUuid(uuid);
+        int index = _viewportWidget->getIndexByUuid(uuid);
         if (index >= 0)
             _originalIndices[uuid] = index;
     }
@@ -62,9 +62,9 @@ void DeleteMeshCommand::undo()
     for (const QUuid& uuid : orderedUuids)
     {
         // Restore mesh in the renderer's store
-        if (_glWidget->isInRecycleBin(uuid))
+        if (_viewportWidget->isInRecycleBin(uuid))
         {
-            _glWidget->restoreFromRecycleBin(uuid);
+            _viewportWidget->restoreFromRecycleBin(uuid);
         }
         else
         {
@@ -100,17 +100,17 @@ void DeleteMeshCommand::undo()
         {
             const QString& file = it.key();
             sg->setAnimationData(file, it.value());
-            // Rebuild GLWidget's runtime tables (cleared together with the
+            // Rebuild ViewportWidget's runtime tables (cleared together with the
             // SceneGraph data during redo) and re-select the previously
             // active clip so the Animations panel comes back functional.
-            _glWidget->syncRuntimeNodeTransforms(file);
+            _viewportWidget->syncRuntimeNodeTransforms(file);
             const int activeClip = _savedActiveClip.value(file, -1);
             if (activeClip >= 0 && activeClip < it.value().clips.size())
-                _glWidget->setActiveAnimation(file, activeClip);
+                _viewportWidget->setActiveAnimation(file, activeClip);
         }
     }
 
-    _glWidget->updateView();
+    _viewportWidget->updateView();
     _viewer->updateDisplayList();
 }
 
@@ -122,7 +122,7 @@ void DeleteMeshCommand::redo()
     QSet<QString> candidateFiles;
     for (const QUuid& uuid : _meshUuids)
     {
-        if (TriangleMesh* m = _glWidget->getMeshByUuid(uuid))
+        if (SceneMesh* m = _viewportWidget->getMeshByUuid(uuid))
             candidateFiles.insert(m->getSourceFile());
     }
 
@@ -131,11 +131,11 @@ void DeleteMeshCommand::redo()
     QSet<QString> filesLosingAllMeshes;
     {
         const QSet<QUuid> deletingSet(_meshUuids.begin(), _meshUuids.end());
-        const std::vector<TriangleMesh*>& store = _glWidget->getMeshStore();
+        const std::vector<SceneMesh*>& store = _viewportWidget->getMeshStore();
         for (const QString& file : candidateFiles)
         {
             bool allDeleted = true;
-            for (const TriangleMesh* mesh : store)
+            for (const SceneMesh* mesh : store)
             {
                 if (mesh && mesh->getSourceFile() == file &&
                     !deletingSet.contains(mesh->uuid()))
@@ -199,7 +199,7 @@ void DeleteMeshCommand::redo()
 
         // Move mesh to recycle bin in the renderer's store
         int originalIndex = _originalIndices.value(uuid, -1);
-        _glWidget->moveToRecycleBin(uuid, originalIndex);
+        _viewportWidget->moveToRecycleBin(uuid, originalIndex);
     }
 
     // Prune file-level nodes whose subtree lost its last mesh.  A stale empty
@@ -216,6 +216,6 @@ void DeleteMeshCommand::redo()
         }
     }
 
-    _glWidget->updateView();
+    _viewportWidget->updateView();
     _viewer->updateDisplayList();
 }

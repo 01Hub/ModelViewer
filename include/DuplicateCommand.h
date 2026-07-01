@@ -33,7 +33,7 @@ public:
     // entries        — one record per created clone (uuid + tree placement).
     // originalSelection — UUIDs selected before duplication (for undo restore).
     DuplicateCommand(ModelViewer*                    viewer,
-                     GLWidget*                       glWidget,
+                     ViewportWidget*                 viewportWidget,
                      const QVector<DuplicateEntry>&  entries,
                      const QSet<QUuid>&              originalSelection,
                      const QString&                  text = QObject::tr("Duplicate"));

@@ -2,9 +2,9 @@
 
 #include "SceneGraph.h"
 #include "SceneNode.h"
-#include "TriangleMesh.h"
-#include "AssImpMesh.h"
-#include "GLLights.h"
+#include "RenderableMesh.h"
+#include "SceneMesh.h"
+#include "PunctualLights.h"
 
 #include "GltfAnimationData.h"
 #include "GltfCameraData.h"
@@ -116,14 +116,14 @@ namespace
             collectExportNodeBaseTrs(node->mChildren[i], out);
     }
 
-    GLMaterial exportBaseMaterial(const TriangleMesh* mesh)
+    Material exportBaseMaterial(const SceneMesh* mesh)
     {
         if (!mesh)
-            return GLMaterial();
+            return Material();
 
         if (mesh->hasVariants())
         {
-            if (const GLMaterial* originalMaterial = mesh->materialForVariant(-1))
+            if (const Material* originalMaterial = mesh->materialForVariant(-1))
                 return *originalMaterial;
         }
 
@@ -311,44 +311,44 @@ namespace
 
     struct ExportTextureBinding
     {
-        const GLMaterial::Texture* texture = nullptr;
+        const Material::Texture* texture = nullptr;
         aiTextureType aiType = aiTextureType_NONE;
         unsigned int slot = 0;
     };
 
-    std::vector<ExportTextureBinding> collectExportBindings(const GLMaterial& material)
+    std::vector<ExportTextureBinding> collectExportBindings(const Material& material)
     {
         std::vector<ExportTextureBinding> bindings;
         bindings.reserve(16);
 
-        auto add = [&](GLMaterial::TextureType type, aiTextureType aiType, unsigned int slot) {
-            const GLMaterial::Texture& tex = material.texture(type);
+        auto add = [&](Material::TextureType type, aiTextureType aiType, unsigned int slot) {
+            const Material::Texture& tex = material.texture(type);
             bindings.push_back({ &tex, aiType, slot });
             };
 
         // Core PBR bindings (glTF/GLB – post-processor reads these)
-        add(GLMaterial::TextureType::Albedo,          aiTextureType_BASE_COLOR,       0);
-        add(GLMaterial::TextureType::Metallic,        aiTextureType_METALNESS,        0);
-        add(GLMaterial::TextureType::Roughness,       aiTextureType_DIFFUSE_ROUGHNESS,0);
-        add(GLMaterial::TextureType::Normal,          aiTextureType_NORMALS,          0);
-        add(GLMaterial::TextureType::AmbientOcclusion,aiTextureType_LIGHTMAP,         0);
-        add(GLMaterial::TextureType::Emissive,        aiTextureType_EMISSIVE,         0);
-        add(GLMaterial::TextureType::Opacity,         aiTextureType_OPACITY,          0);
+        add(Material::TextureType::Albedo,          aiTextureType_BASE_COLOR,       0);
+        add(Material::TextureType::Metallic,        aiTextureType_METALNESS,        0);
+        add(Material::TextureType::Roughness,       aiTextureType_DIFFUSE_ROUGHNESS,0);
+        add(Material::TextureType::Normal,          aiTextureType_NORMALS,          0);
+        add(Material::TextureType::AmbientOcclusion,aiTextureType_LIGHTMAP,         0);
+        add(Material::TextureType::Emissive,        aiTextureType_EMISSIVE,         0);
+        add(Material::TextureType::Opacity,         aiTextureType_OPACITY,          0);
 
         // Legacy Phong slots for OBJ/FBX/COLLADA exporters.
         // These exporters only read the classic aiTextureType_DIFFUSE (map_Kd),
         // aiTextureType_HEIGHT (OBJ map_bump, preferred over NORMALS), etc.
-        // glTF/GLB ignores these; the GltfPostProcessor overwrites from GLMaterial anyway.
-        add(GLMaterial::TextureType::Albedo, aiTextureType_DIFFUSE, 0);  // OBJ map_Kd / FBX DiffuseColor / DAE diffuse
-        add(GLMaterial::TextureType::Normal, aiTextureType_HEIGHT,  0);  // OBJ map_bump (HEIGHT checked before NORMALS)
+        // glTF/GLB ignores these; the GltfPostProcessor overwrites from Material anyway.
+        add(Material::TextureType::Albedo, aiTextureType_DIFFUSE, 0);  // OBJ map_Kd / FBX DiffuseColor / DAE diffuse
+        add(Material::TextureType::Normal, aiTextureType_HEIGHT,  0);  // OBJ map_bump (HEIGHT checked before NORMALS)
 
         // Extensions / advanced PBR
-        add(GLMaterial::TextureType::Transmission, aiTextureType_TRANSMISSION, 0);
-        add(GLMaterial::TextureType::ClearcoatColor, aiTextureType_CLEARCOAT, 0);
-        add(GLMaterial::TextureType::ClearcoatRoughness, aiTextureType_CLEARCOAT, 1);
-        add(GLMaterial::TextureType::ClearcoatNormal, aiTextureType_CLEARCOAT, 2);
-        add(GLMaterial::TextureType::SheenColor, aiTextureType_SHEEN, 0);
-        add(GLMaterial::TextureType::SheenRoughness, aiTextureType_SHEEN, 1);
+        add(Material::TextureType::Transmission, aiTextureType_TRANSMISSION, 0);
+        add(Material::TextureType::ClearcoatColor, aiTextureType_CLEARCOAT, 0);
+        add(Material::TextureType::ClearcoatRoughness, aiTextureType_CLEARCOAT, 1);
+        add(Material::TextureType::ClearcoatNormal, aiTextureType_CLEARCOAT, 2);
+        add(Material::TextureType::SheenColor, aiTextureType_SHEEN, 0);
+        add(Material::TextureType::SheenRoughness, aiTextureType_SHEEN, 1);
 
         return bindings;
     }
@@ -362,7 +362,7 @@ namespace
         return static_cast<unsigned int>(texCoordIndex);
     }
 
-    unsigned int maxReferencedUvChannel(const GLMaterial& material)
+    unsigned int maxReferencedUvChannel(const Material& material)
     {
         const auto bindings = collectExportBindings(material);
 
@@ -382,7 +382,7 @@ namespace
         return anyTexturedBinding ? maxChannel : 0;
     }
 
-    unsigned int maxReferencedUvChannelForMesh(const TriangleMesh* mesh)
+    unsigned int maxReferencedUvChannelForMesh(const SceneMesh* mesh)
     {
         if (!mesh)
             return 0;
@@ -390,7 +390,7 @@ namespace
         unsigned int maxChannel = maxReferencedUvChannel(exportBaseMaterial(mesh));
         if (mesh->hasVariants())
         {
-            const QMap<int, GLMaterial>& materials = mesh->allVariantMaterials();
+            const QMap<int, Material>& materials = mesh->allVariantMaterials();
             for (auto it = materials.constBegin(); it != materials.constEnd(); ++it)
                 maxChannel = std::max(maxChannel, maxReferencedUvChannel(it.value()));
         }
@@ -400,7 +400,7 @@ namespace
     
     void addTextureToMaterial(
         aiMaterial* aiMat,
-        const GLMaterial::Texture& tex,
+        const Material::Texture& tex,
         aiTextureType aiType,
         unsigned int slot)
     {
@@ -508,7 +508,7 @@ namespace
         return node;
     }
 
-    QString textureKeyPart(const GLMaterial::Texture& tex, const QString& label)
+    QString textureKeyPart(const Material::Texture& tex, const QString& label)
     {
         if (tex.path.empty())
             return label + "=<none>";
@@ -524,7 +524,7 @@ namespace
             .arg(tex.rotation, 0, 'f', 6);
     }
 
-    QString buildMaterialReuseKey(const GLMaterial& material)
+    QString buildMaterialReuseKey(const Material& material)
     {
         QStringList parts;
         parts << QString("name=%1").arg(material.name().trimmed());
@@ -545,19 +545,19 @@ namespace
         parts << QString("clearcoatRough=%1").arg(material.clearcoatRoughness(), 0, 'f', 6);
         parts << QString("sheenRough=%1").arg(material.sheenRoughness(), 0, 'f', 6);
 
-        parts << textureKeyPart(material.texture(GLMaterial::TextureType::Albedo), "albedoTex");
-        parts << textureKeyPart(material.texture(GLMaterial::TextureType::Metallic), "metalTex");
-        parts << textureKeyPart(material.texture(GLMaterial::TextureType::Roughness), "roughTex");
-        parts << textureKeyPart(material.texture(GLMaterial::TextureType::Normal), "normalTex");
-        parts << textureKeyPart(material.texture(GLMaterial::TextureType::AmbientOcclusion), "aoTex");
-        parts << textureKeyPart(material.texture(GLMaterial::TextureType::Emissive), "emissiveTex");
-        parts << textureKeyPart(material.texture(GLMaterial::TextureType::Opacity), "opacityTex");
-        parts << textureKeyPart(material.texture(GLMaterial::TextureType::Transmission), "transmissionTex");
-        parts << textureKeyPart(material.texture(GLMaterial::TextureType::ClearcoatColor), "clearcoatTex");
-        parts << textureKeyPart(material.texture(GLMaterial::TextureType::ClearcoatRoughness), "clearcoatRoughTex");
-        parts << textureKeyPart(material.texture(GLMaterial::TextureType::ClearcoatNormal), "clearcoatNormalTex");
-        parts << textureKeyPart(material.texture(GLMaterial::TextureType::SheenColor), "sheenColorTex");
-        parts << textureKeyPart(material.texture(GLMaterial::TextureType::SheenRoughness), "sheenRoughTex");
+        parts << textureKeyPart(material.texture(Material::TextureType::Albedo), "albedoTex");
+        parts << textureKeyPart(material.texture(Material::TextureType::Metallic), "metalTex");
+        parts << textureKeyPart(material.texture(Material::TextureType::Roughness), "roughTex");
+        parts << textureKeyPart(material.texture(Material::TextureType::Normal), "normalTex");
+        parts << textureKeyPart(material.texture(Material::TextureType::AmbientOcclusion), "aoTex");
+        parts << textureKeyPart(material.texture(Material::TextureType::Emissive), "emissiveTex");
+        parts << textureKeyPart(material.texture(Material::TextureType::Opacity), "opacityTex");
+        parts << textureKeyPart(material.texture(Material::TextureType::Transmission), "transmissionTex");
+        parts << textureKeyPart(material.texture(Material::TextureType::ClearcoatColor), "clearcoatTex");
+        parts << textureKeyPart(material.texture(Material::TextureType::ClearcoatRoughness), "clearcoatRoughTex");
+        parts << textureKeyPart(material.texture(Material::TextureType::ClearcoatNormal), "clearcoatNormalTex");
+        parts << textureKeyPart(material.texture(Material::TextureType::SheenColor), "sheenColorTex");
+        parts << textureKeyPart(material.texture(Material::TextureType::SheenRoughness), "sheenRoughTex");
 
         return parts.join("||");
     }
@@ -1233,11 +1233,11 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
 
     for (const QUuid& meshUuid : srcNode->meshUuids)
     {
-        TriangleMesh* triMesh = resolveMesh ? resolveMesh(meshUuid) : nullptr;
+        SceneMesh* triMesh = resolveMesh ? resolveMesh(meshUuid) : nullptr;
         if (!triMesh)
             continue;
 
-        const GLMaterial glMaterial = exportBaseMaterial(triMesh);
+        const Material glMaterial = exportBaseMaterial(triMesh);
         unsigned int materialIndex = 0;
 
         // Use originalMaterialIndex as authoritative mapping to preserve material structure from import.
@@ -1253,7 +1253,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
             // would collapse into a single exported material, scrambling multi-file
             // scenes that use KHR_materials_variants or simply different material sets.
             //
-            // Also include a content hash of the live GLMaterial so that if the user
+            // Also include a content hash of the live Material so that if the user
             // has modified one mesh's material (e.g. applied a different texture or
             // changed a colour), that mesh gets its own export entry rather than
             // inheriting whichever mesh with the same originalMaterialIndex was
@@ -1273,7 +1273,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
             else
             {
                 // First time seeing this original material - create it
-                aiMaterial* builtMaterial = buildMaterialFromTriangleMesh(triMesh);
+                aiMaterial* builtMaterial = buildMaterialFromSceneMesh(triMesh);
                 if (!builtMaterial)
                     builtMaterial = makeDefaultMaterial();
 
@@ -1303,7 +1303,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
             }
             else
             {
-                aiMaterial* builtMaterial = buildMaterialFromTriangleMesh(triMesh);
+                aiMaterial* builtMaterial = buildMaterialFromSceneMesh(triMesh);
                 if (!builtMaterial)
                     builtMaterial = makeDefaultMaterial();
 
@@ -1313,7 +1313,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
             }
         }
 
-        aiMesh* builtMesh = buildMeshFromTriangleMesh(triMesh, materialIndex);
+        aiMesh* builtMesh = buildMeshFromSceneMesh(triMesh, materialIndex);
         if (!builtMesh)
         {
             // IMPORTANT:
@@ -1324,7 +1324,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
         }
 
         // Per-mesh user TRS (from the interactive gizmo).  This is stored in
-        // TriangleMesh::_transformation and is applied BEFORE the scene-hierarchy
+        // RenderableMesh::_transformation and is applied BEFORE the scene-hierarchy
         // world transform at render time: effectiveWorld = meshTrs * worldTransform.
         // We must fold it into the export so that the exported file matches what the
         // user sees in the viewport.
@@ -1373,7 +1373,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
                                                     ? (correctedMeshTrs * worldTransform)
                                                     : worldTransform;
 
-        // Vertex positions in AssImpMesh are stored in mesh-LOCAL space.
+        // Vertex positions in SceneMesh are stored in mesh-LOCAL space.
         // processMesh() copies Assimp vertex positions verbatim with no world transform
         // applied; the world transform is only used at GPU render time via
         // setSceneRenderTransform().
@@ -1523,14 +1523,14 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
     return dstNode;
 }
 
-aiMesh* SceneGraphExporter::buildMeshFromTriangleMesh(const TriangleMesh* mesh, unsigned int materialIndex)
+aiMesh* SceneGraphExporter::buildMeshFromSceneMesh(const SceneMesh* mesh, unsigned int materialIndex)
 {
     if (!mesh)
         return nullptr;
 
     // We only export AssImp-backed runtime meshes in this first pass,
     // because those expose CPU-side vertices()/indices().
-    const AssImpMesh* assimpMesh = dynamic_cast<const AssImpMesh*>(mesh);
+    const SceneMesh* assimpMesh = dynamic_cast<const SceneMesh*>(mesh);
     if (!assimpMesh)
         return nullptr;
 
@@ -1672,7 +1672,7 @@ aiMesh* SceneGraphExporter::buildMeshFromTriangleMesh(const TriangleMesh* mesh, 
     // --- Morph targets (blend shapes) ---
     // Populate aiAnimMesh entries from stored MorphTargetData so the output
     // glTF / FBX carries blend-shape geometry for weight-animation round-trips.
-    if (const AssImpMesh* assimpMesh = dynamic_cast<const AssImpMesh*>(mesh))
+    if (const SceneMesh* assimpMesh = dynamic_cast<const SceneMesh*>(mesh))
     {
         const QVector<MorphTargetData>& morphTargets = assimpMesh->getMorphTargets();
         if (!morphTargets.isEmpty())
@@ -1735,12 +1735,12 @@ aiMesh* SceneGraphExporter::buildMeshFromTriangleMesh(const TriangleMesh* mesh, 
     return out;
 }
 
-aiMaterial* SceneGraphExporter::buildMaterialFromTriangleMesh(const TriangleMesh* mesh)
+aiMaterial* SceneGraphExporter::buildMaterialFromSceneMesh(const SceneMesh* mesh)
 {
     if (!mesh)
         return nullptr;
 
-    const GLMaterial material = exportBaseMaterial(mesh);
+    const Material material = exportBaseMaterial(mesh);
 
     aiMaterial* aiMat = new aiMaterial();
 
@@ -1853,17 +1853,17 @@ aiMaterial* SceneGraphExporter::buildMaterialFromTriangleMesh(const TriangleMesh
         aiString alphaModeStr;
         switch (material.blendMode())
         {
-        case GLMaterial::BlendMode::Masked:
+        case Material::BlendMode::Masked:
         {
             alphaModeStr.Set("MASK");
             float alphaCutoff = material.alphaThreshold();
             aiMat->AddProperty(&alphaCutoff, 1, "$mat.gltf.alphaCutoff", 0, 0);
             break;
         }
-        case GLMaterial::BlendMode::Alpha:
+        case Material::BlendMode::Alpha:
             alphaModeStr.Set("BLEND");
             break;
-        case GLMaterial::BlendMode::Opaque:
+        case Material::BlendMode::Opaque:
         default:
             alphaModeStr.Set("OPAQUE");
             break;

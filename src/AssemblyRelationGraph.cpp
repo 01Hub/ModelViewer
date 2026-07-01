@@ -1,9 +1,9 @@
 #include "AssemblyRelationGraph.h"
 
-#include "GLWidget.h"
+#include "ViewportWidget.h"
 #include "SceneGraph.h"
 #include "SceneNode.h"
-#include "TriangleMesh.h"
+#include "RenderableMesh.h"
 
 #include <QJsonArray>
 #include <QRegularExpression>
@@ -220,17 +220,17 @@ QJsonObject buildEdgeJson(const QString& relation,
 }
 
 QVector<PartInfo> collectPartInfos(const QSet<QUuid>& assemblyUuids,
-                                   const GLWidget* glWidget,
+                                   const ViewportWidget* viewportWidget,
                                    const SceneGraph* sceneGraph)
 {
     QVector<PartInfo> parts;
-    if (!glWidget)
+    if (!viewportWidget)
         return parts;
 
     parts.reserve(assemblyUuids.size());
     for (const QUuid& uuid : assemblyUuids)
     {
-        TriangleMesh* mesh = glWidget->getMeshByUuid(uuid);
+        SceneMesh* mesh = viewportWidget->getMeshByUuid(uuid);
         if (!mesh)
             continue;
 
@@ -347,11 +347,11 @@ QString makeMeshPairKey(const QUuid& a, const QUuid& b)
 }
 
 AutoPlacementHints buildAutoPlacementHints(const QSet<QUuid>& assemblyUuids,
-                                           const GLWidget* glWidget,
+                                           const ViewportWidget* viewportWidget,
                                            const SceneGraph* sceneGraph)
 {
     AutoPlacementHints hints;
-    const QVector<PartInfo> parts = collectPartInfos(assemblyUuids, glWidget, sceneGraph);
+    const QVector<PartInfo> parts = collectPartInfos(assemblyUuids, viewportWidget, sceneGraph);
 
     // Populate sub-assembly groups from scene-graph parent nodes.
     for (const PartInfo& part : parts)
@@ -399,14 +399,14 @@ AutoPlacementHints buildAutoPlacementHints(const QSet<QUuid>& assemblyUuids,
 }
 
 QJsonObject buildInspectionJson(const QSet<QUuid>& assemblyUuids,
-                                const GLWidget* glWidget,
+                                const ViewportWidget* viewportWidget,
                                 const SceneGraph* sceneGraph)
 {
     QJsonObject root;
     QJsonArray nodesJson;
     QJsonArray edgesJson;
 
-    if (!glWidget || assemblyUuids.isEmpty())
+    if (!viewportWidget || assemblyUuids.isEmpty())
     {
         root.insert(QStringLiteral("nodes"), nodesJson);
         root.insert(QStringLiteral("edges"), edgesJson);
@@ -414,7 +414,7 @@ QJsonObject buildInspectionJson(const QSet<QUuid>& assemblyUuids,
         return root;
     }
 
-    const QVector<PartInfo> parts = collectPartInfos(assemblyUuids, glWidget, sceneGraph);
+    const QVector<PartInfo> parts = collectPartInfos(assemblyUuids, viewportWidget, sceneGraph);
 
     for (const PartInfo& part : parts)
         nodesJson.append(buildNodeJson(part));

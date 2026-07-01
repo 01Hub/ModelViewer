@@ -1,5 +1,5 @@
 #include "TextureDebugPanel.h"
-#include "GLWidget.h"
+#include "ViewportWidget.h"
 #include "ModelViewer.h"
 
 #include <QCheckBox>
@@ -138,11 +138,11 @@ TextureDebugPanel::TextureDebugPanel(QWidget* parent)
 	restoreWindowGeometry();
 }
 
-void TextureDebugPanel::setGLWidget(GLWidget* gl)
+void TextureDebugPanel::setViewportWidget(ViewportWidget* viewportWidget)
 {
-	_glWidget = gl;
-	if (_glWidget)
-		connect(_glWidget, &GLWidget::renderingModeChanged,
+	_viewportWidget = viewportWidget;
+	if (_viewportWidget)
+		connect(_viewportWidget, &ViewportWidget::renderingModeChanged,
 		        this, [this](int) { updatePBRWarning(); });
 }
 
@@ -247,17 +247,17 @@ void TextureDebugPanel::buildUI()
 			const int channelId = data.toInt();
 			_activeChannelId = channelId;
 
-			if (!_glWidget) return;
+			if (!_viewportWidget) return;
 
 			if (channelId == 0)
 			{
 				// Restore to checkbox-mode: clear channel isolation on ALL meshes,
 				// then re-apply per-mesh checkbox state for the selected mesh.
-				_glWidget->setGlobalDebugChannel(0);
+				_viewportWidget->setGlobalDebugChannel(0);
 				if (_currentMeshId >= 0)
 				{
 					for (const QString& key : _disabledExtensions)
-						_glWidget->setDebugExtensionEnabled(_currentMeshId, key, false);
+						_viewportWidget->setDebugExtensionEnabled(_currentMeshId, key, false);
 					applyCurrentTextureState();
 				}
 				_thumbnailScroll->setEnabled(true);
@@ -268,8 +268,8 @@ void TextureDebugPanel::buildUI()
 				// Single-channel isolation: applies to all meshes globally.
 				// Checkboxes and extensions have no effect while this is active.
 				if (_currentMeshId >= 0)
-					_glWidget->clearDebugExtensionOverrides(_currentMeshId);
-				_glWidget->setGlobalDebugChannel(channelId);
+					_viewportWidget->clearDebugExtensionOverrides(_currentMeshId);
+				_viewportWidget->setGlobalDebugChannel(channelId);
 				_thumbnailScroll->setEnabled(false);
 				_extensionGroup->setEnabled(false);
 			}
@@ -376,10 +376,10 @@ void TextureDebugPanel::onSelectionChanged(const QList<int>& selectedIds)
 		// Clear per-mesh texture and extension overrides for the deselected mesh.
 		// The global channel (combo) is intentionally left unchanged — it continues
 		// to apply to all scene meshes even without a panel selection.
-		if (_currentMeshId >= 0 && _glWidget)
+		if (_currentMeshId >= 0 && _viewportWidget)
 		{
-			_glWidget->clearDebugTextureOverrides(_currentMeshId);
-			_glWidget->clearDebugExtensionOverrides(_currentMeshId);
+			_viewportWidget->clearDebugTextureOverrides(_currentMeshId);
+			_viewportWidget->clearDebugExtensionOverrides(_currentMeshId);
 		}
 		_disabledUnits.clear();
 		_disabledExtensions.clear();
@@ -421,10 +421,10 @@ void TextureDebugPanel::onSelectionChanged(const QList<int>& selectedIds)
 
 	// Switching to a different mesh: clear per-mesh overrides for the old one.
 	// The global channel is not touched — it already applies to all meshes.
-	if (_currentMeshId >= 0 && meshId != _currentMeshId && _glWidget)
+	if (_currentMeshId >= 0 && meshId != _currentMeshId && _viewportWidget)
 	{
-		_glWidget->clearDebugTextureOverrides(_currentMeshId);
-		_glWidget->clearDebugExtensionOverrides(_currentMeshId);
+		_viewportWidget->clearDebugTextureOverrides(_currentMeshId);
+		_viewportWidget->clearDebugExtensionOverrides(_currentMeshId);
 	}
 	_disabledUnits.clear();
 	_disabledExtensions.clear();
@@ -432,8 +432,8 @@ void TextureDebugPanel::onSelectionChanged(const QList<int>& selectedIds)
 
 	_currentMeshId = meshId;
 
-	if (isVisible() && _glWidget)
-		_glWidget->requestTextureReadback(_currentMeshId);
+	if (isVisible() && _viewportWidget)
+		_viewportWidget->requestTextureReadback(_currentMeshId);
 }
 
 // ---------------------------------------------------------------------------
@@ -441,8 +441,8 @@ void TextureDebugPanel::onSelectionChanged(const QList<int>& selectedIds)
 // ---------------------------------------------------------------------------
 void TextureDebugPanel::refresh()
 {
-	if (_currentMeshId >= 0 && _glWidget)
-		_glWidget->requestTextureReadback(_currentMeshId);
+	if (_currentMeshId >= 0 && _viewportWidget)
+		_viewportWidget->requestTextureReadback(_currentMeshId);
 	else if (_currentMeshId < 0)
 	{
 		clearDynamicContent();
@@ -466,7 +466,7 @@ void TextureDebugPanel::onTextureReadbackReady(const QVector<TextureSlotInfo>& s
 	// Re-apply per-mesh texture state when in "All" mode.
 	// In single-channel mode the global channel is already active on all meshes —
 	// no per-mesh action needed here.
-	if (_glWidget && _currentMeshId >= 0 && _activeChannelId == 0)
+	if (_viewportWidget && _currentMeshId >= 0 && _activeChannelId == 0)
 		applyCurrentTextureState();
 
 	populateThumbnails(slotInfos);
@@ -611,7 +611,7 @@ void TextureDebugPanel::populateExtensions(const QVector<TextureSlotInfo>& slotI
 		activeUnits[info.unitIndex] = info.extensionEnabled;
 
 	// Extension definitions: { internal key, display name, relevant unit(s) }
-	// Key is the stable identifier used by GLWidget::setDebugExtensionEnabled.
+	// Key is the stable identifier used by ViewportWidget::setDebugExtensionEnabled.
 	struct ExtDef { QString key; QString name; QVector<int> units; };
 	const QVector<ExtDef> extensions = {
 		{ "Sheen",                tr("Sheen"),                { 26, 27 } },
@@ -684,8 +684,8 @@ void TextureDebugPanel::populateExtensions(const QVector<TextureSlotInfo>& slotI
 			else
 				_disabledExtensions.remove(extKey);
 
-			if (_glWidget)
-				_glWidget->setDebugExtensionEnabled(_currentMeshId, extKey, !checked);
+			if (_viewportWidget)
+				_viewportWidget->setDebugExtensionEnabled(_currentMeshId, extKey, !checked);
 
 			// Repopulate to update dot icons and styles immediately.
 			if (!_lastSlots.isEmpty())
@@ -720,8 +720,8 @@ void TextureDebugPanel::showEvent(QShowEvent* event)
 
 	// Warn and offer to switch if not in PBR mode.
 	updatePBRWarning();
-	if (_glWidget &&
-	    _glWidget->getRenderingMode() != RenderingMode::PHYSICALLY_BASED_RENDERING)
+	if (_viewportWidget &&
+	    _viewportWidget->getRenderingMode() != RenderingMode::PHYSICALLY_BASED_RENDERING)
 	{
 		const auto answer = QMessageBox::question(
 		    this,
@@ -751,11 +751,11 @@ void TextureDebugPanel::reject()
 	// Single cleanup point for ALL dismissal paths (Escape, X button, close()).
 	// QDialog::closeEvent calls reject() internally, so putting cleanup here
 	// avoids the circular close() → closeEvent() → reject() → close() loop.
-	if (_glWidget)
+	if (_viewportWidget)
 	{
-		_glWidget->setGlobalDebugChannel(0);
+		_viewportWidget->setGlobalDebugChannel(0);
 		if (_currentMeshId >= 0)
-			_glWidget->clearAllDebugOverrides(_currentMeshId);
+			_viewportWidget->clearAllDebugOverrides(_currentMeshId);
 	}
 	_disabledUnits.clear();
 	_disabledExtensions.clear();
@@ -781,9 +781,9 @@ void TextureDebugPanel::closeEvent(QCloseEvent* event)
 // ---------------------------------------------------------------------------
 void TextureDebugPanel::updatePBRWarning()
 {
-	if (!_pbrWarningLabel || !_glWidget) return;
+	if (!_pbrWarningLabel || !_viewportWidget) return;
 	const bool isPBR =
-	    (_glWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING);
+	    (_viewportWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING);
 	_pbrWarningLabel->setVisible(!isPBR);
 }
 
@@ -820,9 +820,9 @@ QSet<int> TextureDebugPanel::activeUnits() const
 
 void TextureDebugPanel::applyCurrentTextureState()
 {
-	if (!_glWidget || _currentMeshId < 0) return;
+	if (!_viewportWidget || _currentMeshId < 0) return;
 
 	const QSet<int> all     = activeUnits();
 	const QSet<int> enabled = all - _disabledUnits;
-	_glWidget->applyDebugTextureState(_currentMeshId, enabled, all);
+	_viewportWidget->applyDebugTextureState(_currentMeshId, enabled, all);
 }

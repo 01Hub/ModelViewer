@@ -8,7 +8,7 @@ class QCheckBox;
 class QDoubleSpinBox;
 class QPushButton;
 
-#include "GLMaterial.h"
+#include "Material.h"
 
 class ChannelPackingEditorDialog : public QDialog
 {
@@ -17,10 +17,10 @@ public:
     explicit ChannelPackingEditorDialog(QWidget* parent = nullptr);
 
     // Load current state into the dialog
-    void setCurrentPacking(const GLMaterial::ChannelPacking& p, const QString& mapDisplayName);
+    void setCurrentPacking(const Material::ChannelPacking& p, const QString& mapDisplayName);
 
     // Read back the edited state (call after exec()==Accepted)
-    GLMaterial::ChannelPacking packing() const;
+    Material::ChannelPacking packing() const;
 
 private:
     QLabel* _titleLabel = nullptr;

@@ -15,12 +15,12 @@ public:
     /**
      * @brief Construct a selection command
      * @param viewer The ModelViewer instance
-     * @param glWidget The GLWidget instance
+     * @param glWidget The ViewportWidget instance
      * @param newSelection The new selection set (mesh IDs)
      * @param text Description (default: "Select")
      */
     SelectionCommand(ModelViewer* viewer,
-        GLWidget* glWidget,
+        ViewportWidget* viewportWidget,
         const QSet<int>& newSelection,
         const QString& text = QObject::tr("Select"));
 

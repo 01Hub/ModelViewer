@@ -1,13 +1,19 @@
 #include "FloorPlane.h"
 
-FloorPlane::FloorPlane(QOpenGLShaderProgram* prog, QVector3D center, float xsize, float ysize, int xdivs, int ydivs, float zlevel, float smax, float tmax, Orientation orientation) :
-	Plane(prog, center, xsize, ysize, xdivs, ydivs, zlevel, smax, tmax, orientation)
+FloorPlane::FloorPlane(QOpenGLShaderProgram* prog,
+                       QVector3D center, float xsize, float ysize, int xdivs, int ydivs,
+                       float zlevel, float smax, float tmax, Plane::Orientation orientation)
+    : PlaneRenderable(prog, center, xsize, ysize, xdivs, ydivs, zlevel, smax, tmax, orientation)
 {
 }
 
-TriangleMesh* FloorPlane::clone()
+RenderableMesh* FloorPlane::clone()
 {
-	return new FloorPlane(_prog, _center, _xSize, _ySize, _xDivs, _yDivs, _zLevel, _sMax, _tMax, _orientation);
+    return new FloorPlane(_prog,
+                          _plane.center(), _plane.xSize(), _plane.ySize(),
+                          _plane.xDivs(), _plane.yDivs(),
+                          _plane.zLevel(), _plane.sMax(), _plane.tMax(),
+                          _plane.orientation());
 }
 
 void FloorPlane::render()
@@ -36,8 +42,8 @@ void FloorPlane::render()
 	if (_material.opacity() < 1.0f ||
 		_material.hasOpacityMap() || _material.hasTransmissionMap() ||
 		_material.transmission() > 0.0f ||
-		_material.blendMode() == GLMaterial::BlendMode::Alpha ||
-		_material.alphaThreshold() > 0.0f || _hasTextureAlpha)
+		_material.blendMode() == Material::BlendMode::Alpha ||
+		_material.alphaThreshold() > 0.0f || _materialState.hasTextureAlpha())
 	{
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -49,17 +55,7 @@ void FloorPlane::render()
 		glDisable(GL_BLEND);
 	}
 
-	if ((_scaleX < 0 && _scaleY > 0 && _scaleZ > 0) ||
-		(_scaleX > 0 && _scaleY < 0 && _scaleZ > 0) ||
-		(_scaleX > 0 && _scaleY > 0 && _scaleZ < 0) ||
-		(_scaleX < 0 && _scaleY < 0 && _scaleZ < 0))
-	{
-		glFrontFace(GL_CW);
-	}
-	else
-	{
-		glFrontFace(GL_CCW);
-	}
+	glFrontFace(hasNegativeScale() ? GL_CW : GL_CCW);
 
 	_vertexArrayObject.bind();
 	glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, 0);
@@ -113,7 +109,7 @@ void FloorPlane::setupUniforms()
 
 	_prog->setUniformValue("primitiveMode", modeValue);
 	_prog->setUniformValue("hasVertexColors", _hasVertexColors);
-	_prog->setUniformValue("hasNegativeScale", _hasNegativeScale);
+	_prog->setUniformValue("hasNegativeScale", hasNegativeScale());
 
 	_prog->setUniformValue("material.ambient", _material.ambient());
 	_prog->setUniformValue("material.diffuse", adsDiffuse);
@@ -147,7 +143,7 @@ void FloorPlane::setupUniforms()
 	_prog->setUniformValue("diffuseTextureTransform.scale", _material.albedoTexScale());
 	_prog->setUniformValue("diffuseTextureTransform.rotation", _material.albedoTexRotation());
 
-	_prog->setUniformValue("selected", _selected);
+	_prog->setUniformValue("selected", isSelected());
 
 	_uniformsDirty = false;
 }

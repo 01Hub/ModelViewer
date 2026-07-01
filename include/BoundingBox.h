@@ -22,8 +22,7 @@
   *  sharjith@gmail.com
   ****************************************************************************/
 
-#ifndef _BOUNDINGBOX_H
-#define _BOUNDINGBOX_H
+#pragma once
 
 #include <QRect>
 #include <QMatrix4x4>
@@ -77,5 +76,3 @@ private:
 	double _zMin;
 	double _zMax;
 };
-
-#endif /* _BOUNDINGBOX_H */

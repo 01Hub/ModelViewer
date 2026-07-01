@@ -2,13 +2,13 @@
 
 #include "CapturedStepsTreeWidget.h"
 #include "ExplodedViewSelectionEditor.h"
-#include "GLWidget.h"
+#include "ViewportWidget.h"
 #include "GltfAnimationData.h"
 #include "ModelViewer.h"
 #include "SceneGraph.h"
 #include "SceneNode.h"
 #include "SelectionManager.h"
-#include "TriangleMesh.h"
+#include "RenderableMesh.h"
 
 #include <QAbstractItemModel>
 #include <QInputDialog>
@@ -138,14 +138,14 @@ QString sourceFileForNode(SceneNode* node)
     return QString();
 }
 
-bool buildMeshCaptureMotion(GLWidget* glWidget,
+bool buildMeshCaptureMotion(ViewportWidget* viewportWidget,
                             SceneNode* ownerNode,
-                            TriangleMesh* mesh,
+                            SceneMesh* mesh,
                             bool includeAutoPose,
                             bool includeManualPose,
                             MeshCaptureMotion& out)
 {
-    if (!glWidget || !ownerNode || !mesh)
+    if (!viewportWidget || !ownerNode || !mesh)
         return false;
 
     const QVector3D worldOffset = mesh->explosionOffset();
@@ -591,8 +591,8 @@ void ExplodedViewPanel::restorePresetsFromJson(const QJsonArray& presetsJson,
 {
     stopDraftPreview();
     cancelPickingMode();
-    if (_glWidget)
-        _glWidget->clearExplodedViewManualPlacement();
+    if (_viewportWidget)
+        _viewportWidget->clearExplodedViewManualPlacement();
     clearManualPlacementSelection();
 
     _presets.clear();
@@ -875,10 +875,10 @@ void ExplodedViewPanel::loadPresetIntoUi(int index)
     stopDraftPreview();
     cancelPickingMode();
     syncActivePresetManualStateFromRuntime();
-    if (_glWidget && (_glWidget->isExplodedViewManualPlacementActive()
-        || _glWidget->hasExplodedViewManualPlacement()))
+    if (_viewportWidget && (_viewportWidget->isExplodedViewManualPlacementActive()
+        || _viewportWidget->hasExplodedViewManualPlacement()))
     {
-        _glWidget->clearExplodedViewManualPlacement();
+        _viewportWidget->clearExplodedViewManualPlacement();
     }
     clearManualPlacementSelection();
 
@@ -927,11 +927,11 @@ void ExplodedViewPanel::loadPresetIntoUi(int index)
 
     QList<int> selectionIds;
     selectionIds.reserve(preset.assemblyUuids.size());
-    if (_glWidget)
+    if (_viewportWidget)
     {
         for (const QUuid& uuid : preset.assemblyUuids)
         {
-            const int indexByUuid = _glWidget->getIndexByUuid(uuid);
+            const int indexByUuid = _viewportWidget->getIndexByUuid(uuid);
             if (indexByUuid >= 0)
                 selectionIds.append(indexByUuid);
         }
@@ -948,7 +948,7 @@ void ExplodedViewPanel::loadPresetIntoUi(int index)
     }
     restorePresetManualStateIntoRuntime(preset);
 
-    if (!preset.anchorUuid.isNull() && _glWidget)
+    if (!preset.anchorUuid.isNull() && _viewportWidget)
     {
         if (_sceneGraph)
         {
@@ -996,7 +996,7 @@ void ExplodedViewPanel::initializeDefaultPreset()
 
 ModelViewer* ExplodedViewPanel::owningModelViewer() const
 {
-    for (QWidget* widget = _glWidget; widget; widget = widget->parentWidget())
+    for (QWidget* widget = _viewportWidget; widget; widget = widget->parentWidget())
     {
         if (ModelViewer* viewer = qobject_cast<ModelViewer*>(widget))
             return viewer;
@@ -1010,9 +1010,9 @@ void ExplodedViewPanel::markDocumentModified()
         viewer->markNonUndoDocumentModified();
 }
 
-ExplodedViewPanel::ExplodedViewPanel(GLWidget* parent)
+ExplodedViewPanel::ExplodedViewPanel(ViewportWidget* parent)
     : QWidget(parent)
-    , _glWidget(parent)
+    , _viewportWidget(parent)
 {
     setupUi(this);
     _draftPreviewTimer = new QTimer(this);
@@ -1037,12 +1037,12 @@ ExplodedViewPanel::ExplodedViewPanel(GLWidget* parent)
     connect(doubleSpinBoxVectorY, qOverload<double>(&QDoubleSpinBox::valueChanged), this, emitParamChanged);
     connect(doubleSpinBoxVectorZ, qOverload<double>(&QDoubleSpinBox::valueChanged), this, emitParamChanged);
     connect(_draftPreviewTimer, &QTimer::timeout, this, &ExplodedViewPanel::onDraftPreviewTick);
-    if (_glWidget)
+    if (_viewportWidget)
     {
-        connect(_glWidget, &GLWidget::selectionChanged, this, [this](const QList<int>&) {
+        connect(_viewportWidget, &ViewportWidget::selectionChanged, this, [this](const QList<int>&) {
             updateCaptureButton();
         });
-        connect(_glWidget, &GLWidget::explodedViewManualPlacementChanged, this, [this]() {
+        connect(_viewportWidget, &ViewportWidget::explodedViewManualPlacementChanged, this, [this]() {
             if (_suspendingManualPresetSync)
                 return;
             const bool changed = syncActivePresetManualStateFromRuntime();
@@ -1096,11 +1096,11 @@ ExplodedViewPanel::ExplodedViewPanel(GLWidget* parent)
             applyPopupMenuStyle(menu);
             connect(menu.addAction(tr("Clear Selection")), &QAction::triggered, this, [this]() {
                 stopDraftPreview();
-                if (_glWidget && (_glWidget->isExplodedViewManualPlacementActive()
-                    || _glWidget->hasExplodedViewManualPlacement()
-                    || _glWidget->hasExplodedViewManualTransformChanges()))
+                if (_viewportWidget && (_viewportWidget->isExplodedViewManualPlacementActive()
+                    || _viewportWidget->hasExplodedViewManualPlacement()
+                    || _viewportWidget->hasExplodedViewManualTransformChanges()))
                 {
-                    _glWidget->clearExplodedViewManualPlacement();
+                    _viewportWidget->clearExplodedViewManualPlacement();
                 }
                 clearManualPlacementSelection();
                 syncActivePresetManualStateFromRuntime();
@@ -1230,18 +1230,18 @@ ExplodedViewPanel::ExplodedViewPanel(GLWidget* parent)
         });
     }
     auto applyManualTranslationEditors = [this](double) {
-        if (_syncingManualPlacementEditors || !_glWidget)
+        if (_syncingManualPlacementEditors || !_viewportWidget)
             return;
-        _glWidget->setExplodedViewManualPlacementTranslationDelta(QVector3D(
+        _viewportWidget->setExplodedViewManualPlacementTranslationDelta(QVector3D(
             static_cast<float>(doubleSpinBoxManualDX->value()),
             static_cast<float>(doubleSpinBoxManualDY->value()),
             static_cast<float>(doubleSpinBoxManualDZ->value())));
         updateCaptureButton();
     };
     auto applyManualRotationEditors = [this](double) {
-        if (_syncingManualPlacementEditors || !_glWidget)
+        if (_syncingManualPlacementEditors || !_viewportWidget)
             return;
-        _glWidget->setExplodedViewManualPlacementRotationDelta(QVector3D(
+        _viewportWidget->setExplodedViewManualPlacementRotationDelta(QVector3D(
             static_cast<float>(doubleSpinBoxManualRX->value()),
             static_cast<float>(doubleSpinBoxManualRY->value()),
             static_cast<float>(doubleSpinBoxManualRZ->value())));
@@ -1253,7 +1253,7 @@ ExplodedViewPanel::ExplodedViewPanel(GLWidget* parent)
     connect(doubleSpinBoxManualRX, qOverload<double>(&QDoubleSpinBox::valueChanged), this, applyManualRotationEditors);
     connect(doubleSpinBoxManualRY, qOverload<double>(&QDoubleSpinBox::valueChanged), this, applyManualRotationEditors);
     connect(doubleSpinBoxManualRZ, qOverload<double>(&QDoubleSpinBox::valueChanged), this, applyManualRotationEditors);
-    connect(_glWidget, &GLWidget::explodedViewManualPlacementChanged,
+    connect(_viewportWidget, &ViewportWidget::explodedViewManualPlacementChanged,
             this, &ExplodedViewPanel::updateManualPlacementEditors);
 
     initializeDefaultPreset();
@@ -1423,9 +1423,9 @@ void ExplodedViewPanel::deactivateInteractiveState()
 
 void ExplodedViewPanel::captureCurrentSelection()
 {
-    if (!_glWidget)
+    if (!_viewportWidget)
         return;
-    const QList<int> ids = _glWidget->getSelectionManager()->getSelectedIds();
+    const QList<int> ids = _viewportWidget->getSelectionManager()->getSelectedIds();
     if (!ids.isEmpty())
         applyAssemblySelection(ids);
 }
@@ -1446,7 +1446,7 @@ void ExplodedViewPanel::on_pushButtonSelectAssembly_toggled(bool checked)
         lineEditAssembly->setPlaceholderText(tr("Add meshes, then click again to confirm..."));
         updateAssemblyPickButtonVisual(true);
 
-        _pickingConn = connect(_glWidget, &GLWidget::selectionChanged,
+        _pickingConn = connect(_viewportWidget, &ViewportWidget::selectionChanged,
                                this, &ExplodedViewPanel::onPickingSelectionChanged);
     } else {
         const bool committingSelection = (_pickingTarget == PickingTarget::Assembly);
@@ -1456,7 +1456,7 @@ void ExplodedViewPanel::on_pushButtonSelectAssembly_toggled(bool checked)
 
         if (committingSelection)
         {
-            mergeAssemblySelection(_glWidget->getSelectionManager()->getSelectedIds());
+            mergeAssemblySelection(_viewportWidget->getSelectionManager()->getSelectedIds());
             emit selectionClearRequested();
             updateCaptureButton();
             if (_reopenAssemblyEditDialogAfterPick)
@@ -1482,7 +1482,7 @@ void ExplodedViewPanel::on_pushButtonSelectAnchor_toggled(bool checked)
         _pickingTarget = PickingTarget::Anchor;
         lineEditAnchor->setPlaceholderText(tr("Click mesh or node in scene..."));
 
-        _pickingConn = connect(_glWidget, &GLWidget::selectionChanged,
+        _pickingConn = connect(_viewportWidget, &ViewportWidget::selectionChanged,
                                this, &ExplodedViewPanel::onPickingSelectionChanged);
     } else {
         cancelPickingMode();
@@ -1543,7 +1543,7 @@ void ExplodedViewPanel::applyAssemblySelection(const QList<int>& ids)
     ExplodedViewPreset& preset = ensureActivePreset();
     preset.assemblyUuids.clear();
     for (int id : ids)
-        preset.assemblyUuids.insert(_glWidget->getUuidByIndex(id));
+        preset.assemblyUuids.insert(_viewportWidget->getUuidByIndex(id));
 
     updateAssemblySelectionDisplay(ids);
 
@@ -1559,14 +1559,14 @@ void ExplodedViewPanel::applyAssemblySelection(const QList<int>& ids)
 
 void ExplodedViewPanel::mergeAssemblySelection(const QList<int>& ids)
 {
-    if (ids.isEmpty() || !_glWidget)
+    if (ids.isEmpty() || !_viewportWidget)
         return;
 
     if (_assemblyEditPickActive)
     {
         for (int id : ids)
         {
-            const QUuid uuid = _glWidget->getUuidByIndex(id);
+            const QUuid uuid = _viewportWidget->getUuidByIndex(id);
             if (!uuid.isNull() && !_assemblyEditWorkingUuids.contains(uuid))
                 _assemblyEditWorkingUuids.append(uuid);
         }
@@ -1576,7 +1576,7 @@ void ExplodedViewPanel::mergeAssemblySelection(const QList<int>& ids)
     QSet<QUuid> mergedUuids = ensureActivePreset().assemblyUuids;
     for (int id : ids)
     {
-        const QUuid uuid = _glWidget->getUuidByIndex(id);
+        const QUuid uuid = _viewportWidget->getUuidByIndex(id);
         if (!uuid.isNull())
             mergedUuids.insert(uuid);
     }
@@ -1602,7 +1602,7 @@ void ExplodedViewPanel::applyManualPlacementSelection(const QList<int>& ids)
     selectionUuids.reserve(ids.size());
     for (int id : ids)
     {
-        const QUuid uuid = _glWidget ? _glWidget->getUuidByIndex(id) : QUuid();
+        const QUuid uuid = _viewportWidget ? _viewportWidget->getUuidByIndex(id) : QUuid();
         if (!uuid.isNull() && !selectionUuids.contains(uuid))
             selectionUuids.append(uuid);
     }
@@ -1616,7 +1616,7 @@ void ExplodedViewPanel::applyManualPlacementEntries(const QVector<QUuid>& select
     {
         if (uuid.isNull() || _manualPlacementSelectionUuids.contains(uuid))
             continue;
-        if (_glWidget && _glWidget->getIndexByUuid(uuid) < 0)
+        if (_viewportWidget && _viewportWidget->getIndexByUuid(uuid) < 0)
             continue;
         if (!_manualPlacementSelectionUuids.contains(uuid))
             _manualPlacementSelectionUuids.append(uuid);
@@ -1633,11 +1633,11 @@ void ExplodedViewPanel::updateManualPlacementSelectionDisplay()
 
     QList<int> ids;
     ids.reserve(_manualPlacementSelectionUuids.size());
-    if (_glWidget)
+    if (_viewportWidget)
     {
         for (const QUuid& uuid : std::as_const(_manualPlacementSelectionUuids))
         {
-            const int index = _glWidget->getIndexByUuid(uuid);
+            const int index = _viewportWidget->getIndexByUuid(uuid);
             if (index >= 0)
                 ids.append(index);
         }
@@ -1692,7 +1692,7 @@ bool ExplodedViewPanel::syncActivePresetManualStateFromRuntime()
     const QMap<QUuid, TransformState> oldStates = preset->uncapturedManualStates;
 
     preset->manualSelectionUuids = _manualPlacementSelectionUuids;
-    preset->uncapturedManualStates = _glWidget ? _glWidget->explodedViewManualStates()
+    preset->uncapturedManualStates = _viewportWidget ? _viewportWidget->explodedViewManualStates()
                                                : QMap<QUuid, TransformState>{};
 
     _hasUncapturedManualPose = !preset->uncapturedManualStates.isEmpty();
@@ -1710,15 +1710,15 @@ void ExplodedViewPanel::restorePresetManualStateIntoRuntime(const ExplodedViewPr
     }
     updateManualPlacementSelectionDisplay();
 
-    if (_glWidget)
-        _glWidget->restoreExplodedViewManualStates(preset.uncapturedManualStates);
+    if (_viewportWidget)
+        _viewportWidget->restoreExplodedViewManualStates(preset.uncapturedManualStates);
 
     _hasUncapturedManualPose = !preset.uncapturedManualStates.isEmpty();
 }
 
 void ExplodedViewPanel::applyAnchorSelection(const QList<int>& ids)
 {
-    const QUuid uuid = _glWidget->getUuidByIndex(ids.first());
+    const QUuid uuid = _viewportWidget->getUuidByIndex(ids.first());
 
     ExplodedViewPreset& preset = ensureActivePreset();
     if (!preset.assemblyUuids.isEmpty() && !preset.assemblyUuids.contains(uuid)) {
@@ -1770,9 +1770,9 @@ QString ExplodedViewPanel::displayLabelForMeshUuid(const QUuid& uuid) const
         }
     }
 
-    if (_glWidget)
+    if (_viewportWidget)
     {
-        if (TriangleMesh* mesh = _glWidget->getMeshByUuid(uuid))
+        if (SceneMesh* mesh = _viewportWidget->getMeshByUuid(uuid))
         {
             const QString meshName = mesh->getName();
             if (!meshName.trimmed().isEmpty())
@@ -1866,7 +1866,7 @@ void ExplodedViewPanel::onExplodedViewSelectionEditorFinished(int result)
 
 void ExplodedViewPanel::applyAssemblyEntries(const QVector<QUuid>& assemblyUuids)
 {
-    if (!_glWidget)
+    if (!_viewportWidget)
         return;
 
     ExplodedViewPreset& preset = ensureActivePreset();
@@ -1888,7 +1888,7 @@ void ExplodedViewPanel::applyAssemblyEntries(const QVector<QUuid>& assemblyUuids
     ids.reserve(assemblyUuids.size());
     for (const QUuid& uuid : assemblyUuids)
     {
-        const int index = _glWidget->getIndexByUuid(uuid);
+        const int index = _viewportWidget->getIndexByUuid(uuid);
         if (index >= 0)
             ids.append(index);
     }
@@ -1912,15 +1912,15 @@ void ExplodedViewPanel::previewAssemblyEntry(const QUuid& uuid)
     }
 
     clearAssemblyPreviewSelection();
-    if (_glWidget)
+    if (_viewportWidget)
     {
-        const int index = _glWidget->getIndexByUuid(uuid);
+        const int index = _viewportWidget->getIndexByUuid(uuid);
         if (index >= 0)
         {
-            _glWidget->select(index);
-            _glWidget->getSelectionManager()->syncSelectedIds(QList<int>{index});
-            _glWidget->broadcastSelectionChanged(QList<int>{index});
-            _glWidget->update();
+            _viewportWidget->getSelectionManager()->syncSelectedIds(QList<int>{index});
+            _viewportWidget->syncMeshSelectionVisualState();
+            emit _viewportWidget->selectionChanged(QList<int>{index});
+            _viewportWidget->update();
         }
     }
 }
@@ -1937,7 +1937,7 @@ QString ExplodedViewPanel::describeAssemblySelection(const QList<int>& ids) cons
 
     QSet<const SceneNode*> owningNodes;
     for (int id : ids) {
-        const QUuid uuid = _glWidget->getUuidByIndex(id);
+        const QUuid uuid = _viewportWidget->getUuidByIndex(id);
         const SceneNode* node = _sceneGraph->findNodeForMesh(uuid);
         if (node)
             owningNodes.insert(node);
@@ -2101,15 +2101,15 @@ QSet<QUuid> ExplodedViewPanel::currentCaptureMeshUuids() const
     QSet<QUuid> captureUuids;
     if (useCombinedPose || !manualMode)
         captureUuids.unite(assemblyUuids());
-    if (_glWidget && (useCombinedPose || manualMode))
-        captureUuids.unite(_glWidget->explodedViewManualPlacementUuids());
+    if (_viewportWidget && (useCombinedPose || manualMode))
+        captureUuids.unite(_viewportWidget->explodedViewManualPlacementUuids());
     return captureUuids;
 }
 
 bool ExplodedViewPanel::buildCurrentCapturedExplosionStep(CapturedExplosionStep& step) const
 {
     const QSet<QUuid> captureUuids = currentCaptureMeshUuids();
-    if (!_glWidget || !_sceneGraph || captureUuids.isEmpty())
+    if (!_viewportWidget || !_sceneGraph || captureUuids.isEmpty())
         return false;
 
     const bool useCombinedPose = !checkBoxCombinedPose || checkBoxCombinedPose->isChecked();
@@ -2126,7 +2126,7 @@ bool ExplodedViewPanel::buildCurrentCapturedExplosionStep(CapturedExplosionStep&
 
     for (const QUuid& meshUuid : captureUuids)
     {
-        TriangleMesh* mesh = _glWidget->getMeshByUuid(meshUuid);
+        SceneMesh* mesh = _viewportWidget->getMeshByUuid(meshUuid);
         SceneNode* ownerNode = _sceneGraph->findNodeForMesh(meshUuid);
         if (!mesh || !ownerNode)
             continue;
@@ -2148,7 +2148,7 @@ bool ExplodedViewPanel::buildCurrentCapturedExplosionStep(CapturedExplosionStep&
             continue;
 
         MeshCaptureMotion motion;
-        if (!buildMeshCaptureMotion(_glWidget, ownerNode, mesh, includeAutoPose, includeManualPose, motion))
+        if (!buildMeshCaptureMotion(_viewportWidget, ownerNode, mesh, includeAutoPose, includeManualPose, motion))
             continue;
         contributingMotionsByMeshUuid.insert(meshUuid, motion);
         selectedMotionsByOwnerNode[ownerNode->nodeUuid].append(motion);
@@ -2186,10 +2186,10 @@ bool ExplodedViewPanel::buildCurrentCapturedExplosionStep(CapturedExplosionStep&
                     continue;
                 }
 
-                TriangleMesh* subtreeMesh = _glWidget->getMeshByUuid(subtreeMeshUuid);
+                SceneMesh* subtreeMesh = _viewportWidget->getMeshByUuid(subtreeMeshUuid);
                 SceneNode* subtreeOwnerNode = _sceneGraph->findNodeForMesh(subtreeMeshUuid);
                 MeshCaptureMotion subtreeMotion;
-                if (buildMeshCaptureMotion(_glWidget,
+                if (buildMeshCaptureMotion(_viewportWidget,
                                            subtreeOwnerNode,
                                            subtreeMesh,
                                            includeAutoPose,
@@ -2258,7 +2258,7 @@ bool ExplodedViewPanel::buildCurrentCapturedExplosionStep(CapturedExplosionStep&
                 if (!inferMeshChildLocalEndTransform(worlds, motion, meshEndTransform))
                     continue;
 
-                TriangleMesh* mesh = _glWidget->getMeshByUuid(motion.meshUuid);
+                SceneMesh* mesh = _viewportWidget->getMeshByUuid(motion.meshUuid);
                 CapturedTransformTrack track;
                 track.targetKind = GltfAnimationBindingTargetKind::Mesh;
                 track.meshUuid = motion.meshUuid;
@@ -2777,7 +2777,7 @@ bool ExplodedViewPanel::createAnimationsFromCapturedSteps()
         }
 
         if (!firstActivatedFile.isEmpty())
-            _glWidget->setActiveAnimation(firstActivatedFile, firstActivatedClip);
+            _viewportWidget->setActiveAnimation(firstActivatedFile, firstActivatedClip);
         return true;
     }
 
@@ -2842,7 +2842,7 @@ bool ExplodedViewPanel::createAnimationsFromCapturedSteps()
         }
 
         if (!firstActivatedFile.isEmpty())
-            _glWidget->setActiveAnimation(firstActivatedFile, firstActivatedClip);
+            _viewportWidget->setActiveAnimation(firstActivatedFile, firstActivatedClip);
         return true;
     }
 
@@ -3014,7 +3014,7 @@ bool ExplodedViewPanel::createAnimationsFromCapturedSteps()
     }
 
     if (!firstActivatedFile.isEmpty())
-        _glWidget->setActiveAnimation(firstActivatedFile, firstActivatedClip);
+        _viewportWidget->setActiveAnimation(firstActivatedFile, firstActivatedClip);
     return !firstActivatedFile.isEmpty();
 }
 
@@ -3060,10 +3060,10 @@ void ExplodedViewPanel::on_pushButtonReset_clicked()
             || !qFuzzyCompare(doubleSpinBoxAnimationDuration->value(), 3.0)
             || !checkBoxLoopBack->isChecked());
     const bool hasCapturedSteps = preset && !preset->capturedSteps.isEmpty();
-    const bool hasManualPlacement = _glWidget
-        && (_glWidget->isExplodedViewManualPlacementActive()
-            || _glWidget->hasExplodedViewManualPlacement()
-            || _glWidget->hasExplodedViewManualTransformChanges());
+    const bool hasManualPlacement = _viewportWidget
+        && (_viewportWidget->isExplodedViewManualPlacementActive()
+            || _viewportWidget->hasExplodedViewManualPlacement()
+            || _viewportWidget->hasExplodedViewManualTransformChanges());
 
     if (hasSelection || hasNonDefaultExplodeState || hasCapturedSteps || hasManualPlacement)
     {
@@ -3079,8 +3079,8 @@ void ExplodedViewPanel::on_pushButtonReset_clicked()
 
     stopDraftPreview();
     cancelPickingMode();
-    if (_glWidget)
-        _glWidget->clearExplodedViewManualPlacement();
+    if (_viewportWidget)
+        _viewportWidget->clearExplodedViewManualPlacement();
     clearManualPlacementSelection();
     _hasUncapturedAutoPose = false;
     _hasUncapturedManualPose = false;
@@ -3151,8 +3151,8 @@ void ExplodedViewPanel::on_pushButtonPresetNew_clicked()
     stopDraftPreview();
     cancelPickingMode();
     syncActivePresetManualStateFromRuntime();
-    if (_glWidget)
-        _glWidget->clearExplodedViewManualPlacement();
+    if (_viewportWidget)
+        _viewportWidget->clearExplodedViewManualPlacement();
     clearManualPlacementSelection();
 
     ExplodedViewPreset preset;
@@ -3184,8 +3184,8 @@ void ExplodedViewPanel::on_pushButtonPresetDuplicate_clicked()
     stopDraftPreview();
     cancelPickingMode();
     syncActivePresetManualStateFromRuntime();
-    if (_glWidget)
-        _glWidget->clearExplodedViewManualPlacement();
+    if (_viewportWidget)
+        _viewportWidget->clearExplodedViewManualPlacement();
     clearManualPlacementSelection();
 
     ExplodedViewPreset duplicate = *sourcePreset;
@@ -3261,8 +3261,8 @@ void ExplodedViewPanel::on_pushButtonPresetActions_clicked()
     stopDraftPreview();
     cancelPickingMode();
     syncActivePresetManualStateFromRuntime();
-    if (_glWidget)
-        _glWidget->clearExplodedViewManualPlacement();
+    if (_viewportWidget)
+        _viewportWidget->clearExplodedViewManualPlacement();
 
     const int removeIndex = _activePresetIndex;
     if (removeIndex < 0 || removeIndex >= _presets.size())
@@ -3290,7 +3290,7 @@ void ExplodedViewPanel::on_pushButtonPresetActions_clicked()
 void ExplodedViewPanel::updateCaptureButton()
 {
     const bool hasAssembly = !assemblyUuids().isEmpty();
-    const bool hasManualCaptureSet = _glWidget && _glWidget->hasExplodedViewManualTransformChanges();
+    const bool hasManualCaptureSet = _viewportWidget && _viewportWidget->hasExplodedViewManualTransformChanges();
     const bool hasAutoCaptureSet = hasAssembly && sliderExplosion->value() >= 10;
     const bool useCombinedPose = !checkBoxCombinedPose || checkBoxCombinedPose->isChecked();
     const bool manualMode = radioButtonModeManual && radioButtonModeManual->isChecked();
@@ -3359,9 +3359,9 @@ void ExplodedViewPanel::updateAuthoringModeUi()
         }
         updateAssemblyPickButtonVisual(false);
     }
-    else if (_glWidget && _glWidget->isExplodedViewManualPlacementActive())
+    else if (_viewportWidget && _viewportWidget->isExplodedViewManualPlacementActive())
     {
-        _glWidget->finishExplodedViewManualPlacement();
+        _viewportWidget->finishExplodedViewManualPlacement();
     }
 
     if (stackedWidgetAuthoring)
@@ -3380,12 +3380,12 @@ void ExplodedViewPanel::updateAuthoringModeUi()
 
 void ExplodedViewPanel::updateManualPlacementUi()
 {
-    if (!pushButtonStartManualPlacement || !_glWidget)
+    if (!pushButtonStartManualPlacement || !_viewportWidget)
         return;
 
     const bool manualMode = radioButtonModeManual && radioButtonModeManual->isChecked();
-    const bool active = _glWidget->isExplodedViewManualPlacementActive();
-    const bool hasPlacement = _glWidget->hasExplodedViewManualPlacement();
+    const bool active = _viewportWidget->isExplodedViewManualPlacementActive();
+    const bool hasPlacement = _viewportWidget->hasExplodedViewManualPlacement();
 
     pushButtonStartManualPlacement->setEnabled(manualMode && !active);
     pushButtonFinishManualPlacement->setEnabled(manualMode && active);
@@ -3406,14 +3406,14 @@ void ExplodedViewPanel::updateManualPlacementUi()
 
 void ExplodedViewPanel::updateManualPlacementEditors()
 {
-    const bool enabled = _glWidget && _glWidget->isExplodedViewManualPlacementActive();
+    const bool enabled = _viewportWidget && _viewportWidget->isExplodedViewManualPlacementActive();
     _syncingManualPlacementEditors = true;
 
     const QVector3D translation = enabled
-        ? _glWidget->explodedViewManualPlacementTranslationDelta()
+        ? _viewportWidget->explodedViewManualPlacementTranslationDelta()
         : QVector3D(0.0f, 0.0f, 0.0f);
     const QVector3D rotation = enabled
-        ? _glWidget->explodedViewManualPlacementRotationDelta()
+        ? _viewportWidget->explodedViewManualPlacementRotationDelta()
         : QVector3D(0.0f, 0.0f, 0.0f);
 
     if (doubleSpinBoxManualDX)
@@ -3466,7 +3466,7 @@ double ExplodedViewPanel::currentDraftPreviewDuration() const
 bool ExplodedViewPanel::ensureDraftPreviewSession()
 {
     const QVector<CapturedExplosionStep> capturedSteps = resolvedTopLevelCapturedEntries();
-    if (_draftPreviewActive || !_glWidget || !_sceneGraph || capturedSteps.isEmpty())
+    if (_draftPreviewActive || !_viewportWidget || !_sceneGraph || capturedSteps.isEmpty())
         return _draftPreviewActive;
 
     _draftPreviewFiles.clear();
@@ -3492,7 +3492,7 @@ bool ExplodedViewPanel::ensureDraftPreviewSession()
         const QList<QUuid> meshUuids = _sceneGraph->collectMeshUuids(fileNode);
         for (const QUuid& meshUuid : meshUuids)
         {
-            TriangleMesh* mesh = _glWidget->getMeshByUuid(meshUuid);
+            SceneMesh* mesh = _viewportWidget->getMeshByUuid(meshUuid);
             if (!mesh || _draftPreviewMeshStates.contains(meshUuid))
                 continue;
 
@@ -3514,20 +3514,20 @@ bool ExplodedViewPanel::ensureDraftPreviewSession()
     }
 
     _draftPreviewSuspendedAnimation = {};
-    if (!_glWidget->activeAnimationFile().isEmpty() && _glWidget->activeAnimationClip() >= 0)
+    if (!_viewportWidget->activeAnimationFile().isEmpty() && _viewportWidget->activeAnimationClip() >= 0)
     {
         _draftPreviewSuspendedAnimation.valid = true;
-        _draftPreviewSuspendedAnimation.sourceFile = _glWidget->activeAnimationFile();
-        _draftPreviewSuspendedAnimation.clipIndex = _glWidget->activeAnimationClip();
-        _draftPreviewSuspendedAnimation.timeSeconds = _glWidget->currentAnimationTimeSeconds();
-        _draftPreviewSuspendedAnimation.wasPlaying = _glWidget->isAnimationPlaying();
-        _glWidget->setAnimationPlaying(false);
-        _glWidget->seekAnimation(0.0);
+        _draftPreviewSuspendedAnimation.sourceFile = _viewportWidget->activeAnimationFile();
+        _draftPreviewSuspendedAnimation.clipIndex = _viewportWidget->activeAnimationClip();
+        _draftPreviewSuspendedAnimation.timeSeconds = _viewportWidget->currentAnimationTimeSeconds();
+        _draftPreviewSuspendedAnimation.wasPlaying = _viewportWidget->isAnimationPlaying();
+        _viewportWidget->setAnimationPlaying(false);
+        _viewportWidget->seekAnimation(0.0);
     }
 
     for (auto it = _draftPreviewMeshStates.begin(); it != _draftPreviewMeshStates.end(); ++it)
     {
-        if (TriangleMesh* mesh = _glWidget->getMeshByUuid(it.key()))
+        if (SceneMesh* mesh = _viewportWidget->getMeshByUuid(it.key()))
         {
             mesh->setExplosionOffset(QVector3D());
             mesh->resetExplodedViewTransformations();
@@ -3553,11 +3553,11 @@ void ExplodedViewPanel::stopDraftPreview(bool restoreScene)
         return;
     }
 
-    if (restoreScene && _glWidget)
+    if (restoreScene && _viewportWidget)
     {
         for (auto it = _draftPreviewMeshStates.cbegin(); it != _draftPreviewMeshStates.cend(); ++it)
         {
-            TriangleMesh* mesh = _glWidget->getMeshByUuid(it.key());
+            SceneMesh* mesh = _viewportWidget->getMeshByUuid(it.key());
             if (!mesh)
                 continue;
 
@@ -3581,13 +3581,13 @@ void ExplodedViewPanel::stopDraftPreview(bool restoreScene)
 
         if (_draftPreviewSuspendedAnimation.valid)
         {
-            _glWidget->setActiveAnimation(_draftPreviewSuspendedAnimation.sourceFile,
+            _viewportWidget->setActiveAnimation(_draftPreviewSuspendedAnimation.sourceFile,
                                           _draftPreviewSuspendedAnimation.clipIndex);
-            _glWidget->seekAnimation(_draftPreviewSuspendedAnimation.timeSeconds);
-            _glWidget->setAnimationPlaying(_draftPreviewSuspendedAnimation.wasPlaying);
+            _viewportWidget->seekAnimation(_draftPreviewSuspendedAnimation.timeSeconds);
+            _viewportWidget->setAnimationPlaying(_draftPreviewSuspendedAnimation.wasPlaying);
         }
 
-        _glWidget->update();
+        _viewportWidget->update();
     }
 
     _draftPreviewActive = false;
@@ -3600,7 +3600,7 @@ void ExplodedViewPanel::stopDraftPreview(bool restoreScene)
 
 void ExplodedViewPanel::applyDraftPreviewPose(double timeSeconds)
 {
-    if (!_draftPreviewActive || !_glWidget || !_sceneGraph)
+    if (!_draftPreviewActive || !_viewportWidget || !_sceneGraph)
         return;
 
     const ExplodedViewPreset& preset = ensureActivePreset();
@@ -3878,7 +3878,7 @@ void ExplodedViewPanel::applyDraftPreviewPose(double timeSeconds)
             const QMatrix4x4 world = parentWorld * localMatrix;
             for (const QUuid& meshUuid : node->meshUuids)
             {
-                if (TriangleMesh* mesh = _glWidget->getMeshByUuid(meshUuid))
+                if (SceneMesh* mesh = _viewportWidget->getMeshByUuid(meshUuid))
                 {
                     mesh->setExplosionOffset(QVector3D());
                     if (sampledByMesh.contains(meshUuid))
@@ -3905,19 +3905,19 @@ void ExplodedViewPanel::applyDraftPreviewPose(double timeSeconds)
     }
 
     _draftPreviewCurrentTime = clampedTime;
-    _glWidget->update();
+    _viewportWidget->update();
 }
 
 void ExplodedViewPanel::updatePreviewControls()
 {
     if (!pushButtonPreviewPlayPause || !pushButtonPreviewStop || !checkBoxPreviewLoop
-        || !sliderPreviewTimeline || !labelPreviewTime || !_glWidget)
+        || !sliderPreviewTimeline || !labelPreviewTime || !_viewportWidget)
         return;
 
     _syncingPreviewControls = true;
 
     const double durationSeconds = currentDraftPreviewDuration();
-    const bool manualPlacementActive = _glWidget->isExplodedViewManualPlacementActive();
+    const bool manualPlacementActive = _viewportWidget->isExplodedViewManualPlacementActive();
     const bool enabled = !activeCapturedSteps().isEmpty() && durationSeconds > 0.0 && !manualPlacementActive;
 
     pushButtonPreviewPlayPause->setEnabled(enabled);
@@ -3996,7 +3996,7 @@ void ExplodedViewPanel::onPreviewSliderReleased()
 
 void ExplodedViewPanel::onPreviewSliderValueChanged(int value)
 {
-    if (_syncingPreviewControls || !_glWidget || !sliderPreviewTimeline)
+    if (_syncingPreviewControls || !_viewportWidget || !sliderPreviewTimeline)
         return;
 
     const double durationSeconds = currentDraftPreviewDuration();
@@ -4078,12 +4078,12 @@ void ExplodedViewPanel::clearAssemblySelection()
 void ExplodedViewPanel::on_pushButtonStartManualPlacement_clicked()
 {
     stopDraftPreview();
-    if (!_glWidget)
+    if (!_viewportWidget)
         return;
 
     if (_manualPlacementSelectionUuids.isEmpty())
     {
-        const QList<int> selectedIds = _glWidget->getSelectionManager()->getSelectedIds();
+        const QList<int> selectedIds = _viewportWidget->getSelectionManager()->getSelectedIds();
         if (selectedIds.isEmpty())
         {
             QMessageBox::information(
@@ -4096,7 +4096,7 @@ void ExplodedViewPanel::on_pushButtonStartManualPlacement_clicked()
         applyManualPlacementSelection(selectedIds);
     }
 
-    if (_glWidget->beginExplodedViewManualPlacement(_manualPlacementSelectionUuids))
+    if (_viewportWidget->beginExplodedViewManualPlacement(_manualPlacementSelectionUuids))
     {
         updateManualPlacementUi();
         updateCaptureButton();
@@ -4107,9 +4107,9 @@ void ExplodedViewPanel::on_pushButtonStartManualPlacement_clicked()
 void ExplodedViewPanel::on_pushButtonFinishManualPlacement_clicked()
 {
     stopDraftPreview();
-    if (_glWidget)
+    if (_viewportWidget)
     {
-        _glWidget->finishExplodedViewManualPlacement();
+        _viewportWidget->finishExplodedViewManualPlacement();
         clearManualPlacementSelection();
         syncActivePresetManualStateFromRuntime();
         updateManualPlacementUi();
@@ -4122,9 +4122,9 @@ void ExplodedViewPanel::on_pushButtonFinishManualPlacement_clicked()
 void ExplodedViewPanel::on_pushButtonClearManualPlacement_clicked()
 {
     stopDraftPreview();
-    if (_glWidget)
+    if (_viewportWidget)
     {
-        _glWidget->clearExplodedViewManualPlacement();
+        _viewportWidget->clearExplodedViewManualPlacement();
         clearManualPlacementSelection();
         if (ExplodedViewPreset* preset = activePreset())
             preset->uncapturedManualStates.clear();

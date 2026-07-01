@@ -1,7 +1,7 @@
 #pragma once
 
 #include "ModelViewerCommand.h"
-#include "GLMaterial.h"
+#include "Material.h"
 #include <QMap>
 #include <QSet>
 #include <QUuid>
@@ -14,7 +14,7 @@
  * when user selects a predefined material from the MaterialLibraryWidget (e.g.,
  * Gold, Aluminum, Glass, etc.).
  *
- * Stores the complete GLMaterial state for each affected mesh, allowing full
+ * Stores the complete Material state for each affected mesh, allowing full
  * undo/redo of material changes. This includes all properties: colors, PBR
  * parameters, textures, rendering settings, etc.
  *
@@ -26,7 +26,7 @@ public:
     /**
      * @brief Construct a set material command
      * @param viewer The ModelViewer instance
-     * @param glWidget The GLWidget instance
+     * @param glWidget The ViewportWidget instance
      * @param meshUuids The UUIDs of meshes to apply material to
      * @param newMaterial The material to apply
      * @param materialName Optional name for undo stack display (e.g., "Gold")
@@ -39,9 +39,9 @@ public:
      * instead of just "Set Material", making the undo stack more informative.
      */
     ApplyMaterialCommand(ModelViewer* viewer,
-        GLWidget* glWidget,
+        ViewportWidget* viewportWidget,
         const QVector<QUuid>& meshUuids,
-        const GLMaterial& newMaterial,
+        const Material& newMaterial,
         const QString& materialName = QString(),
         const QString& text = QObject::tr("Set Material"));
 
@@ -63,16 +63,16 @@ public:
     QSet<QUuid> getReferencedUuids() const;
 
 private:
-    QMap<QUuid, GLMaterial> _oldMaterials;  // Materials before command
-    QMap<QUuid, GLMaterial> _newMaterials;  // Materials after command
+    QMap<QUuid, Material> _oldMaterials;  // Materials before command
+    QMap<QUuid, Material> _newMaterials;  // Materials after command
     QString _materialName;                   // For display in undo stack
 
     /**
      * @brief Apply materials to meshes
-     * @param materials Map of UUID to GLMaterial
+     * @param materials Map of UUID to Material
      *
      * Helper method that applies a set of materials to their corresponding meshes.
      * Handles material application, transmission flag updates, and view refresh.
      */
-    void applyMaterials(const QMap<QUuid, GLMaterial>& materials);
+    void applyMaterials(const QMap<QUuid, Material>& materials);
 };

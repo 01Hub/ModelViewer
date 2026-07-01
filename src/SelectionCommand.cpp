@@ -1,12 +1,12 @@
 #include "SelectionCommand.h"
 #include "ModelViewer.h"
-#include "GLWidget.h"
+#include "ViewportWidget.h"
 
 SelectionCommand::SelectionCommand(ModelViewer* viewer,
-    GLWidget* glWidget,
+    ViewportWidget* viewportWidget,
     const QSet<int>& newSelection,
     const QString& text)
-    : ModelViewerCommand(viewer, glWidget, text)
+    : ModelViewerCommand(viewer, viewportWidget, text)
     , _newSelection(newSelection)
 {
     // Capture the current selection state before the change
@@ -26,7 +26,7 @@ void SelectionCommand::redo()
 
 void SelectionCommand::applySelection(const QSet<int>& selection)
 {
-    if (!_viewer || !_glWidget)
+    if (!_viewer || !_viewportWidget)
         return;
 
     // Use the non-undo version to prevent recursion

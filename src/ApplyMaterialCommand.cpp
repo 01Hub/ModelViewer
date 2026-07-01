@@ -1,21 +1,21 @@
 #include "ApplyMaterialCommand.h"
 #include "ModelViewer.h"
-#include "GLWidget.h"
-#include "TriangleMesh.h"
+#include "ViewportWidget.h"
+#include "RenderableMesh.h"
 
 ApplyMaterialCommand::ApplyMaterialCommand(ModelViewer* viewer,
-    GLWidget* glWidget,
+    ViewportWidget* viewportWidget,
     const QVector<QUuid>& meshUuids,
-    const GLMaterial& newMaterial,
+    const Material& newMaterial,
     const QString& materialName,
     const QString& text)
-    : ModelViewerCommand(viewer, glWidget, text)
+    : ModelViewerCommand(viewer, viewportWidget, text)
     , _materialName(materialName)
 {
     // Capture old materials before applying new
     for (const QUuid& uuid : meshUuids)
     {
-        TriangleMesh* mesh = _glWidget->getMeshByUuid(uuid);
+        SceneMesh* mesh = _viewportWidget->getMeshByUuid(uuid);
         if (mesh)
         {
             // Store complete material state for undo
@@ -35,7 +35,7 @@ ApplyMaterialCommand::ApplyMaterialCommand(ModelViewer* viewer,
 
 void ApplyMaterialCommand::undo()
 {
-    if (!_viewer || !_glWidget)
+    if (!_viewer || !_viewportWidget)
         return;
 
     applyMaterials(_oldMaterials);
@@ -43,44 +43,44 @@ void ApplyMaterialCommand::undo()
 
 void ApplyMaterialCommand::redo()
 {
-    if (!_viewer || !_glWidget)
+    if (!_viewer || !_viewportWidget)
         return;
 
     applyMaterials(_newMaterials);
 }
 
-void ApplyMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materials)
+void ApplyMaterialCommand::applyMaterials(const QMap<QUuid, Material>& materials)
 {
     // Ensure the correct GL context before any GPU-backed material updates.
-    if (!_glWidget)
+    if (!_viewportWidget)
     {
-        qWarning() << "ApplyMaterialCommand::applyMaterials - GLWidget is null!";
+        qWarning() << "ApplyMaterialCommand::applyMaterials - ViewportWidget is null!";
         return;
     }
 
-    _glWidget->makeCurrent();
+    _viewportWidget->makeCurrent();
 
     QSet<QString> affectedAnimatedSourceFiles;
 
     for (auto it = materials.begin(); it != materials.end(); ++it)
     {
         const QUuid& uuid = it.key();
-        const GLMaterial& mat = it.value();
+        const Material& mat = it.value();
 
-        int index = _glWidget->getIndexByUuid(uuid);
+        int index = _viewportWidget->getIndexByUuid(uuid);
         if (index < 0)
         {
             // Mesh was permanently deleted, skip.
             continue;
         }
 
-        TriangleMesh* mesh = _glWidget->getMeshByIndex(index);
+        SceneMesh* mesh = _viewportWidget->getMeshByIndex(index);
         if (!mesh)
             continue;
 
         // Resolve texture paths to GPU texture IDs and sampler state, then
-        // make the resolved GLMaterial the authoritative mesh state.
-        GLMaterial resolved = GLWidget::resolveMaterialTextures(_glWidget, mat);
+        // make the resolved Material the authoritative mesh state.
+        Material resolved = ViewportWidget::resolveMaterialTextures(_viewportWidget, mat);
         resolved.setIsGLTFMaterial(true);
 
         mesh->setMaterial(resolved);
@@ -92,14 +92,14 @@ void ApplyMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materia
             affectedAnimatedSourceFiles.insert(mesh->getSourceFile());
 
         if (mat.hasTransmission() || mat.diffuseTransmissionFactor() > 0.0f)
-            _glWidget->setTransmissionEnabled(true);
+            _viewportWidget->setTransmissionEnabled(true);
     }
 
     for (const QString& sourceFile : affectedAnimatedSourceFiles)
-        _glWidget->refreshAnimationMaterialState(sourceFile);
+        _viewportWidget->refreshAnimationMaterialState(sourceFile);
 
-    _glWidget->updateView();
-    _glWidget->update();
+    _viewportWidget->updateView();
+    _viewportWidget->update();
 }
 
 QSet<QUuid> ApplyMaterialCommand::getReferencedUuids() const

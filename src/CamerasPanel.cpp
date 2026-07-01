@@ -1,5 +1,5 @@
 #include "CamerasPanel.h"
-#include "GLWidget.h"
+#include "ViewportWidget.h"
 #include "SceneGraph.h"
 #include "GltfCameraData.h"
 
@@ -71,9 +71,9 @@ void CamerasPanel::setSceneGraph(SceneGraph* sg)
     _sceneGraph = sg;
 }
 
-void CamerasPanel::setGLWidget(GLWidget* glWidget)
+void CamerasPanel::setViewportWidget(ViewportWidget* viewportWidget)
 {
-    _glWidget = glWidget;
+    _viewportWidget = viewportWidget;
 }
 
 // ---------------------------------------------------------------------------
@@ -88,9 +88,9 @@ void CamerasPanel::refresh()
         return;
 
     // Determine the currently active camera so we can pre-mark it.
-    const bool systemCamActive = !_glWidget || !_glWidget->isGltfCameraActive();
-    const QString activeFile   = _glWidget ? _glWidget->activeGltfCameraFile()  : QString();
-    const int     activeIndex  = _glWidget ? _glWidget->activeGltfCameraIndex() : -1;
+    const bool systemCamActive = !_viewportWidget || !_viewportWidget->isGltfCameraActive();
+    const QString activeFile   = _viewportWidget ? _viewportWidget->activeGltfCameraFile()  : QString();
+    const int     activeIndex  = _viewportWidget ? _viewportWidget->activeGltfCameraIndex() : -1;
 
     // --- System Camera item (always present) ---
     QTreeWidgetItem* sysItem = makeSystemCameraItem(systemCamActive);

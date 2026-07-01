@@ -4,14 +4,14 @@
 #include <QMatrix4x4>
 #include <QElapsedTimer>
 #include <QTimer>
-#include "GLMaterial.h"
+#include "Material.h"
 #include "ShaderProgram.h"
 
 #include <QDateTime>
 
 class QMouseEvent;
 class QWheelEvent;
-class GLWidget;
+class ViewportWidget;
 
 enum class PreviewShape { Sphere, Cube, Cylinder, Plane, Teapot };
 enum class EnvMode { ViewerIBL, Studio, Outdoor, Office };
@@ -55,29 +55,29 @@ public:
     explicit MaterialPreviewWidget(QWidget *parent = nullptr);
     ~MaterialPreviewWidget();
 
-    void setMaterial(const GLMaterial &mat);
+    void setMaterial(const Material &mat);
 
     void setPreviewShape(PreviewShape s);
 	void setEnvironment(EnvMode env) { _currentEnv = env; update(); }
     void setExposureEV(float ev);
 	void setTextureViewMode(TexViewMode mode) { _texViewMode = mode; update(); }
-	void setGLWidget(GLWidget* glWidget) { _glWidget = glWidget; }
+	void setViewportWidget(ViewportWidget* viewportWidget) { _viewportWidget = viewportWidget; }
     void setPreviewProfile(PreviewProfile profile) { _profile = profile; update(); }
 
 	PreviewShape currentShape() const { return _currentShape; }
 
     void setPreviewRotation(float pitchDeg, float yawDeg);
 
-    void updateTextureSamplers(GLMaterial::TextureType type,
+    void updateTextureSamplers(Material::TextureType type,
         GLint wrapS = GL_REPEAT,
 		GLint wrapT = GL_REPEAT,
         GLint minFilter = GL_LINEAR_MIPMAP_LINEAR,
         GLint magFilter = GL_LINEAR,
         float aniso = 0.0f);
 
-    void applySamplerParametersToTexture(GLuint textureId, const GLMaterial::Texture& tex);
+    void applySamplerParametersToTexture(GLuint textureId, const Material::Texture& tex);
 
-    GLMaterial _currentMaterial = GLMaterial::METAL_ALUMINUM();
+    Material _currentMaterial = Material::METAL_ALUMINUM();
 protected:
     void initializeGL() override;
     void resizeGL(int w, int h) override;
@@ -122,7 +122,7 @@ private:
     void clearTextureCache();
 
 private:
-    class GLWidget* _glWidget = nullptr;  // For accessing environment settings
+    class ViewportWidget* _viewportWidget = nullptr;  // For accessing environment settings
     std::unique_ptr<ShaderProgram> _shader;
     GLuint vao = 0;
     GLuint vbo = 0;

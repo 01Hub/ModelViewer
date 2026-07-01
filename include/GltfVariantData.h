@@ -18,8 +18,8 @@
 //
 // These structures are populated by AssImpModelLoader::parseGltfVariants()
 // during import and stored in SceneGraph keyed by source file path.
-// TriangleMesh holds a per-mesh copy of the mappings and a pre-built
-// GLMaterial for every material index referenced by its variants.
+// SceneMesh holds a per-mesh copy of the mappings and a pre-built
+// Material for every material index referenced by its variants.
 // ---------------------------------------------------------------------------
 
 // Mapping for one mesh primitive: which material index is used by which
@@ -35,7 +35,7 @@ struct GltfVariantMapping
 // to write back the KHR_materials_variants extension after Assimp export.
 struct MeshVariantExportEntry
 {
-    // Per-primitive mappings copied from TriangleMesh::variantMappings().
+    // Per-primitive mappings copied from RenderableMesh::variantMappings().
     QVector<GltfVariantMapping> variantMappings;
 
     // Maps allVariantMaterials key (compact aiScene mat index at import time)

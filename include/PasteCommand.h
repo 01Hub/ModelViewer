@@ -57,7 +57,7 @@ public:
     // undo can restore both the visual marks and the clipboard state.
     // Pass an empty list for copy-paste.
     PasteCommand(ModelViewer*                 viewer,
-                 GLWidget*                    glWidget,
+                 ViewportWidget*                    viewportWidget,
                  const QList<PastedItem>&     items,
                  const QSet<QUuid>&           originalSelection,
                  const QList<ClipboardEntry>& cutEntries = {},

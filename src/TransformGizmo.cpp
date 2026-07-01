@@ -1,7 +1,7 @@
 #include "TransformGizmo.h"
 
-#include "Cone.h"
-#include "GLCamera.h"
+#include "ConeRenderable.h"
+#include "Camera.h"
 #include "ShaderProgram.h"
 
 #include <QOpenGLContext>
@@ -103,7 +103,7 @@ void TransformGizmo::setVisible(bool visible)
 		clearInteraction();
 }
 
-bool TransformGizmo::updateHover(const QPoint& pixel, const GLCamera* camera,
+bool TransformGizmo::updateHover(const QPoint& pixel, const Camera* camera,
                                  const QMatrix4x4& viewMatrix, const QMatrix4x4& projectionMatrix,
                                  const QRect& viewport, float fallbackScale)
 {
@@ -116,7 +116,7 @@ bool TransformGizmo::updateHover(const QPoint& pixel, const GLCamera* camera,
 	return hit != Handle::None;
 }
 
-bool TransformGizmo::activateHandleAt(const QPoint& pixel, const GLCamera* camera,
+bool TransformGizmo::activateHandleAt(const QPoint& pixel, const Camera* camera,
                                       const QMatrix4x4& viewMatrix, const QMatrix4x4& projectionMatrix,
                                       const QRect& viewport, float fallbackScale)
 {
@@ -137,7 +137,7 @@ bool TransformGizmo::activateHandleAt(const QPoint& pixel, const GLCamera* camer
 	return true;
 }
 
-void TransformGizmo::render(ShaderProgram* axisShader, Cone* axisCone, const GLCamera* camera,
+void TransformGizmo::render(ShaderProgram* axisShader, ConeRenderable* axisCone, const Camera* camera,
                             const QMatrix4x4& viewMatrix, const QMatrix4x4& projectionMatrix,
                             float fallbackScale)
 {
@@ -163,7 +163,7 @@ void TransformGizmo::render(ShaderProgram* axisShader, Cone* axisCone, const GLC
 		glEnable(GL_DEPTH_TEST);
 }
 
-TransformGizmo::Handle TransformGizmo::hitTest(const QPoint& pixel, const GLCamera* camera,
+TransformGizmo::Handle TransformGizmo::hitTest(const QPoint& pixel, const Camera* camera,
                                                const QMatrix4x4& viewMatrix, const QMatrix4x4& projectionMatrix,
                                                const QRect& viewport, float fallbackScale) const
 {
@@ -421,19 +421,19 @@ void TransformGizmo::ensureInitialized()
 	_initialized = true;
 }
 
-float TransformGizmo::computeWorldScale(const GLCamera* camera, float fallbackScale) const
+float TransformGizmo::computeWorldScale(const Camera* camera, float fallbackScale) const
 {
 	if (!camera)
 		return fallbackScale;
 
-	if (camera->getProjectionType() == GLCamera::ProjectionType::ORTHOGRAPHIC)
+	if (camera->getProjectionType() == Camera::ProjectionType::ORTHOGRAPHIC)
 		return (std::max)(camera->getViewRange() * 0.18f, fallbackScale);
 
 	const float distance = (camera->getRenderPosition() - _pivot).length();
 	return (std::max)(distance * 0.16f, fallbackScale);
 }
 
-void TransformGizmo::drawAxes(ShaderProgram* axisShader, Cone* axisCone,
+void TransformGizmo::drawAxes(ShaderProgram* axisShader, ConeRenderable* axisCone,
                               const QMatrix4x4& viewMatrix, const QMatrix4x4& projectionMatrix,
                               float worldScale)
 {

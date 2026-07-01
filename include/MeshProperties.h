@@ -1,18 +1,20 @@
-#ifndef MESHPROPERTIES_H
-#define MESHPROPERTIES_H
+#pragma once
+
+
+class SceneMesh;
 
 #include <QObject>
 #include "BoundingBox.h"
 
-class TriangleMesh;
+class RenderableMesh;
 class MeshProperties : public QObject
 {
 	Q_OBJECT
 public:
-	explicit MeshProperties(TriangleMesh* mesh, QObject* parent = nullptr);
+	explicit MeshProperties(SceneMesh* mesh, QObject* parent = nullptr);
 
-	TriangleMesh* mesh() const;
-	void setMesh(TriangleMesh* mesh);
+	SceneMesh* mesh() const;
+	void setMesh(SceneMesh* mesh);
 
 	std::vector<float> meshPoints() const;
 
@@ -35,7 +37,7 @@ private:
 	void calculateSurfaceAreaAndVolume();
 
 private:
-	TriangleMesh* _mesh;
+	SceneMesh* _mesh;
 	std::vector<float> _meshPoints;
 	float _surfaceArea;
 	float _volume;
@@ -44,5 +46,3 @@ private:
 	QVector3D _centerOfMass;
 	BoundingBox _boundingBox;
 };
-
-#endif // MESHPROPERTIES_H

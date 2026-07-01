@@ -1,5 +1,5 @@
-#ifndef MODELOBJECTLIST_H
-#define MODELOBJECTLIST_H
+#pragma once
+
 
 #include <QListWidget>
 
@@ -21,5 +21,3 @@ signals:
 private:
     int levenshteinDistance(const QString &s1, const QString &s2) const;
 };
-
-#endif // MODELOBJECTLIST_H

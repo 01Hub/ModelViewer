@@ -274,7 +274,7 @@ void ModelViewer::onSelectionChanged(const QList<int>& newSelection)
 {
     QList<int> oldSelection = getSelectedIDs();
     m_undoStack->push(new SelectionCommand(
-        this, _glWidget, oldSelection, newSelection
+        this, _viewportWidget, oldSelection, newSelection
     ));
 }
 ```

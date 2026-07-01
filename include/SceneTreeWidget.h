@@ -13,7 +13,7 @@
 #include "SceneNode.h"
 
 class SceneGraph;
-class GLWidget;
+class ViewportWidget;
 
 // ---------------------------------------------------------------------------
 // SceneTreeWidget
@@ -24,7 +24,7 @@ class GLWidget;
 // Node types shown (icons from Qt resources):
 //   document-root.png  Synthetic file-level node (one per imported file)
 //   assembly.png       Assembly node (has child SceneNodes)
-//   mesh.png           Mesh leaf (one per TriangleMesh UUID in a SceneNode)
+//   mesh.png           Mesh leaf (one per SceneMesh UUID in a SceneNode)
 //
 // Assembly / file items carry tri-state check boxes that control all leaves
 // beneath them.  Clicking an assembly item selects all mesh leaves below it.
@@ -51,7 +51,7 @@ public:
     explicit SceneTreeWidget(QWidget* parent = nullptr);
 
     void setSceneGraph(SceneGraph* sg);
-    void setGLWidget(GLWidget* gl);
+    void setViewportWidget(ViewportWidget* viewportWidget);
 
     // -----------------------------------------------------------------------
     // Selection
@@ -67,7 +67,7 @@ public:
     int meshCount() const;
 
     /**
-     * Set selection from a set of mesh-store indices (converted via GLWidget).
+     * Set selection from a set of mesh-store indices (converted via ViewportWidget).
      * Does NOT emit selectionUpdated().
      */
     void setSelectionByIndices(const QSet<int>& indices);
@@ -317,7 +317,7 @@ private:
                                         int& bestScore) const;
 
     SceneGraph* _sceneGraph = nullptr;
-    GLWidget*   _glWidget   = nullptr;
+    ViewportWidget*   _viewportWidget   = nullptr;
 
     // O(1) lookup from mesh UUID to its leaf QTreeWidgetItem
     QHash<QUuid, QTreeWidgetItem*> _uuidToLeaf;

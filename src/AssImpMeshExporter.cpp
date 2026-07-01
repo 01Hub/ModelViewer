@@ -1,7 +1,7 @@
 #include "AssImpMeshExporter.h"
-#include "TriangleMesh.h"
-#include "AssImpMesh.h"
-#include "GLMaterial.h"
+#include "RenderableMesh.h"
+#include "SceneMesh.h"
+#include "Material.h"
 #include "GltfPostProcessor.h"
 
 #include <QDebug>
@@ -49,21 +49,21 @@ unsigned int primitiveModeToAiPrimitiveType(GLenum primitiveMode)
     }
 }
 
-GLMaterial exportedDefaultMaterial(const TriangleMesh* mesh)
+Material exportedDefaultMaterial(const SceneMesh* mesh)
 {
     if (!mesh)
-        return GLMaterial();
+        return Material();
 
     if (mesh->hasVariants())
     {
-        if (const GLMaterial* originalMaterial = mesh->materialForVariant(-1))
+        if (const Material* originalMaterial = mesh->materialForVariant(-1))
             return *originalMaterial;
     }
 
     return mesh->getMaterial();
 }
 
-int exportedBaseMaterialKey(const TriangleMesh* mesh)
+int exportedBaseMaterialKey(const SceneMesh* mesh)
 {
     return mesh ? mesh->getOriginalMaterialIndex() : -1;
 }
@@ -193,8 +193,8 @@ bool populateFacesForPrimitive(aiMesh* mesh,
 }
 
 bool textureBindingCompatibleForSharedExport(
-    const GLMaterial::Texture& a,
-    const GLMaterial::Texture& b)
+    const Material::Texture& a,
+    const Material::Texture& b)
 {
     auto nearlyEqual = [](float lhs, float rhs) {
         return std::abs(lhs - rhs) < 1e-5f;
@@ -232,18 +232,18 @@ bool hasDistinctSplitMetallicRoughnessTextures(const aiMaterial* material)
 }
 
 bool shouldNormalizePreservedGltfMaterial(const aiMaterial* preservedMaterial,
-                                          const GLMaterial& sourceMaterial)
+                                          const Material& sourceMaterial)
 {
-    // Force normalization when the source GLMaterial contains GLB virtual paths
+    // Force normalization when the source Material contains GLB virtual paths
     // ("glb://...") or Assimp embedded-texture references ("*N").
-    // buildMaterialFromTriangleMesh copies these raw paths into the preserved
+    // buildMaterialFromSceneMesh copies these raw paths into the preserved
     // aiMaterial.  Assimp's GLB exporter cannot resolve them as file-system paths,
     // so the textures would be silently missing in the output.
     // createMaterial() + _lastTexturePackage remaps them to packaged relative paths
     // that Assimp CAN read and embed correctly.
-    for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i)
+    for (int i = 0; i < static_cast<int>(Material::TextureType::Count); ++i)
     {
-        const auto& tex = sourceMaterial.texture(static_cast<GLMaterial::TextureType>(i));
+        const auto& tex = sourceMaterial.texture(static_cast<Material::TextureType>(i));
         if (tex.path.empty())
             continue;
         // glb:// virtual path or *N embedded-texture index
@@ -274,7 +274,7 @@ AssImpMeshExporter::AssImpMeshExporter(QObject* parent)
 
 aiReturn AssImpMeshExporter::exportMeshes(
     const aiScene* scene,
-    const std::vector<TriangleMesh*>& meshes,
+    const std::vector<SceneMesh*>& meshes,
     const QString& exportPath,
     const ExportSettings& settings)
 {
@@ -377,11 +377,11 @@ aiReturn AssImpMeshExporter::exportMeshes(
     std::vector<aiMesh*> aiMeshes;
     std::vector<aiMaterial*> aiMaterials;
     std::vector<QMatrix4x4> transforms;
-    std::vector<const TriangleMesh*> validMeshes; // meshes that successfully made it into aiMeshes
+    std::vector<const SceneMesh*> validMeshes; // meshes that successfully made it into aiMeshes
 
     // Material deduplication map: material content hash -> material index
     QMap<QString, unsigned int> materialContentToIndex;
-    std::vector<GLMaterial> uniqueMaterials;
+    std::vector<Material> uniqueMaterials;
 
     for (const auto* mesh : meshes)
     {
@@ -398,15 +398,15 @@ aiReturn AssImpMeshExporter::exportMeshes(
         std::vector<Vertex> vertices;
         std::vector<unsigned int> indices;
 
-        // Try to cast to AssImpMesh for direct access
-        if (auto assimpMesh = dynamic_cast<const AssImpMesh*>(mesh))
+        // Try to cast to SceneMesh for direct access
+        if (auto assimpMesh = dynamic_cast<const SceneMesh*>(mesh))
         {
             vertices = assimpMesh->vertices();
             indices = assimpMesh->indices();
         }
         else
         {
-            logWarning(QString("Non-AssImpMesh encountered: %1 - limited support")
+            logWarning(QString("Non-SceneMesh encountered: %1 - limited support")
                 .arg(mesh->getName()));
             // Could implement fallback here if needed
             continue;
@@ -433,12 +433,12 @@ aiReturn AssImpMeshExporter::exportMeshes(
 
         // Export the primitive base material from the original/default glTF material,
         // not the currently active variant selection in the viewer.
-        GLMaterial meshMaterial = exportedDefaultMaterial(mesh);
+        Material meshMaterial = exportedDefaultMaterial(mesh);
 
-        // HYBRID: Override runtime GLMaterial scalars with the original aiScene material when
+        // HYBRID: Override runtime Material scalars with the original aiScene material when
         // available via originalMaterialIndex. The scene is the authoritative source for scalar
         // diversity (color, metallic, roughness) for non-variant imports. For glTF variant
-        // meshes, the runtime GLMaterial already reflects the currently selected variant, so
+        // meshes, the runtime Material already reflects the currently selected variant, so
         // pulling scalars from the original aiScene material would corrupt the export.
         int origMatIdx = mesh->getOriginalMaterialIndex();
         if (!mesh->hasVariants() &&
@@ -479,7 +479,7 @@ aiReturn AssImpMeshExporter::exportMeshes(
 
         // Create material directly - no deduplication
         // Deduplication happens at import time via updateAiSceneWithGltfMaterials
-        // Each mesh's GLMaterial is unique (transforms are baked in)
+        // Each mesh's Material is unique (transforms are baked in)
         aiMaterial* aiMat = createMaterial(meshMaterial, _lastTexturePackage, exportPath, mesh->getName());
         if (!aiMat)
         {
@@ -503,14 +503,14 @@ aiReturn AssImpMeshExporter::exportMeshes(
     }
 
     // ===== STEP 2b: Add variant materials (KHR_materials_variants export) =====
-    QMap<int, GLMaterial> variantMatsByJsonIdx2b;  // non-default variant mat index -> GLMaterial
+    QMap<int, Material> variantMatsByJsonIdx2b;  // non-default variant mat index -> Material
     if (!settings.variantNames.isEmpty())
     {
         logMessage("Step 2b: Adding variant materials for KHR_materials_variants export...");
 
         for (size_t vi = 0; vi < validMeshes.size(); ++vi)
         {
-            const TriangleMesh* mesh = validMeshes[vi];
+            const SceneMesh* mesh = validMeshes[vi];
             MeshVariantExportEntry entry;
 
             if (!mesh->hasVariants())
@@ -525,7 +525,7 @@ aiReturn AssImpMeshExporter::exportMeshes(
             int defaultMatIdx   = static_cast<int>(aiMeshes[vi]->mMaterialIndex);
             entry.matKeyToJsonMatIdx[defaultKey] = defaultMatIdx;
 
-            const QMap<int, GLMaterial>& varMats = mesh->allVariantMaterials();
+            const QMap<int, Material>& varMats = mesh->allVariantMaterials();
             for (auto it = varMats.constBegin(); it != varMats.constEnd(); ++it)
             {
                 int key = it.key();
@@ -696,7 +696,7 @@ aiReturn AssImpMeshExporter::exportMeshes(
  */
 aiReturn AssImpMeshExporter::exportScene(
     aiScene* scene,
-    const std::vector<TriangleMesh*>& meshes,
+    const std::vector<SceneMesh*>& meshes,
     const std::string& exportPath)
 {
     // Default settings with embedding enabled
@@ -715,7 +715,7 @@ aiReturn AssImpMeshExporter::exportScene(
  */
 aiReturn AssImpMeshExporter::exportScene(
     aiScene* scene,
-    const std::vector<TriangleMesh*>& meshes,
+    const std::vector<SceneMesh*>& meshes,
     const std::string& exportPath,
     const ExportSettings& settings)
 {
@@ -855,11 +855,11 @@ aiReturn AssImpMeshExporter::exportScene(
     // syncSceneToMeshStore produces scene->mMeshes[] in ASCENDING sceneIndex order.
     // _meshStore (and therefore `meshes`) is in traversal order, which may differ.
     // Sort a local copy by sceneIndex so the positional assignment in
-    // applyMaterialsToScene correctly pairs each TriangleMesh with its aiMesh.
+    // applyMaterialsToScene correctly pairs each SceneMesh with its aiMesh.
     logMessage("Step 3: Applying materials to scene...");
-    std::vector<TriangleMesh*> sortedMeshes = meshes;
+    std::vector<SceneMesh*> sortedMeshes = meshes;
     std::stable_sort(sortedMeshes.begin(), sortedMeshes.end(),
-        [](const TriangleMesh* a, const TriangleMesh* b)
+        [](const SceneMesh* a, const SceneMesh* b)
         {
             return a->getSceneIndex() < b->getSceneIndex();
         });
@@ -867,7 +867,7 @@ aiReturn AssImpMeshExporter::exportScene(
 
     // ===== STEP 3b: Add variant materials (KHR_materials_variants export) =====
     _lastVariantEntries.clear();
-    QMap<int, GLMaterial> variantMatsByJsonIdx3b;  // non-default variant mat index -> GLMaterial
+    QMap<int, Material> variantMatsByJsonIdx3b;  // non-default variant mat index -> Material
     if (!settings.variantNames.isEmpty())
     {
         logMessage("Step 3b: Adding variant materials for KHR_materials_variants export...");
@@ -877,7 +877,7 @@ aiReturn AssImpMeshExporter::exportScene(
 
         for (size_t vi = 0; vi < sortedMeshes.size() && vi < scene->mNumMeshes; ++vi)
         {
-            const TriangleMesh* mesh = sortedMeshes[vi];
+            const SceneMesh* mesh = sortedMeshes[vi];
             MeshVariantExportEntry entry;
 
             if (!mesh || !mesh->hasVariants())
@@ -893,7 +893,7 @@ aiReturn AssImpMeshExporter::exportScene(
             int defaultMatIdx = static_cast<int>(scene->mMeshes[vi]->mMaterialIndex);
             entry.matKeyToJsonMatIdx[defaultKey] = defaultMatIdx;
 
-            const QMap<int, GLMaterial>& varMats = mesh->allVariantMaterials();
+            const QMap<int, Material>& varMats = mesh->allVariantMaterials();
             for (auto it = varMats.constBegin(); it != varMats.constEnd(); ++it)
             {
                 int key = it.key();
@@ -1635,17 +1635,17 @@ void AssImpMeshExporter::patchGlbImageNames(
     logMessage(QString("  -> Patched %1 image names in GLB JSON").arg(orderedNames.size()));
 }
 
-bool AssImpMeshExporter::hasGlbVirtualPaths(const std::vector<TriangleMesh*>& meshes)
+bool AssImpMeshExporter::hasGlbVirtualPaths(const std::vector<SceneMesh*>& meshes)
 {
     for (const auto* mesh : meshes)
     {
         if (!mesh) continue;
 
-        const GLMaterial& mat = mesh->getMaterial();
+        const Material& mat = mesh->getMaterial();
 
-        for (int t = 0; t < static_cast<int>(GLMaterial::TextureType::Count); ++t)
+        for (int t = 0; t < static_cast<int>(Material::TextureType::Count); ++t)
         {
-            const auto& tex = mat.texture(static_cast<GLMaterial::TextureType>(t));
+            const auto& tex = mat.texture(static_cast<Material::TextureType>(t));
 
             if (!tex.path.empty())
             {
@@ -1685,14 +1685,14 @@ void AssImpMeshExporter::logError(const QString& msg)
 // Contains: Material creation, PBR properties, texture assignment, scene hierarchy
 
 #include "AssImpMeshExporter.h"
-#include "GLMaterial.h"
-#include "TriangleMesh.h"
+#include "Material.h"
+#include "RenderableMesh.h"
 
 #include <QMatrix4x4>
 #include <QDebug>
 
 aiMaterial* AssImpMeshExporter::createMaterial(
-    const GLMaterial& material,
+    const Material& material,
     const TexturePackage& texturePackage,
     const QString& exportFileLocation,  // NEW parameter
     const QString& meshName)             // NEW parameter: fallback name if material name is empty
@@ -1719,19 +1719,19 @@ aiMaterial* AssImpMeshExporter::createMaterial(
 
     // Log material type and format for debugging
     QString shadingModelStr;
-    GLMaterial::ShadingModel shadingModel = material.shadingModel();
+    Material::ShadingModel shadingModel = material.shadingModel();
     switch (shadingModel)
     {
-        case GLMaterial::ShadingModel::PBR:
+        case Material::ShadingModel::PBR:
             shadingModelStr = "PBR (Metallic-Roughness)";
             break;
-        case GLMaterial::ShadingModel::BlinnPhong:
+        case Material::ShadingModel::BlinnPhong:
             shadingModelStr = "ADS (BlinnPhong)";
             break;
-        case GLMaterial::ShadingModel::Unlit:
+        case Material::ShadingModel::Unlit:
             shadingModelStr = "Unlit";
             break;
-        case GLMaterial::ShadingModel::Toon:
+        case Material::ShadingModel::Toon:
             shadingModelStr = "Toon";
             break;
         default:
@@ -1798,20 +1798,20 @@ aiMaterial* AssImpMeshExporter::createMaterial(
 
     // Alpha Mode
     {
-        GLMaterial::BlendMode blendMode = material.blendMode();
+        Material::BlendMode blendMode = material.blendMode();
         aiString alphaModeStr;
 
-        if (blendMode == GLMaterial::BlendMode::Opaque)
+        if (blendMode == Material::BlendMode::Opaque)
         {
             alphaModeStr.Set("OPAQUE");
         }
-        else if (blendMode == GLMaterial::BlendMode::Masked)
+        else if (blendMode == Material::BlendMode::Masked)
         {
             alphaModeStr.Set("MASK");
             float alphaCutoff = material.alphaThreshold();
             aiMat->AddProperty(&alphaCutoff, 1, "$mat.gltf.alphaCutoff", 0, 0);
         }
-        else if (blendMode == GLMaterial::BlendMode::Alpha)
+        else if (blendMode == Material::BlendMode::Alpha)
         {
             alphaModeStr.Set("BLEND");
         }
@@ -1824,7 +1824,7 @@ aiMaterial* AssImpMeshExporter::createMaterial(
         // Try to get the value - the exact method name may vary
         bool twoSided = material.twoSided();
         // Check if there's a method to get this - for now default to false
-        // This needs the actual GLMaterial header to determine correct getter
+        // This needs the actual Material header to determine correct getter
         int twoSidedInt = twoSided ? 1 : 0;
         aiMat->AddProperty(&twoSidedInt, 1, "$mat.gltf.doubleSided", 0, 0);
     }
@@ -1867,7 +1867,7 @@ aiMaterial* AssImpMeshExporter::createMaterial(
 
     // ===== LEGACY ADS =====
     // Check material's shading model to determine if we should export ADS properties    
-    bool isADSMaterial = (shadingModel == GLMaterial::ShadingModel::BlinnPhong);
+    bool isADSMaterial = (shadingModel == Material::ShadingModel::BlinnPhong);
 
     if (isADSMaterial && !isGLTF)
     {
@@ -1910,7 +1910,7 @@ aiMaterial* AssImpMeshExporter::createMaterial(
 
 void AssImpMeshExporter::assignTexturesToMaterial(
     aiMaterial* aiMat,
-    const GLMaterial& material,
+    const Material& material,
     const TexturePackage& texturePackage,
     bool useEmbeddedTextures,
     const QString& exportFileLocation,
@@ -1925,8 +1925,8 @@ void AssImpMeshExporter::assignTexturesToMaterial(
     // 2. Opacity/transparency is in the ALPHA channel of baseColorTexture, NOT a separate texture
 
     // Check if metallic and roughness use the same texture (for glTF)
-    const auto& metallicTex = material.texture(GLMaterial::TextureType::Metallic);
-    const auto& roughnessTex = material.texture(GLMaterial::TextureType::Roughness);
+    const auto& metallicTex = material.texture(Material::TextureType::Metallic);
+    const auto& roughnessTex = material.texture(Material::TextureType::Roughness);
     bool hasMetallicRoughness = !metallicTex.path.empty() || !roughnessTex.path.empty();
 
     // For proper glTF export, metallic and roughness should point to the same texture
@@ -1934,37 +1934,37 @@ void AssImpMeshExporter::assignTexturesToMaterial(
     std::string metallicRoughnessPath = !metallicTex.path.empty() ? metallicTex.path : roughnessTex.path;
 
     // Build texture mappings based on format.
-    // Each entry is {GLMaterial::TextureType, aiTextureType, slot-index}.
+    // Each entry is {Material::TextureType, aiTextureType, slot-index}.
     // The slot index matters for types shared by multiple logical slots
     // (e.g. CLEARCOAT for clearcoat color/roughness/normal, UNKNOWN for specular/anisotropy).
-    struct TexMapping { GLMaterial::TextureType mvType; aiTextureType aiType; unsigned int slot; };
+    struct TexMapping { Material::TextureType mvType; aiTextureType aiType; unsigned int slot; };
     std::vector<TexMapping> textureMappings;
 
     if (isGLTF)
     {
         // glTF-specific mappings (Metallic/Roughness handled separately below)
         textureMappings = {
-            {GLMaterial::TextureType::Albedo,             aiTextureType_BASE_COLOR,    0},
-            {GLMaterial::TextureType::Normal,             aiTextureType_NORMALS,       0},
-            {GLMaterial::TextureType::AmbientOcclusion,   aiTextureType_LIGHTMAP,      0},
-            {GLMaterial::TextureType::Emissive,           aiTextureType_EMISSIVE,      0},
-            {GLMaterial::TextureType::Transmission,       aiTextureType_TRANSMISSION,  0},
-            {GLMaterial::TextureType::Height,             aiTextureType_HEIGHT,        0},
-            {GLMaterial::TextureType::ClearcoatColor,     aiTextureType_CLEARCOAT,     0},
-            {GLMaterial::TextureType::ClearcoatRoughness, aiTextureType_CLEARCOAT,     1},
-            {GLMaterial::TextureType::ClearcoatNormal,    aiTextureType_CLEARCOAT,     2},
-            {GLMaterial::TextureType::SheenColor,         aiTextureType_SHEEN,         0},
-            {GLMaterial::TextureType::SheenRoughness,     aiTextureType_SHEEN,         1},
-            {GLMaterial::TextureType::SpecularFactor,     aiTextureType_UNKNOWN,       0},
-            {GLMaterial::TextureType::SpecularColor,      aiTextureType_UNKNOWN,       1},
-            {GLMaterial::TextureType::Anisotropy,         aiTextureType_UNKNOWN,       2},
-            {GLMaterial::TextureType::Thickness,          aiTextureType_UNKNOWN,       3},
-            {GLMaterial::TextureType::Diffuse,            aiTextureType_DIFFUSE,       0},
-            {GLMaterial::TextureType::SpecularGlossiness, aiTextureType_SPECULAR,      0},
-            {GLMaterial::TextureType::Iridescence,        aiTextureType_UNKNOWN,       4},
-            {GLMaterial::TextureType::IridescenceThickness, aiTextureType_UNKNOWN,     5},
-            {GLMaterial::TextureType::DiffuseTransmission,      aiTextureType_UNKNOWN, 6},
-            {GLMaterial::TextureType::DiffuseTransmissionColor, aiTextureType_UNKNOWN, 7},
+            {Material::TextureType::Albedo,             aiTextureType_BASE_COLOR,    0},
+            {Material::TextureType::Normal,             aiTextureType_NORMALS,       0},
+            {Material::TextureType::AmbientOcclusion,   aiTextureType_LIGHTMAP,      0},
+            {Material::TextureType::Emissive,           aiTextureType_EMISSIVE,      0},
+            {Material::TextureType::Transmission,       aiTextureType_TRANSMISSION,  0},
+            {Material::TextureType::Height,             aiTextureType_HEIGHT,        0},
+            {Material::TextureType::ClearcoatColor,     aiTextureType_CLEARCOAT,     0},
+            {Material::TextureType::ClearcoatRoughness, aiTextureType_CLEARCOAT,     1},
+            {Material::TextureType::ClearcoatNormal,    aiTextureType_CLEARCOAT,     2},
+            {Material::TextureType::SheenColor,         aiTextureType_SHEEN,         0},
+            {Material::TextureType::SheenRoughness,     aiTextureType_SHEEN,         1},
+            {Material::TextureType::SpecularFactor,     aiTextureType_UNKNOWN,       0},
+            {Material::TextureType::SpecularColor,      aiTextureType_UNKNOWN,       1},
+            {Material::TextureType::Anisotropy,         aiTextureType_UNKNOWN,       2},
+            {Material::TextureType::Thickness,          aiTextureType_UNKNOWN,       3},
+            {Material::TextureType::Diffuse,            aiTextureType_DIFFUSE,       0},
+            {Material::TextureType::SpecularGlossiness, aiTextureType_SPECULAR,      0},
+            {Material::TextureType::Iridescence,        aiTextureType_UNKNOWN,       4},
+            {Material::TextureType::IridescenceThickness, aiTextureType_UNKNOWN,     5},
+            {Material::TextureType::DiffuseTransmission,      aiTextureType_UNKNOWN, 6},
+            {Material::TextureType::DiffuseTransmissionColor, aiTextureType_UNKNOWN, 7},
 
 
         };
@@ -1973,22 +1973,22 @@ void AssImpMeshExporter::assignTexturesToMaterial(
     {
         // Other formats (OBJ, FBX, etc.)
         textureMappings = {
-            {GLMaterial::TextureType::Albedo,             aiTextureType_BASE_COLOR,        0},
-            {GLMaterial::TextureType::Metallic,           aiTextureType_METALNESS,         0},
-            {GLMaterial::TextureType::Roughness,          aiTextureType_DIFFUSE_ROUGHNESS, 0},
-            {GLMaterial::TextureType::Normal,             aiTextureType_NORMALS,           0},
-            {GLMaterial::TextureType::AmbientOcclusion,   aiTextureType_LIGHTMAP,          0},
-            {GLMaterial::TextureType::Emissive,           aiTextureType_EMISSIVE,          0},
-            {GLMaterial::TextureType::Transmission,       aiTextureType_TRANSMISSION,      0},
-            {GLMaterial::TextureType::Opacity,            aiTextureType_OPACITY,           0},
-            {GLMaterial::TextureType::Height,             aiTextureType_HEIGHT,            0},
-            {GLMaterial::TextureType::ClearcoatColor,     aiTextureType_CLEARCOAT,         0},
-            {GLMaterial::TextureType::ClearcoatRoughness, aiTextureType_CLEARCOAT,         1},
-            {GLMaterial::TextureType::ClearcoatNormal,    aiTextureType_CLEARCOAT,         2},
-            {GLMaterial::TextureType::SheenColor,         aiTextureType_SHEEN,             0},
-            {GLMaterial::TextureType::SheenRoughness,     aiTextureType_SHEEN,             1},
-            {GLMaterial::TextureType::Anisotropy,         aiTextureType_UNKNOWN,           2},
-            {GLMaterial::TextureType::Thickness,          aiTextureType_UNKNOWN,           3},
+            {Material::TextureType::Albedo,             aiTextureType_BASE_COLOR,        0},
+            {Material::TextureType::Metallic,           aiTextureType_METALNESS,         0},
+            {Material::TextureType::Roughness,          aiTextureType_DIFFUSE_ROUGHNESS, 0},
+            {Material::TextureType::Normal,             aiTextureType_NORMALS,           0},
+            {Material::TextureType::AmbientOcclusion,   aiTextureType_LIGHTMAP,          0},
+            {Material::TextureType::Emissive,           aiTextureType_EMISSIVE,          0},
+            {Material::TextureType::Transmission,       aiTextureType_TRANSMISSION,      0},
+            {Material::TextureType::Opacity,            aiTextureType_OPACITY,           0},
+            {Material::TextureType::Height,             aiTextureType_HEIGHT,            0},
+            {Material::TextureType::ClearcoatColor,     aiTextureType_CLEARCOAT,         0},
+            {Material::TextureType::ClearcoatRoughness, aiTextureType_CLEARCOAT,         1},
+            {Material::TextureType::ClearcoatNormal,    aiTextureType_CLEARCOAT,         2},
+            {Material::TextureType::SheenColor,         aiTextureType_SHEEN,             0},
+            {Material::TextureType::SheenRoughness,     aiTextureType_SHEEN,             1},
+            {Material::TextureType::Anisotropy,         aiTextureType_UNKNOWN,           2},
+            {Material::TextureType::Thickness,          aiTextureType_UNKNOWN,           3},
         };
     }
 
@@ -2000,12 +2000,12 @@ void AssImpMeshExporter::assignTexturesToMaterial(
 
         // For glTF, skip AO in general loop - will be handled specially after M/R packing
         // (either as packed ORM or as independent texture)
-        if (isGLTF && mapping.mvType == GLMaterial::TextureType::AmbientOcclusion)
+        if (isGLTF && mapping.mvType == Material::TextureType::AmbientOcclusion)
             continue;
 
         // For glTF, skip Height texture - glTF 2.0 doesn't have a standard height/displacement map
         // Height maps are supported in OBJ, FBX, etc. but not in glTF
-        if (isGLTF && mapping.mvType == GLMaterial::TextureType::Height)
+        if (isGLTF && mapping.mvType == Material::TextureType::Height)
         {
             logMessage(QString("     -> Skipping Height texture for glTF (not supported in glTF 2.0)"));
             continue;
@@ -2049,7 +2049,7 @@ void AssImpMeshExporter::assignTexturesToMaterial(
         aiMat->AddProperty(&uvTransform, 1, AI_MATKEY_UVTRANSFORM(aiType, slot));
 
         logMessage(QString("     -> %1: %2 (UV: scale=[%3,%4] offset=[%5,%6] rotation=%7)")
-            .arg(GLMaterial::textureTypeToString(mapping.mvType))
+            .arg(Material::textureTypeToString(mapping.mvType))
             .arg(texturePath)
             .arg(tex.scale.x).arg(tex.scale.y)
             .arg(tex.offset.x).arg(tex.offset.y)
@@ -2067,7 +2067,7 @@ void AssImpMeshExporter::assignTexturesToMaterial(
     if (isGLTF && hasMetallicRoughness)
     {
         // Check if we need to pack ORM (Occlusion, Roughness, Metallic) textures
-        const auto& aoTex = material.texture(GLMaterial::TextureType::AmbientOcclusion);
+        const auto& aoTex = material.texture(Material::TextureType::AmbientOcclusion);
         aoPath = QString::fromStdString(aoTex.path);
         QString metallicPath = QString::fromStdString(metallicTex.path);
         QString roughnessPath = QString::fromStdString(roughnessTex.path);
@@ -2235,7 +2235,7 @@ void AssImpMeshExporter::assignTexturesToMaterial(
         // Get AO path if we haven't already
         if (aoPath.isEmpty())
         {
-            const auto& aoTex = material.texture(GLMaterial::TextureType::AmbientOcclusion);
+            const auto& aoTex = material.texture(Material::TextureType::AmbientOcclusion);
             aoPath = QString::fromStdString(aoTex.path);
         }
 
@@ -2252,7 +2252,7 @@ void AssImpMeshExporter::assignTexturesToMaterial(
                 aoTexturePath.replace("\\", "/");
                 aiString aiAoPath(aoTexturePath.toStdString());
 
-                const auto& aoTex = material.texture(GLMaterial::TextureType::AmbientOcclusion);
+                const auto& aoTex = material.texture(Material::TextureType::AmbientOcclusion);
                 // Use LIGHTMAP type for glTF occlusion export
                 aiMat->AddProperty(&aiAoPath, AI_MATKEY_TEXTURE(aiTextureType_LIGHTMAP, 0));
                 int aoUvIndex = aoTex.texCoordIndex;
@@ -2338,7 +2338,7 @@ void AssImpMeshExporter::updateSceneMaterialPaths(aiScene* scene, const TextureP
 
 void AssImpMeshExporter::patchMtlWithPbrExtensions(
     const QString& mtlPath,
-    const std::vector<TriangleMesh*>& meshes,
+    const std::vector<SceneMesh*>& meshes,
     const TexturePackage& pkg)
 {
     // Read the file Assimp wrote.
@@ -2351,13 +2351,13 @@ void AssImpMeshExporter::patchMtlWithPbrExtensions(
     const QString content = QString::fromUtf8(file.readAll());
     file.close();
 
-    // Build name → GLMaterial lookup matching SceneGraphExporter's naming logic.
-    QMap<QString, GLMaterial> matByName;
-    for (const TriangleMesh* mesh : meshes)
+    // Build name → Material lookup matching SceneGraphExporter's naming logic.
+    QMap<QString, Material> matByName;
+    for (const SceneMesh* mesh : meshes)
     {
         if (!mesh)
             continue;
-        const GLMaterial mat = mesh->getMaterial();
+        const Material mat = mesh->getMaterial();
         const QString name = mat.name().trimmed().isEmpty()
             ? mesh->getName()
             : mat.name().trimmed();
@@ -2365,7 +2365,7 @@ void AssImpMeshExporter::patchMtlWithPbrExtensions(
     }
 
     // Helper: resolve a texture path to a relative output path.
-    auto relPath = [&](const GLMaterial::Texture& tex) -> QString
+    auto relPath = [&](const Material::Texture& tex) -> QString
     {
         if (tex.path.empty())
             return {};
@@ -2381,27 +2381,27 @@ void AssImpMeshExporter::patchMtlWithPbrExtensions(
     };
 
     // Helper: append PBR lines for one material.
-    auto appendPbr = [&](QStringList& out, const GLMaterial& mat)
+    auto appendPbr = [&](QStringList& out, const Material& mat)
     {
         out << "# PBR extensions (Pm/Pr/map_Pm/map_Pr/map_Ke/norm)";
         out << QString("Pm %1").arg(mat.metalness(), 0, 'f', 4);
         out << QString("Pr %1").arg(mat.roughness(), 0, 'f', 4);
 
-        const QString metallicTex = relPath(mat.texture(GLMaterial::TextureType::Metallic));
+        const QString metallicTex = relPath(mat.texture(Material::TextureType::Metallic));
         if (!metallicTex.isEmpty())
             out << QString("map_Pm %1").arg(metallicTex);
 
-        const QString roughnessTex = relPath(mat.texture(GLMaterial::TextureType::Roughness));
+        const QString roughnessTex = relPath(mat.texture(Material::TextureType::Roughness));
         if (!roughnessTex.isEmpty())
             out << QString("map_Pr %1").arg(roughnessTex);
 
         // Emissive texture — Assimp writes Ke scalar but never map_Ke.
-        const QString emissiveTex = relPath(mat.texture(GLMaterial::TextureType::Emissive));
+        const QString emissiveTex = relPath(mat.texture(Material::TextureType::Emissive));
         if (!emissiveTex.isEmpty())
             out << QString("map_Ke %1").arg(emissiveTex);
 
         // norm: tangent-space normal map, preferred over bump for PBR-aware importers.
-        const QString normalTex = relPath(mat.texture(GLMaterial::TextureType::Normal));
+        const QString normalTex = relPath(mat.texture(Material::TextureType::Normal));
         if (!normalTex.isEmpty())
             out << QString("norm %1").arg(normalTex);
 
@@ -2413,7 +2413,7 @@ void AssImpMeshExporter::patchMtlWithPbrExtensions(
     QStringList output;
     output.reserve(lines.size() + 64);
 
-    const GLMaterial* current = nullptr;
+    const Material* current = nullptr;
 
     for (const QString& line : lines)
     {
@@ -2459,7 +2459,7 @@ void AssImpMeshExporter::patchMtlWithPbrExtensions(
  *
  * This method:
  * 1. Iterates through scene meshes and corresponding ModelViewer mesh objects
- * 2. Creates/updates Assimp materials from GLMaterial data
+ * 2. Creates/updates Assimp materials from Material data
  * 3. Assigns textures and PBR properties
  * 4. Updates material indices in mesh references
  *
@@ -2468,7 +2468,7 @@ void AssImpMeshExporter::patchMtlWithPbrExtensions(
  */
 void AssImpMeshExporter::syncSceneToMeshStore(
     aiScene* scene,
-    const std::vector<TriangleMesh*>& meshes)
+    const std::vector<SceneMesh*>& meshes)
 {
     if (!scene || !scene->mRootNode || meshes.empty())
         return;
@@ -2481,10 +2481,10 @@ void AssImpMeshExporter::syncSceneToMeshStore(
         .arg(scene->mNumMeshes).arg(meshes.size()));
 
     // Build the set of original aiScene mesh indices that are still alive in _meshStore.
-    // Each TriangleMesh carries the index it was assigned at load time via setSceneIndex(),
+    // Each SceneMesh carries the index it was assigned at load time via setSceneIndex(),
     // so this is an exact, name-independent match.
     QSet<int> survivingSceneIndices;
-    for (const TriangleMesh* m : meshes)
+    for (const SceneMesh* m : meshes)
     {
         int idx = m->getSceneIndex();
         if (idx >= 0)
@@ -2558,7 +2558,7 @@ void AssImpMeshExporter::syncSceneToMeshStore(
 
 void AssImpMeshExporter::applyMaterialsToScene(
     aiScene* scene,
-    const std::vector<TriangleMesh*>& meshes,
+    const std::vector<SceneMesh*>& meshes,
     const QString& exportFileLocation)  // NEW parameter
 {
     if (!scene || meshes.empty())
@@ -2579,11 +2579,11 @@ void AssImpMeshExporter::applyMaterialsToScene(
     int normalizedCount = 0;
     if (isGltfFamily)
     {
-        QMap<unsigned int, const TriangleMesh*> materialOwners;
+        QMap<unsigned int, const SceneMesh*> materialOwners;
 
         for (size_t meshIdx = 0; meshIdx < meshes.size() && meshIdx < scene->mNumMeshes; ++meshIdx)
         {
-            const TriangleMesh* mesh = meshes[meshIdx];
+            const SceneMesh* mesh = meshes[meshIdx];
             const aiMesh* sceneMesh = scene->mMeshes[meshIdx];
             if (!mesh || !sceneMesh)
                 continue;
@@ -2598,12 +2598,12 @@ void AssImpMeshExporter::applyMaterialsToScene(
         for (auto it = materialOwners.constBegin(); it != materialOwners.constEnd(); ++it)
         {
             const unsigned int materialIndex = it.key();
-            const TriangleMesh* mesh = it.value();
+            const SceneMesh* mesh = it.value();
             aiMaterial* preservedMaterial = scene->mMaterials[materialIndex];
             if (!mesh || !preservedMaterial)
                 continue;
 
-            const GLMaterial sourceMaterial = exportedDefaultMaterial(mesh);
+            const Material sourceMaterial = exportedDefaultMaterial(mesh);
             if (!shouldNormalizePreservedGltfMaterial(preservedMaterial, sourceMaterial))
                 continue;
 
@@ -3048,13 +3048,13 @@ aiScene* AssImpMeshExporter::createScene(
 }
 
 QString AssImpMeshExporter::packMetallicRoughnessIfSeparate(
-    const GLMaterial& material,
+    const Material& material,
     const TexturePackage& texturePackage,
     const QString& outputDirectory)
 {
     // Get metallic and roughness texture paths
-    const auto& metallicTex = material.texture(GLMaterial::TextureType::Metallic);
-    const auto& roughnessTex = material.texture(GLMaterial::TextureType::Roughness);
+    const auto& metallicTex = material.texture(Material::TextureType::Metallic);
+    const auto& roughnessTex = material.texture(Material::TextureType::Roughness);
 
     QString metallicPath = QString::fromStdString(metallicTex.path);
     QString roughnessPath = QString::fromStdString(roughnessTex.path);
@@ -3078,7 +3078,7 @@ QString AssImpMeshExporter::packMetallicRoughnessIfSeparate(
     }
 
     // Get roughness invert flag from material's packing metadata (defaults to true for smoothness conversion)
-    GLMaterial::ChannelPacking roughnessPacking = material.packingFor("Roughness");
+    Material::ChannelPacking roughnessPacking = material.packingFor("Roughness");
     bool invertRoughness = roughnessPacking.invert;  // Read from material.json packing settings
 
     logMessage(QString("  -> Packing separate M/R textures: %1 + %2 (invertRoughness=%3)")
@@ -3138,14 +3138,14 @@ QString AssImpMeshExporter::packMetallicRoughnessIfSeparate(
 }
 
 QString AssImpMeshExporter::packORMIfSeparate(
-    const GLMaterial& material,
+    const Material& material,
     const TexturePackage& texturePackage,
     const QString& outputDirectory)
 {
     // Get AO, metallic, and roughness texture paths
-    const auto& aoTex = material.texture(GLMaterial::TextureType::AmbientOcclusion);
-    const auto& metallicTex = material.texture(GLMaterial::TextureType::Metallic);
-    const auto& roughnessTex = material.texture(GLMaterial::TextureType::Roughness);
+    const auto& aoTex = material.texture(Material::TextureType::AmbientOcclusion);
+    const auto& metallicTex = material.texture(Material::TextureType::Metallic);
+    const auto& roughnessTex = material.texture(Material::TextureType::Roughness);
 
     QString aoPath = QString::fromStdString(aoTex.path);
     QString metallicPath = QString::fromStdString(metallicTex.path);
@@ -3189,7 +3189,7 @@ QString AssImpMeshExporter::packORMIfSeparate(
     }
 
     // Get roughness invert flag from material's packing metadata (defaults to true for smoothness conversion)
-    GLMaterial::ChannelPacking roughnessPacking = material.packingFor("Roughness");
+    Material::ChannelPacking roughnessPacking = material.packingFor("Roughness");
     bool invertRoughness = roughnessPacking.invert;  // Read from material.json packing settings
 
     logMessage(QString("  -> Packing ORM textures: AO=%1, M=%2, R=%3 (invertRoughness=%4)")

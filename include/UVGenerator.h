@@ -1,6 +1,6 @@
 
 #pragma once
-#include "AssImpMesh.h"
+#include "SceneMesh.h"
 #include "MeshAnalyzer.h"
 #include <cmath>
 #include <cstdint>

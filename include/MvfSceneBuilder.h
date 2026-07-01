@@ -1,4 +1,6 @@
 #pragma once
+class SceneMesh;
+
 
 #include "MvfDocument.h"
 
@@ -9,7 +11,7 @@
 #include <QUuid>
 
 class SceneGraph;
-class TriangleMesh;
+class RenderableMesh;
 struct GltfCameraData;
 
 namespace Mvf
@@ -22,7 +24,7 @@ struct MVFPackage
 };
 
 MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
-                                   const std::vector<TriangleMesh*>& meshStore,
+                                   const std::vector<SceneMesh*>& meshStore,
                                    const QSet<QUuid>& visibleMeshUuids,
                                    const QSet<QUuid>& selectedMeshUuids,
                                    const QVector<GltfCameraData>& cameraDataByFile = {});

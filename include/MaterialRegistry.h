@@ -5,7 +5,7 @@
 #include <QVariantMap>
 #include <QMutex>
 
-class GLMaterial;
+class Material;
 
 class MaterialRegistry : public QObject
 {
@@ -33,7 +33,7 @@ public:
     QList<Group> groups() const;
 
     // Returns a material instance for key (cached). If key not found returns an optional default material (constructed with defaults).
-    GLMaterial materialForKey(const QString& key);
+    Material materialForKey(const QString& key);
 
     // Returns whether registry has a key
     bool hasKey(const QString& key) const;
@@ -51,6 +51,6 @@ private:
 
     QList<Group> _groups;
     QMap<QString, QVariantMap> _rawByKey;
-    mutable QMap<QString, QSharedPointer<GLMaterial>> _cache;
+    mutable QMap<QString, QSharedPointer<Material>> _cache;
     mutable QMutex _cacheMutex;
 };

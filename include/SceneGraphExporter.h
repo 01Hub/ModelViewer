@@ -1,4 +1,6 @@
 #pragma once
+class SceneMesh;
+
 
 #include <functional>
 #include <vector>
@@ -12,12 +14,11 @@
 
 class SceneGraph;
 class SceneNode;
-class TriangleMesh;
-
+class RenderableMesh;
 class SceneGraphExporter
 {
 public:
-    using MeshResolver = std::function<TriangleMesh* (const QUuid&)>;
+    using MeshResolver = std::function<SceneMesh* (const QUuid&)>;
 
     // Rebuilds an export-only aiScene from:
     //  - SceneGraph hierarchy
@@ -29,7 +30,7 @@ public:
     //  - creates one default material and assigns materialIndex = 0 to all meshes
     //
     // Later we can extend this to:
-    //  - rebuild full materials from current GLMaterial state
+    //  - rebuild full materials from current Material state
     //  - include lights
     //  - support multiple UV channels / vertex colors / tangents as needed
     // flattenTransforms: when true, every aiNode gets an identity transform and
@@ -66,7 +67,7 @@ private:
         QMap<QString, unsigned int>* animMatRemap = nullptr
     );
 
-    static aiMesh* buildMeshFromTriangleMesh(const TriangleMesh* mesh, unsigned int materialIndex);
+    static aiMesh* buildMeshFromSceneMesh(const SceneMesh* mesh, unsigned int materialIndex);
 
-    static aiMaterial* buildMaterialFromTriangleMesh(const TriangleMesh* mesh);
+    static aiMaterial* buildMaterialFromSceneMesh(const SceneMesh* mesh);
 };
