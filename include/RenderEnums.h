@@ -3,8 +3,8 @@
 // ---------------------------------------------------------------------------
 // RenderEnums.h
 //
-// Render-pipeline enumerations shared between GLWidget and
-// SceneRenderController.  Extracted from GLWidget.h in Phase 10 of the
+// Render-pipeline enumerations shared between ViewportWidget and
+// SceneRenderController.  Extracted from ViewportWidget.h in Phase 10 of the
 // mesh/render/runtime separation refactor so that SceneRenderController.h
 // can include them without creating a circular dependency.
 // ---------------------------------------------------------------------------
@@ -19,7 +19,7 @@ enum class HDRToneMapMode    { KhronosPbrNeutral, ACES_Narkowicz, ACES_Hill,
 enum class GroundMode        { None = 0, Floor = 1, Grid = 2 };
 
 // Viewport enumerations (also extracted here to avoid circular includes from
-// ViewportInteractionController.h; GLWidget.h replaces its inline definitions
+// ViewportInteractionController.h; ViewportWidget.h replaces its inline definitions
 // with #include "RenderEnums.h" for all of these).
 enum class ViewMode          { TOP, BOTTOM, LEFT, RIGHT, FRONT, BACK,
                                ISOMETRIC, DIMETRIC, TRIMETRIC, NONE };

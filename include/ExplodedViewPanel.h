@@ -50,7 +50,7 @@ public:
                                 const QUuid& activePresetId = QUuid(),
                                 int activeStepIndex = -1);
 
-    // Called by GLWidget::showExplodedViewPanel(true) to seed the assembly
+    // Called by ViewportWidget::showExplodedViewPanel(true) to seed the assembly
     // field from whatever is already selected in the viewport / tree.
     void captureCurrentSelection();
 

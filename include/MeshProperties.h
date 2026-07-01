@@ -1,5 +1,5 @@
-#ifndef MESHPROPERTIES_H
-#define MESHPROPERTIES_H
+#pragma once
+
 
 class SceneMesh;
 
@@ -46,5 +46,3 @@ private:
 	QVector3D _centerOfMass;
 	BoundingBox _boundingBox;
 };
-
-#endif // MESHPROPERTIES_H

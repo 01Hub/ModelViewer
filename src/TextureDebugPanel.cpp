@@ -138,7 +138,7 @@ TextureDebugPanel::TextureDebugPanel(QWidget* parent)
 	restoreWindowGeometry();
 }
 
-void TextureDebugPanel::setGLWidget(ViewportWidget* viewportWidget)
+void TextureDebugPanel::setViewportWidget(ViewportWidget* viewportWidget)
 {
 	_viewportWidget = viewportWidget;
 	if (_viewportWidget)
@@ -611,7 +611,7 @@ void TextureDebugPanel::populateExtensions(const QVector<TextureSlotInfo>& slotI
 		activeUnits[info.unitIndex] = info.extensionEnabled;
 
 	// Extension definitions: { internal key, display name, relevant unit(s) }
-	// Key is the stable identifier used by GLWidget::setDebugExtensionEnabled.
+	// Key is the stable identifier used by ViewportWidget::setDebugExtensionEnabled.
 	struct ExtDef { QString key; QString name; QVector<int> units; };
 	const QVector<ExtDef> extensions = {
 		{ "Sheen",                tr("Sheen"),                { 26, 27 } },

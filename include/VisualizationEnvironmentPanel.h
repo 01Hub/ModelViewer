@@ -114,7 +114,7 @@ public slots:
 	// ===== Skybox Preset Management =====
 	void onLoadSkyBoxPresetMaps();
 
-	// ===== Display Mode Changed Signal from GLWidget =====
+	// ===== Display Mode Changed Signal from ViewportWidget =====
 	void onDisplayModeChanged(int mode);
 
 	// ===== Camera Up-Axis =====

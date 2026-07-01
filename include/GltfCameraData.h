@@ -15,7 +15,7 @@
 //
 // These structures are populated by AssImpModelLoader::parseSceneCameras()
 // during import and stored in SceneGraph keyed by source file path.
-// CamerasPanel reads them to build its tree, and GLWidget uses them to
+// CamerasPanel reads them to build its tree, and ViewportWidget uses them to
 // switch the primary camera to a glTF-defined viewpoint.
 // ---------------------------------------------------------------------------
 

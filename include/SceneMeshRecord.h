@@ -7,7 +7,7 @@ class SceneMesh;
 // ---------------------------------------------------------------------------
 // SceneMeshRecord
 //
-// One slot in the scene mesh store (_meshStore in SceneRuntime / GLWidget).
+// One slot in the scene mesh store (_meshStore in SceneRuntime / ViewportWidget).
 // Pairs a raw mesh pointer with its stable QUuid so callers can correlate
 // meshes without extra lookups.
 //

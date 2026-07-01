@@ -46,7 +46,7 @@ class TextureDebugPanel : public QDialog
 public:
 	explicit TextureDebugPanel(QWidget* parent = nullptr);
 
-	void setGLWidget(ViewportWidget* viewportWidget);
+	void setViewportWidget(ViewportWidget* viewportWidget);
 	void setModelViewer(ModelViewer* mv);
 
 public slots:

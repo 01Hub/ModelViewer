@@ -29,7 +29,7 @@
 class Triangle;
 
 // Precomputed texture binding entry — built once per material change by
-// AssImpMesh::cacheTextureBindings(), consumed every frame by
+// SceneMesh::cacheTextureBindings(), consumed every frame by
 // bindTexturesOptimized() without re-scanning the texture list.
 struct PrecomputedTexture
 {
@@ -437,7 +437,7 @@ public:
 	// ---- Debug texture overrides (TextureDebugPanel) -------------------------
 	// Replace a texture unit with an alternative texture for the next draw call.
 	// Pass replaceTex = 0 to bind "no texture" (black), or pass the ID of a
-	// neutral 1×1 placeholder created by GLWidget.
+	// neutral 1×1 placeholder created by ViewportWidget.
 	void setDebugTextureOverride(int unit, GLuint replaceTex);
 	void clearDebugTextureOverride(int unit);
 	void clearAllDebugTextureOverrides();

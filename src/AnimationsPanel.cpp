@@ -139,7 +139,7 @@ void AnimationsPanel::setSceneGraph(SceneGraph* sg)
 	_sceneGraph = sg;
 }
 
-void AnimationsPanel::setGLWidget(ViewportWidget* viewportWidget)
+void AnimationsPanel::setViewportWidget(ViewportWidget* viewportWidget)
 {
 	_viewportWidget = viewportWidget;
 }

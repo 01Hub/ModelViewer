@@ -51,7 +51,7 @@ public:
     explicit SceneTreeWidget(QWidget* parent = nullptr);
 
     void setSceneGraph(SceneGraph* sg);
-    void setGLWidget(ViewportWidget* viewportWidget);
+    void setViewportWidget(ViewportWidget* viewportWidget);
 
     // -----------------------------------------------------------------------
     // Selection
@@ -67,7 +67,7 @@ public:
     int meshCount() const;
 
     /**
-     * Set selection from a set of mesh-store indices (converted via GLWidget).
+     * Set selection from a set of mesh-store indices (converted via ViewportWidget).
      * Does NOT emit selectionUpdated().
      */
     void setSelectionByIndices(const QSet<int>& indices);

@@ -1,5 +1,5 @@
-#ifndef PICKINGHELPER_H
-#define PICKINGHELPER_H
+#pragma once
+
 
 #include <QColor>
 #include <QPoint>
@@ -20,5 +20,3 @@ QRect clientRectForPoint(const QPoint& pixel,
     int widgetHeight,
     bool multiViewActive);
 }
-
-#endif // PICKINGHELPER_H

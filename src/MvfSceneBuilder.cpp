@@ -1152,7 +1152,7 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
     document.mvfSession.insert(QStringLiteral("geometryChunkPresent"), !package.geometryChunk.isEmpty());
 
     // Per-file punctual light data (names, enabled flags, repositioned positions)
-    // is written by ModelViewer::buildMVFPackage() which has access to GLWidget's
+    // is written by ModelViewer::buildMVFPackage() which has access to ViewportWidget's
     // repositioned state.  This builder only sees the raw SceneGraph positions and
     // has no way to apply the user's slider / model-rotation repositioning.
 

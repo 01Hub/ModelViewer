@@ -1,5 +1,5 @@
-#ifndef MODELVIEWERAPPLICATION_H
-#define MODELVIEWERAPPLICATION_H
+#pragma once
+
 
 #include <QApplication>
 #include <QStringList>
@@ -46,5 +46,3 @@ private:
 	static int _supportedMSAASamples;
 	static int _supportedAnisotropicFilteringLevel;
 };
-
-#endif // MODELVIEWERAPPLICATION_H

@@ -122,7 +122,7 @@ int main(int argc, char** argv)
 	}
 
 	// Guard against platforms (Wayland, headless) where no context is current at this point.
-	// The main window's GLWidget will have initialised by now on most platforms, but it is
+	// The main window's ViewportWidget will have initialised by now on most platforms, but it is
 	// not guaranteed — a missing context here would crash glGetString.
 	if (QOpenGLContext::currentContext())
 	{

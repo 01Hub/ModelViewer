@@ -5,7 +5,7 @@
 
 #include <vector>
 
-// Interleaved per-vertex data used by AssImpMesh for meshopt optimisation,
+// Interleaved per-vertex data used by SceneMesh for meshopt optimisation,
 // morph-target application, and GPU upload.  Stored as _vertices and
 // _baseVertices in SceneMesh; split into separate float arrays in
 // initBuffers() for the GPU buffers.
@@ -38,7 +38,7 @@ static_assert(sizeof(Vertex) == sizeof(float) * (4 + 3 + 3 + 3 + 3 + 8 + 4 + 4),
 
 // Per-morph-target position/normal/tangent deltas (CPU-side only).
 // Stored in RenderableMesh::_morphTargets and consumed by
-// AssImpMesh::applyMorphWeights() to blend _baseVertices into _vertices.
+// SceneMesh::applyMorphWeights() to blend _baseVertices into _vertices.
 struct MorphTargetData
 {
 	std::vector<glm::vec3> positionDeltas;

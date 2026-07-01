@@ -61,7 +61,7 @@ public:
 	void setEnvironment(EnvMode env) { _currentEnv = env; update(); }
     void setExposureEV(float ev);
 	void setTextureViewMode(TexViewMode mode) { _texViewMode = mode; update(); }
-	void setGLWidget(ViewportWidget* viewportWidget) { _viewportWidget = viewportWidget; }
+	void setViewportWidget(ViewportWidget* viewportWidget) { _viewportWidget = viewportWidget; }
     void setPreviewProfile(PreviewProfile profile) { _profile = profile; update(); }
 
 	PreviewShape currentShape() const { return _currentShape; }

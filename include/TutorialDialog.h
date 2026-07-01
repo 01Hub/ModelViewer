@@ -1,5 +1,5 @@
-#ifndef TUTORIALDIALOG_H
-#define TUTORIALDIALOG_H
+#pragma once
+
 
 #include <QDialog>
 #include <QListWidget>
@@ -73,5 +73,3 @@ private:
     static constexpr int TOTAL_LESSONS = 14;
     static constexpr int TOTAL_LIST_ITEMS = TOTAL_LESSONS + 1;  // Include index page
 };
-
-#endif // TUTORIALDIALOG_H

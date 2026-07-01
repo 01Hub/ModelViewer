@@ -26,7 +26,7 @@ public:
     /**
      * @brief Construct a set material command
      * @param viewer The ModelViewer instance
-     * @param glWidget The GLWidget instance
+     * @param glWidget The ViewportWidget instance
      * @param meshUuids The UUIDs of meshes to apply material to
      * @param newMaterial The material to apply
      * @param materialName Optional name for undo stack display (e.g., "Gold")

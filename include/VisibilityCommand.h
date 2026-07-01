@@ -22,7 +22,7 @@ public:
     /**
      * @brief Construct a visibility command
      * @param viewer The ModelViewer instance
-     * @param glWidget The GLWidget instance
+     * @param glWidget The ViewportWidget instance
      * @param newVisibleUuids The new set of visible mesh UUIDs
      * @param text Description (e.g., "Hide", "Show", "Show Only")
      */

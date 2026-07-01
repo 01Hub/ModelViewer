@@ -15,8 +15,7 @@
 
 // Code altered to Qt by Sharjith N - sharjith@gmail.com
 
-#ifndef TRIANGLEBALDWINWEBER_H
-#define TRIANGLEBALDWINWEBER_H
+#pragma once
 
 #include "Triangle.h"
 
@@ -30,5 +29,3 @@ private:
 	float _transformation[9];
 	unsigned char _fixedColumn;
 };
-
-#endif // TRIANGLEBALDWINWEBER_H

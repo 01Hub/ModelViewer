@@ -66,7 +66,7 @@ public:
     /**
      * @brief Construct a transform command
      * @param viewer The ModelViewer instance
-     * @param glWidget The GLWidget instance
+     * @param glWidget The ViewportWidget instance
      * @param meshUuids The UUIDs of meshes to transform
      * @param newTranslation New translation value for all meshes
      * @param newRotation New rotation value for all meshes (degrees)

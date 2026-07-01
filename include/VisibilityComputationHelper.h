@@ -3,7 +3,7 @@
 // ---------------------------------------------------------------------------
 // VisibilityComputationHelper
 //
-// Pure frustum- and clip-plane culling math, extracted from GLWidget so it
+// Pure frustum- and clip-plane culling math, extracted from ViewportWidget so it
 // can be used and tested without a GL context.
 //
 // Callers build a FrustumContext once per frame (after extractFrustumPlanes)

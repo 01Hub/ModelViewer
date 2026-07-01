@@ -1169,7 +1169,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		}
 	}
 
-	// Emit lights for GLWidget to handle
+	// Emit lights for ViewportWidget to handle
 	emit lightsLoaded(parsedLights);
 	emit loadingFinished(true, _scene);
 }

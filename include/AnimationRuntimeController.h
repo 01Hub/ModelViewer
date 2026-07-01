@@ -96,7 +96,7 @@ public:
     double playbackSpeed() const          { return _animationPlaybackSpeed; }
     void   setPlaybackSpeed(double speed) { _animationPlaybackSpeed = speed; }
 
-    // Timer is created by GLWidget (needs GLWidget as parent for Qt ownership)
+    // Timer is created by ViewportWidget (needs ViewportWidget as parent for Qt ownership)
     // and registered here for storage only.
     QTimer* animationTimer() const       { return _animationTimer; }
     void    setAnimationTimer(QTimer* t) { _animationTimer = t; }

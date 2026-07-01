@@ -278,7 +278,7 @@ void SceneTreeWidget::setSceneGraph(SceneGraph* sg)
                 this,        &SceneTreeWidget::rebuild);
 }
 
-void SceneTreeWidget::setGLWidget(ViewportWidget* viewportWidget)
+void SceneTreeWidget::setViewportWidget(ViewportWidget* viewportWidget)
 {
     _viewportWidget = viewportWidget;
 }

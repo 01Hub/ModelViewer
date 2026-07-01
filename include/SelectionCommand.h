@@ -15,7 +15,7 @@ public:
     /**
      * @brief Construct a selection command
      * @param viewer The ModelViewer instance
-     * @param glWidget The GLWidget instance
+     * @param glWidget The ViewportWidget instance
      * @param newSelection The new selection set (mesh IDs)
      * @param text Description (default: "Select")
      */

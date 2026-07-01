@@ -120,7 +120,7 @@ void VisualizationEnvironmentPanel::initialize(ModelViewer* modelViewer, Viewpor
 	}
 	updateControlDependencies();
 
-	// Keep GLWidget in sync with the UI defaults on first startup as well.
+	// Keep ViewportWidget in sync with the UI defaults on first startup as well.
 	// Without this, the viewer could retain an internal floor offset that
 	// differs from the spin box value until the user touches the control.
 	if (_viewportWidget && ui)
@@ -359,7 +359,7 @@ void VisualizationEnvironmentPanel::onDefaultLightsClicked()
 	ui->checkBoxIBL->blockSignals(false);
 	ui->checkBoxShowLights->blockSignals(false);
 
-	// Manually trigger GLWidget calls
+	// Manually trigger ViewportWidget calls
 	_viewportWidget->useDefaultLights(true);
 	_viewportWidget->usePunctualLights(true);  // kept true; tree checkboxes control per-light enable
 	_viewportWidget->useIBL(true);

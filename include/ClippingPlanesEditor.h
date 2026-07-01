@@ -1,5 +1,5 @@
-#ifndef CLIPPINGPLANESEDITOR_H
-#define CLIPPINGPLANESEDITOR_H
+#pragma once
+
 
 #include <QDialog>
 #include "ui_ClippingPlanesEditor.h"
@@ -47,5 +47,3 @@ private:
 private:
 	ViewportWidget* _viewportWidget;
 };
-
-#endif // CLIPPINGPLANESEDITOR_H

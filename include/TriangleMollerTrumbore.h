@@ -1,5 +1,5 @@
-#ifndef TRIANGLEMOLLERTRUMBORE_H
-#define TRIANGLEMOLLERTRUMBORE_H
+#pragma once
+
 
 #include "Triangle.h"
 
@@ -11,5 +11,3 @@ public:
 
 	virtual bool intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint);
 };
-
-#endif // TRIANGLEMOLLERTRUMBORE_H

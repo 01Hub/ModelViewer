@@ -82,3 +82,172 @@ QVector3D ViewportInteractionController::rotatePointAroundAxis(
     rot.translate(-pivot);
     return rot.map(point);
 }
+
+void ViewportInteractionController::setShowViewCubeOverride(bool show)
+{
+    _showViewCubeOverride = show;
+    if (!show)
+        _viewCubeHoveredRegionId = -1;
+}
+
+void ViewportInteractionController::setCornerAxisPosition(CornerAxisPosition pos)
+{
+    _cornerAxisPosition = normalizeCornerAxisPosition(pos);
+}
+
+void ViewportInteractionController::setModelMatrix(const QMatrix4x4& matrix)
+{
+    _modelMatrix = matrix;
+    recomputeModelViewMatrix();
+}
+
+void ViewportInteractionController::setViewMatrix(const QMatrix4x4& matrix)
+{
+    _viewMatrix = matrix;
+    recomputeModelViewMatrix();
+}
+
+void ViewportInteractionController::resetSelectionBoundingSphere()
+{
+    _selectionBoundingSphere.setCenter(0, 0, 0);
+    _selectionBoundingSphere.setRadius(0.0f);
+}
+
+float ViewportInteractionController::advanceSlerpStep()
+{
+    _slerpStep += _slerpFrac;
+    return _slerpStep;
+}
+
+void ViewportInteractionController::setNavigationModes(bool rotating, bool panning, bool zooming)
+{
+    _viewRotating = rotating;
+    _viewPanning  = panning;
+    _viewZooming  = zooming;
+}
+
+void ViewportInteractionController::clearNavigationModes()
+{
+    setNavigationModes(false, false, false);
+}
+
+void ViewportInteractionController::setNavigationLock(const QRect& viewport, const QRect& clientRect)
+{
+    _navigationViewportLocked     = true;
+    _navigationLockedViewport     = viewport;
+    _navigationLockedClientRect   = clientRect;
+}
+
+void ViewportInteractionController::clearNavigationLock()
+{
+    _navigationViewportLocked     = false;
+    _navigationLockedViewport     = QRect();
+    _navigationLockedClientRect   = QRect();
+}
+
+void ViewportInteractionController::clearInertiaState()
+{
+    _inertiaPanVelocity      = QVector2D();
+    _inertiaZoomVelocity     = 0.0f;
+    _inertiaRotateVelocity   = QVector2D();
+    _inertiaZoomPanVelocity  = QVector3D();
+}
+
+void ViewportInteractionController::setTransformGizmoMode(
+    bool translating, bool scaling, bool uniformScaling, bool rotating)
+{
+    _transformGizmoTranslating    = translating;
+    _transformGizmoScaling        = scaling;
+    _transformGizmoUniformScaling = uniformScaling;
+    _transformGizmoRotating       = rotating;
+}
+
+void ViewportInteractionController::resetTransformGizmoDragSession()
+{
+    _transformGizmoStartStates.clear();
+    _transformGizmoStartCenters.clear();
+    _transformGizmoStartMatrices.clear();
+    _transformGizmoCurrentTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
+    _transformGizmoCurrentScaleDelta       = QVector3D(1.0f, 1.0f, 1.0f);
+    _transformGizmoCurrentRotationDelta    = QVector3D(0.0f, 0.0f, 0.0f);
+    _transformGizmoLoggedTranslationUpdate = false;
+}
+
+void ViewportInteractionController::setViewportMatrix(float width, float height)
+{
+    _viewportMatrix = QMatrix4x4(width  / 2.0f, 0.0f,          0.0f, 0.0f,
+                                 0.0f,          height / 2.0f, 0.0f, 0.0f,
+                                 0.0f,          0.0f,          1.0f, 0.0f,
+                                 width  / 2.0f, height / 2.0f, 0.0f, 1.0f);
+}
+
+void ViewportInteractionController::syncMatricesFromCamera(const Camera& camera)
+{
+    _viewMatrix       = camera.getViewMatrix();
+    _projectionMatrix = camera.getProjectionMatrix();
+    recomputeModelViewMatrix();
+}
+
+void ViewportInteractionController::syncPoseFromCamera(const Camera& camera)
+{
+    _currentRotation    = QQuaternion::fromRotationMatrix(
+        camera.getViewMatrix().toGenericMatrix<3, 3>());
+    _currentTranslation = camera.getPosition();
+}
+
+void ViewportInteractionController::syncRotationFromCamera(const Camera& camera)
+{
+    _currentRotation = QQuaternion::fromRotationMatrix(
+        camera.getViewMatrix().toGenericMatrix<3, 3>());
+}
+
+void ViewportInteractionController::syncPoseAndRangeFromCamera(const Camera& camera)
+{
+    syncPoseFromCamera(camera);
+    syncCurrentViewRange();
+}
+
+void ViewportInteractionController::updateFrustumPlanes()
+{
+    const QMatrix4x4 vp = _projectionMatrix * _viewMatrix;
+    const QVector4D  r0 = vp.row(0);
+    const QVector4D  r1 = vp.row(1);
+    const QVector4D  r2 = vp.row(2);
+    const QVector4D  r3 = vp.row(3);
+
+    _frustumPlanes[0] = r3 + r0;
+    _frustumPlanes[1] = r3 - r0;
+    _frustumPlanes[2] = r3 + r1;
+    _frustumPlanes[3] = r3 - r1;
+    _frustumPlanes[4] = r3 + r2;
+    _frustumPlanes[5] = r3 - r2;
+
+    for (int i = 0; i < 6; ++i)
+    {
+        const float len = QVector3D(_frustumPlanes[i].x(),
+                                    _frustumPlanes[i].y(),
+                                    _frustumPlanes[i].z()).length();
+        if (len > 1e-6f)
+            _frustumPlanes[i] /= len;
+    }
+}
+
+void ViewportInteractionController::saveSystemCameraState(const Camera& camera)
+{
+    _savedCameraPos       = camera.getPosition();
+    _savedCameraDir       = camera.getViewDir();
+    _savedCameraUp        = camera.getUpVector();
+    _savedCameraRight     = camera.getRightVector();
+    _savedProjectionType  = camera.getProjectionType();
+    _savedCameraFOV       = camera.getFOV();
+    _savedCameraViewRange = camera.getViewRange();
+    _systemCameraStateSaved = true;
+}
+
+void ViewportInteractionController::restoreSystemCameraState(Camera& camera)
+{
+    camera.setView(_savedCameraPos, _savedCameraDir, _savedCameraUp, _savedCameraRight);
+    camera.setProjectionType(_savedProjectionType);
+    camera.setFOV(_savedCameraFOV);
+    camera.setViewRange(_savedCameraViewRange);
+}

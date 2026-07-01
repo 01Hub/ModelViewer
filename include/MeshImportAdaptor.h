@@ -50,8 +50,7 @@ public:
 
     // ---- OCC B-Rep edge CPU data (import provenance) ------------------------
     // CPU copies retained for clone(), MVF serialization, and edge picking.
-    // The corresponding GL resources (vertex buffer, VAO) remain in AssImpMesh
-    // until Phase 3c (MeshVizAdaptor).
+    // The corresponding GL resources (vertex buffer, VAO) live in SceneMesh/MeshVizAdaptor.
     void setOccEdgeData(const std::vector<float>& segments,
                         const std::vector<int>&   boundaries)
         { _occEdgeSegments = segments; _occEdgeBoundaries = boundaries; }

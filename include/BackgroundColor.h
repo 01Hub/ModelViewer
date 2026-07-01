@@ -1,5 +1,5 @@
-#ifndef BACKGROUNDCOLOR_H
-#define BACKGROUNDCOLOR_H
+#pragma once
+
 
 #include <QDialog>
 
@@ -49,5 +49,3 @@ private:
 	QColor _bottomColor;
 	int _gradientStyle = 0;
 };
-
-#endif // BACKGROUNDCOLOR_H

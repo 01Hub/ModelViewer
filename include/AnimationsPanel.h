@@ -28,7 +28,7 @@ public:
 	explicit AnimationsPanel(QWidget* parent = nullptr);
 
 	void setSceneGraph(SceneGraph* sg);
-	void setGLWidget(ViewportWidget* viewportWidget);
+	void setViewportWidget(ViewportWidget* viewportWidget);
 	void refresh();
 	void setDetachedOverlayMode(bool enabled);
 	void refreshDetachedOverlayTheme();

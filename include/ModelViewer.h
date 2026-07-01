@@ -1,5 +1,5 @@
-#ifndef __MODELVIEWER_H__
-#define __MODELVIEWER_H__
+#pragma once
+
 
 #include "ui_ModelViewer.h"
 
@@ -367,5 +367,3 @@ private:
 
 	QList<ClipboardEntry> _clipboard;  // copy-paste clipboard (non-undoable)
 };
-
-#endif

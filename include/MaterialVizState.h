@@ -56,9 +56,9 @@ public:
     const Material* materialForVariant(int variantIndex, int originalMaterialIndex) const;
 
     // ---- Texture list ---------------------------------------------------
-    // Raw textures loaded from the source asset (by AssImpMesh). Used to build
+    // Raw textures loaded from the source asset (by SceneMesh). Used to build
     // the optimised PrecomputedTexture binding cache during render setup.
-    // AssImpMesh keeps a reference alias _textures → this vector for zero
+    // SceneMesh keeps a reference alias _textures → this vector for zero
     // call-site churn (same pattern as Material& _material in SceneMesh).
     const std::vector<Material::Texture>& textures() const { return _textures; }
     std::vector<Material::Texture>&       textures()       { return _textures; }

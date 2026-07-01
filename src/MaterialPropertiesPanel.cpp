@@ -545,10 +545,10 @@ void MaterialPropertiesPanel::initialize(ModelViewer* modelViewer, ViewportWidge
 
 	qDebug() << "MaterialPropertiesPanel::initialize called with modelViewer:" << (modelViewer ? "non-null" : "NULL");
 
-	// Pass GLWidget reference to preview widget for environment settings
+	// Pass ViewportWidget reference to preview widget for environment settings
 	if (_preview && _viewportWidget)
 	{
-		_preview->setGLWidget(_viewportWidget);
+		_preview->setViewportWidget(_viewportWidget);
 	}
 
 	// Get reference to the MDI-scoped material cache from ModelViewer
@@ -574,7 +574,7 @@ void MaterialPropertiesPanel::setDetached(bool detached)
 
 			// NOTE: The preview widget is now kept in the main window/main thread
 			// so we don't need to load environment maps locally
-			// The preview widget will continue to use the GLWidget's environment maps
+			// The preview widget will continue to use the ViewportWidget's environment maps
 		}
 		else
 		{
@@ -1829,7 +1829,7 @@ void MaterialPropertiesPanel::loadMaterialTexturesFromKey(const QString& materia
 				{
 					// Set BOTH old and new API to ensure compatibility with all texture-reading code paths:
 					// - Old API (setAlbedoMap, etc.): Used by onCustomMaterialApplied() handler
-					// - New API (setTexture with TextureType): Used by GLWidget::setTexturesToObjects() for main viewer
+					// - New API (setTexture with TextureType): Used by ViewportWidget::setTexturesToObjects() for main viewer
 
 					// First, set the OLD API (for onCustomMaterialApplied handler)
 					switch (type)
@@ -1914,7 +1914,7 @@ void MaterialPropertiesPanel::loadMaterialTexturesFromKey(const QString& materia
 						continue;
 					}
 
-					// Also set the NEW API (for GLWidget::setTexturesToObjects used in main viewer)
+					// Also set the NEW API (for ViewportWidget::setTexturesToObjects used in main viewer)
 					auto tex = _material->texture(type);
 					tex.path = fullPath.toStdString();
 					_material->setTexture(type, tex);

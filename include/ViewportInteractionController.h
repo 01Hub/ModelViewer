@@ -20,17 +20,17 @@
 // ViewportInteractionController
 //
 // Groups all viewport navigation, camera, gizmo drag, and rubber-band
-// interaction state that was previously scattered through GLWidget's private
+// interaction state that was previously scattered through ViewportWidget's private
 // section. A small public API now owns externally visible viewport settings
 // and matrix access, while the bulk interaction state remains an internal
-// aggregate for GLWidget during the incremental de-aliasing refactor.
+// aggregate for ViewportWidget during the incremental de-aliasing refactor.
 //
 // Introduced in Phase 11 of the mesh/render/runtime separation refactor.
 // De-aliased in the controller ownership cleanup pass.
 //
 // Qt-owned pointers (_primaryCamera, _orthoViewsCamera, navigation timers,
 // _rubberBand, _selectRect, _inertiaTimer) are NOT stored here — they remain
-// as direct GLWidget members because Qt object-tree ownership requires the
+// as direct ViewportWidget members because Qt object-tree ownership requires the
 // parent to be a QObject.
 // ---------------------------------------------------------------------------
 
@@ -51,12 +51,7 @@ public:
     void setUserShowCornerAxisOverride(bool show)        { _userShowCornerAxisOverride = show; }
 
     bool showViewCubeOverride() const                    { return _showViewCubeOverride; }
-    void setShowViewCubeOverride(bool show)
-    {
-        _showViewCubeOverride = show;
-        if (!show)
-            _viewCubeHoveredRegionId = -1;
-    }
+    void setShowViewCubeOverride(bool show);
 
     bool showAxis() const                                { return _showAxis; }
     void setShowAxis(bool show)                          { _showAxis = show; }
@@ -112,24 +107,13 @@ public:
     void setCustomViewAnimationActive(bool active)       { _customViewAnimationActive = active; }
 
     CornerAxisPosition cornerAxisPosition() const        { return _cornerAxisPosition; }
-    void setCornerAxisPosition(CornerAxisPosition pos)
-    {
-        _cornerAxisPosition = normalizeCornerAxisPosition(pos);
-    }
+    void setCornerAxisPosition(CornerAxisPosition pos);
 
     const QMatrix4x4& modelMatrix() const                { return _modelMatrix; }
-    void setModelMatrix(const QMatrix4x4& matrix)
-    {
-        _modelMatrix = matrix;
-        recomputeModelViewMatrix();
-    }
+    void setModelMatrix(const QMatrix4x4& matrix);
 
     const QMatrix4x4& viewMatrix() const                 { return _viewMatrix; }
-    void setViewMatrix(const QMatrix4x4& matrix)
-    {
-        _viewMatrix = matrix;
-        recomputeModelViewMatrix();
-    }
+    void setViewMatrix(const QMatrix4x4& matrix);
 
     const QMatrix4x4& projectionMatrix() const           { return _projectionMatrix; }
     void setProjectionMatrix(const QMatrix4x4& matrix)   { _projectionMatrix = matrix; }
@@ -146,11 +130,7 @@ public:
     void setBoundingSphereRadius(float radius)           { _boundingSphere.setRadius(radius); }
 
     const BoundingSphere& selectionBoundingSphere() const { return _selectionBoundingSphere; }
-    void resetSelectionBoundingSphere()
-    {
-        _selectionBoundingSphere.setCenter(0, 0, 0);
-        _selectionBoundingSphere.setRadius(0.0f);
-    }
+    void resetSelectionBoundingSphere();
     void setSelectionBoundingSphere(const BoundingSphere& sphere)
     {
         _selectionBoundingSphere = sphere;
@@ -179,11 +159,7 @@ public:
     void resetSlerpStep()                                { _slerpStep = 0.0f; }
     float slerpFrac() const                              { return _slerpFrac; }
     void setSlerpFrac(float frac)                        { _slerpFrac = frac; }
-    float advanceSlerpStep()
-    {
-        _slerpStep += _slerpFrac;
-        return _slerpStep;
-    }
+    float advanceSlerpStep();
 
     bool windowZoomActive() const                        { return _windowZoomActive; }
     void setWindowZoomActive(bool active)                { _windowZoomActive = active; }
@@ -193,16 +169,8 @@ public:
     void setViewPanning(bool active)                     { _viewPanning = active; }
     bool viewRotating() const                            { return _viewRotating; }
     void setViewRotating(bool active)                    { _viewRotating = active; }
-    void setNavigationModes(bool rotating, bool panning, bool zooming)
-    {
-        _viewRotating = rotating;
-        _viewPanning = panning;
-        _viewZooming = zooming;
-    }
-    void clearNavigationModes()
-    {
-        setNavigationModes(false, false, false);
-    }
+    void setNavigationModes(bool rotating, bool panning, bool zooming);
+    void clearNavigationModes();
 
     const QVector3D& rubberBandPan() const               { return _rubberBandPan; }
     void setRubberBandPan(const QVector3D& pan)          { _rubberBandPan = pan; }
@@ -219,18 +187,8 @@ public:
     bool navigationViewportLocked() const                { return _navigationViewportLocked; }
     const QRect& navigationLockedViewport() const        { return _navigationLockedViewport; }
     const QRect& navigationLockedClientRect() const      { return _navigationLockedClientRect; }
-    void setNavigationLock(const QRect& viewport, const QRect& clientRect)
-    {
-        _navigationViewportLocked = true;
-        _navigationLockedViewport = viewport;
-        _navigationLockedClientRect = clientRect;
-    }
-    void clearNavigationLock()
-    {
-        _navigationViewportLocked = false;
-        _navigationLockedViewport = QRect();
-        _navigationLockedClientRect = QRect();
-    }
+    void setNavigationLock(const QRect& viewport, const QRect& clientRect);
+    void clearNavigationLock();
 
     const QPoint& lastPanPoint() const                   { return _lastPanPoint; }
     void setLastPanPoint(const QPoint& point)            { _lastPanPoint = point; }
@@ -278,13 +236,7 @@ public:
     void scaleInertiaRotateVelocity(float scale)         { _inertiaRotateVelocity *= scale; }
 
     float inertiaDamping() const                         { return _inertiaDamping; }
-    void clearInertiaState()
-    {
-        _inertiaPanVelocity = QVector2D();
-        _inertiaZoomVelocity = 0.0f;
-        _inertiaRotateVelocity = QVector2D();
-        _inertiaZoomPanVelocity = QVector3D();
-    }
+    void clearInertiaState();
 
     const QVector3D& lastZoomPanVector() const           { return _lastZoomPanVector; }
     void setLastZoomPanVector(const QVector3D& vector)   { _lastZoomPanVector = vector; }
@@ -302,13 +254,7 @@ public:
     void setTransformGizmoUniformScaling(bool active)    { _transformGizmoUniformScaling = active; }
     bool transformGizmoRotating() const                  { return _transformGizmoRotating; }
     void setTransformGizmoRotating(bool active)          { _transformGizmoRotating = active; }
-    void setTransformGizmoMode(bool translating, bool scaling, bool uniformScaling, bool rotating)
-    {
-        _transformGizmoTranslating = translating;
-        _transformGizmoScaling = scaling;
-        _transformGizmoUniformScaling = uniformScaling;
-        _transformGizmoRotating = rotating;
-    }
+    void setTransformGizmoMode(bool translating, bool scaling, bool uniformScaling, bool rotating);
 
     const QPoint& transformGizmoDragStartPixel() const   { return _transformGizmoDragStartPixel; }
     void setTransformGizmoDragStartPixel(const QPoint& pixel)
@@ -391,90 +337,19 @@ public:
         _transformGizmoLoggedTranslationUpdate = logged;
     }
 
-    void resetTransformGizmoDragSession()
-    {
-        _transformGizmoStartStates.clear();
-        _transformGizmoStartCenters.clear();
-        _transformGizmoStartMatrices.clear();
-        _transformGizmoCurrentTranslationDelta = QVector3D(0.0f, 0.0f, 0.0f);
-        _transformGizmoCurrentScaleDelta = QVector3D(1.0f, 1.0f, 1.0f);
-        _transformGizmoCurrentRotationDelta = QVector3D(0.0f, 0.0f, 0.0f);
-        _transformGizmoLoggedTranslationUpdate = false;
-    }
+    void resetTransformGizmoDragSession();
 
-    void setViewportMatrix(float width, float height)
-    {
-        _viewportMatrix = QMatrix4x4(width / 2.0f, 0.0f, 0.0f, 0.0f,
-                                     0.0f, height / 2.0f, 0.0f, 0.0f,
-                                     0.0f, 0.0f, 1.0f, 0.0f,
-                                     width / 2.0f, height / 2.0f, 0.0f, 1.0f);
-    }
+    void setViewportMatrix(float width, float height);
+    void recomputeModelViewMatrix()           { _modelViewMatrix = _viewMatrix * _modelMatrix; }
 
-    void recomputeModelViewMatrix()
-    {
-        _modelViewMatrix = _viewMatrix * _modelMatrix;
-    }
+    void syncMatricesFromCamera(const Camera& camera);
+    void syncPoseFromCamera(const Camera& camera);
+    void syncRotationFromCamera(const Camera& camera);
+    void syncTranslationFromCamera(const Camera& camera) { _currentTranslation = camera.getPosition(); }
+    void syncCurrentViewRange()               { _currentViewRange = _viewRange; }
+    void syncPoseAndRangeFromCamera(const Camera& camera);
 
-    void syncMatricesFromCamera(const Camera& camera)
-    {
-        _viewMatrix = camera.getViewMatrix();
-        _projectionMatrix = camera.getProjectionMatrix();
-        recomputeModelViewMatrix();
-    }
-
-    void syncPoseFromCamera(const Camera& camera)
-    {
-        _currentRotation = QQuaternion::fromRotationMatrix(
-            camera.getViewMatrix().toGenericMatrix<3, 3>());
-        _currentTranslation = camera.getPosition();
-    }
-
-    void syncRotationFromCamera(const Camera& camera)
-    {
-        _currentRotation = QQuaternion::fromRotationMatrix(
-            camera.getViewMatrix().toGenericMatrix<3, 3>());
-    }
-
-    void syncTranslationFromCamera(const Camera& camera)
-    {
-        _currentTranslation = camera.getPosition();
-    }
-
-    void syncCurrentViewRange()
-    {
-        _currentViewRange = _viewRange;
-    }
-
-    void syncPoseAndRangeFromCamera(const Camera& camera)
-    {
-        syncPoseFromCamera(camera);
-        syncCurrentViewRange();
-    }
-
-    void updateFrustumPlanes()
-    {
-        const QMatrix4x4 vp = _projectionMatrix * _viewMatrix;
-        const QVector4D r0 = vp.row(0);
-        const QVector4D r1 = vp.row(1);
-        const QVector4D r2 = vp.row(2);
-        const QVector4D r3 = vp.row(3);
-
-        _frustumPlanes[0] = r3 + r0;
-        _frustumPlanes[1] = r3 - r0;
-        _frustumPlanes[2] = r3 + r1;
-        _frustumPlanes[3] = r3 - r1;
-        _frustumPlanes[4] = r3 + r2;
-        _frustumPlanes[5] = r3 - r2;
-
-        for (int i = 0; i < 6; ++i)
-        {
-            const float len = QVector3D(_frustumPlanes[i].x(),
-                                        _frustumPlanes[i].y(),
-                                        _frustumPlanes[i].z()).length();
-            if (len > 1e-6f)
-                _frustumPlanes[i] /= len;
-        }
-    }
+    void updateFrustumPlanes();
 
     const QVector4D& frustumPlane(int index) const       { return _frustumPlanes[index]; }
     const QVector4D* frustumPlanes() const               { return _frustumPlanes; }
@@ -483,24 +358,8 @@ public:
     void setViewCubeHoveredRegionId(int regionId)        { _viewCubeHoveredRegionId = regionId; }
 
     bool systemCameraStateSaved() const                  { return _systemCameraStateSaved; }
-    void saveSystemCameraState(const Camera& camera)
-    {
-        _savedCameraPos = camera.getPosition();
-        _savedCameraDir = camera.getViewDir();
-        _savedCameraUp = camera.getUpVector();
-        _savedCameraRight = camera.getRightVector();
-        _savedProjectionType = camera.getProjectionType();
-        _savedCameraFOV = camera.getFOV();
-        _savedCameraViewRange = camera.getViewRange();
-        _systemCameraStateSaved = true;
-    }
-    void restoreSystemCameraState(Camera& camera)
-    {
-        camera.setView(_savedCameraPos, _savedCameraDir, _savedCameraUp, _savedCameraRight);
-        camera.setProjectionType(_savedProjectionType);
-        camera.setFOV(_savedCameraFOV);
-        camera.setViewRange(_savedCameraViewRange);
-    }
+    void saveSystemCameraState(const Camera& camera);
+    void restoreSystemCameraState(Camera& camera);
     Camera::ProjectionType savedProjectionType() const { return _savedProjectionType; }
     float savedCameraViewRange() const                   { return _savedCameraViewRange; }
     void clearSystemCameraState()                        { _systemCameraStateSaved = false; }

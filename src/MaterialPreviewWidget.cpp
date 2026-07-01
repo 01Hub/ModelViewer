@@ -775,7 +775,7 @@ void MaterialPreviewWidget::paintGL()
 	applyEnvPreset(_currentEnv, _profile);
 
 	// Bind BRDF LUT (always available from main viewer)
-	// MaterialPreviewWidget has its own GL context, so texture units don't conflict with main GLWidget/SceneMesh
+	// MaterialPreviewWidget has its own GL context, so texture units don't conflict with main ViewportWidget/SceneMesh
 	GLuint brdfLut = 0;
 	if (_viewportWidget)
 		brdfLut = _viewportWidget->getBrdfLUT();
@@ -786,10 +786,10 @@ void MaterialPreviewWidget::paintGL()
 
 	const bool useViewerIBL = (_currentEnv == EnvMode::ViewerIBL);
 	const bool viewerIBLAvailable = useViewerIBL && _viewportWidget && _viewportWidget->isEnvironmentMapEnabled();
-	const bool presetAvailable = !useViewerIBL && _viewportWidget;  // Preset environments are always available from GLWidget
+	const bool presetAvailable = !useViewerIBL && _viewportWidget;  // Preset environments are always available from ViewportWidget
 	const bool specularIBLAvailable = viewerIBLAvailable || presetAvailable;
 
-	// Use GLWidget's environment maps (ViewerIBL or presets)
+	// Use ViewportWidget's environment maps (ViewerIBL or presets)
 	// Index: 0=ViewerIBL, 1=Studio, 2=Outdoor, 3=Office
 	if (viewerIBLAvailable || !useViewerIBL)
 	{
@@ -806,7 +806,7 @@ void MaterialPreviewWidget::paintGL()
 				envIndex = 3;
 		}
 
-		// Get maps from GLWidget
+		// Get maps from ViewportWidget
 		GLuint envMap = _viewportWidget ? _viewportWidget->getEnvironmentMap(envIndex) : 0;
 		GLuint irrMap = _viewportWidget ? _viewportWidget->getIrradianceMap(envIndex) : 0;
 		GLuint prefilterMap = _viewportWidget ? _viewportWidget->getPrefilterMap(envIndex) : 0;
@@ -980,7 +980,7 @@ void MaterialPreviewWidget::applyEnvPreset(EnvMode mode, PreviewProfile profile)
 		envDiffuse *= 1.3f;  // Brighten ADS mode for better visibility and WYSIWYG preview
 	}
 
-	// --- Note: Preset environments (Studio, Outdoor, Office) are now loaded from GLWidget HDR files ---
+	// --- Note: Preset environments (Studio, Outdoor, Office) are now loaded from ViewportWidget HDR files ---
 	// --- We no longer generate procedural maps for presets; they use prefiltered HDR data ---
 	_lastEnvMode = mode;
 
@@ -1005,7 +1005,7 @@ void MaterialPreviewWidget::applyEnvPreset(EnvMode mode, PreviewProfile profile)
 	_shader->setUniformValue("lights[3].color", c3);
 	_shader->setUniformValue("numLights", 4);
 
-	// Environment tone mapping and gamma settings (from GLWidget, matches main_scene.frag)
+	// Environment tone mapping and gamma settings (from ViewportWidget, matches main_scene.frag)
 	bool hdrToneMapping = _viewportWidget ? _viewportWidget->isHDRToneMappingEnabled() : true;
 	bool gammaCorrection = _viewportWidget ? _viewportWidget->isGammaCorrectionEnabled() : true;
 	float screenGamma = _viewportWidget ? _viewportWidget->getScreenGamma() : 2.2f;

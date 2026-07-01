@@ -1,5 +1,5 @@
-#ifndef SELECTIONMANAGER_H
-#define SELECTIONMANAGER_H
+#pragma once
+
 
 #include "SceneMeshRecord.h"
 
@@ -72,7 +72,7 @@ public:
     HoverHighlightMode getHoverMode() const { return _hoverHighlightMode; }
     SelectionMode getSelectionMode() const { return _selectionMode; }
 
-    // State setters (for sync with GLWidget after sweep selection)
+    // State setters (for sync with ViewportWidget after sweep selection)
     void setSelectedIds(const QList<int>& selectedIds) {
         _selectedMeshIds = selectedIds;
         emit selectionChanged(_selectedMeshIds);
@@ -83,7 +83,7 @@ public:
         _selectedMeshIds = selectedIds;
     }
 
-    // FBO management (called by GLWidget)
+    // FBO management (called by ViewportWidget)
     void initializeFBOResources();
     void cleanupFBOResources();
     void resizeFBOResources(int width, int height);
@@ -115,7 +115,7 @@ private:
     unsigned int _selectionRBO = 0;        // Color render buffer
     unsigned int _selectionDBO = 0;        // Depth render buffer
 
-    // References to GLWidget data (don't own these)
+    // References to ViewportWidget data (don't own these)
     ViewportWidget* _viewportWidget;
     Camera* _primaryCamera;
     std::vector<SceneMeshRecord>& _meshStore;
@@ -127,5 +127,3 @@ private:
     int _fboWidth = 0;
     int _fboHeight = 0;
 };
-
-#endif // SELECTIONMANAGER_H

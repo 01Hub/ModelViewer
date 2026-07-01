@@ -74,7 +74,7 @@ void TransformCommand::redo()
 
 void TransformCommand::applyTransformStates(const QMap<QUuid, TransformState>& states)
 {
-    // Build map of index -> TransformState for GLWidget
+    // Build map of index -> TransformState for ViewportWidget
     QMap<int, TransformState> indexedStates;
 
     for (auto it = states.begin(); it != states.end(); ++it)

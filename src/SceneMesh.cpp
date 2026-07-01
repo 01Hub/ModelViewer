@@ -2047,7 +2047,7 @@ void SceneMesh::clearAllADSMaps()
 void SceneMesh::setTextureMaps(const Material& material)
 {
 	// Runtime-resolved Material instances can point at shared textures from
-	// GLWidget's cache. Sync to those ids without deleting or recreating them.
+	// ViewportWidget's cache. Sync to those ids without deleting or recreating them.
 	_material = material;
 	cacheBaseVolumeProperties();
 	applyScaledVolumeProperties();

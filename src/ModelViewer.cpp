@@ -370,7 +370,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	});
 
 	treeWidgetModel->setSceneGraph(_sceneGraph);
-	treeWidgetModel->setGLWidget(_viewportWidget);
+	treeWidgetModel->setViewportWidget(_viewportWidget);
 
 	// -------------------------------------------------------------------
 	// Optional navigation sub-tabs: Variants, Animations, Cameras.
@@ -403,7 +403,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	{
 		_animationsPanel = new AnimationsPanel(this);
 		_animationsPanel->setSceneGraph(_sceneGraph);
-		_animationsPanel->setGLWidget(_viewportWidget);
+		_animationsPanel->setViewportWidget(_viewportWidget);
 		_animationsPanel->hide();
 
 		connect(_animationsPanel, &AnimationsPanel::clipActivated,
@@ -435,7 +435,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	{
 		_camerasPanel = new CamerasPanel(this);
 		_camerasPanel->setSceneGraph(_sceneGraph);
-		_camerasPanel->setGLWidget(_viewportWidget);
+		_camerasPanel->setViewportWidget(_viewportWidget);
 		_camerasPanel->hide();
 
 		connect(_camerasPanel, &CamerasPanel::gltfCameraActivated,
@@ -468,7 +468,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	// Tools → Texture Debugger (visible only when the setting is enabled).
 	{
 		_textureDebugPanel = new TextureDebugPanel(this);
-		_textureDebugPanel->setGLWidget(_viewportWidget);
+		_textureDebugPanel->setViewportWidget(_viewportWidget);
 		_textureDebugPanel->setModelViewer(this);
 
 		connect(_viewportWidget,          &ViewportWidget::selectionChanged,

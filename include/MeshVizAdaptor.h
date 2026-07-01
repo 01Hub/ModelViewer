@@ -14,7 +14,7 @@
 class QOpenGLShaderProgram;
 
 // One entry in the precomputed texture binding table built by
-// AssImpMesh::cacheTextureBindings().  Cached once per material change;
+// SceneMesh::cacheTextureBindings().  Cached once per material change;
 // consumed every frame by bindTexturesOptimized() without re-scanning _textures.
 struct PrecomputedTexture
 {
@@ -33,12 +33,11 @@ struct PrecomputedTexture
 //
 // SceneMesh embeds one of these as _vizState and exposes each field through
 // a reference alias (same zero-churn pattern used for Material& _material).
-// All existing call sites in SceneMesh.cpp, AssImpMesh.cpp, FloorPlane.cpp,
-// and ViewCubeMesh.cpp continue to compile unchanged.
+// All existing call sites in SceneMesh.cpp, FloorPlane.cpp, and ViewCubeMesh.cpp
+// continue to compile unchanged.
 //
 // Intentionally free of geometry, material, transform, and import provenance.
-// The draw methods and shader-program knowledge remain in SceneMesh/AssImpMesh
-// until Phase 4, when they migrate here.
+// The draw methods and shader-program knowledge live in SceneMesh/RenderableMesh.
 class MeshVizAdaptor
 {
 public:

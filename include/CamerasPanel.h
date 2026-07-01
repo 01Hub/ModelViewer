@@ -46,13 +46,13 @@ public:
     explicit CamerasPanel(QWidget* parent = nullptr);
 
     void setSceneGraph(SceneGraph* sg);
-    void setGLWidget(ViewportWidget* viewportWidget);
+    void setViewportWidget(ViewportWidget* viewportWidget);
 
     // Rebuild the tree from the current SceneGraph camera data.
     void refresh();
 
     // Enable / disable the frosted-glass rendering used when the navigation
-    // panel is floating as a GLWidget overlay.
+    // panel is floating as a ViewportWidget overlay.
     void setDetachedOverlayMode(bool enabled);
     void refreshDetachedOverlayTheme();
 

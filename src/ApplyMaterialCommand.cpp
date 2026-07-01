@@ -54,7 +54,7 @@ void ApplyMaterialCommand::applyMaterials(const QMap<QUuid, Material>& materials
     // Ensure the correct GL context before any GPU-backed material updates.
     if (!_viewportWidget)
     {
-        qWarning() << "ApplyMaterialCommand::applyMaterials - GLWidget is null!";
+        qWarning() << "ApplyMaterialCommand::applyMaterials - ViewportWidget is null!";
         return;
     }
 

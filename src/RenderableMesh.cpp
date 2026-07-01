@@ -1569,7 +1569,7 @@ void RenderableMesh::setMaterial(const Material& material)
 
 void RenderableMesh::setTextureMaps(const Material& material)
 {
-	// Resolved Material instances can carry shared texture ids from GLWidget's
+	// Resolved Material instances can carry shared texture ids from ViewportWidget's
 	// cache. Treat this call as a state sync only; deleting/recreating ids here
 	// can invalidate the very cached textures we are about to keep using.
 	_material = material;
@@ -1582,7 +1582,7 @@ void RenderableMesh::setTextureMaps(const Material& material)
 
 void RenderableMesh::renderWireframeFast(QOpenGLShaderProgram* /*wireProg*/)
 {
-	// Base fallback: full render. AssImpMesh overrides with the lightweight path.
+	// Base fallback: full render. SceneMesh overrides with the lightweight path.
 	render();
 }
 
@@ -1691,7 +1691,7 @@ void RenderableMesh::deleteTextures()
 		_fallbackTexture = 0;
 	}
 
-	// Material texture IDs are resolved through GLWidget's shared texture cache
+	// Material texture IDs are resolved through ViewportWidget's shared texture cache
 	// and may be referenced by multiple meshes or UI previews. Deleting them here
 	// lets one mesh teardown invalidate another mesh's live bindings.
 }

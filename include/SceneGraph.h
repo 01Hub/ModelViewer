@@ -31,7 +31,7 @@ struct SceneGraphWorldTransforms
 //   - the export path (calls reconstructAsScene() instead of walking
 //     _globalScene, which may contain stale / deleted meshes)
 //
-// Lifetime: owned by ModelViewer.  Neither GLWidget nor any command class
+// Lifetime: owned by ModelViewer.  Neither ViewportWidget nor any command class
 // should hold or delete SceneGraph directly.
 //
 // Thread safety: all methods must be called from the main (UI) thread.
@@ -247,7 +247,7 @@ signals:
 
     // Emitted when punctual light data is added, removed, or an individual
     // light's enabled state changes.  PunctualLightsPanel connects to this
-    // to refresh its tree; GLWidget connects to rebuild the GPU light list.
+    // to refresh its tree; ViewportWidget connects to rebuild the GPU light list.
     void lightDataChanged();
 
 private:

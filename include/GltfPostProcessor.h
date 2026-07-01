@@ -1,5 +1,5 @@
-#ifndef GLTF_POSTPROCESSOR_H
-#define GLTF_POSTPROCESSOR_H
+#pragma once
+
 
 class SceneMesh;
 
@@ -360,5 +360,3 @@ private:
         QByteArray*  glbBinaryChunk,  // nullptr for .gltf, non-null for .glb
         std::function<void(const QString&)> logCallback);
 };
-
-#endif // GLTF_POSTPROCESSOR_H

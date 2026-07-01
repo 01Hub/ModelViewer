@@ -77,7 +77,7 @@ void SceneGraph::appendFromScene(const aiScene*                   scene,
     // Store per-file punctual lights (full GltfLightData with names, already
     // set by the caller before or after this call via setLightData()).
     // appendFromScene itself does not touch _lightDataByFile — the caller
-    // (GLWidget) calls setLightData() separately, which emits lightDataChanged().
+    // (ViewportWidget) calls setLightData() separately, which emits lightDataChanged().
 
     // --- Synthetic file-level node ------------------------------------------
     // This sits directly under _root and provides a clean per-import boundary

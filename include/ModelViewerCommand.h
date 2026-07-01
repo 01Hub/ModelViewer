@@ -10,7 +10,7 @@ class ViewportWidget;
  * @brief Base class for all undoable commands in ModelViewer
  *
  * This provides a common interface for commands that operate on ModelViewer
- * and its associated GLWidget. Derived classes implement specific operations
+ * and its associated ViewportWidget. Derived classes implement specific operations
  * like selection changes, material application, transformations, etc.
  */
 class ModelViewerCommand : public QUndoCommand
@@ -19,7 +19,7 @@ public:
     /**
      * @brief Construct a ModelViewer command
      * @param viewer The ModelViewer instance
-     * @param glWidget The GLWidget instance
+     * @param glWidget The ViewportWidget instance
      * @param text Description of the command for undo/redo menu
      */
     explicit ModelViewerCommand(ModelViewer* viewer,

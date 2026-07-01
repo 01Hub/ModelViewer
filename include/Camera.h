@@ -30,8 +30,7 @@
   //www.codecolony.de
    **********************************************************************/
 
-#ifndef _CAMERA_H
-#define _CAMERA_H
+#pragma once
 
 #ifdef WIN32
 #include <windows.h>
@@ -196,5 +195,3 @@ private:
 	CameraMode _cameraMode = CameraMode::Orbit;
 
 };
-
-#endif /* _CAMERA_H */

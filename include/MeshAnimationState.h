@@ -14,13 +14,13 @@
 // Fields:
 //   _jointPalette        — per-frame GPU-ready joint transform array for
 //                          skinned meshes.  Set by AnimationRuntimeController
-//                          and read by AssImpMesh::setupUniformsOptimized().
+//                          and read by SceneMesh::setupUniformsOptimized().
 //                          Moved here from MeshImportAdaptor, which retains
 //                          the static joint *definitions* (_skinJoints).
 //
 //   _currentMorphWeights — active blend-shape weights for this frame.
-//                          Moved here from AssImpMesh where it was a raw
-//                          private field.  AssImpMesh aliases it by reference
+//                          Moved here from SceneMesh where it was a raw
+//                          private field.  SceneMesh aliases it by reference
 //                          so all existing call sites compile unchanged.
 // ---------------------------------------------------------------------------
 class MeshAnimationState

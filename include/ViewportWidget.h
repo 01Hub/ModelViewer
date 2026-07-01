@@ -1,5 +1,5 @@
-#ifndef GLWIDGET_H
-#define GLWIDGET_H
+#pragma once
+
 
 #include "AdaptiveShadowMapper.h"
 #include "AnimationRuntimeController.h"
@@ -65,7 +65,7 @@ enum class DisplayMode { SHADED, HOLLOW_MESH, MESH_EDGES, WIREFRAME, SHADED_WITH
 // ---------------------------------------------------------------------------
 // TextureSlotInfo
 // Describes one texture slot as seen by the GPU — used by TextureDebugPanel.
-// Built inside GLWidget::requestTextureReadback() via glGetTexImage readback.
+// Built inside ViewportWidget::requestTextureReadback() via glGetTexImage readback.
 // ---------------------------------------------------------------------------
 struct TextureSlotInfo
 {
@@ -841,13 +841,13 @@ private:
 
 	ExplodedViewRuntimeController _explodedViewCtrl;
 
-	// Render-pipeline resources — owned here; GLWidget aliases every field by
-	// reference so all existing call sites in GLWidget.cpp remain unchanged.
+	// Render-pipeline resources — owned here; ViewportWidget aliases every field by
+	// reference so all existing call sites in ViewportWidget.cpp remain unchanged.
 	// Declaration order: _renderCtrl must come before all its aliases.
 	SceneRenderController _renderCtrl;
 
-	// Viewport interaction state — owned here; GLWidget aliases every field by
-	// reference so all existing call sites in GLWidget.cpp remain unchanged.
+	// Viewport interaction state — owned here; ViewportWidget aliases every field by
+	// reference so all existing call sites in ViewportWidget.cpp remain unchanged.
 	// Declaration order: _viewCtrl must come before all its aliases.
 	ViewportInteractionController _viewCtrl;
 
@@ -900,9 +900,6 @@ private:
 	QVector3D                _floorCenter;
 
 
-	// _meshStore, _displayedObjectsIds, _hiddenObjectsIds → SceneRuntime (Phase 5)
-	// RuntimeVisibilityNode struct + BVH fields → SceneRuntime (Phase 5)
-	// _pendingSceneUuids, _centerScreenObjectIDs, _visibleSwapped → SceneRuntime (Phase 5)
 	QPointer<QWidget> _navigationOverlayPanel;
 
 	QVBoxLayout* _editorLayout;
@@ -911,7 +908,6 @@ private:
 
 	ClippingPlanesEditor* _clippingPlanesEditor;
 	ExplodedViewPanel*    _explodedViewPanel;
-	// ExplodedViewManager + hints cache + manual session → ExplodedViewRuntimeController (Phase 9)
 	PlaneRenderable* _clippingPlaneXY;
 	PlaneRenderable* _clippingPlaneYZ;
 	PlaneRenderable* _clippingPlaneZX;
@@ -919,9 +915,6 @@ private:
 
 	Camera* _primaryCamera;
 	Camera* _orthoViewsCamera;
-
-	// Active glTF camera → AnimationRuntimeController (Phase 8)
-
 
 	QTimer* _keyboardNavTimer;
 	QTimer* _animateViewTimer;
@@ -938,8 +931,6 @@ private:
 	ConeRenderable* _axisCone;
 	ViewCubeMesh* _viewCube = nullptr;
 	TransformGizmo* _transformGizmo = nullptr;
-	// Gizmo drag state, viewCubeHoveredRegionId, customViewAnimationActive,
-	// Manual placement session fields → ExplodedViewRuntimeController (Phase 9)
 	CubeRenderable* _lightCube;
 	SphereRenderable* _lightSphere;
 	// _showLights → SceneRenderController (Phase 12)
@@ -952,9 +943,6 @@ private:
 	AssImpModelLoader* _assimpModelLoader;
 	KTX2Loader _ktx2Loader;
 	GPUCapabilities _gpuCapabilities;
-	// _assimpScene, _globalScene, _globalSceneTransform → SceneRuntime (Phase 5)
-	// _progressiveLoadingEnabled, _cancelRequested, _loadCancelled → SceneRuntime (Phase 5)
-	// _texCache, _texRefCount → SceneRuntime (Phase 5)
 
 
 	// _hatch* fields → SceneRenderController (Phase 12)
@@ -962,7 +950,6 @@ private:
 	AdaptiveShadowMapper shadowMapper;
 
 	float _originalBoundingRadius = 1.0f;
-	// _animatedLight* / _animatedMesh* → AnimationRuntimeController (Phase 8)
 
 	// Derive the user model transform for one file directly from its meshes'
 	// TRS state.  Returns true (and fills outTransform) only when every mesh
@@ -973,8 +960,4 @@ private:
 	void updateOverlayEditorTheme();
 
 	void applyGltfCameraEntryTransform(const GltfCameraEntry& cam);
-
-	// Animation playback fields → AnimationRuntimeController (Phase 8)
 };
-
-#endif

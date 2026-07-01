@@ -71,7 +71,7 @@ void CamerasPanel::setSceneGraph(SceneGraph* sg)
     _sceneGraph = sg;
 }
 
-void CamerasPanel::setGLWidget(ViewportWidget* viewportWidget)
+void CamerasPanel::setViewportWidget(ViewportWidget* viewportWidget)
 {
     _viewportWidget = viewportWidget;
 }

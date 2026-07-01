@@ -1,5 +1,5 @@
-#ifndef UTILS_H_INCLUDED
-#define UTILS_H_INCLUDED
+#pragma once
+
 
 #include <QImage>
 #include <QColor>
@@ -135,7 +135,3 @@ inline static void appendTangents(std::vector<float>& vertices,
 
 	vertices.swap(out);
 }
-
-
-
-#endif
