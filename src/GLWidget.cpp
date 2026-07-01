@@ -536,9 +536,9 @@ GLWidget::~GLWidget()
 		if (_lightCube)
 			delete _lightCube;
 
-		if (_renderCtrl.glLights())
+		if (_renderCtrl.punctualLights())
 		{
-			_renderCtrl.glLights()->cleanup();
+			_renderCtrl.punctualLights()->cleanup();
 		}
 
 		cleanupTransmissionBuffer();
@@ -988,8 +988,8 @@ void GLWidget::paintGL()
 			botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _renderCtrl.gradientStyle());
 
 		_renderCtrl.fgShader()->bind();
-		_renderCtrl.glLights()->bind(_renderCtrl.fgShader()->programId());
-		_renderCtrl.fgShader()->setUniformValue("lightCount", _renderCtrl.glLights()->getLightCount());
+		_renderCtrl.punctualLights()->bind(_renderCtrl.fgShader()->programId());
+		_renderCtrl.fgShader()->setUniformValue("lightCount", _renderCtrl.punctualLights()->getLightCount());
 
 		QMatrix4x4 identityModelMatrix;
 		identityModelMatrix.setToIdentity();
@@ -2242,7 +2242,7 @@ void GLWidget::updateFloorPlane()
 		if (shouldUseFallbackLightForVisibleScene())
 		{
 			const QVector3D fallbackLightPos = effectiveWorldLightPosition();
-			_renderCtrl.glLights()->createFallbackLight(glm::vec3(
+			_renderCtrl.punctualLights()->createFallbackLight(glm::vec3(
 				static_cast<float>(fallbackLightPos.x()),
 				static_cast<float>(fallbackLightPos.y()),
 				static_cast<float>(fallbackLightPos.z())
@@ -2251,7 +2251,7 @@ void GLWidget::updateFloorPlane()
 		}
 		else
 		{
-			_renderCtrl.glLights()->setLights({});
+			_renderCtrl.punctualLights()->setLights({});
 			syncPunctualLightUniforms(0, false);
 		}
 	}
@@ -3290,7 +3290,7 @@ void GLWidget::removeFromDisplay(int index)
 	{
 		_animCtrl.clearParsedLights();
 		_animCtrl.clearAllAnimatedState();
-		_renderCtrl.glLights()->setLights({});
+		_renderCtrl.punctualLights()->setLights({});
 		syncPunctualLightUniforms(0, false);
 	}
 }
@@ -4204,7 +4204,7 @@ void GLWidget::updatePunctualLights()
 			},
 			sg);
 
-	_renderCtrl.glLights()->setLights(uploadLights);
+	_renderCtrl.punctualLights()->setLights(uploadLights);
 	syncPunctualLightUniforms(static_cast<int>(uploadLights.size()),
 	                          !uploadLights.empty());
 }
@@ -12062,7 +12062,7 @@ void GLWidget::showLights(bool showLights)
 void GLWidget::applyEnabledLightList(const std::vector<GPULight>& enabledLights)
 {
 	makeCurrent();
-	_renderCtrl.glLights()->setLights(enabledLights);
+	_renderCtrl.punctualLights()->setLights(enabledLights);
 	syncPunctualLightUniforms(static_cast<int>(enabledLights.size()),
 	                          !enabledLights.empty());
 }
@@ -13087,7 +13087,7 @@ void GLWidget::onSceneLightDataChanged()
     {
         _animCtrl.clearParsedLights();
         makeCurrent();
-        _renderCtrl.glLights()->setLights({});
+        _renderCtrl.punctualLights()->setLights({});
         syncPunctualLightUniforms(0, false);
         return;
     }

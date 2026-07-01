@@ -260,9 +260,9 @@ public:
     GLuint viewCubeLabelVBO() const { return _viewCubeLabelVBO; }
 
     // ---- Punctual lights GPU buffer ----------------------------------------
-    PunctualLights*       glLights()       { return _glLights.get(); }
-    const PunctualLights* glLights() const { return _glLights.get(); }
-    void initLights()                { _glLights = std::make_unique<PunctualLights>(); }
+    PunctualLights*       punctualLights()       { return _punctualLights.get(); }
+    const PunctualLights* punctualLights() const { return _punctualLights.get(); }
+    void initLights()                { _punctualLights = std::make_unique<PunctualLights>(); }
 
     // ---- Capping -----------------------------------------------------------
     bool   cappingEnabled()       const { return _cappingEnabled; }
@@ -617,7 +617,7 @@ private:
     unsigned int _viewCubeLabelVBO = 0;
 
     // ---- Punctual lights GPU buffer ----------------------------------------
-    std::unique_ptr<PunctualLights> _glLights;
+    std::unique_ptr<PunctualLights> _punctualLights;
 
     // ---- Capping -----------------------------------------------------------
     bool         _cappingEnabled = false;
