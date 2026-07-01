@@ -13,7 +13,7 @@ namespace Ui {
 	class VisualizationEnvironmentPanel;
 }
 
-class GLWidget;
+class ViewportWidget;
 class ModelViewer;
 class MaterialPreviewWidget;
 class SceneGraph;
@@ -27,7 +27,7 @@ public:
 	~VisualizationEnvironmentPanel();
 
 	// Initialization - MUST be called after panel is created
-	void initialize(ModelViewer* modelViewer, GLWidget* glWidget);
+	void initialize(ModelViewer* modelViewer, ViewportWidget* viewportWidget);
 
 	// Public accessors for ModelViewer to manage skybox state
 	int getSkyBoxLDRIIndex() const { return _skyBoxLDRIIndex; }
@@ -133,7 +133,7 @@ public:
 private:
 	// Member variables
 	ModelViewer*    _modelViewer;
-	GLWidget*       _glWidget;
+	ViewportWidget*       _viewportWidget;
 	SceneGraph*     _sceneGraph  = nullptr;
 	MaterialPreviewWidget* _previewWidget = nullptr;
 	std::unique_ptr<Ui::VisualizationEnvironmentPanel> ui;

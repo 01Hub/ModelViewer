@@ -19,15 +19,15 @@ class ExplodedViewManager;
 // ExplodedViewRuntimeController
 //
 // Groups all exploded-view runtime state that was previously scattered
-// through GLWidget's private section.  GLWidget embeds one instance and
+// through ViewportWidget's private section.  ViewportWidget embeds one instance and
 // accesses state through this API.
 //
 // Introduced in Phase 9 of the mesh/render/runtime separation refactor.
 // De-aliased in the controller ownership cleanup pass.
 //
-// Note: _explodedViewManager is created by GLWidget with itself as Qt parent
+// Note: _explodedViewManager is created by ViewportWidget with itself as Qt parent
 // (required for ownership).  ExplodedViewRuntimeController stores the pointer
-// only — ownership stays with GLWidget.
+// only — ownership stays with ViewportWidget.
 // ---------------------------------------------------------------------------
 class ExplodedViewRuntimeController
 {

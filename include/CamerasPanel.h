@@ -4,7 +4,7 @@
 #include <QTreeWidget>
 #include <QWidget>
 
-class GLWidget;
+class ViewportWidget;
 class SceneGraph;
 
 // ---------------------------------------------------------------------------
@@ -46,7 +46,7 @@ public:
     explicit CamerasPanel(QWidget* parent = nullptr);
 
     void setSceneGraph(SceneGraph* sg);
-    void setGLWidget(GLWidget* glWidget);
+    void setGLWidget(ViewportWidget* viewportWidget);
 
     // Rebuild the tree from the current SceneGraph camera data.
     void refresh();
@@ -86,7 +86,7 @@ private:
 
     QTreeWidget* _tree       = nullptr;
     SceneGraph*  _sceneGraph = nullptr;
-    GLWidget*    _glWidget   = nullptr;
+    ViewportWidget*    _viewportWidget   = nullptr;
     bool         _overlayMode = false;
 
     // Saved state for overlay mode toggle (mirrors MaterialVariantsPanel)

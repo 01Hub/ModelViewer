@@ -21,7 +21,7 @@ public:
     };
 
     MetadataDeleteCommand(ModelViewer* viewer,
-                          GLWidget* glWidget,
+                          ViewportWidget* viewportWidget,
                           Kind kind,
                           const QString& sourceFile,
                           int index,

@@ -27,7 +27,7 @@ public:
      * @param text Description (e.g., "Hide", "Show", "Show Only")
      */
     VisibilityCommand(ModelViewer* viewer,
-        GLWidget* glWidget,
+        ViewportWidget* viewportWidget,
         const QSet<QUuid>& newVisibleUuids,
         const QString& text = QObject::tr("Visibility"));
 

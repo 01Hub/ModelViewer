@@ -31,7 +31,7 @@ struct CachedMaterial
 
 // Forward declarations
 class ModelViewer;
-class GLWidget;
+class ViewportWidget;
 class MaterialPreviewWidget;
 
 namespace Ui
@@ -51,7 +51,7 @@ public:
 	Material* material() const { return _material; }
 
 	// Initialization
-	void initialize(ModelViewer* modelViewer, GLWidget* glWidget);
+	void initialize(ModelViewer* modelViewer, ViewportWidget* viewportWidget);
 
 	// State
 	bool isDetached() const { return _detached; }
@@ -265,7 +265,7 @@ private:
 	Ui::MaterialPropertiesPanel* _ui = nullptr;
 	Material* _material = nullptr;
 	ModelViewer* _modelViewer = nullptr;
-	GLWidget* _glWidget = nullptr;
+	ViewportWidget* _viewportWidget = nullptr;
 	MaterialPreviewWidget* _preview = nullptr;
 
 	QHash<Material::TextureType, MapSlot> _textureSlots;

@@ -74,7 +74,7 @@ public:
      * @param text Description (default: "Transform")
      */
     TransformCommand(ModelViewer* viewer,
-        GLWidget* glWidget,
+        ViewportWidget* viewportWidget,
         const QVector<QUuid>& meshUuids,
         const QVector3D& newTranslation,
         const QVector3D& newRotation,
@@ -82,7 +82,7 @@ public:
         const QString& text = QObject::tr("Transform"));
 
     TransformCommand(ModelViewer* viewer,
-        GLWidget* glWidget,
+        ViewportWidget* viewportWidget,
         const QMap<QUuid, TransformState>& oldStates,
         const QMap<QUuid, TransformState>& newStates,
         const QString& text = QObject::tr("Transform"),

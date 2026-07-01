@@ -13,7 +13,7 @@
 #include "SceneNode.h"
 
 class SceneGraph;
-class GLWidget;
+class ViewportWidget;
 
 // ---------------------------------------------------------------------------
 // SceneTreeWidget
@@ -51,7 +51,7 @@ public:
     explicit SceneTreeWidget(QWidget* parent = nullptr);
 
     void setSceneGraph(SceneGraph* sg);
-    void setGLWidget(GLWidget* gl);
+    void setGLWidget(ViewportWidget* viewportWidget);
 
     // -----------------------------------------------------------------------
     // Selection
@@ -317,7 +317,7 @@ private:
                                         int& bestScore) const;
 
     SceneGraph* _sceneGraph = nullptr;
-    GLWidget*   _glWidget   = nullptr;
+    ViewportWidget*   _viewportWidget   = nullptr;
 
     // O(1) lookup from mesh UUID to its leaf QTreeWidgetItem
     QHash<QUuid, QTreeWidgetItem*> _uuidToLeaf;

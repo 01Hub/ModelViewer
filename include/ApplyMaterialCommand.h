@@ -39,7 +39,7 @@ public:
      * instead of just "Set Material", making the undo stack more informative.
      */
     ApplyMaterialCommand(ModelViewer* viewer,
-        GLWidget* glWidget,
+        ViewportWidget* viewportWidget,
         const QVector<QUuid>& meshUuids,
         const Material& newMaterial,
         const QString& materialName = QString(),

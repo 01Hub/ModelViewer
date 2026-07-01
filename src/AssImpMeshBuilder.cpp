@@ -1,13 +1,13 @@
 #include "AssImpMeshBuilder.h"
 #include "AssImpModelLoader.h"
-#include "GLWidget.h"
+#include "ViewportWidget.h"
 #include "SceneMesh.h"
 
 #include <QString>
 
 SceneMesh* AssImpMeshBuilder::build(const AssImpMeshData& meshData,
                                     QOpenGLShaderProgram* shader,
-                                    GLWidget* gl)
+                                    ViewportWidget* viewportWidget)
 {
     std::vector<Material::Texture> textures = meshData.textures;
     for (Material::Texture& texture : textures)
@@ -23,18 +23,18 @@ SceneMesh* AssImpMeshBuilder::build(const AssImpMeshData& meshData,
                     .arg(QString::fromStdString(texture.type))
                     .arg(textures.size())
                 : originalPath;
-            texture.id = gl->getOrCreateTextureCached(cacheKey, texture.imageData, samplers);
+            texture.id = viewportWidget->getOrCreateTextureCached(cacheKey, texture.imageData, samplers);
         }
         else if (!texture.path.empty())
         {
             const QString texturePath = QString::fromStdString(texture.path);
             if (texturePath.endsWith(".ktx2", Qt::CaseInsensitive))
             {
-                texture.id = gl->getOrLoadKtx2TextureCached(texturePath, texture.type, samplers);
+                texture.id = viewportWidget->getOrLoadKtx2TextureCached(texturePath, texture.type, samplers);
             }
             else
             {
-                texture.id = gl->getOrLoadTextureCached(texturePath, samplers);
+                texture.id = viewportWidget->getOrLoadTextureCached(texturePath, samplers);
             }
         }
         else if (texture.id != 0)
@@ -204,7 +204,7 @@ SceneMesh* AssImpMeshBuilder::build(const AssImpMeshData& meshData,
         mesh->setAllVariantMaterials(meshData.allVariantMaterials);
     }
 
-    Material runtimeResolved = GLWidget::resolveMaterialTextures(gl, mesh->getMaterial());
+    Material runtimeResolved = ViewportWidget::resolveMaterialTextures(viewportWidget, mesh->getMaterial());
     mesh->setMaterial(runtimeResolved);
     mesh->setTextureMaps(runtimeResolved);
     mesh->invertOpacityADSMap(runtimeResolved.isOpacityMapInverted());

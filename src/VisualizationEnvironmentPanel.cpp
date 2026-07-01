@@ -1,6 +1,6 @@
 #include "VisualizationEnvironmentPanel.h"
 #include "ui_VisualizationEnvironmentPanel.h"
-#include "GLWidget.h"
+#include "ViewportWidget.h"
 #include "LanguageManager.h"
 #include "ModelViewer.h"
 #include "MaterialPreviewWidget.h"
@@ -20,7 +20,7 @@
 VisualizationEnvironmentPanel::VisualizationEnvironmentPanel(QWidget* parent)
 	: QWidget(parent),
 	_modelViewer(nullptr),
-	_glWidget(nullptr),
+	_viewportWidget(nullptr),
 	_isInitialized(false),
 	_skyBoxLDRIIndex(0),
 	_skyBoxHDRIIndex(0)
@@ -93,13 +93,13 @@ bool VisualizationEnvironmentPanel::eventFilter(QObject* watched, QEvent* event)
 	return QWidget::eventFilter(watched, event);
 }
 
-void VisualizationEnvironmentPanel::initialize(ModelViewer* modelViewer, GLWidget* glWidget)
+void VisualizationEnvironmentPanel::initialize(ModelViewer* modelViewer, ViewportWidget* viewportWidget)
 {
 	if (_isInitialized)
 		return;
 
 	_modelViewer = modelViewer;
-	_glWidget    = glWidget;
+	_viewportWidget    = viewportWidget;
 	_sceneGraph  = _modelViewer ? _modelViewer->sceneGraph() : nullptr;
 
 	// Load state from ModelViewer
@@ -123,12 +123,12 @@ void VisualizationEnvironmentPanel::initialize(ModelViewer* modelViewer, GLWidge
 	// Keep GLWidget in sync with the UI defaults on first startup as well.
 	// Without this, the viewer could retain an internal floor offset that
 	// differs from the spin box value until the user touches the control.
-	if (_glWidget && ui)
+	if (_viewportWidget && ui)
 	{
-		_glWidget->setGroundMode(ui->radioButtonGroundFloor->isChecked()
+		_viewportWidget->setGroundMode(ui->radioButtonGroundFloor->isChecked()
 			? GroundMode::Floor
 			: (ui->radioButtonGroundGrid->isChecked() ? GroundMode::Grid : GroundMode::None));
-		_glWidget->setFloorOffsetPercent(ui->doubleSpinBoxFloorOffset->value());
+		_viewportWidget->setFloorOffsetPercent(ui->doubleSpinBoxFloorOffset->value());
 	}
 
 	// ── Punctual-lights tree resize handle ─────────────────────────────────
@@ -190,15 +190,15 @@ void VisualizationEnvironmentPanel::connectSignalsAndSlots()
 	ui->groupBoxPunctualLights->setVisible(false);
 
 	// ===== Skybox Controls =====
-	connect(_glWidget, &GLWidget::cameraUpAxisChanged,
+	connect(_viewportWidget, &ViewportWidget::cameraUpAxisChanged,
 	        this, &VisualizationEnvironmentPanel::updateSkyBoxRotationLabels);
-	updateSkyBoxRotationLabels(_glWidget->isCameraUpAxisZUp());
+	updateSkyBoxRotationLabels(_viewportWidget->isCameraUpAxisZUp());
 	connect(ui->checkBoxSkyBox, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onSkyBoxStateChanged);
 	connect(ui->checkBoxSkyBoxHDRI, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onSkyBoxHDRIChanged);
 	connect(ui->checkBoxSkyBoxHDRI, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onLoadSkyBoxPresetMaps);
 	connect(ui->sliderSkyBoxBlur, QOverload<int>::of(&QSlider::valueChanged), this, &VisualizationEnvironmentPanel::onSkyBoxBlurChanged);
 	connect(ui->doubleSpinBoxSkyBoxFOV, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &VisualizationEnvironmentPanel::onSkyBoxFOVChanged);
-	connect(ui->comboBoxSkyBoxRotation, QOverload<int>::of(&QComboBox::currentIndexChanged), _glWidget, &GLWidget::setSkyBoxZRotation);
+	connect(ui->comboBoxSkyBoxRotation, QOverload<int>::of(&QComboBox::currentIndexChanged), _viewportWidget, &ViewportWidget::setSkyBoxZRotation);
 	connect(ui->comboBoxSkyBoxMaps, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &VisualizationEnvironmentPanel::onSkyBoxMapsChanged);
 	connect(ui->pushButtonSkyBoxTex, &QPushButton::clicked, this, &VisualizationEnvironmentPanel::onSkyBoxTextureClicked);
 
@@ -291,10 +291,10 @@ void VisualizationEnvironmentPanel::updateControlDependencies()
 
 void VisualizationEnvironmentPanel::updateButtonStyles()
 {
-	if (!_glWidget || !ui)
+	if (!_viewportWidget || !ui)
 		return;
 
-	QVector4D lightColor = _glWidget->getDefaultLightColor();
+	QVector4D lightColor = _viewportWidget->getDefaultLightColor();
 	QColor diffuseColor = QColor::fromRgbF(lightColor.x(), lightColor.y(), lightColor.z());
 	QString diffuseStyle = QString("background-color: %1; color: %2; border: 1px solid gray;")
 		.arg(diffuseColor.name(), diffuseColor.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
@@ -305,25 +305,25 @@ void VisualizationEnvironmentPanel::updateButtonStyles()
 
 void VisualizationEnvironmentPanel::onLightColorClicked()
 {
-	if (!_glWidget || !ui)
+	if (!_viewportWidget || !ui)
 		return;
 
-	QVector4D lightColor = _glWidget->getDefaultLightColor();
+	QVector4D lightColor = _viewportWidget->getDefaultLightColor();
 	QColor c = QColorDialog::getColor(QColor::fromRgbF(lightColor.x(), lightColor.y(), lightColor.z(), lightColor.w()), this, "Default Light Color");
 	if (c.isValid())
 	{
-		_glWidget->setDefaultLightColor(QVector4D(c.redF(), c.greenF(), c.blueF(), c.alphaF()));
+		_viewportWidget->setDefaultLightColor(QVector4D(c.redF(), c.greenF(), c.blueF(), c.alphaF()));
 		updateButtonStyles();
-		_glWidget->updateView();
+		_viewportWidget->updateView();
 	}
 }
 
 void VisualizationEnvironmentPanel::onDefaultLightsClicked()
 {
-	if (!_glWidget || !ui)
+	if (!_viewportWidget || !ui)
 		return;
 
-	_glWidget->setDefaultLightColor(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
+	_viewportWidget->setDefaultLightColor(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
 
 	// Set light position sliders - block signals to prevent cascading during set
 	ui->sliderLightPosX->blockSignals(true);
@@ -333,7 +333,7 @@ void VisualizationEnvironmentPanel::onDefaultLightsClicked()
 	ui->sliderLightPosX->setValue((ui->sliderLightPosX->maximum() + ui->sliderLightPosX->minimum()) / 2);
 	ui->sliderLightPosY->setValue((ui->sliderLightPosY->maximum() + ui->sliderLightPosY->minimum()) / 2);
 
-	float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
+	float range = _viewportWidget->getBoundingSphere().getRadius() * 4.0f;
 	ui->sliderLightPosZ->setValue(static_cast<int>((-range / 3 + range / 2) / 2));
 
 	ui->sliderLightPosX->blockSignals(false);
@@ -341,7 +341,7 @@ void VisualizationEnvironmentPanel::onDefaultLightsClicked()
 	ui->sliderLightPosZ->blockSignals(false);
 
 	// Manually update light offset
-	_glWidget->setLightOffset(QVector3D(
+	_viewportWidget->setLightOffset(QVector3D(
 		static_cast<float>(ui->sliderLightPosX->value()),
 		static_cast<float>(ui->sliderLightPosY->value()),
 		static_cast<float>(ui->sliderLightPosZ->value())));
@@ -360,62 +360,62 @@ void VisualizationEnvironmentPanel::onDefaultLightsClicked()
 	ui->checkBoxShowLights->blockSignals(false);
 
 	// Manually trigger GLWidget calls
-	_glWidget->useDefaultLights(true);
-	_glWidget->usePunctualLights(true);  // kept true; tree checkboxes control per-light enable
-	_glWidget->useIBL(true);
-	_glWidget->showLights(false);
+	_viewportWidget->useDefaultLights(true);
+	_viewportWidget->usePunctualLights(true);  // kept true; tree checkboxes control per-light enable
+	_viewportWidget->useIBL(true);
+	_viewportWidget->showLights(false);
 
 	updateButtonStyles();
-	_glWidget->updateView();
+	_viewportWidget->updateView();
 }
 
 // ==================== LIGHT POSITION SLIDERS ====================
 
 void VisualizationEnvironmentPanel::onLightPosXChanged(int value)
 {
-	if (!_glWidget || !ui)
+	if (!_viewportWidget || !ui)
 		return;
 
-	_glWidget->setLightOffset(QVector3D(
+	_viewportWidget->setLightOffset(QVector3D(
 		static_cast<float>(ui->sliderLightPosX->value()),
 		static_cast<float>(ui->sliderLightPosY->value()),
 		static_cast<float>(ui->sliderLightPosZ->value())));
-	_glWidget->updateView();
+	_viewportWidget->updateView();
 }
 
 void VisualizationEnvironmentPanel::onLightPosYChanged(int value)
 {
-	if (!_glWidget || !ui)
+	if (!_viewportWidget || !ui)
 		return;
 
-	_glWidget->setLightOffset(QVector3D(
+	_viewportWidget->setLightOffset(QVector3D(
 		static_cast<float>(ui->sliderLightPosX->value()),
 		static_cast<float>(ui->sliderLightPosY->value()),
 		static_cast<float>(ui->sliderLightPosZ->value())));
-	_glWidget->updateView();
+	_viewportWidget->updateView();
 }
 
 void VisualizationEnvironmentPanel::onLightPosZChanged(int value)
 {
-	if (!_glWidget || !ui)
+	if (!_viewportWidget || !ui)
 		return;
 
-	_glWidget->setLightOffset(QVector3D(
+	_viewportWidget->setLightOffset(QVector3D(
 		static_cast<float>(ui->sliderLightPosX->value()),
 		static_cast<float>(ui->sliderLightPosY->value()),
 		static_cast<float>(ui->sliderLightPosZ->value())));
-	_glWidget->updateView();
+	_viewportWidget->updateView();
 }
 
 // ==================== LIGHTING CHECKBOXES ====================
 
 void VisualizationEnvironmentPanel::onDefaultLightsChanged(bool checked)
 {
-	if (!_glWidget)
+	if (!_viewportWidget)
 		return;
 
-	_glWidget->useDefaultLights(checked);
-	_glWidget->updateView();
+	_viewportWidget->useDefaultLights(checked);
+	_viewportWidget->updateView();
 }
 
 // ---------------------------------------------------------------------------
@@ -519,7 +519,7 @@ void VisualizationEnvironmentPanel::refreshPunctualLightsTree()
 
 void VisualizationEnvironmentPanel::onPunctualLightItemChanged(QTreeWidgetItem* item, int column)
 {
-	if (!_sceneGraph || !_glWidget || !item || column != 0)
+	if (!_sceneGraph || !_viewportWidget || !item || column != 0)
 		return;
 
 	const int        lightIndex = item->data(0, kLightIndexRole).toInt();
@@ -567,26 +567,26 @@ void VisualizationEnvironmentPanel::onPunctualLightItemChanged(QTreeWidgetItem* 
 	// sceneGraphBlocker goes out of scope here — signals re-enabled on _sceneGraph.
 	// Rebuild the GPU light list and upload directly without going through the
 	// lightDataChanged → refreshPunctualLightsTree path.
-	_glWidget->applyEnabledLightList(_sceneGraph->buildEnabledLightList());
-	_glWidget->updateView();
+	_viewportWidget->applyEnabledLightList(_sceneGraph->buildEnabledLightList());
+	_viewportWidget->updateView();
 }
 
 void VisualizationEnvironmentPanel::onShowLightsChanged(bool checked)
 {
-	if (!_glWidget)
+	if (!_viewportWidget)
 		return;
 
-	_glWidget->showLights(checked);
-	_glWidget->updateView();
+	_viewportWidget->showLights(checked);
+	_viewportWidget->updateView();
 }
 
 void VisualizationEnvironmentPanel::onIBLChanged(bool checked)
 {
-	if (!_glWidget)
+	if (!_viewportWidget)
 		return;
 
-	_glWidget->useIBL(checked);
-	_glWidget->updateView();
+	_viewportWidget->useIBL(checked);
+	_viewportWidget->updateView();
 }
 
 // ==================== SKYBOX CONTROLS ====================
@@ -601,17 +601,17 @@ void VisualizationEnvironmentPanel::updateSkyBoxRotationLabels(bool zUp)
 
 void VisualizationEnvironmentPanel::onSkyBoxStateChanged(bool checked)
 {
-	if (!_glWidget)
+	if (!_viewportWidget)
 		return;
 
-	_glWidget->showSkyBox(checked);
+	_viewportWidget->showSkyBox(checked);
 	updateControlDependencies();
 
 	// Load presets if checkbox just enabled and combo is empty
 	if (checked && ui->comboBoxSkyBoxMaps->count() == 0)
 		onLoadSkyBoxPresetMaps();
 
-	_glWidget->updateView();
+	_viewportWidget->updateView();
 
 	// Update preview widget with new environment state
 	if (_previewWidget)
@@ -620,10 +620,10 @@ void VisualizationEnvironmentPanel::onSkyBoxStateChanged(bool checked)
 
 void VisualizationEnvironmentPanel::onSkyBoxHDRIChanged(bool checked)
 {
-	if (!_glWidget)
+	if (!_viewportWidget)
 		return;
 
-	_glWidget->setSkyBoxTextureHDRI(checked);
+	_viewportWidget->setSkyBoxTextureHDRI(checked);
 
 	// Update preview widget when environment type changes
 	if (_previewWidget)
@@ -635,11 +635,11 @@ void VisualizationEnvironmentPanel::onSkyBoxBlurChanged(int value)
 	if (ui)
 		ui->labelSkyBoxBlurValue->setText(QString("%1%").arg(value));
 
-	if (!_glWidget)
+	if (!_viewportWidget)
 		return;
 
-	_glWidget->setSkyBoxBlurPercent(value);
-	_glWidget->updateView();
+	_viewportWidget->setSkyBoxBlurPercent(value);
+	_viewportWidget->updateView();
 
 	// Update preview widget
 	if (_previewWidget)
@@ -648,16 +648,16 @@ void VisualizationEnvironmentPanel::onSkyBoxBlurChanged(int value)
 
 void VisualizationEnvironmentPanel::onSkyBoxFOVChanged(double value)
 {
-	if (!_glWidget)
+	if (!_viewportWidget)
 		return;
 
-	_glWidget->setSkyBoxFOV(value);
-	_glWidget->updateView();
+	_viewportWidget->setSkyBoxFOV(value);
+	_viewportWidget->updateView();
 }
 
 void VisualizationEnvironmentPanel::onSkyBoxMapsChanged(int index)
 {
-	if (!_glWidget || !ui)
+	if (!_viewportWidget || !ui)
 		return;
 
 	// Store current index based on HDRI/LDRI selection
@@ -669,8 +669,8 @@ void VisualizationEnvironmentPanel::onSkyBoxMapsChanged(int index)
 	QString selectedPath = ui->comboBoxSkyBoxMaps->itemData(index).toString();
 	if (!selectedPath.isEmpty())
 	{
-		_glWidget->setSkyBoxTextureFolder(selectedPath);
-		_glWidget->updateView();
+		_viewportWidget->setSkyBoxTextureFolder(selectedPath);
+		_viewportWidget->updateView();
 
 		// Update preview widget with new environment map
 		if (_previewWidget)
@@ -680,7 +680,7 @@ void VisualizationEnvironmentPanel::onSkyBoxMapsChanged(int index)
 
 void VisualizationEnvironmentPanel::onSkyBoxTextureClicked()
 {
-	if (!_glWidget || !ui)
+	if (!_viewportWidget || !ui)
 		return;
 
 	QString texpath = ui->checkBoxSkyBoxHDRI->isChecked() ? "/textures/envmap/skyboxes/HDRI" : "/textures/envmap/skyboxes/LDRI";
@@ -690,8 +690,8 @@ void VisualizationEnvironmentPanel::onSkyBoxTextureClicked()
 		QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
 	if (!dir.isEmpty())
 	{
-		_glWidget->setSkyBoxTextureFolder(dir);
-		_glWidget->updateView();
+		_viewportWidget->setSkyBoxTextureFolder(dir);
+		_viewportWidget->updateView();
 	}
 }
 
@@ -699,37 +699,37 @@ void VisualizationEnvironmentPanel::onSkyBoxTextureClicked()
 
 void VisualizationEnvironmentPanel::onShadowMappingStateChanged(bool checked)
 {
-	if (!_glWidget)
+	if (!_viewportWidget)
 		return;
 
-	_glWidget->showShadows(checked);
+	_viewportWidget->showShadows(checked);
 	updateControlDependencies();
-	_glWidget->updateView();
+	_viewportWidget->updateView();
 }
 
 void VisualizationEnvironmentPanel::onSelfShadowsChanged(bool checked)
 {
-	if (!_glWidget)
+	if (!_viewportWidget)
 		return;
 
-	_glWidget->showSelfShadows(checked);
-	_glWidget->updateView();
+	_viewportWidget->showSelfShadows(checked);
+	_viewportWidget->updateView();
 }
 
 void VisualizationEnvironmentPanel::onShadowQualityChanged(int index)
 {
-	if (!_glWidget)
+	if (!_viewportWidget)
 		return;
 
-	_glWidget->setShadowQuality(static_cast<AdaptiveShadowMapper::QualityLevel>(index));
-	_glWidget->updateView();
+	_viewportWidget->setShadowQuality(static_cast<AdaptiveShadowMapper::QualityLevel>(index));
+	_viewportWidget->updateView();
 }
 
 // ==================== FLOOR CONTROLS ====================
 
 void VisualizationEnvironmentPanel::onGroundModeChanged()
 {
-	if (!_glWidget || !ui)
+	if (!_viewportWidget || !ui)
 		return;
 
 	GroundMode mode = GroundMode::None;
@@ -738,69 +738,69 @@ void VisualizationEnvironmentPanel::onGroundModeChanged()
 	else if (ui->radioButtonGroundGrid->isChecked())
 		mode = GroundMode::Grid;
 
-	_glWidget->setGroundMode(mode);
+	_viewportWidget->setGroundMode(mode);
 	updateControlDependencies();
-	_glWidget->updateView();
+	_viewportWidget->updateView();
 }
 
 void VisualizationEnvironmentPanel::onFloorTextureStateChanged(bool checked)
 {
-	if (!_glWidget)
+	if (!_viewportWidget)
 		return;
 
-	_glWidget->showFloorTexture(checked);
+	_viewportWidget->showFloorTexture(checked);
 	updateControlDependencies();
-	_glWidget->updateView();
+	_viewportWidget->updateView();
 }
 
 void VisualizationEnvironmentPanel::onReflectionsChanged(bool checked)
 {
-	if (!_glWidget)
+	if (!_viewportWidget)
 		return;
 
-	_glWidget->showReflections(checked);
-	_glWidget->updateView();
+	_viewportWidget->showReflections(checked);
+	_viewportWidget->updateView();
 }
 
 void VisualizationEnvironmentPanel::onEnvMappingChanged(bool checked)
 {
-	if (!_glWidget)
+	if (!_viewportWidget)
 		return;
 
-	_glWidget->showEnvironment(checked);
-	_glWidget->updateView();
+	_viewportWidget->showEnvironment(checked);
+	_viewportWidget->updateView();
 }
 
 void VisualizationEnvironmentPanel::onFloorOffsetChanged(double value)
 {
-	if (!_glWidget)
+	if (!_viewportWidget)
 		return;
 
-	_glWidget->setFloorOffsetPercent(value);
-	_glWidget->updateView();
+	_viewportWidget->setFloorOffsetPercent(value);
+	_viewportWidget->updateView();
 }
 
 void VisualizationEnvironmentPanel::onRepeatSChanged(double value)
 {
-	if (!_glWidget)
+	if (!_viewportWidget)
 		return;
 
-	_glWidget->setFloorTexRepeatS(value);
-	_glWidget->updateView();
+	_viewportWidget->setFloorTexRepeatS(value);
+	_viewportWidget->updateView();
 }
 
 void VisualizationEnvironmentPanel::onRepeatTChanged(double value)
 {
-	if (!_glWidget)
+	if (!_viewportWidget)
 		return;
 
-	_glWidget->setFloorTexRepeatT(value);
-	_glWidget->updateView();
+	_viewportWidget->setFloorTexRepeatT(value);
+	_viewportWidget->updateView();
 }
 
 void VisualizationEnvironmentPanel::onFloorTextureClicked()
 {
-	if (!_glWidget || !ui)
+	if (!_viewportWidget || !ui)
 		return;
 
 	QString appPath = PathUtils::getDataDirectory();
@@ -816,8 +816,8 @@ void VisualizationEnvironmentPanel::onFloorTextureClicked()
 			dummy.fill(1);
 			buf = dummy;
 		}
-		_glWidget->setFloorTexture(buf);
-		_glWidget->updateView();
+		_viewportWidget->setFloorTexture(buf);
+		_viewportWidget->updateView();
 	}
 }
 
@@ -825,65 +825,65 @@ void VisualizationEnvironmentPanel::onFloorTextureClicked()
 
 void VisualizationEnvironmentPanel::onHDRToneMappingStateChanged(bool checked)
 {
-	if (!_glWidget)
+	if (!_viewportWidget)
 		return;
 
-	_glWidget->enableHDRToneMapping(checked);
+	_viewportWidget->enableHDRToneMapping(checked);
 	updateControlDependencies();
-	_glWidget->updateView();
+	_viewportWidget->updateView();
 	if (_previewWidget) _previewWidget->update();
 }
 
 void VisualizationEnvironmentPanel::onHDRToneMappingModeChanged(int index)
 {
-	if (!_glWidget)
+	if (!_viewportWidget)
 		return;
 
 	// Each item carries its HDRToneMapMode enum value in UserRole (set in constructor).
 	const int enumVal = ui->comboBoxHDRToneMappingMode->itemData(index).toInt();
-	_glWidget->setHDRToneMappingMode(static_cast<HDRToneMapMode>(enumVal));
-	_glWidget->updateView();
+	_viewportWidget->setHDRToneMappingMode(static_cast<HDRToneMapMode>(enumVal));
+	_viewportWidget->updateView();
 	if (_previewWidget) _previewWidget->update();
 }
 
 void VisualizationEnvironmentPanel::onEnvMapExposureChanged(double value)
 {
-	if (!_glWidget)
+	if (!_viewportWidget)
 		return;
 
-	_glWidget->setEnvMapExposure(value);
-	_glWidget->updateView();
+	_viewportWidget->setEnvMapExposure(value);
+	_viewportWidget->updateView();
 }
 
 void VisualizationEnvironmentPanel::onIBLExposureChanged(double value)
 {
-	if (!_glWidget)
+	if (!_viewportWidget)
 		return;
 
-	_glWidget->setIBLExposure(value);
-	_glWidget->updateView();
+	_viewportWidget->setIBLExposure(value);
+	_viewportWidget->updateView();
 }
 
 // ==================== GAMMA CONTROLS ====================
 
 void VisualizationEnvironmentPanel::onGammaCorrectionStateChanged(bool checked)
 {
-	if (!_glWidget)
+	if (!_viewportWidget)
 		return;
 
-	_glWidget->enableGammaCorrection(checked);
+	_viewportWidget->enableGammaCorrection(checked);
 	updateControlDependencies();
-	_glWidget->updateView();
+	_viewportWidget->updateView();
 	if (_previewWidget) _previewWidget->update();
 }
 
 void VisualizationEnvironmentPanel::onScreenGammaChanged(double value)
 {
-	if (!_glWidget)
+	if (!_viewportWidget)
 		return;
 
-	_glWidget->setScreenGamma(value);
-	_glWidget->updateView();
+	_viewportWidget->setScreenGamma(value);
+	_viewportWidget->updateView();
 	if (_previewWidget) _previewWidget->update();
 }
 
@@ -891,7 +891,7 @@ void VisualizationEnvironmentPanel::onScreenGammaChanged(double value)
 
 void VisualizationEnvironmentPanel::onDefaultEnvValuesClicked()
 {
-	if (!ui || !_glWidget)
+	if (!ui || !_viewportWidget)
 		return;
 
 	ui->doubleSpinBoxSkyBoxFOV->setValue(45.0);
@@ -907,7 +907,7 @@ void VisualizationEnvironmentPanel::onDefaultEnvValuesClicked()
 	ui->doubleSpinBoxScreenGamma->setValue(2.2);
 
 	updateControlDependencies();
-	_glWidget->updateView();
+	_viewportWidget->updateView();
 }
 
 // ==================== SKYBOX PRESET MANAGEMENT ====================
@@ -919,7 +919,7 @@ void VisualizationEnvironmentPanel::onLoadSkyBoxPresetMaps()
 
 void VisualizationEnvironmentPanel::reloadSkyBoxPresets()
 {
-	if (!_modelViewer || !_glWidget || !ui)
+	if (!_modelViewer || !_viewportWidget || !ui)
 		return;
 
 	bool isHDRI = ui->checkBoxSkyBoxHDRI->isChecked();
@@ -958,8 +958,8 @@ void VisualizationEnvironmentPanel::reloadSkyBoxPresets()
 	QString selectedPath = ui->comboBoxSkyBoxMaps->itemData(ui->comboBoxSkyBoxMaps->currentIndex()).toString();
 	if (!selectedPath.isEmpty())
 	{
-		_glWidget->setSkyBoxTextureFolder(selectedPath);
-		_glWidget->updateView();
+		_viewportWidget->setSkyBoxTextureFolder(selectedPath);
+		_viewportWidget->updateView();
 	}
 }
 
@@ -967,11 +967,11 @@ void VisualizationEnvironmentPanel::reloadSkyBoxPresets()
 
 void VisualizationEnvironmentPanel::onDisplayModeChanged(int mode)
 {
-	if (!_glWidget || !ui)
+	if (!_viewportWidget || !ui)
 		return;
 
 	bool realShaded = (mode == static_cast<int>(DisplayMode::REALSHADED));
-	bool pbrLighting = (_glWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING);
+	bool pbrLighting = (_viewportWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING);
 
 	// Block signals to prevent cascading updates
 	blockSignals(true);
@@ -991,14 +991,14 @@ void VisualizationEnvironmentPanel::onDisplayModeChanged(int mode)
 	blockSignals(false);
 
 	updateControlDependencies();
-	_glWidget->setSkyBoxTextureHDRI(skyBoxHDRIChecked);
+	_viewportWidget->setSkyBoxTextureHDRI(skyBoxHDRIChecked);
 }
 
 // ==================== PBR LIGHTING MODE ====================
 
 void VisualizationEnvironmentPanel::setPBRLightingMode(bool enable)
 {
-	if (!_glWidget || !ui)
+	if (!_viewportWidget || !ui)
 		return;
 
 	// If disabling PBR (switching to ADS), disable PBR-specific settings
@@ -1011,7 +1011,7 @@ void VisualizationEnvironmentPanel::setPBRLightingMode(bool enable)
 			ui->checkBoxEnvMapping->setChecked(false);
 			ui->checkBoxEnvMapping->blockSignals(false);
 		}
-		_glWidget->showEnvironment(false);
+		_viewportWidget->showEnvironment(false);
 
 		// Disable tone mapping and gamma correction (PBR-specific)
 		ui->checkBoxHDRToneMapping->blockSignals(true);
@@ -1023,8 +1023,8 @@ void VisualizationEnvironmentPanel::setPBRLightingMode(bool enable)
 		ui->checkBoxHDRToneMapping->blockSignals(false);
 		ui->checkBoxGammaCorrection->blockSignals(false);
 
-		_glWidget->enableHDRToneMapping(false);
-		_glWidget->enableGammaCorrection(false);
+		_viewportWidget->enableHDRToneMapping(false);
+		_viewportWidget->enableGammaCorrection(false);
 		return;
 	}
 
@@ -1052,11 +1052,11 @@ void VisualizationEnvironmentPanel::setPBRLightingMode(bool enable)
 	// Trigger updates
 	onSkyBoxHDRIChanged(true);
 	reloadSkyBoxPresets();
-	_glWidget->enableHDRToneMapping(enable);
-	_glWidget->enableGammaCorrection(enable);
+	_viewportWidget->enableHDRToneMapping(enable);
+	_viewportWidget->enableGammaCorrection(enable);
 
 	// Explicitly enable environment mapping
-	_glWidget->showEnvironment(true);
+	_viewportWidget->showEnvironment(true);
 
 	updateControlDependencies();
 }
@@ -1087,13 +1087,13 @@ void VisualizationEnvironmentPanel::updateLightPositionRanges(float range, float
 	ui->sliderLightPosZ->blockSignals(false);
 
 	// Manually trigger light offset update
-	if (_glWidget)
+	if (_viewportWidget)
 	{
-		_glWidget->setLightOffset(QVector3D(
+		_viewportWidget->setLightOffset(QVector3D(
 			static_cast<float>(ui->sliderLightPosX->value()),
 			static_cast<float>(ui->sliderLightPosY->value()),
 			static_cast<float>(ui->sliderLightPosZ->value())));
-		_glWidget->updateView();
+		_viewportWidget->updateView();
 	}
 }
 
@@ -1120,7 +1120,7 @@ void VisualizationEnvironmentPanel::onDetachButtonClicked()
 
 void VisualizationEnvironmentPanel::restoreDefaultLightOffset(const QVector3D& offset)
 {
-	if (!ui || !_glWidget)
+	if (!ui || !_viewportWidget)
 		return;
 
 	// Clamp to the current slider range so a stale saved value doesn't
@@ -1145,7 +1145,7 @@ void VisualizationEnvironmentPanel::restoreDefaultLightOffset(const QVector3D& o
 	ui->sliderLightPosY->blockSignals(false);
 	ui->sliderLightPosZ->blockSignals(false);
 
-	_glWidget->setLightOffset(QVector3D(static_cast<float>(x),
+	_viewportWidget->setLightOffset(QVector3D(static_cast<float>(x),
 	                                    static_cast<float>(y),
 	                                    static_cast<float>(z)));
 }

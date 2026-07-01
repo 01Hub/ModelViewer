@@ -1,18 +1,18 @@
 #include "RenameMeshCommand.h"
-#include "GLWidget.h"
+#include "ViewportWidget.h"
 #include "SceneTreeWidget.h"
 #include "RenderableMesh.h"
 
 // ---------------------------------------------------------------------------
 
 RenameMeshCommand::RenameMeshCommand(ModelViewer*     viewer,
-                                     GLWidget*        glWidget,
+                                     ViewportWidget*        viewportWidget,
                                      SceneTreeWidget* treeWidget,
                                      const QUuid&     uuid,
                                      const QString&   oldName,
                                      const QString&   newName,
                                      const QString&   text)
-    : ModelViewerCommand(viewer, glWidget, text)
+    : ModelViewerCommand(viewer, viewportWidget, text)
     , _treeWidget(treeWidget)
     , _uuid(uuid)
     , _oldName(oldName)
@@ -32,7 +32,7 @@ void RenameMeshCommand::undo()
 
 void RenameMeshCommand::applyName(const QString& name)
 {
-    SceneMesh* mesh = _glWidget->getMeshByUuid(_uuid);
+    SceneMesh* mesh = _viewportWidget->getMeshByUuid(_uuid);
     if (!mesh) return;
 
     mesh->setName(name);

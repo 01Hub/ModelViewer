@@ -30,13 +30,13 @@ struct SceneNode;
 // ---------------------------------------------------------------------------
 // AnimationRuntimeController
 //
-// Owns all animation playback state previously scattered through GLWidget.
-// GLWidget embeds one instance and accesses state through this API.
+// Owns all animation playback state previously scattered through ViewportWidget.
+// ViewportWidget embeds one instance and accesses state through this API.
 //
 // Introduced in Phase 8 of the mesh/render/runtime separation refactor.
 // De-aliased in the controller ownership cleanup pass.
 //
-// Note: _animationTimer (QTimer*) is created by GLWidget with itself as
+// Note: _animationTimer (QTimer*) is created by ViewportWidget with itself as
 // parent (required for Qt's object-tree ownership) and registered here via
 // setAnimationTimer().
 // ---------------------------------------------------------------------------

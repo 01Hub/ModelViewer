@@ -1,7 +1,7 @@
 #include "SceneTreeWidget.h"
 #include "SceneGraph.h"
 #include "SceneNode.h"
-#include "GLWidget.h"
+#include "ViewportWidget.h"
 #include "RenderableMesh.h"
 
 #include <QApplication>
@@ -278,9 +278,9 @@ void SceneTreeWidget::setSceneGraph(SceneGraph* sg)
                 this,        &SceneTreeWidget::rebuild);
 }
 
-void SceneTreeWidget::setGLWidget(GLWidget* gl)
+void SceneTreeWidget::setGLWidget(ViewportWidget* viewportWidget)
 {
-    _glWidget = gl;
+    _viewportWidget = viewportWidget;
 }
 
 // ---------------------------------------------------------------------------
@@ -335,11 +335,11 @@ int SceneTreeWidget::meshCount() const
 
 void SceneTreeWidget::setSelectionByIndices(const QSet<int>& indices)
 {
-    if (!_glWidget) return;
+    if (!_viewportWidget) return;
     QSet<QUuid> uuids;
     for (int idx : indices)
     {
-        QUuid u = _glWidget->getUuidByIndex(idx);
+        QUuid u = _viewportWidget->getUuidByIndex(idx);
         if (!u.isNull()) uuids.insert(u);
     }
     setSelectionByUuids(uuids);
@@ -375,10 +375,10 @@ void SceneTreeWidget::setSelectionByUuids(const QSet<QUuid>& uuids)
 std::vector<int> SceneTreeWidget::getSelectedIndices() const
 {
     std::vector<int> ids;
-    if (!_glWidget) return ids;
+    if (!_viewportWidget) return ids;
     for (const QUuid& uuid : selectedMeshUuids())
     {
-        int idx = _glWidget->getIndexByUuid(uuid);
+        int idx = _viewportWidget->getIndexByUuid(uuid);
         if (idx >= 0) ids.push_back(idx);
     }
     return ids;
@@ -537,12 +537,12 @@ QSet<QUuid> SceneTreeWidget::getVisibleUuids() const
 std::vector<int> SceneTreeWidget::getVisibleIndices() const
 {
     std::vector<int> ids;
-    if (!_glWidget) return ids;
+    if (!_viewportWidget) return ids;
     for (auto it = _uuidToLeaf.constBegin(); it != _uuidToLeaf.constEnd(); ++it)
     {
         if (it.value()->checkState(0) == Qt::Checked)
         {
-            int idx = _glWidget->getIndexByUuid(it.key());
+            int idx = _viewportWidget->getIndexByUuid(it.key());
             if (idx >= 0) ids.push_back(idx);
         }
     }
@@ -795,7 +795,7 @@ void SceneTreeWidget::paintEvent(QPaintEvent* event)
 
 void SceneTreeWidget::rebuild()
 {
-    if (!_sceneGraph || !_glWidget) return;
+    if (!_sceneGraph || !_viewportWidget) return;
 
     if (_rebuildTimer->isActive())
         _rebuildTimer->stop();
@@ -817,10 +817,10 @@ void SceneTreeWidget::rebuild()
 
     if (!hadItems)
     {
-        const std::vector<int> displayedIds = _glWidget->getDisplayedObjectsIds();
+        const std::vector<int> displayedIds = _viewportWidget->getDisplayedObjectsIds();
         for (int idx : displayedIds)
         {
-            QUuid uuid = _glWidget->getUuidByIndex(idx);
+            QUuid uuid = _viewportWidget->getUuidByIndex(idx);
             if (!uuid.isNull())
                 _pendingVisibleUuids.insert(uuid);
         }
@@ -1227,9 +1227,9 @@ void SceneTreeWidget::finalizeRebuild()
 QTreeWidgetItem* SceneTreeWidget::makeMeshLeaf(const QUuid& uuid)
 {
     QString name;
-    if (_glWidget)
+    if (_viewportWidget)
     {
-        SceneMesh* mesh = _glWidget->getMeshByUuid(uuid);
+        SceneMesh* mesh = _viewportWidget->getMeshByUuid(uuid);
         if (mesh) name = mesh->getName();
     }
     if (name.isEmpty())

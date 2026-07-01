@@ -1,5 +1,5 @@
 ﻿#include "MaterialPreviewWidget.h"
-#include "GLWidget.h"
+#include "ViewportWidget.h"
 #include <cmath>
 #include "PathUtils.h"
 #include <QMouseEvent>
@@ -777,16 +777,16 @@ void MaterialPreviewWidget::paintGL()
 	// Bind BRDF LUT (always available from main viewer)
 	// MaterialPreviewWidget has its own GL context, so texture units don't conflict with main GLWidget/SceneMesh
 	GLuint brdfLut = 0;
-	if (_glWidget)
-		brdfLut = _glWidget->getBrdfLUT();
+	if (_viewportWidget)
+		brdfLut = _viewportWidget->getBrdfLUT();
 
 	glActiveTexture(GL_TEXTURE25);
 	glBindTexture(GL_TEXTURE_2D, brdfLut);
 	_shader->setUniformValue("brdfLUT", 25);
 
 	const bool useViewerIBL = (_currentEnv == EnvMode::ViewerIBL);
-	const bool viewerIBLAvailable = useViewerIBL && _glWidget && _glWidget->isEnvironmentMapEnabled();
-	const bool presetAvailable = !useViewerIBL && _glWidget;  // Preset environments are always available from GLWidget
+	const bool viewerIBLAvailable = useViewerIBL && _viewportWidget && _viewportWidget->isEnvironmentMapEnabled();
+	const bool presetAvailable = !useViewerIBL && _viewportWidget;  // Preset environments are always available from GLWidget
 	const bool specularIBLAvailable = viewerIBLAvailable || presetAvailable;
 
 	// Use GLWidget's environment maps (ViewerIBL or presets)
@@ -796,7 +796,7 @@ void MaterialPreviewWidget::paintGL()
 		int envIndex = 0;  // Default to ViewerIBL
 
 		// Map current environment mode to index
-		if (!useViewerIBL && _glWidget)
+		if (!useViewerIBL && _viewportWidget)
 		{
 			if (_currentEnv == EnvMode::Studio)
 				envIndex = 1;
@@ -807,15 +807,15 @@ void MaterialPreviewWidget::paintGL()
 		}
 
 		// Get maps from GLWidget
-		GLuint envMap = _glWidget ? _glWidget->getEnvironmentMap(envIndex) : 0;
-		GLuint irrMap = _glWidget ? _glWidget->getIrradianceMap(envIndex) : 0;
-		GLuint prefilterMap = _glWidget ? _glWidget->getPrefilterMap(envIndex) : 0;
-		GLuint sheenPrefilterMap = _glWidget ? _glWidget->getSheenPrefilterMap(envIndex) : 0;
-		GLuint charlieLut = _glWidget ? _glWidget->getCharlieLUT() : 0;
-		GLuint sheenELut = _glWidget ? _glWidget->getSheenELUT() : 0;
+		GLuint envMap = _viewportWidget ? _viewportWidget->getEnvironmentMap(envIndex) : 0;
+		GLuint irrMap = _viewportWidget ? _viewportWidget->getIrradianceMap(envIndex) : 0;
+		GLuint prefilterMap = _viewportWidget ? _viewportWidget->getPrefilterMap(envIndex) : 0;
+		GLuint sheenPrefilterMap = _viewportWidget ? _viewportWidget->getSheenPrefilterMap(envIndex) : 0;
+		GLuint charlieLut = _viewportWidget ? _viewportWidget->getCharlieLUT() : 0;
+		GLuint sheenELut = _viewportWidget ? _viewportWidget->getSheenELUT() : 0;
 
 		// Use consistent IBL exposure for all environments (presets use same exposure as ViewerIBL)
-		float iblExposure = _glWidget ? _glWidget->getIBLExposure() : 1.0f;
+		float iblExposure = _viewportWidget ? _viewportWidget->getIBLExposure() : 1.0f;
 
 		// MaterialPreviewWidget has its own GL context, so we can safely use any texture units without conflicts
 		glActiveTexture(GL_TEXTURE23);
@@ -829,8 +829,8 @@ void MaterialPreviewWidget::paintGL()
 		glActiveTexture(GL_TEXTURE26);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, prefilterMap);
 		_shader->setUniformValue("prefilterMap", 26);
-		int previewPrefilterMips = (_glWidget && _glWidget->getPrefilterMipLevels() > 0)
-			? static_cast<int>(_glWidget->getPrefilterMipLevels())
+		int previewPrefilterMips = (_viewportWidget && _viewportWidget->getPrefilterMipLevels() > 0)
+			? static_cast<int>(_viewportWidget->getPrefilterMipLevels())
 			: 9;
 		_shader->setUniformValue("prefilterMipLevels", previewPrefilterMips);
 		glActiveTexture(GL_TEXTURE27);
@@ -839,8 +839,8 @@ void MaterialPreviewWidget::paintGL()
 		glBindTexture(GL_TEXTURE_2D, sheenELut);
 		glActiveTexture(GL_TEXTURE29);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, sheenPrefilterMap);
-		int previewSheenPrefilterMips = (_glWidget && _glWidget->getSheenPrefilterMipLevels() > 0)
-			? static_cast<int>(_glWidget->getSheenPrefilterMipLevels())
+		int previewSheenPrefilterMips = (_viewportWidget && _viewportWidget->getSheenPrefilterMipLevels() > 0)
+			? static_cast<int>(_viewportWidget->getSheenPrefilterMipLevels())
 			: 5;
 		_shader->setUniformValue("sheenPrefilterMipLevels", previewSheenPrefilterMips);
 
@@ -859,14 +859,14 @@ void MaterialPreviewWidget::paintGL()
 
 		// Enable environment specular contribution ONLY for PBR mode
 		// In ADS mode, IBL should be disabled since it's Blinn-Phong, not PBR
-		float specIntensity = (_glWidget && _glWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING) ? 1.0f : 0.0f;
+		float specIntensity = (_viewportWidget && _viewportWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING) ? 1.0f : 0.0f;
 		_shader->setUniformValue("envSpecularIntensity", specIntensity);
 	}
 
 	_shader->setUniformValue("texViewMode", static_cast<int>(_texViewMode));
-	_shader->setUniformValue("renderingMode", _glWidget ? static_cast<int>(_glWidget->getRenderingMode()) : 1);
+	_shader->setUniformValue("renderingMode", _viewportWidget ? static_cast<int>(_viewportWidget->getRenderingMode()) : 1);
 	_shader->setUniformValue("envMapEnabled", specularIBLAvailable);
-	_shader->setUniformValue("useIBL", useViewerIBL ? (_glWidget ? _glWidget->isIBLEnabled() : true) : true);
+	_shader->setUniformValue("useIBL", useViewerIBL ? (_viewportWidget ? _viewportWidget->isIBLEnabled() : true) : true);
 
 	const MeshGL* mesh = nullptr;
 	switch (_currentShape)
@@ -975,7 +975,7 @@ void MaterialPreviewWidget::applyEnvPreset(EnvMode mode, PreviewProfile profile)
 
 	// --- Selective brightening for ADS mode (non-PBR) ---
 	// In ADS mode, boost diffuse intensity to compensate for lack of PBR tone mapping/gamma effects
-	if (_glWidget && _glWidget->getRenderingMode() == RenderingMode::ADS_BLINN_PHONG)
+	if (_viewportWidget && _viewportWidget->getRenderingMode() == RenderingMode::ADS_BLINN_PHONG)
 	{
 		envDiffuse *= 1.3f;  // Brighten ADS mode for better visibility and WYSIWYG preview
 	}
@@ -992,7 +992,7 @@ void MaterialPreviewWidget::applyEnvPreset(EnvMode mode, PreviewProfile profile)
 	_shader->setUniformValue("envDiffuseIntensity", envDiffuse);
 
 	// Viewer IBL mode configures specular IBL when binding the main viewer maps.
-	float specIntensity = (mode == EnvMode::ViewerIBL && _glWidget && _glWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING) ? 1.0f : 0.0f;
+	float specIntensity = (mode == EnvMode::ViewerIBL && _viewportWidget && _viewportWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING) ? 1.0f : 0.0f;
 	_shader->setUniformValue("envSpecularIntensity", specIntensity);
 
 	_shader->setUniformValue("lights[0].position", L0);
@@ -1006,10 +1006,10 @@ void MaterialPreviewWidget::applyEnvPreset(EnvMode mode, PreviewProfile profile)
 	_shader->setUniformValue("numLights", 4);
 
 	// Environment tone mapping and gamma settings (from GLWidget, matches main_scene.frag)
-	bool hdrToneMapping = _glWidget ? _glWidget->isHDRToneMappingEnabled() : true;
-	bool gammaCorrection = _glWidget ? _glWidget->isGammaCorrectionEnabled() : true;
-	float screenGamma = _glWidget ? _glWidget->getScreenGamma() : 2.2f;
-	int toneMapMode = _glWidget ? static_cast<int>(_glWidget->getHDRToneMappingMode()) : 0;
+	bool hdrToneMapping = _viewportWidget ? _viewportWidget->isHDRToneMappingEnabled() : true;
+	bool gammaCorrection = _viewportWidget ? _viewportWidget->isGammaCorrectionEnabled() : true;
+	float screenGamma = _viewportWidget ? _viewportWidget->getScreenGamma() : 2.2f;
+	int toneMapMode = _viewportWidget ? static_cast<int>(_viewportWidget->getHDRToneMappingMode()) : 0;
 
 	_shader->setUniformValue("hdrToneMapping", hdrToneMapping);
 	_shader->setUniformValue("gammaCorrection", gammaCorrection);

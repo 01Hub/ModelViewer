@@ -11,7 +11,7 @@
 
 class QMouseEvent;
 class QWheelEvent;
-class GLWidget;
+class ViewportWidget;
 
 enum class PreviewShape { Sphere, Cube, Cylinder, Plane, Teapot };
 enum class EnvMode { ViewerIBL, Studio, Outdoor, Office };
@@ -61,7 +61,7 @@ public:
 	void setEnvironment(EnvMode env) { _currentEnv = env; update(); }
     void setExposureEV(float ev);
 	void setTextureViewMode(TexViewMode mode) { _texViewMode = mode; update(); }
-	void setGLWidget(GLWidget* glWidget) { _glWidget = glWidget; }
+	void setGLWidget(ViewportWidget* viewportWidget) { _viewportWidget = viewportWidget; }
     void setPreviewProfile(PreviewProfile profile) { _profile = profile; update(); }
 
 	PreviewShape currentShape() const { return _currentShape; }
@@ -122,7 +122,7 @@ private:
     void clearTextureCache();
 
 private:
-    class GLWidget* _glWidget = nullptr;  // For accessing environment settings
+    class ViewportWidget* _viewportWidget = nullptr;  // For accessing environment settings
     std::unique_ptr<ShaderProgram> _shader;
     GLuint vao = 0;
     GLuint vbo = 0;

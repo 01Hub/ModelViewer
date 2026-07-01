@@ -46,7 +46,7 @@ public:
     bool initialize();
 
     // Deletes all owned GL resources. Must be called while a GL context is
-    // current (typically from GLWidget's destructor after makeCurrent()).
+    // current (typically from ViewportWidget's destructor after makeCurrent()).
     void cleanupGLResources();
 
     // ---- Shader init -------------------------------------------------------

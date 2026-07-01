@@ -19,7 +19,7 @@
 #include "GltfAnimationData.h"
 #include "TransformCommand.h"
 
-class GLWidget;
+class ViewportWidget;
 class ModelViewer;
 class SceneGraph;
 class QTimer;
@@ -37,7 +37,7 @@ public:
         Classic = 1
     };
 
-    explicit ExplodedViewPanel(GLWidget* parent = nullptr);
+    explicit ExplodedViewPanel(ViewportWidget* parent = nullptr);
 
     void setSceneGraph(SceneGraph* sg);
     void applyContrastTheme(const QColor& textColor);
@@ -249,7 +249,7 @@ private:
     QVector<CapturedExplosionStep>& activeCapturedSteps();
     const QVector<CapturedExplosionStep>& activeCapturedSteps() const;
 
-    GLWidget*    _glWidget   = nullptr;
+    ViewportWidget*    _viewportWidget   = nullptr;
     SceneGraph*  _sceneGraph = nullptr;
 
     PickingTarget            _pickingTarget = PickingTarget::None;

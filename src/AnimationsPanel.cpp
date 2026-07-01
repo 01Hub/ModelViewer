@@ -1,6 +1,6 @@
 #include "AnimationsPanel.h"
 
-#include "GLWidget.h"
+#include "ViewportWidget.h"
 #include "SceneGraph.h"
 
 #include <QCheckBox>
@@ -139,9 +139,9 @@ void AnimationsPanel::setSceneGraph(SceneGraph* sg)
 	_sceneGraph = sg;
 }
 
-void AnimationsPanel::setGLWidget(GLWidget* glWidget)
+void AnimationsPanel::setGLWidget(ViewportWidget* viewportWidget)
 {
-	_glWidget = glWidget;
+	_viewportWidget = viewportWidget;
 }
 
 void AnimationsPanel::refresh()
@@ -155,8 +155,8 @@ void AnimationsPanel::refresh()
 		return;
 	}
 
-	const QString activeFile = _glWidget ? _glWidget->activeAnimationFile() : QString();
-	const int activeClip = _glWidget ? _glWidget->activeAnimationClip() : -1;
+	const QString activeFile = _viewportWidget ? _viewportWidget->activeAnimationFile() : QString();
+	const int activeClip = _viewportWidget ? _viewportWidget->activeAnimationClip() : -1;
 
 	const QStringList files = _sceneGraph->filesWithAnimations();
 	for (const QString& sourceFile : files)
@@ -315,7 +315,7 @@ void AnimationsPanel::onItemClicked(QTreeWidgetItem* item, int /*column*/)
 
 void AnimationsPanel::onPlayPauseClicked()
 {
-	const bool playing = _glWidget ? _glWidget->isAnimationPlaying() : false;
+	const bool playing = _viewportWidget ? _viewportWidget->isAnimationPlaying() : false;
 	emit playbackToggled(!playing);
 }
 
@@ -358,7 +358,7 @@ void AnimationsPanel::onTreeContextMenuRequested(const QPoint& pos)
 
 	QMenu menu(this);
 	QAction* deleteAction = menu.addAction(isFileItem ? tr("Delete All") : tr("Delete"));
-	const bool playing = _glWidget ? _glWidget->isAnimationPlaying() : false;
+	const bool playing = _viewportWidget ? _viewportWidget->isAnimationPlaying() : false;
 	deleteAction->setEnabled(!playing);
 	QAction* chosen = menu.exec(_tree->viewport()->mapToGlobal(pos));
 	if (chosen == deleteAction)
@@ -450,8 +450,8 @@ void AnimationsPanel::updateControlsForSelection()
 {
 	_syncingControls = true;
 
-	QString activeFile = _glWidget ? _glWidget->activeAnimationFile() : QString();
-	int activeClip = _glWidget ? _glWidget->activeAnimationClip() : -1;
+	QString activeFile = _viewportWidget ? _viewportWidget->activeAnimationFile() : QString();
+	int activeClip = _viewportWidget ? _viewportWidget->activeAnimationClip() : -1;
 	if (activeFile.isEmpty() && _sceneGraph)
 	{
 		const QStringList files = _sceneGraph->filesWithAnimations();
@@ -462,10 +462,10 @@ void AnimationsPanel::updateControlsForSelection()
 		}
 	}
 
-	double currentTime = _glWidget ? _glWidget->currentAnimationTimeSeconds() : 0.0;
-	const bool playing = _glWidget ? _glWidget->isAnimationPlaying() : false;
-	const bool looping = _glWidget ? _glWidget->isAnimationLooping() : false;
-	const double speed = _glWidget ? _glWidget->animationPlaybackSpeed() : 1.0;
+	double currentTime = _viewportWidget ? _viewportWidget->currentAnimationTimeSeconds() : 0.0;
+	const bool playing = _viewportWidget ? _viewportWidget->isAnimationPlaying() : false;
+	const bool looping = _viewportWidget ? _viewportWidget->isAnimationLooping() : false;
+	const double speed = _viewportWidget ? _viewportWidget->animationPlaybackSpeed() : 1.0;
 
 	_currentDurationSeconds = 0.0;
 	if (_sceneGraph && !activeFile.isEmpty())

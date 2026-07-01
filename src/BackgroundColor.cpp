@@ -1,7 +1,7 @@
 #include "BackgroundColor.h"
 #include "ui_BackgroundColor.h"
 
-#include "GLWidget.h"
+#include "ViewportWidget.h"
 
 #include <QColorDialog>
 #include <QMessageBox>
@@ -12,12 +12,12 @@ BackgroundColor::BackgroundColor(QWidget* parent) :
 {
 	ui->setupUi(this);
 
-	GLWidget* glWidget = dynamic_cast<GLWidget*>(parent);
-	if (glWidget)
+	ViewportWidget* viewportWidget = dynamic_cast<ViewportWidget*>(parent);
+	if (viewportWidget)
 	{
-		_topColor = glWidget->getBgTopColor();
-		_bottomColor = glWidget->getBgBotColor();
-		_gradientStyle = glWidget->getBgGradientStyle();
+		_topColor = viewportWidget->getBgTopColor();
+		_bottomColor = viewportWidget->getBgBotColor();
+		_gradientStyle = viewportWidget->getBgGradientStyle();
 		ui->comboBoxGradientStyle->setCurrentIndex(_gradientStyle);
 		setPreviewColor();
 	}
@@ -35,15 +35,15 @@ bool BackgroundColor::hasGradient() const
 
 void BackgroundColor::applyBgColors()
 {
-	GLWidget* glWidget = dynamic_cast<GLWidget*>(parent());
-	if (glWidget)
+	ViewportWidget* viewportWidget = dynamic_cast<ViewportWidget*>(parent());
+	if (viewportWidget)
 	{
-		glWidget->setBgTopColor(_topColor);
+		viewportWidget->setBgTopColor(_topColor);
 		if (hasGradient())
-			glWidget->setBgBotColor(_bottomColor);
+			viewportWidget->setBgBotColor(_bottomColor);
 		else
-			glWidget->setBgBotColor(_topColor);
-		glWidget->setBgGradientStyle(_gradientStyle);
+			viewportWidget->setBgBotColor(_topColor);
+		viewportWidget->setBgGradientStyle(_gradientStyle);
 	}
 	saveSettings();
 }

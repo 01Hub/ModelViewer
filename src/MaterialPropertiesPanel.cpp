@@ -538,17 +538,17 @@ void MaterialPropertiesPanel::bindMaterial(Material* material)
 	emit materialChanged(_material);
 }
 
-void MaterialPropertiesPanel::initialize(ModelViewer* modelViewer, GLWidget* glWidget)
+void MaterialPropertiesPanel::initialize(ModelViewer* modelViewer, ViewportWidget* viewportWidget)
 {
 	_modelViewer = modelViewer;
-	_glWidget = glWidget;
+	_viewportWidget = viewportWidget;
 
 	qDebug() << "MaterialPropertiesPanel::initialize called with modelViewer:" << (modelViewer ? "non-null" : "NULL");
 
 	// Pass GLWidget reference to preview widget for environment settings
-	if (_preview && _glWidget)
+	if (_preview && _viewportWidget)
 	{
-		_preview->setGLWidget(_glWidget);
+		_preview->setGLWidget(_viewportWidget);
 	}
 
 	// Get reference to the MDI-scoped material cache from ModelViewer

@@ -4,7 +4,7 @@
 
 // Forward declarations
 class ModelViewer;
-class GLWidget;
+class ViewportWidget;
 
 /**
  * @brief Base class for all undoable commands in ModelViewer
@@ -23,7 +23,7 @@ public:
      * @param text Description of the command for undo/redo menu
      */
     explicit ModelViewerCommand(ModelViewer* viewer,
-        GLWidget* glWidget,
+        ViewportWidget* viewportWidget,
         const QString& text = QString());
 
     virtual ~ModelViewerCommand() = default;
@@ -32,6 +32,6 @@ public:
 
 protected:
     ModelViewer* _viewer;
-    GLWidget* _glWidget;
+    ViewportWidget* _viewportWidget;
 };
 

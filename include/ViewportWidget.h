@@ -81,12 +81,12 @@ struct TextureSlotInfo
 };
 Q_DECLARE_METATYPE(QVector<TextureSlotInfo>)
 
-class GLWidget : public QOpenGLWidget, QOpenGLFunctions_4_5_Core
+class ViewportWidget : public QOpenGLWidget, QOpenGLFunctions_4_5_Core
 {
 	Q_OBJECT
 public:
-	GLWidget(QWidget* parent = 0, const char* name = 0);
-	~GLWidget();
+	ViewportWidget(QWidget* parent = 0, const char* name = 0);
+	~ViewportWidget();
 
 	void retranslateUI();
 
@@ -508,7 +508,7 @@ public slots:
 	// the primary camera.  In single-view mode the primary camera is returned.
 	Camera* getCameraForPoint(const QPoint& pixel);
 
-	static Material resolveMaterialTextures(GLWidget* w, const Material& src);
+	static Material resolveMaterialTextures(ViewportWidget* w, const Material& src);
 
 	// Reads back all per-mesh texture slots for meshId via glGetTexImage and
 	// emits textureReadbackReady().  Must be called on the GL thread (or the

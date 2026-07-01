@@ -9,7 +9,7 @@
 #include <QMap>
 #include <QVector3D>
 
-class GLWidget;
+class ViewportWidget;
 class Camera;
 class RenderableMesh;
 // Hover highlighting mode enumeration
@@ -47,7 +47,7 @@ class SelectionManager : public QObject
 
 public:
     explicit SelectionManager(
-        GLWidget* glWidget,
+        ViewportWidget* viewportWidget,
         Camera* primaryCamera,
         std::vector<SceneMeshRecord>& meshStore,
         const std::vector<int>& displayedObjectsIds,
@@ -116,7 +116,7 @@ private:
     unsigned int _selectionDBO = 0;        // Depth render buffer
 
     // References to GLWidget data (don't own these)
-    GLWidget* _glWidget;
+    ViewportWidget* _viewportWidget;
     Camera* _primaryCamera;
     std::vector<SceneMeshRecord>& _meshStore;
     const std::vector<int>& _displayedObjectsIds;

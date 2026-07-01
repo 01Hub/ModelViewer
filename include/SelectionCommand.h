@@ -20,7 +20,7 @@ public:
      * @param text Description (default: "Select")
      */
     SelectionCommand(ModelViewer* viewer,
-        GLWidget* glWidget,
+        ViewportWidget* viewportWidget,
         const QSet<int>& newSelection,
         const QString& text = QObject::tr("Select"));
 

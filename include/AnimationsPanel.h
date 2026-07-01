@@ -4,7 +4,7 @@
 #include <QTreeWidget>
 #include <QWidget>
 
-class GLWidget;
+class ViewportWidget;
 class QLabel;
 class QPushButton;
 class QCheckBox;
@@ -28,7 +28,7 @@ public:
 	explicit AnimationsPanel(QWidget* parent = nullptr);
 
 	void setSceneGraph(SceneGraph* sg);
-	void setGLWidget(GLWidget* glWidget);
+	void setGLWidget(ViewportWidget* viewportWidget);
 	void refresh();
 	void setDetachedOverlayMode(bool enabled);
 	void refreshDetachedOverlayTheme();
@@ -74,7 +74,7 @@ private:
 	QLabel* _timeLabel = nullptr;
 
 	SceneGraph* _sceneGraph = nullptr;
-	GLWidget* _glWidget = nullptr;
+	ViewportWidget* _viewportWidget = nullptr;
 	bool _overlayMode = false;
 	bool _scrubbing = false;
 	bool _syncingControls = false;

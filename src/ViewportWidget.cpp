@@ -10,7 +10,7 @@
 #include "CoordinateSystemHelper.h"
 #include "FloorPlane.h"
 #include "GltfCameraData.h"
-#include "GLWidget.h"
+#include "ViewportWidget.h"
 #include "PickingHelper.h"
 #include <QtMath>
 #include "SelectionManager.h"
@@ -65,7 +65,7 @@ static SceneNode* findSceneNodeByAiChildPath(SceneNode* root, const QVector<int>
     return current;
 }
 
-GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent),
+ViewportWidget::ViewportWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent),
 _textRenderer(nullptr),
 _axisTextRenderer(nullptr),
 _clippingPlanesEditor(nullptr),
@@ -140,11 +140,11 @@ _floorPlane(nullptr),
 		 else if (type == "ShadedWithEdges") setDisplayMode(DisplayMode::SHADED_WITH_EDGES);
 		 else if (type == "FlatShaded") setDisplayMode(DisplayMode::FLATSHADED);
 		 });
-	 connect(this, &GLWidget::displayModeChanged, _viewer, &ModelViewer::onDisplayModeChanged);
+	 connect(this, &ViewportWidget::displayModeChanged, _viewer, &ModelViewer::onDisplayModeChanged);
 
-	 connect(_viewToolbar, &ViewToolbar::fitToViewRequested, this, &GLWidget::fitAll);
+	 connect(_viewToolbar, &ViewToolbar::fitToViewRequested, this, &ViewportWidget::fitAll);
 	 
-	 connect(_viewToolbar, &ViewToolbar::windowZoomRequested, this, &GLWidget::beginWindowZoom);
+	 connect(_viewToolbar, &ViewToolbar::windowZoomRequested, this, &ViewportWidget::beginWindowZoom);
 
 	 connect(_viewToolbar, &ViewToolbar::projectionToggled, this, [this](bool ortho) {
 		 setProjection(ortho ? ViewProjection::ORTHOGRAPHIC : ViewProjection::PERSPECTIVE);
@@ -189,7 +189,7 @@ _floorPlane(nullptr),
          setDebugOverlayEnabled(enabled);
      });
 
-	connect(this, &GLWidget::visibleSwapped, _viewToolbar, &ViewToolbar::setSwapVisibleChecked);
+	connect(this, &ViewportWidget::visibleSwapped, _viewToolbar, &ViewToolbar::setSwapVisibleChecked);
 
     const QSettings displaySettings(QCoreApplication::organizationName(),
                                     QCoreApplication::applicationName());
@@ -249,7 +249,7 @@ _floorPlane(nullptr),
 		_sceneRuntime.visibleSwapped(),
 		this);  // Parent for Qt memory management
 
-	// Connect SelectionManager signals to GLWidget update
+	// Connect SelectionManager signals to ViewportWidget update
 	connect(_selectionManager, &SelectionManager::hoverChanged,
 			this, [this](int) { update(); });
 	connect(_selectionManager, &SelectionManager::selectionChanged,
@@ -340,7 +340,7 @@ _floorPlane(nullptr),
 	// Floor texture
 	if (!_texBuffer.load(PathUtils::getDataDirectory() + "/" + "textures/envmap/floor/Grey-White-Checkered-Squares1800x1800.jpg"))
 	{ // Load first image from file
-		qWarning("GLWidget::loadFloor - Could not read image file, using single-color instead.");
+		qWarning("ViewportWidget::loadFloor - Could not read image file, using single-color instead.");
 		QImage dummy(128, 128, QImage::Format_ARGB32);
 		dummy.fill(Qt::white);
 		_floorTexImage = dummy;
@@ -387,36 +387,36 @@ _floorPlane(nullptr),
 	_sceneRuntime.setVisibleSwapped(false);
 
 	_keyboardNavTimer = new QTimer(this);
-	connect(_keyboardNavTimer, &QTimer::timeout, this, &GLWidget::performKeyboardNav);
+	connect(_keyboardNavTimer, &QTimer::timeout, this, &ViewportWidget::performKeyboardNav);
 	_keyboardNavTimer->start(15);
 
 	_animateViewTimer = new QTimer(this);
 	_animateViewTimer->setTimerType(Qt::PreciseTimer);
-	connect(_animateViewTimer, &QTimer::timeout, this, &GLWidget::animateViewChange);
-	connect(this, &GLWidget::rotationsSet, this, &GLWidget::stopAnimations);
+	connect(_animateViewTimer, &QTimer::timeout, this, &ViewportWidget::animateViewChange);
+	connect(this, &ViewportWidget::rotationsSet, this, &ViewportWidget::stopAnimations);
 
 	_animateFitAllTimer = new QTimer(this);
 	_animateFitAllTimer->setTimerType(Qt::PreciseTimer);
-	connect(_animateFitAllTimer, &QTimer::timeout, this, &GLWidget::animateFitAll);
-	connect(this, &GLWidget::zoomAndPanSet, this, &GLWidget::stopAnimations);
+	connect(_animateFitAllTimer, &QTimer::timeout, this, &ViewportWidget::animateFitAll);
+	connect(this, &ViewportWidget::zoomAndPanSet, this, &ViewportWidget::stopAnimations);
 
 	_animateWindowZoomTimer = new QTimer(this);
 	_animateWindowZoomTimer->setTimerType(Qt::PreciseTimer);
-	connect(_animateWindowZoomTimer, &QTimer::timeout, this, &GLWidget::animateWindowZoom);
-	connect(this, &GLWidget::zoomAndPanSet, this, &GLWidget::stopAnimations);
+	connect(_animateWindowZoomTimer, &QTimer::timeout, this, &ViewportWidget::animateWindowZoom);
+	connect(this, &ViewportWidget::zoomAndPanSet, this, &ViewportWidget::stopAnimations);
 
 	_animateCenterScreenTimer = new QTimer(this);
 	_animateCenterScreenTimer->setTimerType(Qt::PreciseTimer);
-	connect(_animateCenterScreenTimer, &QTimer::timeout, this, &GLWidget::animateCenterScreen);
-	connect(this, &GLWidget::zoomAndPanSet, this, &GLWidget::stopAnimations);
+	connect(_animateCenterScreenTimer, &QTimer::timeout, this, &ViewportWidget::animateCenterScreen);
+	connect(this, &ViewportWidget::zoomAndPanSet, this, &ViewportWidget::stopAnimations);
 
 	_inertiaTimer = new QTimer(this);
 	_inertiaTimer->setInterval(16); // ~60 FPS
-	connect(_inertiaTimer, &QTimer::timeout, this, &GLWidget::onInertiaTimer);
+	connect(_inertiaTimer, &QTimer::timeout, this, &ViewportWidget::onInertiaTimer);
 
 	_animCtrl.setAnimationTimer(new QTimer(this));
 	_animCtrl.animationTimer()->setInterval(16);
-	connect(_animCtrl.animationTimer(), &QTimer::timeout, this, &GLWidget::onAnimationTick);
+	connect(_animCtrl.animationTimer(), &QTimer::timeout, this, &ViewportWidget::onAnimationTick);
 
 	_editorLayout = new QVBoxLayout(this);
 	_upperLayout = new QFormLayout();
@@ -438,23 +438,23 @@ _floorPlane(nullptr),
 
 	_clippingPlanesEditor = new ClippingPlanesEditor(this);
 	_lowerLayout->addWidget(_clippingPlanesEditor);
-	connect(this, &GLWidget::backgroundColorChanged,
+	connect(this, &ViewportWidget::backgroundColorChanged,
 	        _clippingPlanesEditor, &ClippingPlanesEditor::applyBackgroundTheme);
 	_clippingPlanesEditor->hide();
 
 	_explodedViewPanel = new ExplodedViewPanel(this);
 	_lowerLayout->addWidget(_explodedViewPanel);
-	connect(this, &GLWidget::backgroundColorChanged,
+	connect(this, &ViewportWidget::backgroundColorChanged,
 	        _explodedViewPanel, &ExplodedViewPanel::applyBackgroundTheme);
 	_explodedViewPanel->hide();
 	connect(_explodedViewPanel, &ExplodedViewPanel::explosionParametersChanged,
-	        this, &GLWidget::updateExplosion);
+	        this, &ViewportWidget::updateExplosion);
 	updateOverlayEditorTheme();
 
 	//_sceneRuntime.displayedObjectsIds().push_back(0);
 
 	setContextMenuPolicy(Qt::CustomContextMenu);
-	connect(this, &GLWidget::customContextMenuRequested, this, &GLWidget::showContextMenu);
+	connect(this, &ViewportWidget::customContextMenuRequested, this, &ViewportWidget::showContextMenu);
 
 	_selectRect = new QRubberBand(QRubberBand::Rectangle, this);
 
@@ -465,7 +465,7 @@ _floorPlane(nullptr),
 		});
 }
 
-GLWidget::~GLWidget()
+ViewportWidget::~ViewportWidget()
 {
 	if (_animCtrl.animationTimer())
 	{
@@ -546,15 +546,15 @@ GLWidget::~GLWidget()
 
 		doneCurrent();  // Release context
 
-		qInfo() << "GLWidget::~GLWidget - OpenGL resources cleaned up successfully.";
+		qInfo() << "ViewportWidget::~ViewportWidget - OpenGL resources cleaned up successfully.";
 	}
 	else
 	{
-		qWarning() << "GLWidget::~GLWidget - No valid OpenGL context for cleanup.";
+		qWarning() << "ViewportWidget::~ViewportWidget - No valid OpenGL context for cleanup.";
 	}
 }
 
-void GLWidget::retranslateUI()
+void ViewportWidget::retranslateUI()
 {
 	// Axis labels
 	_labelAxisX = tr("X");
@@ -573,69 +573,69 @@ void GLWidget::retranslateUI()
 	_labelNumMeshes = tr("No of Meshes: %1");
 }
 
-void GLWidget::cleanUpShaders()
+void ViewportWidget::cleanUpShaders()
 {	
 }
 
-void GLWidget::moveToRecycleBin(const QUuid& uuid, int originalIndex)
+void ViewportWidget::moveToRecycleBin(const QUuid& uuid, int originalIndex)
 {
 	if (!_sceneRuntime.moveToRecycleBin(uuid, originalIndex))
 	{
-		qWarning() << "GLWidget::moveToRecycleBin - Mesh not found:" << uuid;
+		qWarning() << "ViewportWidget::moveToRecycleBin - Mesh not found:" << uuid;
 		return;
 	}
 	qDebug() << "Moved mesh to recycle bin, uuid:" << uuid;
 }
 
-bool GLWidget::restoreFromRecycleBin(const QUuid& uuid)
+bool ViewportWidget::restoreFromRecycleBin(const QUuid& uuid)
 {
 	if (!_sceneRuntime.restoreFromRecycleBin(uuid))
 	{
-		qWarning() << "GLWidget::restoreFromRecycleBin - Mesh not in bin:" << uuid;
+		qWarning() << "ViewportWidget::restoreFromRecycleBin - Mesh not in bin:" << uuid;
 		return false;
 	}
 	qDebug() << "Restored mesh from recycle bin, uuid:" << uuid;
 	return true;
 }
 
-void GLWidget::permanentlyDeleteFromBin(const QUuid& uuid)
+void ViewportWidget::permanentlyDeleteFromBin(const QUuid& uuid)
 {
 	if (!_sceneRuntime.permanentlyDeleteFromRecycleBin(uuid))
 		return;
 	qDebug() << "Permanently deleted mesh from recycle bin, uuid:" << uuid;
 }
 
-bool GLWidget::isInRecycleBin(const QUuid& uuid) const
+bool ViewportWidget::isInRecycleBin(const QUuid& uuid) const
 {
 	return _sceneRuntime.isInRecycleBin(uuid);
 }
 
-QVector<QUuid> GLWidget::getRecycleBinUuids() const
+QVector<QUuid> ViewportWidget::getRecycleBinUuids() const
 {
 	return _sceneRuntime.recycleBinUuids();
 }
 
-QList<QUuid> GLWidget::getPendingSceneUuids() const
+QList<QUuid> ViewportWidget::getPendingSceneUuids() const
 {
 	return _sceneRuntime.pendingSceneUuids();
 }
 
-SceneMesh* GLWidget::getMeshByUuid(const QUuid& uuid) const
+SceneMesh* ViewportWidget::getMeshByUuid(const QUuid& uuid) const
 {
 	return _sceneRuntime.getMeshByUuid(uuid);
 }
 
-SceneMesh* GLWidget::getMeshByIndex(int index) const
+SceneMesh* ViewportWidget::getMeshByIndex(int index) const
 {
 	return _sceneRuntime.getMeshByIndex(index);
 }
 
-int GLWidget::getIndexByUuid(const QUuid& uuid) const
+int ViewportWidget::getIndexByUuid(const QUuid& uuid) const
 {
 	return _sceneRuntime.getIndexByUuid(uuid);
 }
 
-QUuid GLWidget::getUuidByIndex(int index) const
+QUuid ViewportWidget::getUuidByIndex(int index) const
 {
 	return _sceneRuntime.getUuidByIndex(index);
 }
@@ -655,25 +655,25 @@ static int displayModeShaderInt(DisplayMode mode)
 	}
 }
 
-void GLWidget::initializeGL()
+void ViewportWidget::initializeGL()
 {
 	_renderCtrl.setOpenGLInitialized(false);
 
 	if (!QOpenGLContext::currentContext())
 	{
-		qCritical() << "GLWidget::initializeGL: no current OpenGL context — skipping initialisation";
+		qCritical() << "ViewportWidget::initializeGL: no current OpenGL context — skipping initialisation";
 		return;
 	}
 
 	if (!initializeOpenGLFunctions())
 	{
-		qCritical() << "GLWidget::initializeGL: failed to resolve OpenGL 4.5 Core functions — skipping initialisation";
+		qCritical() << "ViewportWidget::initializeGL: failed to resolve OpenGL 4.5 Core functions — skipping initialisation";
 		return;
 	}
 
 	if (!_renderCtrl.initialize())
 	{
-		qCritical() << "GLWidget::initializeGL: SceneRenderController failed to resolve OpenGL functions — skipping initialisation";
+		qCritical() << "ViewportWidget::initializeGL: SceneRenderController failed to resolve OpenGL functions — skipping initialisation";
 		return;
 	}
 
@@ -710,7 +710,7 @@ void GLWidget::initializeGL()
 
 	if (!_ktx2Loader.initializeOpenGL())
 	{
-		qWarning() << "GLWidget::initializeGL - Failed to initialize KTX2 loader";
+		qWarning() << "ViewportWidget::initializeGL - Failed to initialize KTX2 loader";
 	}
 	_gpuCapabilities = KTX2Loader::detectGPUCapabilities();
 
@@ -756,10 +756,10 @@ void GLWidget::initializeGL()
 			}
 			return promptLargeModelUVDecision(totalTriangles, currentMethod);
 		});
-	connect(_assimpModelLoader, &AssImpModelLoader::fileReadProcessed, this, &GLWidget::showFileReadingProgress);
-	connect(_assimpModelLoader, &AssImpModelLoader::verticesProcessed, this, &GLWidget::showMeshLoadingProgress);
-	connect(_assimpModelLoader, &AssImpModelLoader::nodeMeshProgressUpdated, this, &GLWidget::showNodeMeshLoadingProgress);
-	connect(this, &GLWidget::loadingAssImpModelCancelled, _assimpModelLoader, &AssImpModelLoader::cancelLoading);
+	connect(_assimpModelLoader, &AssImpModelLoader::fileReadProcessed, this, &ViewportWidget::showFileReadingProgress);
+	connect(_assimpModelLoader, &AssImpModelLoader::verticesProcessed, this, &ViewportWidget::showMeshLoadingProgress);
+	connect(_assimpModelLoader, &AssImpModelLoader::nodeMeshProgressUpdated, this, &ViewportWidget::showNodeMeshLoadingProgress);
+	connect(this, &ViewportWidget::loadingAssImpModelCancelled, _assimpModelLoader, &AssImpModelLoader::cancelLoading);
 
 	_renderCtrl.initLights();
 	// Connect lights loading
@@ -915,15 +915,15 @@ void GLWidget::initializeGL()
 	if (_viewer && _viewer->sceneGraph())
 	{
 		connect(_viewer->sceneGraph(), &SceneGraph::lightDataChanged,
-		        this, &GLWidget::onSceneLightDataChanged,
+		        this, &ViewportWidget::onSceneLightDataChanged,
 		        Qt::UniqueConnection);
 		connect(_viewer->sceneGraph(), &SceneGraph::structureChanged,
-		        this, &GLWidget::onSceneStructureChanged,
+		        this, &ViewportWidget::onSceneStructureChanged,
 		        Qt::UniqueConnection);
 	}
 }
 
-void GLWidget::resizeGL(int width, int height)
+void ViewportWidget::resizeGL(int width, int height)
 {
 	if (!_renderCtrl.isOpenGLInitialized())
 		return;
@@ -967,7 +967,7 @@ void GLWidget::resizeGL(int width, int height)
 	update();
 }
 
-void GLWidget::paintGL()
+void ViewportWidget::paintGL()
 {
 	if (!_renderCtrl.isOpenGLInitialized())
 		return;
@@ -1015,7 +1015,7 @@ void GLWidget::paintGL()
 	}
 	catch (const std::exception& ex)
 	{
-		std::cout << "Exception raised in GLWidget::paintGL\n" << ex.what() << std::endl;
+		std::cout << "Exception raised in ViewportWidget::paintGL\n" << ex.what() << std::endl;
 	}
 
 	// For testing rendered shadow map
@@ -1031,12 +1031,12 @@ void GLWidget::paintGL()
 	//renderQuad();
 }
 
-void GLWidget::updateView()
+void ViewportWidget::updateView()
 {
 	update();
 }
 
-void GLWidget::setSkyBoxTextureFolder(QString folder)
+void ViewportWidget::setSkyBoxTextureFolder(QString folder)
 {
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 
@@ -1186,7 +1186,7 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
 	QApplication::restoreOverrideCursor();
 }
 
-bool GLWidget::loadCubemapFromSingleHDR(const QString& filePath)
+bool ViewportWidget::loadCubemapFromSingleHDR(const QString& filePath)
 {
 	int imgWidth, imgHeight, channels;
 	stbi_set_flip_vertically_on_load(false);
@@ -1320,27 +1320,27 @@ bool GLWidget::loadCubemapFromSingleHDR(const QString& filePath)
 	return true;
 }
 
-bool GLWidget::convertEquirectangularToCubemap(const QString& filePath)
+bool ViewportWidget::convertEquirectangularToCubemap(const QString& filePath)
 {
 	return _renderCtrl.convertEquirectToCubemap(filePath, defaultFramebufferObject());
 }
 
 
-bool GLWidget::convertEquirectangularToCubemapQuad(const QString& filePath)
+bool ViewportWidget::convertEquirectangularToCubemapQuad(const QString& filePath)
 {
 	return _renderCtrl.convertEquirectToCubemapQuad(filePath, defaultFramebufferObject());
 }
-void GLWidget::renderConversionCube()
+void ViewportWidget::renderConversionCube()
 {
 	_renderCtrl.renderConversionCube();
 }
 
-QVector3D GLWidget::getLightPosition() const
+QVector3D ViewportWidget::getLightPosition() const
 {
 	return _lightPosition;
 }
 
-void GLWidget::syncDefaultLightColorUniforms()
+void ViewportWidget::syncDefaultLightColorUniforms()
 {
 	// Keep a small internal ambient term for ADS while exposing a single editable light color.
 	static constexpr float kDefaultLightAmbientFactor = 0.12f;
@@ -1359,18 +1359,18 @@ void GLWidget::syncDefaultLightColorUniforms()
 	_renderCtrl.fgShader()->setUniformValue("lightSource.specular", _specularLight.toVector3D());
 }
 
-void GLWidget::setLightOffset(const QVector3D& offset)
+void ViewportWidget::setLightOffset(const QVector3D& offset)
 {
 	_renderCtrl.setLightOffset(offset);
 	_renderCtrl.setShadowMapNeedsInitialization(true);
 }
 
-QVector4D GLWidget::getDefaultLightColor() const
+QVector4D ViewportWidget::getDefaultLightColor() const
 {
 	return _renderCtrl.defaultLightColor();
 }
 
-void GLWidget::setDefaultLightColor(const QVector4D& defaultLightColor)
+void ViewportWidget::setDefaultLightColor(const QVector4D& defaultLightColor)
 {
 	_renderCtrl.setDefaultLightColor(defaultLightColor);
 	_renderCtrl.fgShader()->bind();
@@ -1378,7 +1378,7 @@ void GLWidget::setDefaultLightColor(const QVector4D& defaultLightColor)
 	_renderCtrl.fgShader()->release();
 }
 
-void GLWidget::syncCameraWorldUp()
+void ViewportWidget::syncCameraWorldUp()
 {
 	const QVector3D worldUp = CoordinateSystemHelper::currentWorldUpVector(_viewCtrl.cameraUpAxisZUp());
 
@@ -1388,7 +1388,7 @@ void GLWidget::syncCameraWorldUp()
 		_orthoViewsCamera->setWorldUpVector(worldUp);
 }
 
-void GLWidget::rotateCurrentCameraAroundWorldX(float degrees)
+void ViewportWidget::rotateCurrentCameraAroundWorldX(float degrees)
 {
 	if (!_primaryCamera || std::abs(degrees) <= 0.0001f)
 		return;
@@ -1423,17 +1423,17 @@ void GLWidget::rotateCurrentCameraAroundWorldX(float degrees)
 	update();
 }
 
-QString GLWidget::sceneUpAxisLabel(SceneUpAxis sceneUpAxis) const
+QString ViewportWidget::sceneUpAxisLabel(SceneUpAxis sceneUpAxis) const
 {
 	return CoordinateSystemHelper::sceneUpAxisIsZUp(sceneUpAxis) ? tr("Z-Up") : tr("Y-Up");
 }
 
-void GLWidget::applyAutoOrientCameraConvention(SceneUpAxis sceneUpAxis)
+void ViewportWidget::applyAutoOrientCameraConvention(SceneUpAxis sceneUpAxis)
 {
 	setCameraUpAxisZUp(CoordinateSystemHelper::sceneUpAxisIsZUp(sceneUpAxis));
 }
 
-void GLWidget::warnOnConflictingImportedSceneUpAxis(const QString& fileName, SceneUpAxis sceneUpAxis)
+void ViewportWidget::warnOnConflictingImportedSceneUpAxis(const QString& fileName, SceneUpAxis sceneUpAxis)
 {
 	const QString importedAxis = sceneUpAxisLabel(sceneUpAxis);
 		const QString activeAxis = _viewCtrl.cameraUpAxisZUp() ? tr("Z-Up") : tr("Y-Up");
@@ -1447,7 +1447,7 @@ void GLWidget::warnOnConflictingImportedSceneUpAxis(const QString& fileName, Sce
 			.arg(importedFileName, importedAxis, activeAxis));
 }
 
-void GLWidget::setCameraUpAxisZUp(bool zUp, bool syncToolbar)
+void ViewportWidget::setCameraUpAxisZUp(bool zUp, bool syncToolbar)
 {
 	if (_viewCtrl.cameraUpAxisZUp() == zUp)
 	{
@@ -1472,7 +1472,7 @@ void GLWidget::setCameraUpAxisZUp(bool zUp, bool syncToolbar)
 	emit cameraUpAxisChanged(zUp);
 }
 
-void GLWidget::setViewMode(ViewMode mode)
+void ViewportWidget::setViewMode(ViewMode mode)
 {
 	if (!_animateViewTimer->isActive())
 	{
@@ -1511,7 +1511,7 @@ void GLWidget::setViewMode(ViewMode mode)
 	}
 }
 
-void GLWidget::fitAll()
+void ViewportWidget::fitAll()
 {
 
 	// Guard: do nothing if the scene has no visible meshes.
@@ -1610,20 +1610,20 @@ void GLWidget::fitAll()
 }
 
 
-void GLWidget::setSelectionHighlighting(bool highlight)
+void ViewportWidget::setSelectionHighlighting(bool highlight)
 {
 	_selectionHighlighting = highlight;
 	_renderCtrl.fgShader()->setUniformValue("selectionHighlighting", _selectionHighlighting);
 	update();
 }
 
-void GLWidget::beginWindowZoom()
+void ViewportWidget::beginWindowZoom()
 {
 	_viewCtrl.setWindowZoomActive(true);
 	setCursor(QCursor(QPixmap(":/icons/res/window-zoom-cursor.png"), 12, 12));
 }
 
-void GLWidget::performWindowZoom()
+void ViewportWidget::performWindowZoom()
 {
 	_viewCtrl.setWindowZoomActive(false);
 
@@ -1751,7 +1751,7 @@ void GLWidget::performWindowZoom()
 	emit windowZoomEnded();
 }
 
-void GLWidget::setProjection(ViewProjection proj)
+void ViewportWidget::setProjection(ViewProjection proj)
 {
 	_viewCtrl.setProjection(proj);
 	if (!_primaryCamera || _primaryCamera->getMode() == Camera::CameraMode::Orbit)
@@ -1763,12 +1763,12 @@ void GLWidget::setProjection(ViewProjection proj)
 	resizeGL(width(), height());
 }
 
-Camera::CameraMode GLWidget::cameraMode() const
+Camera::CameraMode ViewportWidget::cameraMode() const
 {
 	return _primaryCamera ? _primaryCamera->getMode() : Camera::CameraMode::Orbit;
 }
 
-bool GLWidget::positionGameplayCameraForScene(Camera::CameraMode mode)
+bool ViewportWidget::positionGameplayCameraForScene(Camera::CameraMode mode)
 {
 	if (!_primaryCamera ||
 		(mode != Camera::CameraMode::Fly && mode != Camera::CameraMode::FirstPerson))
@@ -1848,7 +1848,7 @@ bool GLWidget::positionGameplayCameraForScene(Camera::CameraMode mode)
 	return true;
 }
 
-void GLWidget::setCameraMode(Camera::CameraMode mode)
+void ViewportWidget::setCameraMode(Camera::CameraMode mode)
 {
 	const std::vector<int>& visibleIds = _sceneRuntime.currentVisibleObjectIds();
 	const bool hasVisibleScene = !_sceneRuntime.meshStore().empty() && !visibleIds.empty();
@@ -1922,28 +1922,28 @@ void GLWidget::setCameraMode(Camera::CameraMode mode)
 	}
 }
 
-void GLWidget::setRotationActive(bool active)
+void ViewportWidget::setRotationActive(bool active)
 {
 	_viewCtrl.setNavigationModes(active, false, false);
 	setCursor(QCursor(QPixmap(":/icons/res/rotatecursor.png")));
 	MainWindow::showStatusMessage(tr("Press Esc to deactivate rotation mode"));
 }
 
-void GLWidget::setPanningActive(bool active)
+void ViewportWidget::setPanningActive(bool active)
 {
 	_viewCtrl.setNavigationModes(false, active, false);
 	setCursor(QCursor(QPixmap(":/icons/res/pancursor.png")));
 	MainWindow::showStatusMessage(tr("Press Esc to deactivate panning mode"));
 }
 
-void GLWidget::setZoomingActive(bool active)
+void ViewportWidget::setZoomingActive(bool active)
 {
 	_viewCtrl.setNavigationModes(false, false, active);
 	setCursor(QCursor(QPixmap(":/icons/res/zoomcursor.png")));
 	MainWindow::showStatusMessage(tr("Press Esc to deactivate zooming mode"));
 }
 
-void GLWidget::setDisplayList(const std::vector<int>& ids)
+void ViewportWidget::setDisplayList(const std::vector<int>& ids)
 {
 	if (_sceneRuntime.setDisplayList(ids))
 		emit visibleSwapped(_sceneRuntime.visibleSwapped());
@@ -1987,7 +1987,7 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 	emit displayListSet();
 }
 
-void GLWidget::recalculateVisibleSceneStats(bool updateMemorySize)
+void ViewportWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 {
 	_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
 	_viewCtrl.setBoundingSphereCenter(0, 0, 0);
@@ -2092,7 +2092,7 @@ void GLWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 	}
 }
 
-void GLWidget::triggerShadowRecomputation()
+void ViewportWidget::triggerShadowRecomputation()
 {
 	if (!_renderCtrl.fgShader())
 	{
@@ -2139,21 +2139,21 @@ void GLWidget::triggerShadowRecomputation()
 	loadFloor();	
 }
 
-void GLWidget::setShadowQuality(AdaptiveShadowMapper::QualityLevel quality)
+void ViewportWidget::setShadowQuality(AdaptiveShadowMapper::QualityLevel quality)
 {
 	shadowMapper.setQuality(quality);
 	triggerShadowRecomputation();
 	updateFloorPlane();
 }
 
-float GLWidget::calculateLightDistance()
+float ViewportWidget::calculateLightDistance()
 {
 	QVector3D lightPos = effectiveWorldLightPosition();
 	QVector3D center = _viewCtrl.boundingSphere().getCenter();
 	return (lightPos - center).length();
 }
 
-QVector<QUuid> GLWidget::duplicateObjects(const std::vector<int>& ids)
+QVector<QUuid> ViewportWidget::duplicateObjects(const std::vector<int>& ids)
 {
 	QVector<QUuid> duplicatedUuids;
 
@@ -2190,17 +2190,17 @@ QVector<QUuid> GLWidget::duplicateObjects(const std::vector<int>& ids)
 	return duplicatedUuids;
 }
 
-void GLWidget::updateBoundingSphere()
+void ViewportWidget::updateBoundingSphere()
 {
 	recalculateVisibleSceneStats(false);
 }
 
-void GLWidget::updateBoundingBox()
+void ViewportWidget::updateBoundingBox()
 {	
 	recalculateVisibleSceneStats(false);
 }
 
-void GLWidget::updateFloorPlane()
+void ViewportWidget::updateFloorPlane()
 {
 	if ((!_floorPlane || !_renderCtrl.fgShader()) && (!_gridPlane || !_renderCtrl.gridShader()))
 		return;
@@ -2259,7 +2259,7 @@ void GLWidget::updateFloorPlane()
 	updateClippingPlane();
 }
 
-void GLWidget::syncPunctualLightUniforms(int lightCount, bool hasPunctualLights)
+void ViewportWidget::syncPunctualLightUniforms(int lightCount, bool hasPunctualLights)
 {
 	if (!_renderCtrl.fgShader())
 		return;
@@ -2269,7 +2269,7 @@ void GLWidget::syncPunctualLightUniforms(int lightCount, bool hasPunctualLights)
 	_renderCtrl.fgShader()->setUniformValue("hasPunctualLights", hasPunctualLights);
 }
 
-bool GLWidget::shouldUseFallbackLightForVisibleScene() const
+bool ViewportWidget::shouldUseFallbackLightForVisibleScene() const
 {
 	const std::vector<int>& visibleIds = _sceneRuntime.currentVisibleObjectIds();
 	bool sawVisibleMesh = false;
@@ -2305,7 +2305,7 @@ bool GLWidget::shouldUseFallbackLightForVisibleScene() const
 	return !sawGltfDerivedMesh;
 }
 
-void GLWidget::updateClippingPlane()
+void ViewportWidget::updateClippingPlane()
 {
 	float xside = _renderCtrl.clippingXFlipped() || _renderCtrl.clippingXCoeff() > 0 ? -1.0f : 1.0f;
 	float yside = _renderCtrl.clippingYFlipped() || _renderCtrl.clippingYCoeff() > 0 ? 1.0f : -1.0f;
@@ -2318,7 +2318,7 @@ void GLWidget::updateClippingPlane()
 		-_viewCtrl.boundingBox().getZSize() / 2, _viewCtrl.boundingBox().getZSize() / 2);
 }
 
-void GLWidget::showClippingPlaneEditor(bool show)
+void ViewportWidget::showClippingPlaneEditor(bool show)
 {
 	if (show)
 	{
@@ -2334,7 +2334,7 @@ void GLWidget::showClippingPlaneEditor(bool show)
 	}
 }
 
-void GLWidget::showExplodedViewPanel(bool show)
+void ViewportWidget::showExplodedViewPanel(bool show)
 {
 	if (show) {
 		if (_clippingPlanesEditor && _clippingPlanesEditor->isVisible())
@@ -2445,7 +2445,7 @@ void GLWidget::showExplodedViewPanel(bool show)
 // ---------------------------------------------------------------------------
 // Explosion: recompute offsets from current panel state and trigger repaint.
 // ---------------------------------------------------------------------------
-void GLWidget::updateExplosion()
+void ViewportWidget::updateExplosion()
 {
     if (!_explodedViewPanel || !_explodedViewCtrl.explodedViewManager())
         return;
@@ -2580,12 +2580,12 @@ void GLWidget::updateExplosion()
 // main render and the selection pass see the correct exploded positions
 // automatically without any per-call shader state manipulation.
 // ---------------------------------------------------------------------------
-void GLWidget::renderMeshExploded(SceneMesh* mesh, DisplayMode mode)
+void ViewportWidget::renderMeshExploded(SceneMesh* mesh, DisplayMode mode)
 {
     renderMeshWithDisplayMode(mesh, mode);
 }
 
-QWidget* GLWidget::attachOverlayPanel(QWidget* contentWidget, const QRect& geometry,
+QWidget* ViewportWidget::attachOverlayPanel(QWidget* contentWidget, const QRect& geometry,
                                       Qt::Alignment, const QString& objectName)
 {
 	if (!contentWidget)
@@ -2613,7 +2613,7 @@ QWidget* GLWidget::attachOverlayPanel(QWidget* contentWidget, const QRect& geome
 	return wrapper;
 }
 
-QWidget* GLWidget::takeOverlayPanel(QWidget* contentWidget)
+QWidget* ViewportWidget::takeOverlayPanel(QWidget* contentWidget)
 {
 	if (!contentWidget)
 		return nullptr;
@@ -2633,12 +2633,12 @@ QWidget* GLWidget::takeOverlayPanel(QWidget* contentWidget)
 	return wrapper;
 }
 
-void GLWidget::refreshDetachedNavigationOverlayTheme()
+void ViewportWidget::refreshDetachedNavigationOverlayTheme()
 {
 	refreshNavigationOverlayStyle();
 }
 
-void GLWidget::applyOverlayPanelStyle(QWidget* wrapper, const QString& objectName)
+void ViewportWidget::applyOverlayPanelStyle(QWidget* wrapper, const QString& objectName)
 {
 	if (!wrapper)
 		return;
@@ -2806,54 +2806,54 @@ void GLWidget::applyOverlayPanelStyle(QWidget* wrapper, const QString& objectNam
 	}
 }
 
-void GLWidget::refreshNavigationOverlayStyle()
+void ViewportWidget::refreshNavigationOverlayStyle()
 {
 	if (_navigationOverlayPanel)
 		applyOverlayPanelStyle(_navigationOverlayPanel, QStringLiteral("navigationOverlayPanel"));
 }
 
-void GLWidget::setClippingPlaneHatchMode(ClippingPlaneHatchMode mode)
+void ViewportWidget::setClippingPlaneHatchMode(ClippingPlaneHatchMode mode)
 {
 	_renderCtrl.setHatchMode(mode);
 	update();
 }
 
-void GLWidget::setClippingPlaneHatchPattern(HatchPattern pattern)
+void ViewportWidget::setClippingPlaneHatchPattern(HatchPattern pattern)
 {
 	_renderCtrl.setHatchPattern(pattern);
 	update();
 }
 
-void GLWidget::setHatchTiling(int tiling)
+void ViewportWidget::setHatchTiling(int tiling)
 {
 	_renderCtrl.setHatchTiling(tiling);
 	update();
 }
 
-void GLWidget::setHatchLineThickness(float width)
+void ViewportWidget::setHatchLineThickness(float width)
 {
 	_renderCtrl.setHatchThickness(width);
 	update();
 }
 
-void GLWidget::setHatchIntensity(float spacing)
+void ViewportWidget::setHatchIntensity(float spacing)
 {
 	_renderCtrl.setHatchIntensity(spacing);
 	update();
 }
 
-void GLWidget::setHatchLayers(int layers)
+void ViewportWidget::setHatchLayers(int layers)
 {
 	_renderCtrl.setHatchLayers(layers);
 	update();
 }
 
-void GLWidget::setHatchLineColor(const QColor& color)
+void ViewportWidget::setHatchLineColor(const QColor& color)
 {
 	_renderCtrl.setHatchLineColor(QVector3D(color.redF(), color.greenF(), color.blueF()));
 }
 
-void GLWidget::setHatchTexture(const QString& path)
+void ViewportWidget::setHatchTexture(const QString& path)
 {
 	_renderCtrl.setHatchTexturePath(path);
 	_renderCtrl.setCappingTexture(loadTextureFromFile(path.toStdString().c_str()));
@@ -2862,7 +2862,7 @@ void GLWidget::setHatchTexture(const QString& path)
 	update();
 }
 
-void GLWidget::showAxis(bool show)
+void ViewportWidget::showAxis(bool show)
 {
 	_viewCtrl.setShowAxis(show);
 	_renderCtrl.fgShader()->bind();
@@ -2870,7 +2870,7 @@ void GLWidget::showAxis(bool show)
 	update();
 }
 
-void GLWidget::showTransformGizmoForSelection(bool show)
+void ViewportWidget::showTransformGizmoForSelection(bool show)
 {
 	if (!show && _viewCtrl.transformGizmoTranslating())
 		finishTransformGizmoTranslationDrag(false);
@@ -2891,7 +2891,7 @@ void GLWidget::showTransformGizmoForSelection(bool show)
 	update();
 }
 
-bool GLWidget::beginExplodedViewManualPlacement(const QVector<QUuid>& selectionUuids)
+bool ViewportWidget::beginExplodedViewManualPlacement(const QVector<QUuid>& selectionUuids)
 {
 	if (!_viewer || !_selectionManager)
 		return false;
@@ -2963,7 +2963,7 @@ bool GLWidget::beginExplodedViewManualPlacement(const QVector<QUuid>& selectionU
 	return true;
 }
 
-bool GLWidget::hasExplodedViewManualTransformChanges() const
+bool ViewportWidget::hasExplodedViewManualTransformChanges() const
 {
 	for (auto it = _explodedViewCtrl.manualOriginalStates().cbegin(); it != _explodedViewCtrl.manualOriginalStates().cend(); ++it)
 	{
@@ -2994,7 +2994,7 @@ bool GLWidget::hasExplodedViewManualTransformChanges() const
 	return false;
 }
 
-QSet<QUuid> GLWidget::explodedViewManualPlacementUuids() const
+QSet<QUuid> ViewportWidget::explodedViewManualPlacementUuids() const
 {
 	QSet<QUuid> uuids;
 	for (auto it = _explodedViewCtrl.manualOriginalStates().cbegin(); it != _explodedViewCtrl.manualOriginalStates().cend(); ++it)
@@ -3026,17 +3026,17 @@ QSet<QUuid> GLWidget::explodedViewManualPlacementUuids() const
 	return uuids;
 }
 
-QVector3D GLWidget::explodedViewManualPlacementTranslationDelta() const
+QVector3D ViewportWidget::explodedViewManualPlacementTranslationDelta() const
 {
 	return _explodedViewCtrl.manualSessionTranslationDelta();
 }
 
-QVector3D GLWidget::explodedViewManualPlacementRotationDelta() const
+QVector3D ViewportWidget::explodedViewManualPlacementRotationDelta() const
 {
 	return _explodedViewCtrl.manualSessionRotationEuler();
 }
 
-QMap<QUuid, TransformState> GLWidget::explodedViewManualStates() const
+QMap<QUuid, TransformState> ViewportWidget::explodedViewManualStates() const
 {
 	QMap<QUuid, TransformState> states;
 	for (auto it = _explodedViewCtrl.manualOriginalStates().cbegin(); it != _explodedViewCtrl.manualOriginalStates().cend(); ++it)
@@ -3068,7 +3068,7 @@ QMap<QUuid, TransformState> GLWidget::explodedViewManualStates() const
 	return states;
 }
 
-void GLWidget::restoreExplodedViewManualStates(const QMap<QUuid, TransformState>& states)
+void ViewportWidget::restoreExplodedViewManualStates(const QMap<QUuid, TransformState>& states)
 {
 	clearExplodedViewManualPlacement();
 	if (states.isEmpty())
@@ -3096,7 +3096,7 @@ void GLWidget::restoreExplodedViewManualStates(const QMap<QUuid, TransformState>
 	emit explodedViewManualPlacementChanged();
 }
 
-void GLWidget::setExplodedViewManualPlacementTranslationDelta(const QVector3D& delta)
+void ViewportWidget::setExplodedViewManualPlacementTranslationDelta(const QVector3D& delta)
 {
 	if (!_explodedViewCtrl.isManualPlacementActive() || _explodedViewCtrl.manualSessionStartStates().isEmpty())
 		return;
@@ -3106,7 +3106,7 @@ void GLWidget::setExplodedViewManualPlacementTranslationDelta(const QVector3D& d
 	emit explodedViewManualPlacementChanged();
 }
 
-void GLWidget::setExplodedViewManualPlacementRotationDelta(const QVector3D& delta)
+void ViewportWidget::setExplodedViewManualPlacementRotationDelta(const QVector3D& delta)
 {
 	if (!_explodedViewCtrl.isManualPlacementActive() || _explodedViewCtrl.manualSessionStartStates().isEmpty())
 		return;
@@ -3117,7 +3117,7 @@ void GLWidget::setExplodedViewManualPlacementRotationDelta(const QVector3D& delt
 	emit explodedViewManualPlacementChanged();
 }
 
-void GLWidget::finishExplodedViewManualPlacement()
+void ViewportWidget::finishExplodedViewManualPlacement()
 {
 	QVector<QUuid> changedUuids;
 	changedUuids.reserve(_explodedViewCtrl.manualOriginalStates().size());
@@ -3159,7 +3159,7 @@ void GLWidget::finishExplodedViewManualPlacement()
 	emit explodedViewManualPlacementChanged();
 }
 
-void GLWidget::clearExplodedViewManualPlacement()
+void ViewportWidget::clearExplodedViewManualPlacement()
 {
 	QHash<QUuid, QVector3D> savedExplosionOffsets;
 	savedExplosionOffsets.reserve(static_cast<int>(_sceneRuntime.meshStore().size()));
@@ -3200,7 +3200,7 @@ void GLWidget::clearExplodedViewManualPlacement()
 	emit explodedViewManualPlacementChanged();
 }
 
-void GLWidget::showShadows(bool show)
+void ViewportWidget::showShadows(bool show)
 {
 	_renderCtrl.setShadowsEnabled(show);
 	_renderCtrl.fgShader()->bind();
@@ -3208,7 +3208,7 @@ void GLWidget::showShadows(bool show)
 	update();
 }
 
-void GLWidget::showSelfShadows(bool show)
+void ViewportWidget::showSelfShadows(bool show)
 {
 	_renderCtrl.setSelfShadowsEnabled(show);		
 	_renderCtrl.fgShader()->bind();
@@ -3216,7 +3216,7 @@ void GLWidget::showSelfShadows(bool show)
 	update();
 }
 
-void GLWidget::showEnvironment(bool show)
+void ViewportWidget::showEnvironment(bool show)
 {
 	_renderCtrl.setEnvMapEnabled(show);
 	_renderCtrl.fgShader()->bind();
@@ -3224,7 +3224,7 @@ void GLWidget::showEnvironment(bool show)
 	update();
 }
 
-void GLWidget::showSkyBox(bool show)
+void ViewportWidget::showSkyBox(bool show)
 {
 	_renderCtrl.setSkyBoxEnabled(show);
 	_renderCtrl.fgShader()->bind();
@@ -3232,7 +3232,7 @@ void GLWidget::showSkyBox(bool show)
 	update();
 }
 
-void GLWidget::showReflections(bool show)
+void ViewportWidget::showReflections(bool show)
 {
 	_renderCtrl.setReflectionsEnabled(show);
 	_renderCtrl.fgShader()->bind();
@@ -3240,7 +3240,7 @@ void GLWidget::showReflections(bool show)
 	update();
 }
 
-void GLWidget::setGroundMode(GroundMode mode)
+void ViewportWidget::setGroundMode(GroundMode mode)
 {
 	if (_renderCtrl.groundMode() == mode)
 		return;
@@ -3251,19 +3251,19 @@ void GLWidget::setGroundMode(GroundMode mode)
 	emit floorShown(_renderCtrl.groundMode() == GroundMode::Floor);
 }
 
-void GLWidget::setFloorTexture(QImage img)
+void ViewportWidget::setFloorTexture(QImage img)
 {
 	_floorTexImage = convertToGLFormat(img);
 	syncFloorPlaneAlbedoTexture();
 }
 
-void GLWidget::showFloorTexture(bool show)
+void ViewportWidget::showFloorTexture(bool show)
 {
 	_renderCtrl.setFloorTextureDisplayed(show);
 	syncFloorPlaneAlbedoTexture();
 }
 
-void GLWidget::addToDisplay(SceneMesh* mesh)
+void ViewportWidget::addToDisplay(SceneMesh* mesh)
 {	
 	if(mesh == nullptr)
 	{
@@ -3276,7 +3276,7 @@ void GLWidget::addToDisplay(SceneMesh* mesh)
 		//_viewer->updateDisplayList();	
 }
 
-void GLWidget::removeFromDisplay(int index)
+void ViewportWidget::removeFromDisplay(int index)
 {
 	const bool wasSwapped = _sceneRuntime.visibleSwapped();
 	SceneMesh* mesh = _sceneRuntime.detachMeshAt(index);
@@ -3295,7 +3295,7 @@ void GLWidget::removeFromDisplay(int index)
 	}
 }
 
-void GLWidget::centerScreen(std::vector<int> selectedIDs)
+void ViewportWidget::centerScreen(std::vector<int> selectedIDs)
 {
 	_sceneRuntime.centerScreenObjectIDs().clear();
 	_sceneRuntime.centerScreenObjectIDs() = selectedIDs;
@@ -3323,7 +3323,7 @@ void GLWidget::centerScreen(std::vector<int> selectedIDs)
 	}
 }
 
-bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod, QString& error, bool progressiveLoading)
+bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod, QString& error, bool progressiveLoading)
 {
 	_sceneRuntime.setProgressiveLoadingEnabled(progressiveLoading);
 	_sceneRuntime.setCancelRequested(false);
@@ -3396,21 +3396,21 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 			loadingWorker,
 			&AssImpModelLoader::fileReadProcessed,
 			this,
-			&GLWidget::showFileReadingProgress,
+			&ViewportWidget::showFileReadingProgress,
 			Qt::QueuedConnection);
 
 		QMetaObject::Connection meshProgressConnection = connect(
 			loadingWorker,
 			&AssImpModelLoader::verticesProcessed,
 			this,
-			&GLWidget::showMeshLoadingProgress,
+			&ViewportWidget::showMeshLoadingProgress,
 			Qt::QueuedConnection);
 
 		QMetaObject::Connection nodeProgressConnection = connect(
 			loadingWorker,
 			&AssImpModelLoader::nodeMeshProgressUpdated,
 			this,
-			&GLWidget::showNodeMeshLoadingProgress,
+			&ViewportWidget::showNodeMeshLoadingProgress,
 			Qt::QueuedConnection);
 
 		QMetaObject::Connection upAxisConnection = connect(
@@ -3428,12 +3428,12 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 			loadingWorker,
 			&AssImpModelLoader::meshBatchReady,
 			this,
-			&GLWidget::onMeshBatchReady,
+			&ViewportWidget::onMeshBatchReady,
 			Qt::BlockingQueuedConnection);
 
 		QMetaObject::Connection cancelRequestConnection = connect(
 			this,
-			&GLWidget::loadingAssImpModelCancelled,
+			&ViewportWidget::loadingAssImpModelCancelled,
 			loadingWorker,
 			&AssImpModelLoader::cancelLoading,
 			Qt::QueuedConnection);
@@ -3518,7 +3518,7 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 
 				// Register per-file punctual lights (if any) for this file.
 				// setLightData() emits lightDataChanged() which triggers the
-				// PunctualLightsPanel to refresh and GLWidget to rebuild the GPU list.
+				// PunctualLightsPanel to refresh and ViewportWidget to rebuild the GPU list.
 				if (!_animCtrl.pendingLightData().isEmpty())
 				{
 					_animCtrl.pendingLightData().sourceFile = fileName; // authoritative path
@@ -3651,7 +3651,7 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 	return success;
 }
 
-bool GLWidget::generateUVsForMeshes(const std::vector<int>& ids, const UVMethod& uvMethod, const UVConfig& uvConfig, QString& error)
+bool ViewportWidget::generateUVsForMeshes(const std::vector<int>& ids, const UVMethod& uvMethod, const UVConfig& uvConfig, QString& error)
 {
 	int meshCnt = ids.size();
 	if (meshCnt == 0)
@@ -3686,7 +3686,7 @@ bool GLWidget::generateUVsForMeshes(const std::vector<int>& ids, const UVMethod&
 		}
 		catch (const std::exception& ex)
 		{
-			std::cout << "Exception in GLWidget::generateUVs\n" << ex.what() << std::endl;
+			std::cout << "Exception in ViewportWidget::generateUVs\n" << ex.what() << std::endl;
 		}
 	}
 	MainWindow::showStatusMessage("");
@@ -3696,18 +3696,18 @@ bool GLWidget::generateUVsForMeshes(const std::vector<int>& ids, const UVMethod&
 }
 
 
-void GLWidget::showFileReadingProgress(float percent)
+void ViewportWidget::showFileReadingProgress(float percent)
 {
 	MainWindow::setProgressValue((int)((float)percent * 100.0f));
 	makeCurrent();
 }
 
-void GLWidget::showMeshLoadingProgress(float /*percent*/)
+void ViewportWidget::showMeshLoadingProgress(float /*percent*/)
 {
 	makeCurrent();
 }
 
-void GLWidget::showNodeMeshLoadingProgress(int processedNodes, int totalNodes, int processedMeshes, int totalMeshes, bool uvProcessed)
+void ViewportWidget::showNodeMeshLoadingProgress(int processedNodes, int totalNodes, int processedMeshes, int totalMeshes, bool uvProcessed)
 {
 	QString statusMessage = (uvProcessed) ? tr("Generating UVs... ") : "";
 	statusMessage += QString(tr("Processing node: %1/%2  Mesh: %3/%4"))
@@ -3725,7 +3725,7 @@ void GLWidget::showNodeMeshLoadingProgress(int processedNodes, int totalNodes, i
 	makeCurrent();
 }
 
-void GLWidget::swapVisible(bool checked)
+void ViewportWidget::swapVisible(bool checked)
 {
 	if (!_sceneRuntime.swapVisible(checked))
 		return;
@@ -3737,7 +3737,7 @@ void GLWidget::swapVisible(bool checked)
 	emit visibleSwapped(checked);
 }
 
-void GLWidget::cancelAssImpModelLoading()
+void ViewportWidget::cancelAssImpModelLoading()
 {
 	if (_sceneRuntime.cancelRequested())
 		return;
@@ -3752,20 +3752,20 @@ void GLWidget::cancelAssImpModelLoading()
 
 
 
-void GLWidget::setMaterialToObjects(const std::vector<int>& ids, const Material& mat)
+void ViewportWidget::setMaterialToObjects(const std::vector<int>& ids, const Material& mat)
 {
 	if (_sceneRuntime.applyMaterialToMeshes(ids, mat))
 		setTransmissionEnabled(true);
 }
 
-void GLWidget::setTexturesToObjects(const std::vector<int>& ids, const Material& mat)
+void ViewportWidget::setTexturesToObjects(const std::vector<int>& ids, const Material& mat)
 {
 	const Material resolved = resolveMaterialTextures(this, mat);
 	for (int id : ids)
 		_sceneRuntime.applyTextureMapsToMesh(id, resolved);
 }
 
-void GLWidget::synchronizeTextureCache(const Material* material, Material::TextureType type)
+void ViewportWidget::synchronizeTextureCache(const Material* material, Material::TextureType type)
 {
 	if (!material) return;
 
@@ -3783,14 +3783,14 @@ void GLWidget::synchronizeTextureCache(const Material* material, Material::Textu
 	getOrLoadTextureCached(QString::fromStdString(matTex.path), samplers);
 }
 
-void GLWidget::clearTextureCache()
+void ViewportWidget::clearTextureCache()
 {
 	const std::vector<unsigned int> gpuIds = _sceneRuntime.drainTextureCacheGpuIds();
 	for (unsigned int id : gpuIds)
 		glDeleteTextures(1, &id);
 }
 
-void GLWidget::setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale)
+void ViewportWidget::setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale)
 {
 	_sceneRuntime.setMeshTransforms(ids, trans, rot, scale);
 
@@ -3805,7 +3805,7 @@ void GLWidget::setTransformation(const std::vector<int>& ids, const QVector3D& t
 	fitAll();
 }
 
-void GLWidget::resetTransformation(const std::vector<int>& ids)
+void ViewportWidget::resetTransformation(const std::vector<int>& ids)
 {
 	_sceneRuntime.resetMeshTransforms(ids);
 
@@ -3820,7 +3820,7 @@ void GLWidget::resetTransformation(const std::vector<int>& ids)
 	triggerShadowRecomputation();
 }
 
-void GLWidget::applyTransforms(const QMap<int, TransformState>& transforms, bool fitView)
+void ViewportWidget::applyTransforms(const QMap<int, TransformState>& transforms, bool fitView)
 {
 	if (transforms.isEmpty())
 		return;
@@ -3850,13 +3850,13 @@ void GLWidget::applyTransforms(const QMap<int, TransformState>& transforms, bool
 	doneCurrent();
 }
 
-void GLWidget::createShaderPrograms()
+void ViewportWidget::createShaderPrograms()
 {
 	const QString path = PathUtils::getDataDirectory() + "/";
 	_renderCtrl.initShaders(path);
 }
 
-void GLWidget::createCappingPlanes()
+void ViewportWidget::createCappingPlanes()
 {
     const QString path = PathUtils::getDataDirectory() + "/";
 	_clippingPlaneXY = new PlaneRenderable(_renderCtrl.clippingPlaneShader(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
@@ -3877,23 +3877,23 @@ void GLWidget::createCappingPlanes()
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, aniso);
 }
 
-void GLWidget::createLights()
+void ViewportWidget::createLights()
 {
 	_lightCube = new CubeRenderable(_renderCtrl.lightCubeShader(), 10);
 	_lightSphere = new SphereRenderable(_renderCtrl.lightCubeShader(), 1, 16, 16);
 }
 
-void GLWidget::createFullscreenTriangle()
+void ViewportWidget::createFullscreenTriangle()
 {
 	_renderCtrl.initFullscreenTriangle();
 }
 
-void GLWidget::drawFullscreenTriangle()
+void ViewportWidget::drawFullscreenTriangle()
 {
 	_renderCtrl.drawFullscreenTriangle();
 }
 
-void GLWidget::setIBLFaceBasis(QOpenGLShaderProgram* prog, int faceIndex)
+void ViewportWidget::setIBLFaceBasis(QOpenGLShaderProgram* prog, int faceIndex)
 {
 	auto setM = [prog](const QVector3D& U, const QVector3D& V, const QVector3D& W) {
 		QMatrix3x3 m;
@@ -3945,12 +3945,12 @@ void GLWidget::setIBLFaceBasis(QOpenGLShaderProgram* prog, int faceIndex)
 	}
 }
 
-void GLWidget::ensureShadowMapResources()
+void ViewportWidget::ensureShadowMapResources()
 {
 	_renderCtrl.ensureShadowMap(defaultFramebufferObject());
 }
 
-void GLWidget::loadFloor()
+void ViewportWidget::loadFloor()
 {
 	ensureShadowMapResources();
 
@@ -3999,7 +3999,7 @@ void GLWidget::loadFloor()
 	applyFloorPlaneMaterialSettings();
 }
 
-void GLWidget::loadGrid()
+void ViewportWidget::loadGrid()
 {
 	// Endless grid is rendered as a fullscreen procedural pass, so no mesh is needed.
 	if (_gridPlane != nullptr)
@@ -4009,7 +4009,7 @@ void GLWidget::loadGrid()
 	}
 }
 
-void GLWidget::applyFloorPlaneMaterialSettings()
+void ViewportWidget::applyFloorPlaneMaterialSettings()
 {
 	if (_floorPlane == nullptr)
 		return;
@@ -4021,7 +4021,7 @@ void GLWidget::applyFloorPlaneMaterialSettings()
 	syncFloorPlaneAlbedoTexture();
 }
 
-void GLWidget::syncFloorPlaneAlbedoTexture()
+void ViewportWidget::syncFloorPlaneAlbedoTexture()
 {
 	if (_floorPlane == nullptr)
 		return;
@@ -4098,19 +4098,19 @@ void GLWidget::syncFloorPlaneAlbedoTexture()
 	_floorPlane->setMaterial(material);
 }
 
-QVector3D GLWidget::effectiveWorldLightOffset() const
+QVector3D ViewportWidget::effectiveWorldLightOffset() const
 {
 	return CoordinateSystemHelper::transformVectorForCameraUpAxis(
 		_viewCtrl.cameraUpAxisZUp(),
 		_renderCtrl.lightOffset());
 }
 
-QVector3D GLWidget::effectiveWorldLightPosition() const
+QVector3D ViewportWidget::effectiveWorldLightPosition() const
 {
 	return _lightPosition + effectiveWorldLightOffset();
 }
 
-void GLWidget::updateMainLightPosition(float halfObjectSize)
+void ViewportWidget::updateMainLightPosition(float halfObjectSize)
 {
 	const QVector3D lateralAxis1 = CoordinateSystemHelper::transformVectorForCameraUpAxis(
 		_viewCtrl.cameraUpAxisZUp(),
@@ -4141,7 +4141,7 @@ void GLWidget::updateMainLightPosition(float halfObjectSize)
 	}
 }
 
-float GLWidget::updateFloorGeometry()
+float ViewportWidget::updateFloorGeometry()
 {
 	float halfObjectSize = _viewCtrl.boundingSphere().getRadius();
 	_floorCenter = _viewCtrl.boundingSphere().getCenter();
@@ -4168,7 +4168,7 @@ float GLWidget::updateFloorGeometry()
 	return halfObjectSize;
 }
 
-bool GLWidget::userModelTransformForFile(const QString& sourceFile,
+bool ViewportWidget::userModelTransformForFile(const QString& sourceFile,
                                          QMatrix4x4& outTransform) const
 {
 	return _sceneRuntime.userModelTransformForFile(sourceFile, outTransform);
@@ -4187,7 +4187,7 @@ float uniformScaleOf(const QMatrix4x4& m)
 }
 } // namespace
 
-void GLWidget::updatePunctualLights()
+void ViewportWidget::updatePunctualLights()
 {
 	if (_animCtrl.originalParsedLights().empty())
 	{
@@ -4209,31 +4209,31 @@ void GLWidget::updatePunctualLights()
 	                          !uploadLights.empty());
 }
 
-void GLWidget::setAnimatedLightVisibilityState(const QString& sourceFile, const QVector<bool>& visibleByParsedLight)
+void ViewportWidget::setAnimatedLightVisibilityState(const QString& sourceFile, const QVector<bool>& visibleByParsedLight)
 {
 	_animCtrl.setAnimatedLightVisibility(sourceFile, visibleByParsedLight);
 	updatePunctualLights();
 }
 
-void GLWidget::setAnimatedLightTransformState(const QString& sourceFile, const std::vector<GPULight>& animatedLights)
+void ViewportWidget::setAnimatedLightTransformState(const QString& sourceFile, const std::vector<GPULight>& animatedLights)
 {
 	_animCtrl.setAnimatedLightTransform(sourceFile, animatedLights);
 	updatePunctualLights();
 }
 
-void GLWidget::clearAnimatedLightTransformState(const QString& sourceFile)
+void ViewportWidget::clearAnimatedLightTransformState(const QString& sourceFile)
 {
 	_animCtrl.clearAnimatedLightTransform(sourceFile);
 	updatePunctualLights();
 }
 
-void GLWidget::clearAnimatedLightVisibilityState(const QString& sourceFile)
+void ViewportWidget::clearAnimatedLightVisibilityState(const QString& sourceFile)
 {
 	_animCtrl.clearAnimatedLightVisibility(sourceFile);
 	updatePunctualLights();
 }
 
-void GLWidget::setAnimatedMeshVisibilityState(const QString& sourceFile, const QSet<QUuid>& hiddenMeshUuids)
+void ViewportWidget::setAnimatedMeshVisibilityState(const QString& sourceFile, const QSet<QUuid>& hiddenMeshUuids)
 {
 	const bool activatingForFile = (_animCtrl.animatedMeshVisibilitySourceFile() != sourceFile);
 	_animCtrl.setAnimatedMeshVisibility(sourceFile, hiddenMeshUuids);
@@ -4243,14 +4243,14 @@ void GLWidget::setAnimatedMeshVisibilityState(const QString& sourceFile, const Q
 		fitAll();
 }
 
-void GLWidget::clearAnimatedMeshVisibilityState(const QString& sourceFile)
+void ViewportWidget::clearAnimatedMeshVisibilityState(const QString& sourceFile)
 {
 	_animCtrl.clearAnimatedMeshVisibility(sourceFile);
 	recalculateVisibleSceneStats();
 	updatePunctualLights();
 }
 
-void GLWidget::loadEnvMap()
+void ViewportWidget::loadEnvMap()
 {	
     const QString path = PathUtils::getDataDirectory() + "/";
 
@@ -4267,26 +4267,26 @@ void GLWidget::loadEnvMap()
 	setSkyBoxTextureFolder(path + "textures/envmap/skyboxes/LDRI/@Default");	
 }
 
-void GLWidget::loadIrradianceMap()
+void ViewportWidget::loadIrradianceMap()
 {
 	_renderCtrl.generateIBL(defaultFramebufferObject());
 }
 
 // Helper: Load HDR file and convert to cubemap
 // Returns the created cubemap texture ID (or 0 on failure)
-GLuint GLWidget::loadPresetEnvironmentMap(const QString& hdrFilePath)
+GLuint ViewportWidget::loadPresetEnvironmentMap(const QString& hdrFilePath)
 {
 	return _renderCtrl.loadPresetEnvMap(hdrFilePath, defaultFramebufferObject());
 }
 
 // Helper: Generate irradiance and prefilter maps for a preset cubemap
 // Returns true on success
-bool GLWidget::generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradianceMap, GLuint& outPrefilterMap, GLuint& outSheenPrefilterMap)
+bool ViewportWidget::generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradianceMap, GLuint& outPrefilterMap, GLuint& outSheenPrefilterMap)
 {
 	return _renderCtrl.generatePresetIBLMaps(sourceCubemap, outIrradianceMap, outPrefilterMap, outSheenPrefilterMap, defaultFramebufferObject());
 }
 
-GLuint GLWidget::getEnvironmentMap(int index, bool regenerate)
+GLuint ViewportWidget::getEnvironmentMap(int index, bool regenerate)
 {
 	switch(index)
 	{
@@ -4307,7 +4307,7 @@ GLuint GLWidget::getEnvironmentMap(int index, bool regenerate)
 	}
 }
 
-GLuint GLWidget::getIrradianceMap(int index, bool regenerate)
+GLuint ViewportWidget::getIrradianceMap(int index, bool regenerate)
 {
 	switch(index)
 	{
@@ -4328,7 +4328,7 @@ GLuint GLWidget::getIrradianceMap(int index, bool regenerate)
 	}
 }
 
-GLuint GLWidget::getPrefilterMap(int index, bool regenerate)
+GLuint ViewportWidget::getPrefilterMap(int index, bool regenerate)
 {
 	switch(index)
 	{
@@ -4349,7 +4349,7 @@ GLuint GLWidget::getPrefilterMap(int index, bool regenerate)
 	}
 }
 
-GLuint GLWidget::getSheenPrefilterMap(int index, bool regenerate)
+GLuint ViewportWidget::getSheenPrefilterMap(int index, bool regenerate)
 {
 	switch(index)
 	{
@@ -4370,7 +4370,7 @@ GLuint GLWidget::getSheenPrefilterMap(int index, bool regenerate)
 	}
 }
 
-void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)
+void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 {
 	QMatrix4x4 projection;
 	projection.ortho(QRect(0.0f, 0.0f, static_cast<float>(width()), static_cast<float>(height())));
@@ -4397,7 +4397,7 @@ void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)
 		drawCornerAxis(_viewCtrl.cornerAxisPosition());
 }
 
-void GLWidget::applyExplodedViewTransforms(const QMap<int, TransformState>& transforms, bool fitView)
+void ViewportWidget::applyExplodedViewTransforms(const QMap<int, TransformState>& transforms, bool fitView)
 {
 	Q_UNUSED(fitView);
 
@@ -4438,7 +4438,7 @@ void GLWidget::applyExplodedViewTransforms(const QMap<int, TransformState>& tran
 	update();
 }
 
-void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
+void ViewportWidget::renderMultiView(QColor& topColor, QColor& botColor)
 {
 	glViewport(0, 0, width(), height());
 	if (_renderCtrl.shadowsEnabled())
@@ -4501,7 +4501,7 @@ void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 	splitScreen();
 }
 
-void GLWidget::drawFloor(const bool& drawReflection)
+void ViewportWidget::drawFloor(const bool& drawReflection)
 {
 	RenderableMesh::resetTextureBindingCacheForCurrentContext();
 
@@ -4630,7 +4630,7 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	glActiveTexture(GL_TEXTURE0);
 }
 
-void GLWidget::drawGrid()
+void ViewportWidget::drawGrid()
 {
 	if (!_renderCtrl.gridShader())
 		return;
@@ -4655,7 +4655,7 @@ void GLWidget::drawGrid()
 	glDisable(GL_BLEND);
 }
 
-void GLWidget::drawSkyBox()
+void ViewportWidget::drawSkyBox()
 {
 	_skyBox->setProg(_renderCtrl.skyBoxShader());
 	_renderCtrl.skyBoxShader()->bind();
@@ -4704,7 +4704,7 @@ void GLWidget::drawSkyBox()
 	glDisable((GL_DEPTH_TEST));
 }
 
-void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
+void ViewportWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 {
 	QVector3D camPos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(prog, camPos);
@@ -4797,7 +4797,7 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 	glDisable(GL_BLEND);
 }
 
-void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
+void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
 {
 	RenderableMesh::resetTextureBindingCacheForCurrentContext();
 	RenderableMesh::resetBoundProgramCacheForCurrentContext();
@@ -5110,7 +5110,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 }
 
 
-void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
+void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
 {
 	RenderableMesh::resetTextureBindingCacheForCurrentContext();
 	RenderableMesh::resetBoundProgramCacheForCurrentContext();
@@ -5441,7 +5441,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 // Visibility culling helpers
 // ---------------------------------------------------------------------------
 
-void GLWidget::collectVisibleMeshIdsForPass(int nodeIndex,
+void ViewportWidget::collectVisibleMeshIdsForPass(int nodeIndex,
                                             int activeClipPlaneIndex,
                                             bool wantTransparent,
                                             std::vector<int>& out) const
@@ -5488,7 +5488,7 @@ void GLWidget::collectVisibleMeshIdsForPass(int nodeIndex,
 		collectVisibleMeshIdsForPass(childIndex, activeClipPlaneIndex, wantTransparent, out);
 }
 
-void GLWidget::extractFrustumPlanes()
+void ViewportWidget::extractFrustumPlanes()
 {
 	_viewCtrl.updateFrustumPlanes();
 	const QVector4D* planes = _viewCtrl.frustumPlanes();
@@ -5496,7 +5496,7 @@ void GLWidget::extractFrustumPlanes()
 		_frustumCtx.planes[i] = planes[i];
 }
 
-void GLWidget::rebuildClippingContext()
+void ViewportWidget::rebuildClippingContext()
 {
 	using namespace VisibilityComputationHelper;
 	const auto& center = _viewCtrl.boundingBox().center();
@@ -5516,7 +5516,7 @@ void GLWidget::rebuildClippingContext()
 // floor: as the camera zooms into a sub-mesh, large meshes leave the frustum
 // and the floor shrinks to match the focused geometry, preventing the eye from
 // ever entering the mesh the user is actually looking at.
-float GLWidget::computeFullyVisibleMinMeshRadius() const
+float ViewportWidget::computeFullyVisibleMinMeshRadius() const
 {
 	const std::vector<int>& ids =
 		_sceneRuntime.currentVisibleObjectIds();
@@ -5561,7 +5561,7 @@ float GLWidget::computeFullyVisibleMinMeshRadius() const
 //   • Increases are blended gradually (factor 0.12 ≈ 10 events to reach ~72%)
 //     so the clamp creeps back rather than snapping when the focused mesh
 //     transitions out of the "fully inside" frustum set.
-void GLWidget::updateZoomInLimit()
+void ViewportWidget::updateZoomInLimit()
 {
 	const float rawFloor = computeFullyVisibleMinMeshRadius();
 	if (rawFloor <= _viewCtrl.zoomInLimit())
@@ -5571,7 +5571,7 @@ void GLWidget::updateZoomInLimit()
 			+ (rawFloor - _viewCtrl.zoomInLimit()) * 0.12f);                           // rise: gradual
 }
 
-bool GLWidget::isMeshAnimationVisible(const SceneMesh* mesh) const
+bool ViewportWidget::isMeshAnimationVisible(const SceneMesh* mesh) const
 {
 	if (!mesh)
 		return false;
@@ -5582,7 +5582,7 @@ bool GLWidget::isMeshAnimationVisible(const SceneMesh* mesh) const
 	return !_animCtrl.animatedHiddenMeshUuids().contains(mesh->uuid());
 }
 
-bool GLWidget::isMeshVisible(const SceneMesh* mesh, int activeClipPlaneIndex) const
+bool ViewportWidget::isMeshVisible(const SceneMesh* mesh, int activeClipPlaneIndex) const
 {
 	if (!isMeshAnimationVisible(mesh)) return false;
 
@@ -5617,7 +5617,7 @@ bool GLWidget::isMeshVisible(const SceneMesh* mesh, int activeClipPlaneIndex) co
 	return true;
 }
 
-bool GLWidget::sceneHasVisibleTransmissionMaterials() const
+bool ViewportWidget::sceneHasVisibleTransmissionMaterials() const
 {
 	const std::vector<int>& ids = _sceneRuntime.currentVisibleObjectIds();
 	for (int id : ids)
@@ -5635,7 +5635,7 @@ bool GLWidget::sceneHasVisibleTransmissionMaterials() const
 	return false;
 }
 
-bool GLWidget::sceneHasVisibleSSSMaterials() const
+bool ViewportWidget::sceneHasVisibleSSSMaterials() const
 {
 	const std::vector<int>& ids = _sceneRuntime.currentVisibleObjectIds();
 	for (int id : ids)
@@ -5655,7 +5655,7 @@ bool GLWidget::sceneHasVisibleSSSMaterials() const
 
 // Renders only opaque SSS meshes (hasVolumeScattering) — used exclusively
 // by the SSS capture pre-pass to avoid submitting the entire scene.
-void GLWidget::drawSSSMeshesOnly(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
+void ViewportWidget::drawSSSMeshesOnly(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
 {
 	RenderableMesh::resetTextureBindingCacheForCurrentContext();
 
@@ -5704,7 +5704,7 @@ void GLWidget::drawSSSMeshesOnly(QOpenGLShaderProgram* prog, int activeClipPlane
 	}
 }
 
-void GLWidget::drawMeshesWithClipping(QOpenGLShaderProgram* prog,
+void ViewportWidget::drawMeshesWithClipping(QOpenGLShaderProgram* prog,
 	bool transparentPass)
 {
 	RenderableMesh::resetTextureBindingCacheForCurrentContext();
@@ -5751,7 +5751,7 @@ void GLWidget::drawMeshesWithClipping(QOpenGLShaderProgram* prog,
 }
 
 
-void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, Camera* camera)
+void ViewportWidget::setCommonUniforms(QOpenGLShaderProgram* prog, Camera* camera)
 {
 	QVector3D camPos = camera->getRenderPosition();
 	QVector3D camDir = camera->getViewDir();
@@ -5818,7 +5818,7 @@ void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, Camera* camera)
 // glProgramUniform* (OpenGL 4.1 core) writes directly to the named program
 // object without needing to bind it — no pipeline state disturbance.
 // ---------------------------------------------------------------------------
-void GLWidget::syncUniformsToFlatShader()
+void ViewportWidget::syncUniformsToFlatShader()
 {
     if (!_renderCtrl.fgFlatShader() || !_renderCtrl.fgFlatShader()->isLinked()) return;
 
@@ -5935,7 +5935,7 @@ void GLWidget::syncUniformsToFlatShader()
 }
 
 
-void GLWidget::drawSectionCapping()
+void ViewportWidget::drawSectionCapping()
 {
 	// We use a lightweight shader without lighting and stuff for drawing the clipped mesh
 	_renderCtrl.clippedMeshShader()->bind();
@@ -6122,7 +6122,7 @@ void GLWidget::drawSectionCapping()
 	glDisable(GL_CULL_FACE);	
 }
 
-void GLWidget::drawVertexNormals()
+void ViewportWidget::drawVertexNormals()
 {
     if (!isVertexNormalsShown())
         return;
@@ -6146,7 +6146,7 @@ void GLWidget::drawVertexNormals()
 	}
 }
 
-void GLWidget::drawFaceNormals()
+void ViewportWidget::drawFaceNormals()
 {
     if (!isFaceNormalsShown())
         return;
@@ -6170,7 +6170,7 @@ void GLWidget::drawFaceNormals()
 	}
 }
 
-void GLWidget::drawBoundingBoxOverlay()
+void ViewportWidget::drawBoundingBoxOverlay()
 {
     if (!isBoundingBoxShown() || !_renderCtrl.axisShader())
         return;
@@ -6256,7 +6256,7 @@ void GLWidget::drawBoundingBoxOverlay()
     glBindVertexArray(0);
 }
 
-void GLWidget::drawDebugOverlay(Camera* camera)
+void ViewportWidget::drawDebugOverlay(Camera* camera)
 {
     if (!camera || !_renderCtrl.debugOverlayEnabled())
         return;
@@ -6275,7 +6275,7 @@ void GLWidget::drawDebugOverlay(Camera* camera)
     }
 }
 
-void GLWidget::drawAxis(Camera* camera)
+void ViewportWidget::drawAxis(Camera* camera)
 {
 	if (!camera)
 		return;
@@ -6356,7 +6356,7 @@ void GLWidget::drawAxis(Camera* camera)
 	_renderCtrl.axisShader()->release();
 }
 
-void GLWidget::drawTransformGizmo(Camera* camera)
+void ViewportWidget::drawTransformGizmo(Camera* camera)
 {
 	if (!_transformGizmo || !_viewCtrl.transformGizmoRequested())
 		return;
@@ -6373,7 +6373,7 @@ void GLWidget::drawTransformGizmo(Camera* camera)
 	_transformGizmo->render(_renderCtrl.axisShader(), _axisCone, camera, _viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(), fallbackScale);
 }
 
-BoundingSphere GLWidget::computeTransformGizmoSelectionSphere() const
+BoundingSphere ViewportWidget::computeTransformGizmoSelectionSphere() const
 {
 	if (!_viewer)
 		return BoundingSphere();
@@ -6415,12 +6415,12 @@ BoundingSphere GLWidget::computeTransformGizmoSelectionSphere() const
 	return combinedSphere;
 }
 
-QVector3D GLWidget::computeTransformGizmoPivot() const
+QVector3D ViewportWidget::computeTransformGizmoPivot() const
 {
 	return computeTransformGizmoSelectionSphere().getCenter();
 }
 
-void GLWidget::applyExplodedViewManualPlacementSessionTransform()
+void ViewportWidget::applyExplodedViewManualPlacementSessionTransform()
 {
 	if (_explodedViewCtrl.manualSessionStartStates().isEmpty())
 		return;
@@ -6471,7 +6471,7 @@ void GLWidget::applyExplodedViewManualPlacementSessionTransform()
 	update();
 }
 
-std::vector<int> GLWidget::activeTransformGizmoSelectionIds() const
+std::vector<int> ViewportWidget::activeTransformGizmoSelectionIds() const
 {
 	if (_explodedViewCtrl.isManualPlacementActive())
 	{
@@ -6489,7 +6489,7 @@ std::vector<int> GLWidget::activeTransformGizmoSelectionIds() const
 	return _viewer ? _viewer->getSelectedIDs() : std::vector<int>();
 }
 
-void GLWidget::syncTransformGizmoToSelection()
+void ViewportWidget::syncTransformGizmoToSelection()
 {
 	if (!_transformGizmo)
 		return;
@@ -6526,7 +6526,7 @@ void GLWidget::syncTransformGizmoToSelection()
 	_transformGizmo->setVisible(true);
 }
 
-bool GLWidget::beginTransformGizmoDrag(TransformGizmo::Handle handle, const QPoint& pixel)
+bool ViewportWidget::beginTransformGizmoDrag(TransformGizmo::Handle handle, const QPoint& pixel)
 {
 	switch (handle)
 	{
@@ -6545,7 +6545,7 @@ bool GLWidget::beginTransformGizmoDrag(TransformGizmo::Handle handle, const QPoi
 	}
 }
 
-bool GLWidget::beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle, const QPoint& pixel)
+bool ViewportWidget::beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle, const QPoint& pixel)
 {
 	if (!_viewCtrl.transformGizmoRequested() || !_transformGizmo || !_viewer)
 		return false;
@@ -6608,7 +6608,7 @@ bool GLWidget::beginTransformGizmoTranslationDrag(TransformGizmo::Handle handle,
 	return !_viewCtrl.transformGizmoStartStates().isEmpty();
 }
 
-void GLWidget::updateTransformGizmoTranslationDrag(const QPoint& pixel)
+void ViewportWidget::updateTransformGizmoTranslationDrag(const QPoint& pixel)
 {
 	if (!_viewCtrl.transformGizmoTranslating() || !_viewer || _viewCtrl.transformGizmoStartStates().isEmpty())
 		return;
@@ -6682,7 +6682,7 @@ void GLWidget::updateTransformGizmoTranslationDrag(const QPoint& pixel)
 	update();
 }
 
-void GLWidget::finishTransformGizmoTranslationDrag(bool commit)
+void ViewportWidget::finishTransformGizmoTranslationDrag(bool commit)
 {
 	if (!_viewCtrl.transformGizmoTranslating())
 		return;
@@ -6775,7 +6775,7 @@ void GLWidget::finishTransformGizmoTranslationDrag(bool commit)
 	_viewer->updateTransformationValues();
 }
 
-bool GLWidget::beginTransformGizmoScaleDrag(TransformGizmo::Handle handle, const QPoint& pixel, bool uniformScale)
+bool ViewportWidget::beginTransformGizmoScaleDrag(TransformGizmo::Handle handle, const QPoint& pixel, bool uniformScale)
 {
 	if (!_viewCtrl.transformGizmoRequested() || !_transformGizmo || !_viewer)
 		return false;
@@ -6841,7 +6841,7 @@ bool GLWidget::beginTransformGizmoScaleDrag(TransformGizmo::Handle handle, const
 	return !_viewCtrl.transformGizmoStartStates().isEmpty();
 }
 
-void GLWidget::updateTransformGizmoScaleDrag(const QPoint& pixel)
+void ViewportWidget::updateTransformGizmoScaleDrag(const QPoint& pixel)
 {
 	if (!_viewCtrl.transformGizmoScaling() || !_viewer || _viewCtrl.transformGizmoStartStates().isEmpty())
 		return;
@@ -6942,7 +6942,7 @@ void GLWidget::updateTransformGizmoScaleDrag(const QPoint& pixel)
 	update();
 }
 
-void GLWidget::finishTransformGizmoScaleDrag(bool commit)
+void ViewportWidget::finishTransformGizmoScaleDrag(bool commit)
 {
 	if (!_viewCtrl.transformGizmoScaling())
 		return;
@@ -7016,7 +7016,7 @@ void GLWidget::finishTransformGizmoScaleDrag(bool commit)
 	_viewer->updateTransformationValues();
 }
 
-bool GLWidget::beginTransformGizmoRotationDrag(TransformGizmo::Handle handle, const QPoint& pixel)
+bool ViewportWidget::beginTransformGizmoRotationDrag(TransformGizmo::Handle handle, const QPoint& pixel)
 {
 	if (!_viewCtrl.transformGizmoRequested() || !_transformGizmo || !_viewer)
 		return false;
@@ -7095,7 +7095,7 @@ bool GLWidget::beginTransformGizmoRotationDrag(TransformGizmo::Handle handle, co
 	return !_viewCtrl.transformGizmoStartStates().isEmpty();
 }
 
-void GLWidget::updateTransformGizmoRotationDrag(const QPoint& pixel)
+void ViewportWidget::updateTransformGizmoRotationDrag(const QPoint& pixel)
 {
 	if (!_viewCtrl.transformGizmoRotating() || !_viewer || _viewCtrl.transformGizmoStartStates().isEmpty())
 		return;
@@ -7208,7 +7208,7 @@ void GLWidget::updateTransformGizmoRotationDrag(const QPoint& pixel)
 	update();
 }
 
-void GLWidget::finishTransformGizmoRotationDrag(bool commit)
+void ViewportWidget::finishTransformGizmoRotationDrag(bool commit)
 {
 	if (!_viewCtrl.transformGizmoRotating())
 		return;
@@ -7304,7 +7304,7 @@ void GLWidget::finishTransformGizmoRotationDrag(bool commit)
 	_viewer->updateTransformationValues();
 }
 
-void GLWidget::drawCornerAxis(CornerAxisPosition position)
+void ViewportWidget::drawCornerAxis(CornerAxisPosition position)
 {
 	const int axisSize = std::max(1, std::min(width(), height()) / 10);
 	int viewportX = 0;
@@ -7478,7 +7478,7 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 	glViewport(0, 0, width(), height());
 }
 
-QRect GLWidget::viewCubeRect() const
+QRect ViewportWidget::viewCubeRect() const
 {
 	const int side = std::max(SceneRenderController::kViewCubeStyle.minViewportSize,
 		std::min(std::min(width(), height()) / 5, SceneRenderController::kViewCubeStyle.maxViewportSize));
@@ -7486,7 +7486,7 @@ QRect GLWidget::viewCubeRect() const
 	return QRect(width() - side - padding, padding, side, side);
 }
 
-QRect GLWidget::viewCubeScreenRect() const
+QRect ViewportWidget::viewCubeScreenRect() const
 {
 	const QRect viewportRect = viewCubeRect();
 	return QRect(viewportRect.x(),
@@ -7495,7 +7495,7 @@ QRect GLWidget::viewCubeScreenRect() const
 	             viewportRect.height());
 }
 
-bool GLWidget::computeViewCubeRenderState(QRect& viewportRect,
+bool ViewportWidget::computeViewCubeRenderState(QRect& viewportRect,
                                           QMatrix4x4& viewMatrix,
                                           QMatrix4x4& projectionMatrix,
                                           QMatrix4x4& modelMatrix,
@@ -7537,7 +7537,7 @@ bool GLWidget::computeViewCubeRenderState(QRect& viewportRect,
 	return true;
 }
 
-bool GLWidget::orientCameraToViewCubeNormal(const QVector3D& outwardNormal)
+bool ViewportWidget::orientCameraToViewCubeNormal(const QVector3D& outwardNormal)
 {
 	if (!_primaryCamera || outwardNormal.lengthSquared() <= 1.0e-8f || isGltfCameraActive())
 		return false;
@@ -7650,7 +7650,7 @@ bool GLWidget::orientCameraToViewCubeNormal(const QVector3D& outwardNormal)
 	return true;
 }
 
-bool GLWidget::handleViewCubeClick(const QPoint& pixel)
+bool ViewportWidget::handleViewCubeClick(const QPoint& pixel)
 {
 	if (!_viewCtrl.showViewCubeOverride() || !_viewCube || !_primaryCamera || !viewCubeScreenRect().contains(pixel) || isGltfCameraActive())
 		return false;
@@ -7664,7 +7664,7 @@ bool GLWidget::handleViewCubeClick(const QPoint& pixel)
 	return true;
 }
 
-bool GLWidget::pickViewCubeRegionAtPixel(const QPoint& pixel, QVector3D& outwardNormal, int* regionId) const
+bool ViewportWidget::pickViewCubeRegionAtPixel(const QPoint& pixel, QVector3D& outwardNormal, int* regionId) const
 {
 	outwardNormal = QVector3D();
 	if (regionId)
@@ -7701,7 +7701,7 @@ bool GLWidget::pickViewCubeRegionAtPixel(const QPoint& pixel, QVector3D& outward
 	return true;
 }
 
-void GLWidget::updateViewCubeHover(const QPoint& pixel, Qt::MouseButtons buttons)
+void ViewportWidget::updateViewCubeHover(const QPoint& pixel, Qt::MouseButtons buttons)
 {
 	const int previousRegionId = _viewCtrl.viewCubeHoveredRegionId();
 	if (!_viewCtrl.showViewCubeOverride() || buttons != Qt::NoButton || !_viewCube || isGltfCameraActive() || !viewCubeScreenRect().contains(pixel))
@@ -7720,7 +7720,7 @@ void GLWidget::updateViewCubeHover(const QPoint& pixel, Qt::MouseButtons buttons
 		update();
 }
 
-void GLWidget::initializeViewCubeLabels()
+void ViewportWidget::initializeViewCubeLabels()
 {
 	if (!_renderCtrl.viewCubeLabelShader())
 		return;
@@ -7784,7 +7784,7 @@ void GLWidget::initializeViewCubeLabels()
 	glBindVertexArray(0);
 }
 
-void GLWidget::drawViewCube()
+void ViewportWidget::drawViewCube()
 {
 	if (!_viewCtrl.showViewCubeOverride() || !_viewCube || !_renderCtrl.viewCubeShader())
 		return;
@@ -7892,7 +7892,7 @@ void GLWidget::drawViewCube()
 	glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
 }
 
-void GLWidget::drawViewCubeLabels(const QMatrix4x4& viewMatrix, const QMatrix4x4& projectionMatrix, float cubeScale)
+void ViewportWidget::drawViewCubeLabels(const QMatrix4x4& viewMatrix, const QMatrix4x4& projectionMatrix, float cubeScale)
 {
 	if (!_renderCtrl.viewCubeLabelShader() || _renderCtrl.viewCubeLabelVAO() == 0)
 		return;
@@ -7955,7 +7955,7 @@ void GLWidget::drawViewCubeLabels(const QMatrix4x4& viewMatrix, const QMatrix4x4
 		glEnable(GL_CULL_FACE);
 }
 
-void GLWidget::drawLights()
+void ViewportWidget::drawLights()
 {
 	QMatrix4x4 model;
 	model.translate(effectiveWorldLightPosition());
@@ -8041,7 +8041,7 @@ void GLWidget::drawLights()
 	}
 }
 
-void GLWidget::bindIBLTextures()
+void ViewportWidget::bindIBLTextures()
 {
 	_renderCtrl.fgShader()->setUniformValue("irradianceMap", 3);
 	glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_CUBE_MAP, _renderCtrl.irradianceMap());
@@ -8064,7 +8064,7 @@ void GLWidget::bindIBLTextures()
 }
 
 
-void GLWidget::render(Camera* camera)
+void ViewportWidget::render(Camera* camera)
 {
 	QElapsedTimer frameTimer;
 	const bool profileRendering =
@@ -8204,7 +8204,7 @@ void GLWidget::render(Camera* camera)
 
 
 
-void GLWidget::renderToShadowBuffer()
+void ViewportWidget::renderToShadowBuffer()
 {
 	if (!_renderCtrl.shadowMapNeedsInitialization())
 		return;
@@ -8390,7 +8390,7 @@ void GLWidget::renderToShadowBuffer()
 			}
 			catch (const std::exception& ex)
 			{
-				std::cout << "Exception raised in GLWidget::renderToShadowBuffer\n" << ex.what() << std::endl;
+				std::cout << "Exception raised in ViewportWidget::renderToShadowBuffer\n" << ex.what() << std::endl;
 			}
 		}
 	}
@@ -8401,12 +8401,12 @@ void GLWidget::renderToShadowBuffer()
 	glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 }
 
-void GLWidget::renderQuad()
+void ViewportWidget::renderQuad()
 {
 	_renderCtrl.renderQuad();
 }
 
-void GLWidget::renderMeshWithDisplayMode(SceneMesh* mesh, DisplayMode mode)
+void ViewportWidget::renderMeshWithDisplayMode(SceneMesh* mesh, DisplayMode mode)
 {
 	QElapsedTimer meshModeTimer;
 	const bool profiling = RenderableMesh::renderDiagnosticsEnabled();
@@ -8508,7 +8508,7 @@ void GLWidget::renderMeshWithDisplayMode(SceneMesh* mesh, DisplayMode mode)
 		RenderableMesh::recordRenderMeshWithDisplayModeCpuMs(static_cast<double>(meshModeTimer.nsecsElapsed()) / 1000000.0);
 }
 
-void GLWidget::gradientBackground(float top_r, float top_g, float top_b, float top_a,
+void ViewportWidget::gradientBackground(float top_r, float top_g, float top_b, float top_a,
 	float bot_r, float bot_g, float bot_b, float bot_a, int gradientStyle)
 {
 	glViewport(0, 0, width(), height());
@@ -8534,7 +8534,7 @@ void GLWidget::gradientBackground(float top_r, float top_g, float top_b, float t
 	_renderCtrl.bgShader()->release();
 }
 
-void GLWidget::loadBgColorSettings()
+void ViewportWidget::loadBgColorSettings()
 {
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 
@@ -8573,7 +8573,7 @@ void GLWidget::loadBgColorSettings()
 }
 
 
-void GLWidget::splitScreen()
+void ViewportWidget::splitScreen()
 {
 	if (!_renderCtrl.bgSplitVAO().isCreated())
 	{
@@ -8623,7 +8623,7 @@ void GLWidget::splitScreen()
 	_renderCtrl.bgSplitShader()->release();
 }
 
-void GLWidget::setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos)
+void ViewportWidget::setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos)
 {
 	prog->bind();
 	RenderableMesh::recordProgramBindCall(true);
@@ -8648,12 +8648,12 @@ void GLWidget::setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos)
 }
 
 
-SceneMesh* GLWidget::createMeshFromData(const AssImpMeshData& meshData)
+SceneMesh* ViewportWidget::createMeshFromData(const AssImpMeshData& meshData)
 {
 	return AssImpMeshBuilder::build(meshData, _renderCtrl.fgShader(), this);
 }
 
-void GLWidget::syncFileNodeTransforms(const QString& sourceFile)
+void ViewportWidget::syncFileNodeTransforms(const QString& sourceFile)
 {
 	if (!_viewer || !_viewer->sceneGraph())
 		return;
@@ -8758,7 +8758,7 @@ void GLWidget::syncFileNodeTransforms(const QString& sourceFile)
 		collect(child);
 }
 
-void GLWidget::reapplyGltfCameraAfterTransform()
+void ViewportWidget::reapplyGltfCameraAfterTransform()
 {
 	if (!isGltfCameraActive() || !_viewer)
 		return;
@@ -8785,7 +8785,7 @@ void GLWidget::reapplyGltfCameraAfterTransform()
 	}
 }
 
-void GLWidget::setActiveAnimation(const QString& sourceFile, int clipIndex)
+void ViewportWidget::setActiveAnimation(const QString& sourceFile, int clipIndex)
 {
 	if (!_viewer || !_viewer->sceneGraph())
 		return;
@@ -8809,7 +8809,7 @@ void GLWidget::setActiveAnimation(const QString& sourceFile, int clipIndex)
 	emit animationStateChanged();
 }
 
-void GLWidget::clearAnimationRuntimeForFile(const QString& sourceFile)
+void ViewportWidget::clearAnimationRuntimeForFile(const QString& sourceFile)
 {
 	const bool wasActive = (_animCtrl.activeAnimationFile() == sourceFile);
 	_animCtrl.removeAnimationFile(sourceFile);
@@ -8839,19 +8839,19 @@ void GLWidget::clearAnimationRuntimeForFile(const QString& sourceFile)
 	}
 }
 
-void GLWidget::syncRuntimeNodeTransforms(const QString& sourceFile)
+void ViewportWidget::syncRuntimeNodeTransforms(const QString& sourceFile)
 {
 	syncFileNodeTransforms(sourceFile);
 }
 
-void GLWidget::setAnimationPlaying(bool playing)
+void ViewportWidget::setAnimationPlaying(bool playing)
 {
 	if (playing) _animCtrl.resumePlayback();
 	else         _animCtrl.pausePlayback();
 	emit animationStateChanged();
 }
 
-void GLWidget::seekAnimation(double timeSeconds)
+void ViewportWidget::seekAnimation(double timeSeconds)
 {
 	if (_animCtrl.activeAnimationFile().isEmpty() || _animCtrl.activeAnimationClip() < 0)
 		return;
@@ -8861,7 +8861,7 @@ void GLWidget::seekAnimation(double timeSeconds)
 	emit animationStateChanged();
 }
 
-void GLWidget::setAnimationPlaybackSpeed(double speed)
+void ViewportWidget::setAnimationPlaybackSpeed(double speed)
 {
 	_animCtrl.applyPlaybackSpeed(speed);
 	emit animationStateChanged();
@@ -8871,7 +8871,7 @@ void GLWidget::setAnimationPlaybackSpeed(double speed)
 // glTF camera switching
 // ---------------------------------------------------------------------------
 
-void GLWidget::activateGltfCamera(const QString& sourceFile, int cameraIndex)
+void ViewportWidget::activateGltfCamera(const QString& sourceFile, int cameraIndex)
 {
 	if (!_viewer || !_primaryCamera)
 		return;
@@ -8912,7 +8912,7 @@ void GLWidget::activateGltfCamera(const QString& sourceFile, int cameraIndex)
 	update();
 }
 
-void GLWidget::resetToSystemCamera()
+void ViewportWidget::resetToSystemCamera()
 {
 	if (_viewCtrl.systemCameraStateSaved())
 	{
@@ -8931,7 +8931,7 @@ void GLWidget::resetToSystemCamera()
 	update();
 }
 
-GltfCameraData GLWidget::cameraDataForMvfSave(const GltfCameraData& source) const
+GltfCameraData ViewportWidget::cameraDataForMvfSave(const GltfCameraData& source) const
 {
 	GltfCameraData result = source;
 
@@ -8968,7 +8968,7 @@ GltfCameraData GLWidget::cameraDataForMvfSave(const GltfCameraData& source) cons
 	return result;
 }
 
-void GLWidget::applyGltfCameraEntryTransform(const GltfCameraEntry& cam)
+void ViewportWidget::applyGltfCameraEntryTransform(const GltfCameraEntry& cam)
 {
 	if (!_primaryCamera)
 		return;
@@ -9036,7 +9036,7 @@ void GLWidget::applyGltfCameraEntryTransform(const GltfCameraEntry& cam)
 	_primaryCamera->setView(pivotPos, worldDir, worldUp, right);
 }
 
-void GLWidget::refreshAnimationMaterialState(const QString& sourceFile)
+void ViewportWidget::refreshAnimationMaterialState(const QString& sourceFile)
 {
 	RuntimeAnimationFileState& runtime = _animCtrl.runtimeAnimationsByFile()[sourceFile];
 	if (runtime.data.sourceFile.isEmpty())
@@ -9059,7 +9059,7 @@ void GLWidget::refreshAnimationMaterialState(const QString& sourceFile)
 		applyAnimationPose(sourceFile, _animCtrl.activeAnimationClip(), _animCtrl.animationCurrentTimeSeconds());
 }
 
-void GLWidget::onAnimationTick()
+void ViewportWidget::onAnimationTick()
 {
 	if (!_animCtrl.isPlaying() || _animCtrl.activeAnimationFile().isEmpty() || _animCtrl.activeAnimationClip() < 0)
 		return;
@@ -9092,7 +9092,7 @@ void GLWidget::onAnimationTick()
 	emit animationStateChanged();
 }
 
-void GLWidget::resetAnimationPose(const QString& sourceFile)
+void ViewportWidget::resetAnimationPose(const QString& sourceFile)
 {
 	if (!_viewer || !_viewer->sceneGraph())
 		return;
@@ -9183,7 +9183,7 @@ void GLWidget::resetAnimationPose(const QString& sourceFile)
 	update();
 }
 
-void GLWidget::updateAnimatedMeshState(const QString& sourceFile,
+void ViewportWidget::updateAnimatedMeshState(const QString& sourceFile,
 	const QHash<QUuid, QMatrix4x4>& worldTransformsByNodeUuid)
 {
 	if (!_viewer || !_viewer->sceneGraph())
@@ -9236,7 +9236,7 @@ void GLWidget::updateAnimatedMeshState(const QString& sourceFile,
 		applyToMeshes(child);
 }
 
-void GLWidget::applyNodeTransformsToMeshes(
+void ViewportWidget::applyNodeTransformsToMeshes(
 	const QString& sourceFile,
 	const AnimationRuntimeController::RuntimeAnimationFileState& runtime,
 	AnimationRuntimeController::AnimationSampleResult& result,
@@ -9283,7 +9283,7 @@ void GLWidget::applyNodeTransformsToMeshes(
 	}
 }
 
-void GLWidget::applyMorphTargetWeights(
+void ViewportWidget::applyMorphTargetWeights(
 	const QString& sourceFile,
 	const AnimationRuntimeController::AnimationSampleResult& result)
 {
@@ -9315,7 +9315,7 @@ void GLWidget::applyMorphTargetWeights(
 	}
 }
 
-void GLWidget::applyAnimatedMaterialChanges(const AnimationRuntimeController::AnimationSampleResult& result)
+void ViewportWidget::applyAnimatedMaterialChanges(const AnimationRuntimeController::AnimationSampleResult& result)
 {
 	for (auto it = result.animatedMaterials.constBegin(); it != result.animatedMaterials.constEnd(); ++it)
 	{
@@ -9324,7 +9324,7 @@ void GLWidget::applyAnimatedMaterialChanges(const AnimationRuntimeController::An
 	}
 }
 
-void GLWidget::applyAnimatedMeshVisibility(
+void ViewportWidget::applyAnimatedMeshVisibility(
 	const QString& sourceFile,
 	const AnimationRuntimeController::RuntimeAnimationFileState& runtime,
 	const AnimationRuntimeController::AnimationSampleResult& result,
@@ -9343,7 +9343,7 @@ void GLWidget::applyAnimatedMeshVisibility(
 	setAnimatedMeshVisibilityState(sourceFile, hiddenMeshUuids);
 }
 
-void GLWidget::applyAnimatedLightTransforms(
+void ViewportWidget::applyAnimatedLightTransforms(
 	const QString& sourceFile,
 	const AnimationRuntimeController::RuntimeAnimationFileState& runtime,
 	const AnimationRuntimeController::AnimationSampleResult& result,
@@ -9378,7 +9378,7 @@ void GLWidget::applyAnimatedLightTransforms(
 	}
 }
 
-void GLWidget::applyAnimatedCamera(
+void ViewportWidget::applyAnimatedCamera(
 	const QString& sourceFile,
 	const AnimationRuntimeController::RuntimeAnimationFileState& runtime,
 	const AnimationRuntimeController::AnimationSampleResult& result)
@@ -9406,7 +9406,7 @@ void GLWidget::applyAnimatedCamera(
 	applyGltfCameraEntryTransform(runtimeCam);
 }
 
-void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, double timeSeconds)
+void ViewportWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, double timeSeconds)
 {
 	if (!_viewer || !_viewer->sceneGraph())
 		return;
@@ -9442,7 +9442,7 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 	update();
 }
 
-void GLWidget::onMeshBatchReady(const std::vector<AssImpMeshData>& batch)
+void ViewportWidget::onMeshBatchReady(const std::vector<AssImpMeshData>& batch)
 {
 	makeCurrent();
 	for (const AssImpMeshData& meshData : batch)
@@ -9460,7 +9460,7 @@ void GLWidget::onMeshBatchReady(const std::vector<AssImpMeshData>& batch)
 		QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
 }
 
-UVMethod GLWidget::promptLargeModelUVDecision(int totalTriangles, UVMethod currentMethod)
+UVMethod ViewportWidget::promptLargeModelUVDecision(int totalTriangles, UVMethod currentMethod)
 {
 	QMessageBox msgBox(this);
 	msgBox.setWindowTitle(tr("Performance Warning!"));
@@ -9490,7 +9490,7 @@ UVMethod GLWidget::promptLargeModelUVDecision(int totalTriangles, UVMethod curre
 	return currentMethod;
 }
 
-GLuint GLWidget::createGPUTextureFromImage(const QImage& image, const TextureSamplerSettings& samplers)
+GLuint ViewportWidget::createGPUTextureFromImage(const QImage& image, const TextureSamplerSettings& samplers)
 {
 	if (image.isNull())
 	{
@@ -9556,7 +9556,7 @@ GLuint GLWidget::createGPUTextureFromImage(const QImage& image, const TextureSam
 	return textureID;
 }
 
-GLuint GLWidget::uploadDecodedTexture(Material::Texture& texture, const QImage& image)
+GLuint ViewportWidget::uploadDecodedTexture(Material::Texture& texture, const QImage& image)
 {
 	TextureSamplerSettings samplers{ texture.wrapS, texture.wrapT, texture.minFilter, texture.magFilter };
 	GLuint textureId = uploadDecodedTextureImage(image, samplers);
@@ -9564,13 +9564,13 @@ GLuint GLWidget::uploadDecodedTexture(Material::Texture& texture, const QImage& 
 	return textureId;
 }
 
-GLuint GLWidget::uploadDecodedTextureImage(const QImage& image, const TextureSamplerSettings& samplers)
+GLuint ViewportWidget::uploadDecodedTextureImage(const QImage& image, const TextureSamplerSettings& samplers)
 {
 	makeCurrent();
 	return createGPUTextureFromImage(image, samplers);
 }
 
-GLuint GLWidget::uploadKtx2TextureImage(const QString& path, const std::string& mapType, const TextureSamplerSettings& samplers)
+GLuint ViewportWidget::uploadKtx2TextureImage(const QString& path, const std::string& mapType, const TextureSamplerSettings& samplers)
 {
 	if (path.isEmpty())
 	{
@@ -9582,14 +9582,14 @@ GLuint GLWidget::uploadKtx2TextureImage(const QString& path, const std::string& 
 	TranscodedTexture transcodedTexture;
 	if (!_ktx2Loader.loadKTX2(path.toStdString(), transcodedTexture, _gpuCapabilities, mapType))
 	{
-		qWarning() << "GLWidget::uploadKtx2Texture - Failed to load KTX2 file:" << path;
+		qWarning() << "ViewportWidget::uploadKtx2Texture - Failed to load KTX2 file:" << path;
 		return 0;
 	}
 
 	GLuint textureId = _ktx2Loader.uploadToGPU(transcodedTexture);
 	if (textureId == 0)
 	{
-		qWarning() << "GLWidget::uploadKtx2Texture - Failed to upload KTX2 texture:" << path;
+		qWarning() << "ViewportWidget::uploadKtx2Texture - Failed to upload KTX2 texture:" << path;
 		return 0;
 	}
 
@@ -9603,7 +9603,7 @@ GLuint GLWidget::uploadKtx2TextureImage(const QString& path, const std::string& 
 	return textureId;
 }
 
-GLuint GLWidget::uploadKtx2Texture(const QString& path, const std::string& mapType, Material::Texture& texture)
+GLuint ViewportWidget::uploadKtx2Texture(const QString& path, const std::string& mapType, Material::Texture& texture)
 {
 	TextureSamplerSettings samplers{ texture.wrapS, texture.wrapT, texture.minFilter, texture.magFilter };
 	GLuint textureId = uploadKtx2TextureImage(path, mapType, samplers);
@@ -9611,7 +9611,7 @@ GLuint GLWidget::uploadKtx2Texture(const QString& path, const std::string& mapTy
 	return textureId;
 }
 
-unsigned int GLWidget::getOrCreateTextureCached(
+unsigned int ViewportWidget::getOrCreateTextureCached(
 	const QString& cacheKey,
 	const QImage& image,
 	const TextureSamplerSettings& samplers)
@@ -9664,7 +9664,7 @@ unsigned int GLWidget::getOrCreateTextureCached(
 	return texID;
 }
 
-unsigned int GLWidget::getOrLoadKtx2TextureCached(
+unsigned int ViewportWidget::getOrLoadKtx2TextureCached(
 	const QString& path,
 	const std::string& mapType,
 	const TextureSamplerSettings& samplers)
@@ -9701,7 +9701,7 @@ unsigned int GLWidget::getOrLoadKtx2TextureCached(
 	return texID;
 }
 
-unsigned int GLWidget::getOrLoadTextureCached(
+unsigned int ViewportWidget::getOrLoadTextureCached(
 	const QString& path,
 	const TextureSamplerSettings& samplers)
 {
@@ -9770,7 +9770,7 @@ unsigned int GLWidget::getOrLoadTextureCached(
 	return texID;
 }
 
-void GLWidget::retainTexture(unsigned int texId)
+void ViewportWidget::retainTexture(unsigned int texId)
 {
 	if (texId == 0) return;
 	auto it = _sceneRuntime.texRefCount().find(texId);
@@ -9778,7 +9778,7 @@ void GLWidget::retainTexture(unsigned int texId)
 	else _sceneRuntime.texRefCount()[texId] = 1;
 }
 
-void GLWidget::releaseTexture(unsigned int texId)
+void ViewportWidget::releaseTexture(unsigned int texId)
 {
 	if (texId == 0) return;
 	auto it = _sceneRuntime.texRefCount().find(texId);
@@ -9795,7 +9795,7 @@ void GLWidget::releaseTexture(unsigned int texId)
 	}
 }
 
-Material GLWidget::resolveMaterialTextures(GLWidget* w, const Material& src)
+Material ViewportWidget::resolveMaterialTextures(ViewportWidget* w, const Material& src)
 {
 	Material m = src;
 	auto resolveTexturePath = [w](const QString& path,
@@ -9978,29 +9978,29 @@ Material GLWidget::resolveMaterialTextures(GLWidget* w, const Material& src)
 	return m;
 }
 
-void GLWidget::initTransmissionBuffer()
+void ViewportWidget::initTransmissionBuffer()
 {
 	_renderCtrl.initTransmissionBuffer(width(), height());
 }
 
-void GLWidget::resizeTransmissionBuffer(int width, int height)
+void ViewportWidget::resizeTransmissionBuffer(int width, int height)
 {
 	_renderCtrl.initTransmissionBuffer(width, height);
 }
 
-void GLWidget::createWhiteTexture()
+void ViewportWidget::createWhiteTexture()
 {
 	_renderCtrl.initWhiteTexture();
 }
 
-void GLWidget::generateCubemapMipmaps(GLuint cubemapTexture)
+void ViewportWidget::generateCubemapMipmaps(GLuint cubemapTexture)
 {
 	_renderCtrl.generateCubemapMipmaps(cubemapTexture, width(), height(), defaultFramebufferObject());
 }
 
 
 
-void GLWidget::renderToTransmissionBuffer(Camera* camera, const QColor& topColor, const QColor& botColor)
+void ViewportWidget::renderToTransmissionBuffer(Camera* camera, const QColor& topColor, const QColor& botColor)
 {
 	if (!_renderCtrl.transmissionEnabled())
 		return;
@@ -10119,7 +10119,7 @@ void GLWidget::renderToTransmissionBuffer(Camera* camera, const QColor& topColor
 // The result in _renderCtrl.sssCaptureTexture() feeds the blur passes in Sequence 4.
 // ============================================================================
 
-void GLWidget::renderToSSSBuffer(Camera* camera)
+void ViewportWidget::renderToSSSBuffer(Camera* camera)
 {
 	if (!sceneHasVisibleSSSMaterials())
 		return;
@@ -10201,7 +10201,7 @@ void GLWidget::renderToSSSBuffer(Camera* camera)
 	glViewport(0, 0, width(), height());
 }
 
-void GLWidget::cleanupTransmissionBuffer()
+void ViewportWidget::cleanupTransmissionBuffer()
 {
 	_renderCtrl.cleanupTransmissionBuffer();
 }
@@ -10215,22 +10215,22 @@ void GLWidget::cleanupTransmissionBuffer()
 // _renderCtrl.sssDepthTexture() is shared by the capture FBO for correct depth occlusion.
 // ============================================================================
 
-void GLWidget::initSSSBuffer()
+void ViewportWidget::initSSSBuffer()
 {
 	_renderCtrl.initSSSBuffer(width(), height());
 }
 
-void GLWidget::resizeSSSBuffer(int width, int height)
+void ViewportWidget::resizeSSSBuffer(int width, int height)
 {
 	_renderCtrl.initSSSBuffer(width, height);
 }
 
-void GLWidget::cleanupSSSBuffer()
+void ViewportWidget::cleanupSSSBuffer()
 {
 	_renderCtrl.cleanupSSSBuffer();
 }
 
-void GLWidget::checkAndStopTimers()
+void ViewportWidget::checkAndStopTimers()
 {
 	if (_animateViewTimer->isActive())
 	{
@@ -10273,13 +10273,13 @@ void GLWidget::checkAndStopTimers()
 	}
 }
 
-void GLWidget::disableLowRes()
+void ViewportWidget::disableLowRes()
 {
 	_renderCtrl.setLowResEnabled(false);
 	update();
 }
 
-void GLWidget::setSectionCapsInteractionSuppressed(bool suppressed)
+void ViewportWidget::setSectionCapsInteractionSuppressed(bool suppressed)
 {
 	bool actual = suppressed && _renderCtrl.dynamicCappingEnabled();
 	if (_renderCtrl.sectionCapsSuppressedDuringInteraction() == actual)
@@ -10289,7 +10289,7 @@ void GLWidget::setSectionCapsInteractionSuppressed(bool suppressed)
 	update();
 }
 
-void GLWidget::resizeEvent(QResizeEvent* event)
+void ViewportWidget::resizeEvent(QResizeEvent* event)
 {
 	if (_viewToolbar)
 	{
@@ -10307,7 +10307,7 @@ void GLWidget::resizeEvent(QResizeEvent* event)
 	}
 }
 
-void GLWidget::mousePressEvent(QMouseEvent* e)
+void ViewportWidget::mousePressEvent(QMouseEvent* e)
 {
 	setFocus();
 	checkAndStopTimers();
@@ -10396,7 +10396,7 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 	}
 }
 
-void GLWidget::mouseReleaseEvent(QMouseEvent* e)
+void ViewportWidget::mouseReleaseEvent(QMouseEvent* e)
 {
 	if ((e->button() & Qt::LeftButton) && _viewCtrl.transformGizmoTranslating())
 	{
@@ -10479,7 +10479,7 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 	}
 	else if (_renderCtrl.sectionCapsSuppressedDuringInteraction())
 	{
-		QTimer::singleShot(100, this, &GLWidget::disableSectionCapsInteractionSuppression);
+		QTimer::singleShot(100, this, &ViewportWidget::disableSectionCapsInteractionSuppression);
 	}
 
 	if (e->buttons() == Qt::NoButton)
@@ -10490,7 +10490,7 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 	update();
 }
 
-void GLWidget::mouseMoveEvent(QMouseEvent* e)
+void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 {
 	_viewCtrl.setMouseMovedSincePress(true);
 	_viewCtrl.setLastMouseMoveTime(e->timestamp());
@@ -10781,7 +10781,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	_viewCtrl.setLastMouseTime(currentTime);
 }
 
-void GLWidget::wheelEvent(QWheelEvent* e)
+void ViewportWidget::wheelEvent(QWheelEvent* e)
 {
 	// Stop any ongoing inertia when wheel zooming
 	_viewCtrl.clearInertiaState();
@@ -10858,7 +10858,7 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 	update();
 }
 
-void GLWidget::keyPressEvent(QKeyEvent* event)
+void ViewportWidget::keyPressEvent(QKeyEvent* event)
 {
 	QWidget::keyPressEvent(event);
 
@@ -10908,13 +10908,13 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
 	update();
 }
 
-void GLWidget::keyReleaseEvent(QKeyEvent* event)
+void ViewportWidget::keyReleaseEvent(QKeyEvent* event)
 {
 	_keys.remove(event->key());
 	QWidget::keyReleaseEvent(event);
 }
 
-void GLWidget::performKeyboardNav()
+void ViewportWidget::performKeyboardNav()
 {
 	// Keyboard navigation is disabled when a glTF camera is active (read-only view).
 	if (isGltfCameraActive())
@@ -11057,7 +11057,7 @@ void GLWidget::performKeyboardNav()
 	}
 }
 
-void GLWidget::animateViewChange()
+void ViewportWidget::animateViewChange()
 {
 	setSectionCapsInteractionSuppressed(true);
 	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
@@ -11108,7 +11108,7 @@ void GLWidget::animateViewChange()
 	resizeGL(width(), height());
 }
 
-void GLWidget::animateFitAll()
+void ViewportWidget::animateFitAll()
 {
 	setSectionCapsInteractionSuppressed(true);
 	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
@@ -11120,7 +11120,7 @@ void GLWidget::animateFitAll()
 	resizeGL(width(), height());
 }
 
-void GLWidget::animateWindowZoom()
+void ViewportWidget::animateWindowZoom()
 {
 	setSectionCapsInteractionSuppressed(true);
 	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
@@ -11129,7 +11129,7 @@ void GLWidget::animateWindowZoom()
 	resizeGL(width(), height());
 }
 
-void GLWidget::animateCenterScreen()
+void ViewportWidget::animateCenterScreen()
 {
 	setSectionCapsInteractionSuppressed(true);
 	setZoomAndPan(_viewCtrl.selectionBoundingSphere().getRadius() * 2,
@@ -11137,7 +11137,7 @@ void GLWidget::animateCenterScreen()
 	resizeGL(width(), height());
 }
 
-void GLWidget::onInertiaTimer()
+void ViewportWidget::onInertiaTimer()
 {
 	// Inertia effects are suppressed when a glTF camera is active (read-only view).
 	if (isGltfCameraActive())
@@ -11222,28 +11222,28 @@ void GLWidget::onInertiaTimer()
 	if (!active) {
 		_inertiaTimer->stop();
 		_viewCtrl.clearInertiaState();
-		QTimer::singleShot(100, this, &GLWidget::disableSectionCapsInteractionSuppression);
+		QTimer::singleShot(100, this, &ViewportWidget::disableSectionCapsInteractionSuppression);
 	}
 
 	update();
 }
 
-void GLWidget::stopAnimations()
+void ViewportWidget::stopAnimations()
 {
 	_animateViewTimer->stop();
 	_animateFitAllTimer->stop();
 	_animateWindowZoomTimer->stop();
 	_animateCenterScreenTimer->stop();
 	_keyboardNavTimer->start();
-	QTimer::singleShot(100, this, &GLWidget::disableLowRes);
-	QTimer::singleShot(100, this, &GLWidget::disableSectionCapsInteractionSuppression);
+	QTimer::singleShot(100, this, &ViewportWidget::disableLowRes);
+	QTimer::singleShot(100, this, &ViewportWidget::disableSectionCapsInteractionSuppression);
 }
 
 
 // Note: convertClickToRay is now implemented in SelectionManager
-// Keeping getViewportFromPoint and getClientRectFromPoint as they're still used by GLWidget
+// Keeping getViewportFromPoint and getClientRectFromPoint as they're still used by ViewportWidget
 
-Camera* GLWidget::getCameraForPoint(const QPoint& pixel)
+Camera* ViewportWidget::getCameraForPoint(const QPoint& pixel)
 {
 	if (!_viewCtrl.multiViewActive())
 		return _primaryCamera;
@@ -11275,7 +11275,7 @@ Camera* GLWidget::getCameraForPoint(const QPoint& pixel)
 	return _orthoViewsCamera;
 }
 
-QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, const QPoint& end)
+QVector3D ViewportWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, const QPoint& end)
 {
 	if (width() <= 0 || height() <= 0)
 		return QVector3D(0, 0, 0);
@@ -11398,7 +11398,7 @@ QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, c
 }
 
 
-unsigned int GLWidget::loadTextureFromFile(
+unsigned int ViewportWidget::loadTextureFromFile(
 	const char* path,
 	GLenum wrapS, GLenum wrapT,
 	GLenum minFilter, GLenum magFilter,
@@ -11511,7 +11511,7 @@ unsigned int GLWidget::loadTextureFromFile(
 	return textureID;
 }
 
-QList<int> GLWidget::sweepSelect(const QPoint& pixel, bool addToSelection)
+QList<int> ViewportWidget::sweepSelect(const QPoint& pixel, bool addToSelection)
 {
 	if (!_selectionManager || !_rubberBand || _rubberBand->geometry().isNull())
 		return _selectionManager ? _selectionManager->getSelectedIds() : QList<int>{};
@@ -11522,7 +11522,7 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel, bool addToSelection)
 	return selectedIds;
 }
 
-void GLWidget::setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir)
+void ViewportWidget::setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir)
 {
 	_primaryCamera->setView(viewPos, viewDir, upDir, rightDir);
 	emit viewSet();
@@ -11535,7 +11535,7 @@ void GLWidget::setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QV
 // from the lamp body at a point that never exists in the geometry.
 // Sampling cap: at most MAX_SAMPLES_PER_MESH positions per mesh so that
 // fitting remains fast even for high-poly scenes.
-std::vector<QVector3D> GLWidget::collectVisibleCorners() const
+std::vector<QVector3D> ViewportWidget::collectVisibleCorners() const
 {
 	constexpr int MAX_SAMPLES_PER_MESH = 1024;
 
@@ -11606,7 +11606,7 @@ std::vector<QVector3D> GLWidget::collectVisibleCorners() const
 }
 
 // Convenience: read axes from the current view matrix, then delegate.
-float GLWidget::computeFitViewRange(QVector3D* outCenter) const
+float ViewportWidget::computeFitViewRange(QVector3D* outCenter) const
 {
 	const QMatrix4x4 V = _primaryCamera->getViewMatrix();
 	return computeFitViewRange(
@@ -11619,14 +11619,14 @@ float GLWidget::computeFitViewRange(QVector3D* outCenter) const
 // Convenience: collect visible corners, then delegate to the core.
 // Used by setViewMode() with the destination quaternion's axes so that
 // rotation and zoom can animate concurrently.
-float GLWidget::computeFitViewRange(
+float ViewportWidget::computeFitViewRange(
 	const QVector3D& right, const QVector3D& up, const QVector3D& viewDir,
 	QVector3D* outCenter) const
 {
 	return computeFitViewRange(collectVisibleCorners(), right, up, viewDir, outCenter);
 }
 
-float GLWidget::computeOrthographicFitViewRangeForViewport(
+float ViewportWidget::computeOrthographicFitViewRangeForViewport(
 	const std::vector<QVector3D>& corners,
 	const QVector3D& right,
 	const QVector3D& up,
@@ -11686,7 +11686,7 @@ float GLWidget::computeOrthographicFitViewRangeForViewport(
 	return std::max(halfRange * 2.0f * margin, 0.0001f);
 }
 
-QVector3D GLWidget::computeVisibleWorldCenter(const std::vector<QVector3D>& corners) const
+QVector3D ViewportWidget::computeVisibleWorldCenter(const std::vector<QVector3D>& corners) const
 {
 	if (corners.empty())
 	{
@@ -11719,7 +11719,7 @@ QVector3D GLWidget::computeVisibleWorldCenter(const std::vector<QVector3D>& corn
 		(minZ + maxZ) * 0.5f);
 }
 
-float GLWidget::computeSharedOrthographicMultiViewRange(
+float ViewportWidget::computeSharedOrthographicMultiViewRange(
 	const std::vector<QVector3D>& corners,
 	int viewportWidth,
 	int viewportHeight,
@@ -11740,7 +11740,7 @@ float GLWidget::computeSharedOrthographicMultiViewRange(
 	return sharedRange;
 }
 
-void GLWidget::configureOrthoSubviewCamera(
+void ViewportWidget::configureOrthoSubviewCamera(
 	ViewMode viewMode,
 	const std::vector<QVector3D>& corners,
 	int viewportWidth,
@@ -11764,7 +11764,7 @@ void GLWidget::configureOrthoSubviewCamera(
 
 // Core implementation: fits an arbitrary set of world-space corners given
 // explicit view axes.  Analytical for both ortho and perspective.
-float GLWidget::computeFitViewRange(const std::vector<QVector3D>& corners,
+float ViewportWidget::computeFitViewRange(const std::vector<QVector3D>& corners,
 	const QVector3D& right, const QVector3D& up, const QVector3D& viewDir,
 	QVector3D* outCenter) const
 {
@@ -11868,7 +11868,7 @@ float GLWidget::computeFitViewRange(const std::vector<QVector3D>& corners,
 }
 
 // Improved approach based on rubberband zoom technique
-void GLWidget::fitBoxToScreen(const BoundingBox& box)
+void ViewportWidget::fitBoxToScreen(const BoundingBox& box)
 {			
 	// Project bounding box corners to screen space
 	std::vector<Point> corners = box.corners();
@@ -11949,7 +11949,7 @@ void GLWidget::fitBoxToScreen(const BoundingBox& box)
 }
 
 
-void GLWidget::animateToRotation(const QQuaternion& targetRotation)
+void ViewportWidget::animateToRotation(const QQuaternion& targetRotation)
 {
 	QQuaternion curRot = QQuaternion::slerp(_viewCtrl.currentRotation(), targetRotation, _viewCtrl.advanceSlerpStep());
 
@@ -12018,13 +12018,13 @@ void GLWidget::animateToRotation(const QQuaternion& targetRotation)
 	}
 }
 
-void GLWidget::setRotations(float xRot, float yRot, float zRot)
+void ViewportWidget::setRotations(float xRot, float yRot, float zRot)
 {
 	QQuaternion targetRotation = QQuaternion::fromEulerAngles(yRot, zRot, xRot); //Pitch, Yaw, Roll
 	animateToRotation(targetRotation);
 }
 
-void GLWidget::setZoomAndPan(float zoom, QVector3D pan)
+void ViewportWidget::setZoomAndPan(float zoom, QVector3D pan)
 {
 	_viewCtrl.advanceSlerpStep();
 
@@ -12047,19 +12047,19 @@ void GLWidget::setZoomAndPan(float zoom, QVector3D pan)
 	}
 }
 
-void GLWidget::closeEvent(QCloseEvent* event)
+void ViewportWidget::closeEvent(QCloseEvent* event)
 {
 	event->accept();
 }
 
-void GLWidget::showLights(bool showLights)
+void ViewportWidget::showLights(bool showLights)
 {
 	_renderCtrl.setShowLights(showLights);
 	update();
 }
 
 
-void GLWidget::applyEnabledLightList(const std::vector<GPULight>& enabledLights)
+void ViewportWidget::applyEnabledLightList(const std::vector<GPULight>& enabledLights)
 {
 	makeCurrent();
 	_renderCtrl.punctualLights()->setLights(enabledLights);
@@ -12068,7 +12068,7 @@ void GLWidget::applyEnabledLightList(const std::vector<GPULight>& enabledLights)
 }
 
 
-void GLWidget::setRenderingMode(const RenderingMode& renderingMode)
+void ViewportWidget::setRenderingMode(const RenderingMode& renderingMode)
 {
 	_renderCtrl.setRenderingMode(renderingMode);
 	_renderCtrl.fgShader()->bind();
@@ -12089,28 +12089,28 @@ void GLWidget::setRenderingMode(const RenderingMode& renderingMode)
 	emit renderingModeChanged(static_cast<int>(_renderCtrl.renderingMode()));
 }
 
-void GLWidget::setFloorTexRepeatT(double floorTexRepeatT)
+void ViewportWidget::setFloorTexRepeatT(double floorTexRepeatT)
 {
 	_renderCtrl.setFloorTexRepeatT(static_cast<float>(floorTexRepeatT));
 	updateFloorPlane();
 	update();
 }
 
-void GLWidget::setFloorTexRepeatS(double floorTexRepeatS)
+void ViewportWidget::setFloorTexRepeatS(double floorTexRepeatS)
 {
 	_renderCtrl.setFloorTexRepeatS(static_cast<float>(floorTexRepeatS));
 	updateFloorPlane();
 	update();
 }
 
-void GLWidget::setFloorOffsetPercent(double value)
+void ViewportWidget::setFloorOffsetPercent(double value)
 {
 	_renderCtrl.setFloorOffsetPercent(static_cast<float>(value / 100.0f));
 	updateFloorPlane();
 	update();
 }
 
-void GLWidget::setPerspFOV(int fovDegrees)
+void ViewportWidget::setPerspFOV(int fovDegrees)
 {
 	_viewCtrl.setFOV(static_cast<float>(qBound(1, fovDegrees, 179)));
 	_primaryCamera->setFOV(_viewCtrl.FOV());
@@ -12118,7 +12118,7 @@ void GLWidget::setPerspFOV(int fovDegrees)
 	update();
 }
 
-void GLWidget::setSkyBoxZRotation(int index)
+void ViewportWidget::setSkyBoxZRotation(int index)
 {
 	// Map combo index to Y-axis rotation angle (OpenGL Y = world Z-up)
 	// X+ → 0°, X- → 180°, Y-Z+ → 90°, Y+ → 270°
@@ -12128,7 +12128,7 @@ void GLWidget::setSkyBoxZRotation(int index)
 	update();
 }
 
-void GLWidget::updateEnvMapRotationMatrix()
+void ViewportWidget::updateEnvMapRotationMatrix()
 {
 	// _renderCtrl.fgShader() is null before initializeGL() — the call from the constructor
 	// (settings-based setCameraUpAxisZUp) is a no-op; initializeGL() picks up
@@ -12156,12 +12156,12 @@ void GLWidget::updateEnvMapRotationMatrix()
 	_renderCtrl.fgShader()->setUniformValue("envMapRotationMatrix", envMapRot.toGenericMatrix<3, 3>());
 }
 
-QColor GLWidget::getBgBotColor() const
+QColor ViewportWidget::getBgBotColor() const
 {
 	return _renderCtrl.bgBotColor();
 }
 
-void GLWidget::updateOverlayEditorTheme()
+void ViewportWidget::updateOverlayEditorTheme()
 {
 	emit backgroundColorChanged(_renderCtrl.bgTopColor(), _renderCtrl.bgBotColor());
 
@@ -12184,7 +12184,7 @@ void GLWidget::updateOverlayEditorTheme()
 	}
 }
 
-void GLWidget::setBgBotColor(const QColor& bgBotColor)
+void ViewportWidget::setBgBotColor(const QColor& bgBotColor)
 {
 	_renderCtrl.setBgBotColor(bgBotColor);
 	updateOverlayEditorTheme();
@@ -12192,12 +12192,12 @@ void GLWidget::setBgBotColor(const QColor& bgBotColor)
 	update();
 }
 
-QColor GLWidget::getBgTopColor() const
+QColor ViewportWidget::getBgTopColor() const
 {
 	return _renderCtrl.bgTopColor();
 }
 
-void GLWidget::setBgTopColor(const QColor& bgTopColor)
+void ViewportWidget::setBgTopColor(const QColor& bgTopColor)
 {
 	_renderCtrl.setBgTopColor(bgTopColor);
 	updateOverlayEditorTheme();
@@ -12205,29 +12205,29 @@ void GLWidget::setBgTopColor(const QColor& bgTopColor)
 	update();
 }
 
-BoundingSphere GLWidget::getBoundingSphere() const
+BoundingSphere ViewportWidget::getBoundingSphere() const
 {
 	return _viewCtrl.boundingSphere();
 }
 
-std::vector<int> GLWidget::getDisplayedObjectsIds() const
+std::vector<int> ViewportWidget::getDisplayedObjectsIds() const
 {
 	return _sceneRuntime.displayedObjectsIds();
 }
 
-std::vector<int> GLWidget::getHiddenObjectsIds() const
+std::vector<int> ViewportWidget::getHiddenObjectsIds() const
 {
 	return _sceneRuntime.hiddenObjectsIds();
 }
 
 
 
-bool GLWidget::isVisibleSwapped() const
+bool ViewportWidget::isVisibleSwapped() const
 {
 	return _sceneRuntime.visibleSwapped();
 }
 
-void GLWidget::setShowFaceNormals(bool showFaceNormals)
+void ViewportWidget::setShowFaceNormals(bool showFaceNormals)
 {
     if (showFaceNormals)
     {
@@ -12241,7 +12241,7 @@ void GLWidget::setShowFaceNormals(bool showFaceNormals)
 }
 
 
-void GLWidget::setShowVertexNormals(bool showVertexNormals)
+void ViewportWidget::setShowVertexNormals(bool showVertexNormals)
 {
     if (showVertexNormals)
     {
@@ -12254,7 +12254,7 @@ void GLWidget::setShowVertexNormals(bool showVertexNormals)
     }
 }
 
-void GLWidget::setShowBoundingBox(bool showBoundingBox)
+void ViewportWidget::setShowBoundingBox(bool showBoundingBox)
 {
     if (showBoundingBox)
     {
@@ -12267,7 +12267,7 @@ void GLWidget::setShowBoundingBox(bool showBoundingBox)
     }
 }
 
-void GLWidget::setDebugOverlayMode(DebugOverlayMode mode)
+void ViewportWidget::setDebugOverlayMode(DebugOverlayMode mode)
 {
     _renderCtrl.setDebugOverlayMode(mode);
 
@@ -12304,7 +12304,7 @@ void GLWidget::setDebugOverlayMode(DebugOverlayMode mode)
     update();
 }
 
-void GLWidget::setDebugOverlayEnabled(bool enabled)
+void ViewportWidget::setDebugOverlayEnabled(bool enabled)
 {
     const bool hasAnyOverlay =
         _renderCtrl.debugBoundingBoxAvailable() || _renderCtrl.debugVertexNormalsAvailable() || _renderCtrl.debugFaceNormalsAvailable();
@@ -12349,7 +12349,7 @@ void GLWidget::setDebugOverlayEnabled(bool enabled)
     update();
 }
 
-void GLWidget::setDebugOverlayAvailability(bool boundingBox, bool vertexNormals, bool faceNormals)
+void ViewportWidget::setDebugOverlayAvailability(bool boundingBox, bool vertexNormals, bool faceNormals)
 {
     _renderCtrl.setDebugBoundingBoxAvailable(boundingBox);
     _renderCtrl.setDebugVertexNormalsAvailable(vertexNormals);
@@ -12398,17 +12398,17 @@ void GLWidget::setDebugOverlayAvailability(bool boundingBox, bool vertexNormals,
     update();
 }
 
-bool GLWidget::isShaded() const
+bool ViewportWidget::isShaded() const
 {
 	return _displayMode == DisplayMode::SHADED;
 }
 
-DisplayMode GLWidget::getDisplayMode() const
+DisplayMode ViewportWidget::getDisplayMode() const
 {
 	return _displayMode;
 }
 
-void GLWidget::setDisplayMode(DisplayMode mode)
+void ViewportWidget::setDisplayMode(DisplayMode mode)
 {
 	_displayMode = mode;
 
@@ -12421,7 +12421,7 @@ void GLWidget::setDisplayMode(DisplayMode mode)
 	emit displayModeChanged(static_cast<int>(_displayMode));
 }
 
-void GLWidget::setTransmissionEnabled(const bool& enabled)
+void ViewportWidget::setTransmissionEnabled(const bool& enabled)
 {
 	_renderCtrl.setTransmissionEnabled(enabled);
 	if (_renderCtrl.transmissionEnabled())
@@ -12429,7 +12429,7 @@ void GLWidget::setTransmissionEnabled(const bool& enabled)
 	update();
 }
 
-void GLWidget::showContextMenu(const QPoint& pos)
+void ViewportWidget::showContextMenu(const QPoint& pos)
 {
 	if (QApplication::keyboardModifiers() != Qt::ControlModifier)
 	{
@@ -12446,7 +12446,7 @@ void GLWidget::showContextMenu(const QPoint& pos)
 				// Show "Center Object List" only when the selected mesh is visible
 				QSet<QUuid> visibleUuids = treeWidgetModel->getVisibleUuids();
 				if (selUuids.isEmpty() || visibleUuids.contains(selUuids.first()))
-					contextMenu.addAction(tr("Center Object List"), this, &GLWidget::centerDisplayList);
+					contextMenu.addAction(tr("Center Object List"), this, &ViewportWidget::centerDisplayList);
 			}
 			contextMenu.addSeparator();
 			if (_sceneRuntime.visibleSwapped())
@@ -12472,13 +12472,13 @@ void GLWidget::showContextMenu(const QPoint& pos)
 			QAction* action = nullptr;
 			if ((!_sceneRuntime.visibleSwapped() && _sceneRuntime.displayedObjectsIds().size() != 0) || (_sceneRuntime.visibleSwapped() && _sceneRuntime.hiddenObjectsIds().size() != 0))
 			{				
-				action = contextMenu.addAction(QIcon(":/icons/res/fit-all.png"), tr("Fit All"), this, &GLWidget::fitAll);
+				action = contextMenu.addAction(QIcon(":/icons/res/fit-all.png"), tr("Fit All"), this, &ViewportWidget::fitAll);
 				action->setShortcut(QKeySequence(Qt::Key_F));
 
 				action = contextMenu.addAction(QIcon(":/icons/res/window-zoom.png"), tr("Zoom Area"));
 				action->setShortcut(QKeySequence(Qt::ALT | Qt::Key_W));
 				action->setCheckable(true);
-				connect(action, &QAction::triggered, this, &GLWidget::beginWindowZoom);
+				connect(action, &QAction::triggered, this, &ViewportWidget::beginWindowZoom);
 
 				// View manipulation actions				
 				contextMenu.addSeparator();
@@ -12538,14 +12538,14 @@ void GLWidget::showContextMenu(const QPoint& pos)
 			}
 			contextMenu.addSeparator();
 			contextMenu.addAction(QIcon(":/icons/res/environment.png"), tr("Environment Settings"), _viewer, &ModelViewer::showVisualizationModelPage);
-			contextMenu.addAction(QIcon(":/icons/res/bg_color.png"), tr("Background Color"), this, &GLWidget::setBackgroundColor);
+			contextMenu.addAction(QIcon(":/icons/res/bg_color.png"), tr("Background Color"), this, &ViewportWidget::setBackgroundColor);
 		}
 		// Show context menu at handling position
 		contextMenu.exec(mapToGlobal(pos));
 	}
 }
 
-void GLWidget::centerDisplayList()
+void ViewportWidget::centerDisplayList()
 {
 	SceneTreeWidget* treeWidgetModel = _viewer->getTreeModel();
 	if (treeWidgetModel && treeWidgetModel->hasMeshSelection())
@@ -12553,7 +12553,7 @@ void GLWidget::centerDisplayList()
 }
 
 #include "BackgroundColor.h"
-void GLWidget::setBackgroundColor()
+void ViewportWidget::setBackgroundColor()
 {
 	BackgroundColor bgCol(this);
 	bgCol.exec();
@@ -12870,7 +12870,7 @@ static QVector<GltfVariantMapping> parseVariantMappings(const QJsonArray& array)
 // ---------------------------------------------------------------------------
 // uploadPreparedMvfMeshes — GL-only, must be on main thread
 // ---------------------------------------------------------------------------
-bool GLWidget::uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& meshes)
+bool ViewportWidget::uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& meshes)
 {
     makeCurrent();
 
@@ -12967,7 +12967,7 @@ bool GLWidget::uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& meshes)
 // ---------------------------------------------------------------------------
 // clearMeshStore — delete all meshes and clear display list
 // ---------------------------------------------------------------------------
-void GLWidget::clearMeshStore()
+void ViewportWidget::clearMeshStore()
 {
     makeCurrent();
 
@@ -12978,7 +12978,7 @@ void GLWidget::clearMeshStore()
 // ---------------------------------------------------------------------------
 // uploadOneMvfMesh — single-mesh GL upload for BlockingQueuedConnection
 // ---------------------------------------------------------------------------
-void GLWidget::uploadOneMvfMesh(const PreparedMvfMesh& pm)
+void ViewportWidget::uploadOneMvfMesh(const PreparedMvfMesh& pm)
 {
     makeCurrent();
 
@@ -13040,7 +13040,7 @@ void GLWidget::uploadOneMvfMesh(const PreparedMvfMesh& pm)
 // ---------------------------------------------------------------------------
 // loadMvfMeshes — legacy combined entry point
 // ---------------------------------------------------------------------------
-bool GLWidget::loadMvfMeshes(const Mvf::Document& document,
+bool ViewportWidget::loadMvfMeshes(const Mvf::Document& document,
                                const QByteArray& geometryChunk,
                                const QByteArray& imageChunk)
 {
@@ -13049,7 +13049,7 @@ bool GLWidget::loadMvfMeshes(const Mvf::Document& document,
     return uploadPreparedMvfMeshes(prepared);
 }
 
-void GLWidget::setParsedLights(const GltfLightData& lightData)
+void ViewportWidget::setParsedLights(const GltfLightData& lightData)
 {
     _animCtrl.pendingLightData() = lightData;
 
@@ -13076,7 +13076,7 @@ void GLWidget::setParsedLights(const GltfLightData& lightData)
 // lights so that gizmos and the repositioning system always reflect the
 // current multi-model scene, not just the last model that was loaded.
 // ---------------------------------------------------------------------------
-void GLWidget::onSceneLightDataChanged()
+void ViewportWidget::onSceneLightDataChanged()
 {
     if (!_viewer || !_viewer->sceneGraph())
         return;
@@ -13157,7 +13157,7 @@ void clearScalarOverridesForUnit(SceneMesh* mesh, int unit)
 }
 } // anonymous namespace
 
-void GLWidget::setDebugTextureEnabled(int meshId, int unitIndex, bool enabled)
+void ViewportWidget::setDebugTextureEnabled(int meshId, int unitIndex, bool enabled)
 {
 	if (meshId < 0 || meshId >= static_cast<int>(_sceneRuntime.meshStore().size()) || !_sceneRuntime.meshAt(meshId))
 		return;
@@ -13186,14 +13186,14 @@ void GLWidget::setDebugTextureEnabled(int meshId, int unitIndex, bool enabled)
 	update();
 }
 
-void GLWidget::clearDebugTextureOverrides(int meshId)
+void ViewportWidget::clearDebugTextureOverrides(int meshId)
 {
 	if (meshId >= 0 && meshId < static_cast<int>(_sceneRuntime.meshStore().size()) && _sceneRuntime.meshAt(meshId))
 		_sceneRuntime.meshAt(meshId)->clearAllDebugTextureOverrides();
 	update();
 }
 
-void GLWidget::clearAllDebugOverrides(int meshId)
+void ViewportWidget::clearAllDebugOverrides(int meshId)
 {
 	if (meshId >= 0 && meshId < static_cast<int>(_sceneRuntime.meshStore().size()) && _sceneRuntime.meshAt(meshId))
 	{
@@ -13218,7 +13218,7 @@ void GLWidget::clearAllDebugOverrides(int meshId)
 // enabled/disabled set can be evaluated at once.
 // NOTE: does NOT touch debugChannelOutput — that uniform is owned exclusively
 // by setGlobalDebugChannel.
-void GLWidget::applyDebugTextureState(int meshId,
+void ViewportWidget::applyDebugTextureState(int meshId,
                                        const QSet<int>& enabledUnits,
                                        const QSet<int>& allUnits)
 {
@@ -13267,7 +13267,7 @@ void GLWidget::applyDebugTextureState(int meshId,
 // Activates or clears single-channel isolation for the channel dropdown.
 // Applied to every mesh in _sceneRuntime.meshStore() — no mesh selection required.
 // channelId == 0 restores normal rendering on all meshes.
-void GLWidget::setGlobalDebugChannel(int channelId)
+void ViewportWidget::setGlobalDebugChannel(int channelId)
 {
 	_renderCtrl.setGlobalDebugChannel(channelId);
 	makeCurrent();
@@ -13399,7 +13399,7 @@ const QMap<QString, ExtOverrideDef>& extensionOverrideDefs()
 }
 } // anonymous namespace
 
-void GLWidget::setDebugExtensionEnabled(int meshId, const QString& extensionKey, bool enabled)
+void ViewportWidget::setDebugExtensionEnabled(int meshId, const QString& extensionKey, bool enabled)
 {
 	if (meshId < 0 || meshId >= static_cast<int>(_sceneRuntime.meshStore().size()) || !_sceneRuntime.meshAt(meshId))
 		return;
@@ -13444,7 +13444,7 @@ void GLWidget::setDebugExtensionEnabled(int meshId, const QString& extensionKey,
 	update();
 }
 
-void GLWidget::clearDebugExtensionOverrides(int meshId)
+void ViewportWidget::clearDebugExtensionOverrides(int meshId)
 {
 	if (meshId < 0 || meshId >= static_cast<int>(_sceneRuntime.meshStore().size()) || !_sceneRuntime.meshAt(meshId))
 		return;
@@ -13462,7 +13462,7 @@ void GLWidget::clearDebugExtensionOverrides(int meshId)
 // Inactive slots (textureId == 0) are included with isActive = false and a
 // null thumbnail so the debug panel can show a placeholder if desired.
 // ---------------------------------------------------------------------------
-void GLWidget::requestTextureReadback(int meshId)
+void ViewportWidget::requestTextureReadback(int meshId)
 {
 	if (meshId < 0 || meshId >= static_cast<int>(_sceneRuntime.meshStore().size()) || !_sceneRuntime.meshAt(meshId))
 	{

@@ -1,15 +1,15 @@
 #include "PasteCommand.h"
 #include "ModelViewer.h"
-#include "GLWidget.h"
+#include "ViewportWidget.h"
 #include "SceneGraph.h"
 
 PasteCommand::PasteCommand(ModelViewer*                 viewer,
-                           GLWidget*                    glWidget,
+                           ViewportWidget*                    viewportWidget,
                            const QList<PastedItem>&     items,
                            const QSet<QUuid>&           originalSelection,
                            const QList<ClipboardEntry>& cutEntries,
                            const QString&               text)
-    : ModelViewerCommand(viewer, glWidget, text)
+    : ModelViewerCommand(viewer, viewportWidget, text)
     , _items(items)
     , _originalSelection(originalSelection)
     , _cutEntries(cutEntries)
@@ -48,17 +48,17 @@ PasteCommand::~PasteCommand()
 
             if (item.type == PastedItem::Subtree)
             {
-                if (_glWidget)
+                if (_viewportWidget)
                 {
                     for (const QUuid& uuid : item.subtreeMeshUuids)
-                        _glWidget->permanentlyDeleteFromBin(uuid);
+                        _viewportWidget->permanentlyDeleteFromBin(uuid);
                 }
                 freeSubtree(item.subtreeRoot);
             }
             else // copy Mesh
             {
-                if (_glWidget)
-                    _glWidget->permanentlyDeleteFromBin(item.meshUuid);
+                if (_viewportWidget)
+                    _viewportWidget->permanentlyDeleteFromBin(item.meshUuid);
             }
         }
     }
@@ -66,7 +66,7 @@ PasteCommand::~PasteCommand()
 
 void PasteCommand::undo()
 {
-    if (!_viewer || !_glWidget)
+    if (!_viewer || !_viewportWidget)
         return;
 
     SceneGraph* sg = _viewer->sceneGraph();
@@ -99,9 +99,9 @@ void PasteCommand::undo()
             // Copy-paste: move to recycle bin and remove from scene.
             if (item.type == PastedItem::Mesh)
             {
-                int idx = _glWidget->getIndexByUuid(item.meshUuid);
+                int idx = _viewportWidget->getIndexByUuid(item.meshUuid);
                 if (idx >= 0)
-                    _glWidget->moveToRecycleBin(item.meshUuid, idx);
+                    _viewportWidget->moveToRecycleBin(item.meshUuid, idx);
 
                 int pos = 0;
                 sg->removeMeshUuid(item.meshUuid, pos);
@@ -110,9 +110,9 @@ void PasteCommand::undo()
             {
                 for (const QUuid& uuid : item.subtreeMeshUuids)
                 {
-                    int idx = _glWidget->getIndexByUuid(uuid);
+                    int idx = _viewportWidget->getIndexByUuid(uuid);
                     if (idx >= 0)
-                        _glWidget->moveToRecycleBin(uuid, idx);
+                        _viewportWidget->moveToRecycleBin(uuid, idx);
                 }
 
                 int pos = 0;
@@ -128,14 +128,14 @@ void PasteCommand::undo()
     if (!_cutEntries.isEmpty())
         _viewer->reapplyCutMarks(_cutEntries, _cutMeshUuids, _cutNodeUuids);
 
-    _glWidget->updateView();
+    _viewportWidget->updateView();
     _viewer->updateDisplayList();
     _viewer->setSelectionWithoutUndo(_originalSelection);
 }
 
 void PasteCommand::redo()
 {
-    if (!_viewer || !_glWidget)
+    if (!_viewer || !_viewportWidget)
         return;
 
     if (_firstRedo)
@@ -183,13 +183,13 @@ void PasteCommand::redo()
             // Copy-paste: restore from recycle bin.
             if (item.type == PastedItem::Mesh)
             {
-                _glWidget->restoreFromRecycleBin(item.meshUuid);
+                _viewportWidget->restoreFromRecycleBin(item.meshUuid);
                 sg->restoreMeshUuid(item.ownerNode, item.meshUuid, item.meshPosition);
             }
             else // Subtree
             {
                 for (const QUuid& uuid : item.subtreeMeshUuids)
-                    _glWidget->restoreFromRecycleBin(uuid);
+                    _viewportWidget->restoreFromRecycleBin(uuid);
 
                 sg->insertChildNode(item.subtreeParent, item.subtreeRoot,
                                     item.childPosition);
@@ -203,7 +203,7 @@ void PasteCommand::redo()
     if (!_cutEntries.isEmpty())
         _viewer->clearCutMarks();
 
-    _glWidget->updateView();
+    _viewportWidget->updateView();
     _viewer->updateDisplayList();
 
     QSet<QUuid> pastedSet;

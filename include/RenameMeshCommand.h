@@ -18,7 +18,7 @@ class RenameMeshCommand : public ModelViewerCommand
 {
 public:
     RenameMeshCommand(ModelViewer*       viewer,
-                      GLWidget*          glWidget,
+                      ViewportWidget*          viewportWidget,
                       SceneTreeWidget*   treeWidget,
                       const QUuid&       uuid,
                       const QString&     oldName,

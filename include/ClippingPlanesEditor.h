@@ -4,13 +4,13 @@
 #include <QDialog>
 #include "ui_ClippingPlanesEditor.h"
 
-class GLWidget;
+class ViewportWidget;
 class ClippingPlanesEditor : public QWidget, Ui::ClippingPlanesEditor
 {
 	Q_OBJECT
 
 public:
-	explicit ClippingPlanesEditor(GLWidget* parent = nullptr);
+	explicit ClippingPlanesEditor(ViewportWidget* parent = nullptr);
 	~ClippingPlanesEditor();
 
 	void setCoefficientLimits(double xMin, double xMax, double yMin, double yMax, double zMin, double zMax);
@@ -45,7 +45,7 @@ private:
 	void resetProceduralTextureValues();
 
 private:
-	GLWidget* _glView;
+	ViewportWidget* _viewportWidget;
 };
 
 #endif // CLIPPINGPLANESEDITOR_H

@@ -1,14 +1,14 @@
 #include "DuplicateCommand.h"
 #include "ModelViewer.h"
-#include "GLWidget.h"
+#include "ViewportWidget.h"
 #include "SceneGraph.h"
 
 DuplicateCommand::DuplicateCommand(ModelViewer*                   viewer,
-                                   GLWidget*                      glWidget,
+                                   ViewportWidget*                      viewportWidget,
                                    const QVector<DuplicateEntry>& entries,
                                    const QSet<QUuid>&             originalSelection,
                                    const QString&                 text)
-    : ModelViewerCommand(viewer, glWidget, text)
+    : ModelViewerCommand(viewer, viewportWidget, text)
     , _entries(entries)
     , _originalSelection(originalSelection)
     , _firstRedo(true)
@@ -19,25 +19,25 @@ DuplicateCommand::DuplicateCommand(ModelViewer*                   viewer,
 DuplicateCommand::~DuplicateCommand()
 {
     // If destroyed while undone, dupes are in the recycle bin — clean them up.
-    if (!_inserted && _glWidget)
+    if (!_inserted && _viewportWidget)
     {
         for (const DuplicateEntry& e : _entries)
-            _glWidget->permanentlyDeleteFromBin(e.uuid);
+            _viewportWidget->permanentlyDeleteFromBin(e.uuid);
     }
 }
 
 void DuplicateCommand::undo()
 {
-    if (!_viewer || !_glWidget)
+    if (!_viewer || !_viewportWidget)
         return;
 
     SceneGraph* sg = _viewer->sceneGraph();
 
     for (const DuplicateEntry& e : _entries)
     {
-        int idx = _glWidget->getIndexByUuid(e.uuid);
+        int idx = _viewportWidget->getIndexByUuid(e.uuid);
         if (idx >= 0)
-            _glWidget->moveToRecycleBin(e.uuid, idx);
+            _viewportWidget->moveToRecycleBin(e.uuid, idx);
 
         int pos = 0;
         sg->removeMeshUuid(e.uuid, pos);
@@ -45,14 +45,14 @@ void DuplicateCommand::undo()
 
     _inserted = false;
 
-    _glWidget->updateView();
+    _viewportWidget->updateView();
     _viewer->updateDisplayList();
     _viewer->setSelectionWithoutUndo(_originalSelection);
 }
 
 void DuplicateCommand::redo()
 {
-    if (!_viewer || !_glWidget)
+    if (!_viewer || !_viewportWidget)
         return;
 
     if (_firstRedo)
@@ -71,13 +71,13 @@ void DuplicateCommand::redo()
 
     for (const DuplicateEntry& e : _entries)
     {
-        _glWidget->restoreFromRecycleBin(e.uuid);
+        _viewportWidget->restoreFromRecycleBin(e.uuid);
         sg->restoreMeshUuid(e.ownerNode, e.uuid, e.position);
     }
 
     _inserted = true;
 
-    _glWidget->updateView();
+    _viewportWidget->updateView();
     _viewer->updateDisplayList();
 
     QSet<QUuid> dupeSet;

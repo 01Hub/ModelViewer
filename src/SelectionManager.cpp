@@ -1,5 +1,5 @@
 #include "SelectionManager.h"
-#include "GLWidget.h"
+#include "ViewportWidget.h"
 #include "Camera.h"
 #include "PickingHelper.h"
 #include "RenderableMesh.h"
@@ -18,7 +18,7 @@
 #include <vector>
 
 SelectionManager::SelectionManager(
-    GLWidget* glWidget,
+    ViewportWidget* viewportWidget,
     Camera* primaryCamera,
     std::vector<SceneMeshRecord>& meshStore,
     const std::vector<int>& displayedObjectsIds,
@@ -26,7 +26,7 @@ SelectionManager::SelectionManager(
     bool& visibleSwapped,
     QObject* parent)
     : QObject(parent),
-      _glWidget(glWidget),
+      _viewportWidget(viewportWidget),
       _primaryCamera(primaryCamera),
       _meshStore(meshStore),
       _displayedObjectsIds(displayedObjectsIds),
@@ -50,17 +50,17 @@ int SelectionManager::clickSelect(const QPoint& pixel)
     int id = -1;
     _selectedMeshIds.clear();  // Click select clears and selects ONE mesh
 
-    const auto& ids = _glWidget->currentVisibleObjectIds();
+    const auto& ids = _viewportWidget->currentVisibleObjectIds();
     if (ids.empty()) {
         return -1;
     }
 
     QVector3D rayPos, rayDir, intersectionPoint;
     const QRect viewport = PickingHelper::viewportRectForPoint(
-        pixel, _glWidget->width(), _glWidget->height(), _glWidget->isMultiViewActive());
+        pixel, _viewportWidget->width(), _viewportWidget->height(), _viewportWidget->isMultiViewActive());
 
     QApplication::setOverrideCursor(Qt::WaitCursor);
-    convertClickToRay(pixel, viewport, _glWidget->getCameraForPoint(pixel), rayPos, rayDir);
+    convertClickToRay(pixel, viewport, _viewportWidget->getCameraForPoint(pixel), rayPos, rayDir);
     if (rayDir.isNull()) {
         QApplication::restoreOverrideCursor();
         return -1;
@@ -122,13 +122,13 @@ int SelectionManager::hoverSelect(const QPoint& pixel)
 {
     int hoveredId = -1;
 
-    const auto& ids = _glWidget->currentVisibleObjectIds();
+    const auto& ids = _viewportWidget->currentVisibleObjectIds();
     if (ids.empty())
         return -1;
 
-    const bool animatedPoseActive = _glWidget
-        && !_glWidget->activeAnimationFile().isEmpty()
-        && _glWidget->activeAnimationClip() >= 0;
+    const bool animatedPoseActive = _viewportWidget
+        && !_viewportWidget->activeAnimationFile().isEmpty()
+        && _viewportWidget->activeAnimationClip() >= 0;
 
     if (_hoverHighlightMode == HoverHighlightMode::Accurate || animatedPoseActive)
     {
@@ -138,9 +138,9 @@ int SelectionManager::hoverSelect(const QPoint& pixel)
     {
         QVector3D rayPos, rayDir, intersectionPoint;
         const QRect viewport = PickingHelper::viewportRectForPoint(
-            pixel, _glWidget->width(), _glWidget->height(), _glWidget->isMultiViewActive());
+            pixel, _viewportWidget->width(), _viewportWidget->height(), _viewportWidget->isMultiViewActive());
 
-        convertClickToRay(pixel, viewport, _glWidget->getCameraForPoint(pixel), rayPos, rayDir);
+        convertClickToRay(pixel, viewport, _viewportWidget->getCameraForPoint(pixel), rayPos, rayDir);
         if (rayDir.isNull())
             return -1;
         rayDir.normalize();
@@ -178,7 +178,7 @@ int SelectionManager::hoverSelect(const QPoint& pixel)
 
 QList<int> SelectionManager::sweepSelect(const QPoint& p1, const QPoint& p2, bool addToSelection)
 {
-    const auto& ids = _glWidget->currentVisibleObjectIds();
+    const auto& ids = _viewportWidget->currentVisibleObjectIds();
     if (ids.empty())
         return _selectedMeshIds;
 
@@ -188,9 +188,9 @@ QList<int> SelectionManager::sweepSelect(const QPoint& p1, const QPoint& p2, boo
 
     QList<int> selectedIds = addToSelection ? _selectedMeshIds : QList<int>{};
 
-    const QRect viewport(0, 0, _glWidget->width(), _glWidget->height());
-    const QMatrix4x4 projMatrix = _glWidget->getProjectionMatrix();
-    const QMatrix4x4 viewMatrix = _glWidget->getModelViewMatrix();
+    const QRect viewport(0, 0, _viewportWidget->width(), _viewportWidget->height());
+    const QMatrix4x4 projMatrix = _viewportWidget->getProjectionMatrix();
+    const QMatrix4x4 viewMatrix = _viewportWidget->getModelViewMatrix();
     constexpr float SELECTION_THRESHOLD = 0.5f;
 
     QApplication::setOverrideCursor(Qt::WaitCursor);
@@ -400,7 +400,7 @@ void SelectionManager::convertClickToRay(const QPoint& pixel, const QRect& viewp
         return;
     }
 
-    int yInverted = _glWidget->height() - pixel.y() - 1;
+    int yInverted = _viewportWidget->height() - pixel.y() - 1;
 
     QMatrix4x4 view = camera->getViewMatrix();
     QMatrix4x4 projection = camera->getProjectionMatrix();
@@ -432,17 +432,17 @@ void SelectionManager::convertClickToRay(const QPoint& pixel, const QRect& viewp
 
 int SelectionManager::processSelection(const QPoint& pixel)
 {
-    if (!_glWidget)
+    if (!_viewportWidget)
         return -1;
 
-    const auto& visibleIds = _glWidget->currentVisibleObjectIds();
+    const auto& visibleIds = _viewportWidget->currentVisibleObjectIds();
     if (visibleIds.empty())
         return -1;
 
-    _glWidget->makeCurrent();
+    _viewportWidget->makeCurrent();
 
-    const int widgetWidth = _glWidget->width();
-    const int widgetHeight = _glWidget->height();
+    const int widgetWidth = _viewportWidget->width();
+    const int widgetHeight = _viewportWidget->height();
     if (widgetWidth <= 0 || widgetHeight <= 0)
         return -1;
 
@@ -483,16 +483,16 @@ int SelectionManager::processSelection(const QPoint& pixel)
     if (status != GL_FRAMEBUFFER_COMPLETE)
     {
         std::cout << "Failed to create selection framebuffer: " << status << std::endl;
-        f->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _glWidget->defaultFramebufferObject());
+        f->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _viewportWidget->defaultFramebufferObject());
         return -1;
     }
 
     GLint viewport[4];
     f->glGetIntegerv(GL_VIEWPORT, viewport);
 
-    Camera* selCamera = _glWidget->getCameraForPoint(pixel);
+    Camera* selCamera = _viewportWidget->getCameraForPoint(pixel);
     int selVpX = 0, selVpY = 0, selVpW = widgetWidth, selVpH = widgetHeight;
-    if (_glWidget->isMultiViewActive())
+    if (_viewportWidget->isMultiViewActive())
     {
         const int hw = widgetWidth / 2;
         const int hh = widgetHeight / 2;
@@ -515,10 +515,10 @@ int SelectionManager::processSelection(const QPoint& pixel)
     f->glEnable(GL_DEPTH_TEST);
     f->glDisable(GL_BLEND);
 
-    ShaderProgram* selectionShader = _glWidget->getSelectionShader();
+    ShaderProgram* selectionShader = _viewportWidget->getSelectionShader();
     selectionShader->bind();
     selectionShader->setUniformValue("projectionMatrix", selCamera->getProjectionMatrix());
-    selectionShader->setProperty("globalModelMatrix", QVariant::fromValue(_glWidget->getModelMatrix()));
+    selectionShader->setProperty("globalModelMatrix", QVariant::fromValue(_viewportWidget->getModelMatrix()));
     selectionShader->setUniformValue("viewMatrix", selCamera->getViewMatrix());
 
     for (int i : visibleIds)
@@ -526,7 +526,7 @@ int SelectionManager::processSelection(const QPoint& pixel)
         try
         {
             SceneMesh* mesh = _meshStore.at(i).mesh;
-            if (mesh && _glWidget->isMeshAnimationVisibleForSelection(mesh))
+            if (mesh && _viewportWidget->isMeshAnimationVisibleForSelection(mesh))
             {
                 const QColor pickColor = PickingHelper::indexToColor(i + 1);
                 selectionShader->bind();
@@ -578,7 +578,7 @@ int SelectionManager::processSelection(const QPoint& pixel)
 
     if (readWidth <= 0 || readHeight <= 0)
     {
-        f->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _glWidget->defaultFramebufferObject());
+        f->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _viewportWidget->defaultFramebufferObject());
         f->glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
         return -1;
     }
@@ -596,7 +596,7 @@ int SelectionManager::processSelection(const QPoint& pixel)
     if (!voteCount.empty())
         id = std::max_element(voteCount.begin(), voteCount.end(), voteCount.value_comp())->first;
 
-    f->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _glWidget->defaultFramebufferObject());
+    f->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _viewportWidget->defaultFramebufferObject());
     f->glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
     return id;
 }

@@ -3,7 +3,7 @@
 
 #include "ui_ModelViewer.h"
 
-#include "GLWidget.h"
+#include "ViewportWidget.h"
 #include "Material.h"
 #include "SceneGraph.h"
 #include "SceneTreeWidget.h"
@@ -44,7 +44,7 @@ public:
 
 	void retranslateUI();
 
-	GLWidget*    getGLView()    const { return _glWidget; }
+	ViewportWidget*    getViewportWidget()    const { return _viewportWidget; }
 	SceneGraph*  sceneGraph()   const { return _sceneGraph; }
 	QMap<QString, CachedMaterial>* getMaterialCache() { return &_materialCache; }
 	void registerOwnedUnsavedMaterial(const QString& materialKey) { _ownedUnsavedMaterials.insert(materialKey); }
@@ -269,7 +269,7 @@ private:
 	void syncTreeVisibilityFromModel();
 
 private:
-	GLWidget*   _glWidget;
+	ViewportWidget*   _viewportWidget;
 	SceneGraph* _sceneGraph;
 
 	Material _material;
