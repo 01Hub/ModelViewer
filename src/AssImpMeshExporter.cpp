@@ -236,7 +236,7 @@ bool shouldNormalizePreservedGltfMaterial(const aiMaterial* preservedMaterial,
 {
     // Force normalization when the source Material contains GLB virtual paths
     // ("glb://...") or Assimp embedded-texture references ("*N").
-    // buildMaterialFromTriangleMesh copies these raw paths into the preserved
+    // buildMaterialFromSceneMesh copies these raw paths into the preserved
     // aiMaterial.  Assimp's GLB exporter cannot resolve them as file-system paths,
     // so the textures would be silently missing in the output.
     // createMaterial() + _lastTexturePackage remaps them to packaged relative paths

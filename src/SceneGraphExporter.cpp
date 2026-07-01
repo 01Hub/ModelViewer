@@ -1273,7 +1273,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
             else
             {
                 // First time seeing this original material - create it
-                aiMaterial* builtMaterial = buildMaterialFromTriangleMesh(triMesh);
+                aiMaterial* builtMaterial = buildMaterialFromSceneMesh(triMesh);
                 if (!builtMaterial)
                     builtMaterial = makeDefaultMaterial();
 
@@ -1303,7 +1303,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
             }
             else
             {
-                aiMaterial* builtMaterial = buildMaterialFromTriangleMesh(triMesh);
+                aiMaterial* builtMaterial = buildMaterialFromSceneMesh(triMesh);
                 if (!builtMaterial)
                     builtMaterial = makeDefaultMaterial();
 
@@ -1313,7 +1313,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
             }
         }
 
-        aiMesh* builtMesh = buildMeshFromTriangleMesh(triMesh, materialIndex);
+        aiMesh* builtMesh = buildMeshFromSceneMesh(triMesh, materialIndex);
         if (!builtMesh)
         {
             // IMPORTANT:
@@ -1523,7 +1523,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
     return dstNode;
 }
 
-aiMesh* SceneGraphExporter::buildMeshFromTriangleMesh(const SceneMesh* mesh, unsigned int materialIndex)
+aiMesh* SceneGraphExporter::buildMeshFromSceneMesh(const SceneMesh* mesh, unsigned int materialIndex)
 {
     if (!mesh)
         return nullptr;
@@ -1735,7 +1735,7 @@ aiMesh* SceneGraphExporter::buildMeshFromTriangleMesh(const SceneMesh* mesh, uns
     return out;
 }
 
-aiMaterial* SceneGraphExporter::buildMaterialFromTriangleMesh(const SceneMesh* mesh)
+aiMaterial* SceneGraphExporter::buildMaterialFromSceneMesh(const SceneMesh* mesh)
 {
     if (!mesh)
         return nullptr;

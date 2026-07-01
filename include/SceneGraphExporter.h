@@ -67,7 +67,7 @@ private:
         QMap<QString, unsigned int>* animMatRemap = nullptr
     );
 
-    static aiMesh* buildMeshFromTriangleMesh(const SceneMesh* mesh, unsigned int materialIndex);
+    static aiMesh* buildMeshFromSceneMesh(const SceneMesh* mesh, unsigned int materialIndex);
 
-    static aiMaterial* buildMaterialFromTriangleMesh(const SceneMesh* mesh);
+    static aiMaterial* buildMaterialFromSceneMesh(const SceneMesh* mesh);
 };

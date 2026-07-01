@@ -13037,18 +13037,6 @@ void ViewportWidget::uploadOneMvfMesh(const PreparedMvfMesh& pm)
     _sceneRuntime.pendingSceneUuids().append(mesh->uuid());
 }
 
-// ---------------------------------------------------------------------------
-// loadMvfMeshes — legacy combined entry point
-// ---------------------------------------------------------------------------
-bool ViewportWidget::loadMvfMeshes(const Mvf::Document& document,
-                               const QByteArray& geometryChunk,
-                               const QByteArray& imageChunk)
-{
-    QVector<PreparedMvfMesh> prepared =
-        MvfMeshPreparationWorker::prepare(document, geometryChunk, imageChunk);
-    return uploadPreparedMvfMeshes(prepared);
-}
-
 void ViewportWidget::setParsedLights(const GltfLightData& lightData)
 {
     _animCtrl.pendingLightData() = lightData;

@@ -469,11 +469,8 @@ protected: // methods
 		std::vector<float>* jointWeights = nullptr
 	);
 
-	void buildTriangles();
     void computeBounds();
     void deleteBuffers();
-	void rebuildAbsoluteTransformation();
-	void rebuildExplodedViewTransformation();
 	void fastUpdateWorldBounds();   // O(1) AABB update from 8 local corners
 	void invalidateCombinedRenderTransformCache() const;
 	static void markRuntimeBoundsChanged();
@@ -580,6 +577,3 @@ protected:
 	unsigned long long _memorySize;
 };
 
-// Backward-compatibility alias — allows all existing code that uses the name
-// "SceneMesh" to compile unchanged while the rename propagates.
-// Removed in Phase 8 cleanup once all sites have been updated.

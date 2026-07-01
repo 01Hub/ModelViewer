@@ -400,10 +400,6 @@ public:
 	/// (GL) thread.  Updates the progress bar between meshes.
 	bool uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& meshes);
 
-	// Legacy combined entry point (kept for compatibility).
-	bool loadMvfMeshes(const Mvf::Document& document,
-	                   const QByteArray& geometryChunk,
-	                   const QByteArray& imageChunk);
 	void setParsedLights(const GltfLightData& lights);
 
 	/// Rebuilds the parsed light baseline from all SceneGraph-registered light data.

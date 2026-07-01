@@ -752,13 +752,6 @@ void RenderableMesh::initBuffers(
 	_instanceState.updateRuntimeBounds(_points, _normals, _tangents, _bitangents, _indices);
 }
 
-void RenderableMesh::buildTriangles()
-{
-	// Picking triangles now live in _instanceState; this shim is kept for
-	// any subclass that still calls it directly during updateRuntimeBounds.
-	// The real work happens inside MeshInstanceState::updateRuntimeBounds().
-}
-
 void RenderableMesh::setProg(QOpenGLShaderProgram* prog)
 {
 	const bool progChanged = (_prog != prog);
@@ -1828,16 +1821,6 @@ QVector3D RenderableMesh::getExplodedViewScaling() const { return _instanceState
 void RenderableMesh::setExplodedViewScaling(const QVector3D& scale)
 {
 	_instanceState.setExplodedViewScaling(scale, _points, _normals, _tangents, _bitangents, _indices);
-}
-
-void RenderableMesh::rebuildAbsoluteTransformation()
-{
-	// Kept for any legacy call sites; real work is in MeshInstanceState.
-}
-
-void RenderableMesh::rebuildExplodedViewTransformation()
-{
-	// Kept for any legacy call sites; real work is in MeshInstanceState.
 }
 
 QMatrix4x4 RenderableMesh::getTransformation() const { return _instanceState.getTransformation(); }
