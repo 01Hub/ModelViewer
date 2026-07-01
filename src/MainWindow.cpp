@@ -202,6 +202,13 @@ ModelViewer* MainWindow::createMdiChild()
 	viewer->setLastOpenedDir(lastOpenedDir);
 	viewer->setAttribute(Qt::WA_DeleteOnClose);
 	_viewers.append(viewer);
+	// Keep _viewers in sync regardless of how the sub-window is closed
+	// (MDI X button, closeAllSubWindows, failed load, etc.). WA_DeleteOnClose
+	// deletes the viewer without going through closeSubWindow(), so without
+	// this the list accumulates dangling pointers that crash settings apply.
+	connect(viewer, &QObject::destroyed, this, [this, viewer]() {
+		_viewers.removeAll(viewer);
+	});
 	ui->mdiArea->addSubWindow(viewer);
 	connect(viewer, &ModelViewer::documentModifiedChanged,
 	        this, [this, viewer](bool) {
@@ -813,24 +820,28 @@ void MainWindow::on_actionSettings_triggered()
 	connect(settingsDialog, &SettingsDialog::settingsChanged, this, [this, settingsDialog]() {
 		if (!_viewers.empty())
 		{
+			int anIsoVals[] = {1, 2, 4, 8, 16};
+			int idx = settingsDialog->renderingAnisotropyIndex();
+			if (idx < 0 || idx >= static_cast<int>(sizeof(anIsoVals) / sizeof(anIsoVals[0])))
+				idx = 0;
 			for (ModelViewer* viewer : _viewers)
 			{
-				int anIsoVals[] = {1, 2, 4, 8, 16};
-				int idx = settingsDialog->renderingAnisotropyIndex();
-				if (idx < 0 || idx >= static_cast<int>(sizeof(anIsoVals) / sizeof(anIsoVals[0])))
-					idx = 0;
-				viewer->getViewportWidget()->setAnisotropicFilteringLevel(anIsoVals[idx]);
-				viewer->getViewportWidget()->setShowCenterAxisOverride(settingsDialog->displayShowCenterTrihedron());
-				viewer->getViewportWidget()->setShowCornerAxisOverride(settingsDialog->displayShowCornerTrihedron());
-				viewer->getViewportWidget()->setShowViewCubeOverride(settingsDialog->displayShowViewCube());
-				viewer->getViewportWidget()->setCornerAxisPosition(static_cast<CornerAxisPosition>(settingsDialog->displayCornerTrihedronPosition()));
-				viewer->getViewportWidget()->getSelectionManager()->setHoverHighlightMode(settingsDialog->displayHoverHighlightMode());
-				viewer->getViewportWidget()->setPerspFOV(settingsDialog->displayFieldOfView());
-				viewer->getViewportWidget()->getViewToolbar()->setFeatureEdgeModesVisible(settingsDialog->displayShowWireframe());
-                viewer->getViewportWidget()->setDebugOverlayAvailability(
-                    settingsDialog->displayShowBoundingBox(),
-                    settingsDialog->displayShowVertexNormals(),
-                    settingsDialog->displayShowFaceNormals());
+				ViewportWidget* vp = viewer ? viewer->getViewportWidget() : nullptr;
+				if (!vp) continue;
+				vp->setAnisotropicFilteringLevel(anIsoVals[idx]);
+				vp->setShowCenterAxisOverride(settingsDialog->displayShowCenterTrihedron());
+				vp->setShowCornerAxisOverride(settingsDialog->displayShowCornerTrihedron());
+				vp->setShowViewCubeOverride(settingsDialog->displayShowViewCube());
+				vp->setCornerAxisPosition(static_cast<CornerAxisPosition>(settingsDialog->displayCornerTrihedronPosition()));
+				if (vp->getSelectionManager())
+					vp->getSelectionManager()->setHoverHighlightMode(settingsDialog->displayHoverHighlightMode());
+				vp->setPerspFOV(settingsDialog->displayFieldOfView());
+				if (vp->getViewToolbar())
+					vp->getViewToolbar()->setFeatureEdgeModesVisible(settingsDialog->displayShowWireframe());
+				vp->setDebugOverlayAvailability(
+					settingsDialog->displayShowBoundingBox(),
+					settingsDialog->displayShowVertexNormals(),
+					settingsDialog->displayShowFaceNormals());
 			}
 		}
 		// Re-read QSettings now that they have been committed (OK / Apply).
