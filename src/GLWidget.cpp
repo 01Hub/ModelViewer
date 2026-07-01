@@ -1609,10 +1609,6 @@ void GLWidget::fitAll()
 	}
 }
 
-void GLWidget::setAutoFitViewOnUpdate(bool update)
-{
-	_viewCtrl.setAutoFitViewOnUpdate(update);
-}
 
 void GLWidget::setSelectionHighlighting(bool highlight)
 {
@@ -3327,24 +3323,6 @@ void GLWidget::centerScreen(std::vector<int> selectedIDs)
 	}
 }
 
-void GLWidget::select(int id)
-{
-	if (_selectionManager)
-		_selectionManager->select(id);
-}
-
-void GLWidget::deselect(int id)
-{
-	if (_selectionManager)
-		_selectionManager->deselect(id);
-}
-
-void GLWidget::syncMeshSelectionVisualState()
-{
-	if (_selectionManager)
-		_selectionManager->syncMeshSelectionVisualState();
-}
-
 bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod, QString& error, bool progressiveLoading)
 {
 	_sceneRuntime.setProgressiveLoadingEnabled(progressiveLoading);
@@ -3772,10 +3750,7 @@ void GLWidget::cancelAssImpModelLoading()
 	emit loadingAssImpModelCancelled();	
 }
 
-void GLWidget::invertADSOpacityTexMap(const std::vector<int>& ids, const bool& inverted)
-{
-	_sceneRuntime.invertAdsOpacityMaps(ids, inverted);
-}
+
 
 void GLWidget::setMaterialToObjects(const std::vector<int>& ids, const GLMaterial& mat)
 {
@@ -10023,10 +9998,7 @@ void GLWidget::generateCubemapMipmaps(GLuint cubemapTexture)
 	_renderCtrl.generateCubemapMipmaps(cubemapTexture, width(), height(), defaultFramebufferObject());
 }
 
-QString GLWidget::generateUniqueMeshName(const QString& baseName)
-{
-	return _sceneRuntime.generateUniqueMeshName(baseName);
-}
+
 
 void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topColor, const QColor& botColor)
 {
@@ -12248,10 +12220,7 @@ std::vector<int> GLWidget::getHiddenObjectsIds() const
 	return _sceneRuntime.hiddenObjectsIds();
 }
 
-void GLWidget::onSceneStructureChanged()
-{
-	_sceneRuntime.invalidateRuntimeVisibilityHierarchy();
-}
+
 
 bool GLWidget::isVisibleSwapped() const
 {
@@ -12458,16 +12427,6 @@ void GLWidget::setTransmissionEnabled(const bool& enabled)
 	if (_renderCtrl.transmissionEnabled())
 		initTransmissionBuffer();
 	update();
-}
-
-float GLWidget::highestModelZ()
-{
-	return _viewCtrl.visibleHighestZ();
-}
-
-float GLWidget::lowestModelZ()
-{
-	return _viewCtrl.visibleLowestZ();
 }
 
 void GLWidget::showContextMenu(const QPoint& pos)

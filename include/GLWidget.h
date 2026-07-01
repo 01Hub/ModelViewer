@@ -192,9 +192,9 @@ public:
 	void addToDisplay(SceneMesh*);
 	void removeFromDisplay(int index);
 	void centerScreen(std::vector<int> selectedIDs);
-	void select(int id);
-	void deselect(int id);
-	void syncMeshSelectionVisualState();
+	void select(int id)                    { if (_selectionManager) _selectionManager->select(id); }
+	void deselect(int id)                  { if (_selectionManager) _selectionManager->deselect(id); }
+	void syncMeshSelectionVisualState()    { if (_selectionManager) _selectionManager->syncMeshSelectionVisualState(); }
 
 	bool loadAssImpModel(const QString& fileName, const UVMethod& uvMethod, QString& error, bool progressiveLoading = false);
 
@@ -203,7 +203,7 @@ public:
 	aiScene* getAssImpScene() const { return _sceneRuntime.globalScene(); }
 	glm::mat4 getGlobalSceneTransform() const { return _sceneRuntime.globalSceneTransform(); }
 
-	void invertADSOpacityTexMap(const std::vector<int>& ids, const bool& inverted);
+	void invertADSOpacityTexMap(const std::vector<int>& ids, const bool& inverted) { _sceneRuntime.invertAdsOpacityMaps(ids, inverted); }
 
 	void setMaterialToObjects(const std::vector<int>& ids, const GLMaterial& mat);
 	void setTexturesToObjects(const std::vector<int>& ids, const GLMaterial& mat);
@@ -381,7 +381,7 @@ public:
 	QUuid getUuidByIndex(int index) const;
 
 	// Generate a name that doesn't clash with any existing mesh name.
-	QString generateUniqueMeshName(const QString& baseName);
+	QString generateUniqueMeshName(const QString& baseName) { return _sceneRuntime.generateUniqueMeshName(baseName); }
 
 	// ---- MVF mesh loading ----
 
@@ -412,7 +412,7 @@ public:
 
 	/// Thin slot that delegates to SceneRuntime. Qt::UniqueConnection requires a
 	/// member-function pointer — it does not work with lambda connections in Qt6.
-	void onSceneStructureChanged();
+	void onSceneStructureChanged() { _sceneRuntime.invalidateRuntimeVisibilityHierarchy(); }
 
 	/// Accessor for the foreground shader (for pre-load shader validation).
 	ShaderProgram* getShader() const { return _renderCtrl.fgShader(); }
@@ -455,7 +455,7 @@ public slots:
 	void stopAnimations();
 	void checkAndStopTimers();
 	void fitAll();
-	void setAutoFitViewOnUpdate(bool update);
+	void setAutoFitViewOnUpdate(bool update) { _viewCtrl.setAutoFitViewOnUpdate(update); }
 	void setSelectionHighlighting(bool highlight);
 	void performKeyboardNav();
 	void disableLowRes();
@@ -757,8 +757,8 @@ private:
 		const QVector3D& sharedCenter,
 		float sharedViewRange);
 
-	float highestModelZ();
-	float lowestModelZ();
+	float highestModelZ() { return _viewCtrl.visibleHighestZ(); }
+	float lowestModelZ()  { return _viewCtrl.visibleLowestZ(); }
 	bool positionGameplayCameraForScene(GLCamera::CameraMode mode);
 
 	QList<int> sweepSelect(const QPoint& pixel, bool addToSelection = false);  // Sweep selection using rubber band
