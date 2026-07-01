@@ -385,55 +385,7 @@ public:
 
 	// ---- MVF mesh loading ----
 
-	/// Pre-computed mesh data produced by prepareMvfMeshes().
-	/// All fields are plain data — no GL resources — so the struct is safe
-	/// to construct on any thread.
 	using PreparedMvfMesh = ::PreparedMvfMesh;
-
-#if 0
-	struct PreparedMvfMesh
-	{
-		QString      name;
-		QUuid        uuid;
-		GLenum       primitiveMode = GL_TRIANGLES;
-		int          sceneIndex    = -1;
-		bool         hasNegativeScale = false;
-		int          originalMaterialIndex = -1;
-		QString      sourceFile;
-		QString      sourceNodeName;
-		QVector<GltfVariantMapping> variantMappings;
-		QMap<int, GLMaterial> allVariantMaterials;
-		std::vector<Vertex>       vertices;
-		std::vector<unsigned int> indices;
-		GLMaterial   material;
-		QVector<GltfSkinJoint>   skinJoints;  ///< Skeleton joints for skinned meshes
-
-		// Morph targets (blend shapes) — position/normal/tangent deltas.
-		QVector<MorphTargetData> morphTargets;
-		QVector<float>           defaultMorphWeights;
-
-		// OCC B-Rep edge segments and per-topological-edge boundaries.
-		// Populated for STEP/IGES/BREP meshes, empty otherwise.
-		std::vector<float> occEdgeSegments;
-		std::vector<int>   occEdgeBoundaries;
-
-		// Per-mesh user transform (gizmo TRS).  Non-identity when the user has moved,
-		// rotated, or scaled the mesh via the gizmo.  Applied by uploadPreparedMvfMeshes
-		// after the mesh is created so interactive transforms survive save/load.
-		QVector3D   meshTranslation  = QVector3D(0.0f, 0.0f, 0.0f);
-		QVector3D   meshRotation     = QVector3D(0.0f, 0.0f, 0.0f);  // Euler display
-		QQuaternion meshRotationQuat = QQuaternion();
-		QVector3D   meshScale        = QVector3D(1.0f, 1.0f, 1.0f);
-	};
-
-	/// CPU-only preparation: reads geometry streams, builds vertex arrays,
-	/// reconstructs materials.  Thread-safe — may be called from a worker
-	/// thread.  Returns the prepared list (moved, not copied).
-	static QVector<PreparedMvfMesh> prepareMvfMeshes(
-	    const Mvf::Document& document,
-	    const QByteArray& geometryChunk,
-	    const QByteArray& imageChunk);
-#endif
 
 	/// Clear the mesh store and display list (safe to call from main thread).
 	/// Called before uploading new MVF meshes to replace any existing geometry.
