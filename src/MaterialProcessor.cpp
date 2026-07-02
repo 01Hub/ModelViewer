@@ -1,6 +1,7 @@
 ﻿#include "MaterialProcessor.h"
 #include "Utils.h"
 #include <string>
+#include <QCoreApplication>
 #include <QFile>
 #include <QFileInfo>
 #include <QDir>
@@ -9,6 +10,7 @@
 #include <QJsonArray>
 #include <QHash>
 #include <QDebug>
+#include <QSettings>
 
 using namespace std;
 
@@ -30,9 +32,23 @@ void MaterialProcessor::processAssimpColorAndMaterial(aiMaterial* material, Mate
 
 	// Get material name from Assimp
 	aiString materialName;
+	QString materialNameStr;
 	if (AI_SUCCESS == material->Get(AI_MATKEY_NAME, materialName))
 	{
-		mat.setName(QString(materialName.C_Str()));
+		materialNameStr = QString(materialName.C_Str());
+		mat.setName(materialNameStr);
+	}
+
+	// Assimp auto-generates a synthetic placeholder material (named
+	// AI_DEFAULT_MATERIAL_NAME = "DefaultMaterial") for any mesh that has no material
+	// data in the source file — it is never a null aiMaterial*, so the null check above
+	// never catches this case. Respect the user's configured default material here
+	// instead of silently processing Assimp's own hardcoded gray placeholder.
+	if (materialNameStr == QStringLiteral(AI_DEFAULT_MATERIAL_NAME))
+	{
+		setDefaultMaterial(mat);
+		mat.setName(materialNameStr);
+		return;
 	}
 
 	// debugging: print material name
@@ -469,7 +485,23 @@ void MaterialProcessor::validateMaterialConsistency(Material& mat)
 
 void MaterialProcessor::setDefaultMaterial(Material& mat)
 {
-	mat = Material::DEFAULT_MAT();
+	// Keys correspond to the Default Material combo on the Settings dialog's
+	// Materials tab (see SettingsDialog.cpp's kDefaultMaterialKeys).
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	const QString key = settings.value("comboBoxDefaultMaterial", QString()).toString();
+
+	if (key == "WHITE_PLASTIC")
+		mat = Material::WHITE_PLASTIC();
+	else if (key == "METAL_ALUMINUM")
+		mat = Material::METAL_ALUMINUM();
+	else if (key == "GLASS")
+		mat = Material::GLASS();
+	else if (key == "BLACK_RUBBER")
+		mat = Material::BLACK_RUBBER();
+	else if (key == "WOOD")
+		mat = Material::WOOD();
+	else
+		mat = Material::DEFAULT_MAT();
 }
 
 bool MaterialProcessor::decodeTextureImage(Material::Texture& texture,

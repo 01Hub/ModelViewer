@@ -184,12 +184,12 @@ public slots:
 	void showTransformationsPage();
 	void onDisplayModeChanged(int mode);
 	void onTextureCacheCleared();
+	void onRenderingModeSelected(const QString& mode);
 
 private slots:
 	void setListRow(int index);
 	void setListRows(QList<int> indices);
 	void showContextMenu(const QPoint& pos);
-	void onRenderingModeSelected(const QString& mode);
 
 	void onFileImport();
 

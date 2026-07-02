@@ -847,6 +847,7 @@ void MainWindow::on_actionSettings_triggered()
 					settingsDialog->displayShowFaceNormals());
 				vp->loadBgColorSettings();
 				vp->loadNavigationSettings();
+				vp->loadRenderSettings();
 
 				vp->restoreCameraPose(pose);
 			}

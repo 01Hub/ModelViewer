@@ -132,13 +132,16 @@ _floorPlane(nullptr),
 		 });
 
 	 connect(_viewToolbar, &ViewToolbar::displayModeSelected, this, [this](const QString& type) {
-		 if (type == "Realistic") setDisplayMode(DisplayMode::REALSHADED);
+		 if (type == "Realistic") setRealismEnabled(!_realismEnabled);
 		 else if (type == "Shaded") setDisplayMode(DisplayMode::SHADED);
 		 else if (type == "HollowMesh") setDisplayMode(DisplayMode::HOLLOW_MESH);
 		 else if (type == "MeshEdges") setDisplayMode(DisplayMode::MESH_EDGES);
 		 else if (type == "Wireframe") setDisplayMode(DisplayMode::WIREFRAME);
 		 else if (type == "ShadedWithEdges") setDisplayMode(DisplayMode::SHADED_WITH_EDGES);
-		 else if (type == "FlatShaded") setDisplayMode(DisplayMode::FLATSHADED);
+		 });
+	 connect(_viewToolbar, &ViewToolbar::shadingNormalModeSelected, this, [this](const QString& mode) {
+		 if (mode == "Flat")   setShadingNormalMode(ShadingNormalMode::FLAT);
+		 else                  setShadingNormalMode(ShadingNormalMode::SMOOTH);
 		 });
 	 connect(this, &ViewportWidget::displayModeChanged, _viewer, &ModelViewer::onDisplayModeChanged);
 
@@ -641,17 +644,15 @@ QUuid ViewportWidget::getUuidByIndex(int index) const
 	return _sceneRuntime.getUuidByIndex(index);
 }
 
-// Map C++ DisplayMode enum to the legacy integer values expected by main_scene.frag.
-// Shader hardcodes: 1=hollow/wireframe, 2=wireshaded, 3=realshaded, 4=flatshaded.
-// Never pass the raw enum int — new modes shifted the values.
+// Map C++ DisplayMode enum to the integer values expected by main_scene.frag.
+// Shader: 0=shaded, 1=hollow/wireframe, 2=wireshaded.
+// Flat shading and realism are orthogonal uniforms (renderingMode==2 / realismEnabled).
 static int displayModeShaderInt(DisplayMode mode)
 {
 	switch (mode)
 	{
 		case DisplayMode::HOLLOW_MESH:       return 1;
 		case DisplayMode::MESH_EDGES:        return 2;
-		case DisplayMode::REALSHADED:        return 3;
-		case DisplayMode::FLATSHADED:        return 4;
 		default:                             return 0; // SHADED, WIREFRAME, SHADED_WITH_EDGES
 	}
 }
@@ -867,6 +868,8 @@ void ViewportWidget::initializeGL()
 	_renderCtrl.fgShader()->setUniformValue("sssDepthTexture", 38);
 	_renderCtrl.fgShader()->setUniformValue("displayMode", displayModeShaderInt(_displayMode));
 	_renderCtrl.fgShader()->setUniformValue("renderingMode", static_cast<int>(_renderCtrl.renderingMode()));
+	_renderCtrl.fgShader()->setUniformValue("realismEnabled", _realismEnabled);
+	_renderCtrl.fgShader()->setUniformValue("shadingNormalMode", static_cast<int>(_shadingNormalMode));
 	_renderCtrl.fgShader()->setUniformValue("selectionHighlighting", _selectionHighlighting);
 
 	updateEnvMapRotationMatrix();
@@ -910,6 +913,7 @@ void ViewportWidget::initializeGL()
 	}
 
 	_renderCtrl.setOpenGLInitialized(true);
+	loadRenderSettings();
 
 	// Keep SceneRuntime's parsed-light baseline in sync with SceneGraph whenever
 	// a file's light data is added or removed (multi-model scene support).
@@ -4713,7 +4717,7 @@ void ViewportWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneInde
 {
 	QVector3D camPos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(prog, camPos);
-	if (_displayMode == DisplayMode::FLATSHADED &&
+	if (_shadingNormalMode == ShadingNormalMode::FLAT &&
 		prog == _renderCtrl.fgShader() &&
 		_renderCtrl.fgFlatShader() && _renderCtrl.fgFlatShader()->isLinked())
 	{
@@ -4830,7 +4834,7 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 	const int sssObjectIdLocation = prog->uniformLocation("sssObjectId");
 	QOpenGLShaderProgram* flatProg = nullptr;
 	int flatSssObjectIdLocation = -1;
-	if (_displayMode == DisplayMode::FLATSHADED &&
+	if (_shadingNormalMode == ShadingNormalMode::FLAT &&
 		_renderCtrl.fgFlatShader() && _renderCtrl.fgFlatShader()->isLinked())
 	{
 		syncUniformsToFlatShader();
@@ -5188,7 +5192,7 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 	const int sssObjectIdLocation = prog->uniformLocation("sssObjectId");
 	QOpenGLShaderProgram* flatProg = nullptr;
 	int flatSssObjectIdLocation = -1;
-	if (_displayMode == DisplayMode::FLATSHADED &&
+	if (_shadingNormalMode == ShadingNormalMode::FLAT &&
 		_renderCtrl.fgFlatShader() && _renderCtrl.fgFlatShader()->isLinked())
 	{
 		syncUniformsToFlatShader();
@@ -8080,7 +8084,8 @@ void ViewportWidget::render(Camera* camera)
 
 	glEnable(GL_DEPTH_TEST);
 	glDisable(GL_BLEND);
-	glDisable(GL_CULL_FACE);
+	if (_renderCtrl.backfaceCulling()) { glEnable(GL_CULL_FACE); glCullFace(GL_BACK); }
+	else glDisable(GL_CULL_FACE);
 	glFrontFace(GL_CCW);
 	glDisable(GL_POLYGON_OFFSET_FILL);
 	glDisable(GL_POLYGON_OFFSET_LINE);
@@ -8147,7 +8152,7 @@ void ViewportWidget::render(Camera* camera)
 	}
 
 	// --- 3) Ground ---
-	if (_displayMode == DisplayMode::REALSHADED &&
+	if (_realismEnabled &&
 		_renderCtrl.groundMode() != GroundMode::None && !_renderCtrl.cappingEnabled() &&
 		!_sceneRuntime.meshStore().empty() &&
 		camera != _orthoViewsCamera)
@@ -8422,27 +8427,14 @@ void ViewportWidget::renderMeshWithDisplayMode(SceneMesh* mesh, DisplayMode mode
 	{
 		// ============================================
 	case DisplayMode::SHADED:
-	case DisplayMode::REALSHADED:
 		// ============================================
-		// SHADED / REALSHADED: Solid rendering only
-		// ============================================
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-		glLineWidth(1.0f);
-		glDisable(GL_POLYGON_OFFSET_FILL);
-		mesh->render();
-		break;
-
-	case DisplayMode::FLATSHADED:
-		// ============================================
-		// FLATSHADED: Use a geometry shader to compute
-		// the true face normal for triangle meshes.
-		// Non-triangle primitives fall back to _renderCtrl.fgShader()
-		// (flat qualifier picks provoking-vertex normal).
+		// SHADED: Solid rendering, optionally with flat shading geometry shader
 		// ============================================
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		glLineWidth(1.0f);
 		glDisable(GL_POLYGON_OFFSET_FILL);
-		if (_renderCtrl.fgFlatShader() && _renderCtrl.fgFlatShader()->isLinked() &&
+		if (_shadingNormalMode == ShadingNormalMode::FLAT &&
+			_renderCtrl.fgFlatShader() && _renderCtrl.fgFlatShader()->isLinked() &&
 			mesh->getPrimitiveMode() == GL_TRIANGLES &&
 			mesh->prog() == _renderCtrl.fgShader())
 		{
@@ -8596,6 +8588,62 @@ void ViewportWidget::loadNavigationSettings()
 
 	int wheelSens = settings.value("wheelSensitivitySlider", 5).toInt();
 	_wheelSensitivity = std::clamp(wheelSens, 1, 10) / 5.0f;
+}
+
+void ViewportWidget::loadRenderSettings()
+{
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+
+	// Backface culling — applied in render() GL state setup; no GL context needed
+	_renderCtrl.setBackfaceCulling(settings.value("checkBackfaceCulling", false).toBool());
+
+	if (!_renderCtrl.isOpenGLInitialized())
+		return;
+
+	// Shadows
+	showShadows(settings.value("enableShadowsCheckBox", false).toBool());
+
+	// Display mode: 0=Shaded, 1=Hollow Mesh, 2=Mesh Edges, 3=Wireframe, 4=Shaded with Edges
+	// (1:1 with the DisplayMode enum order)
+	const int displayIdx = std::clamp(settings.value("comboShadingMode", 0).toInt(), 0, 4);
+	setDisplayMode(static_cast<DisplayMode>(displayIdx));
+
+	// Rendering model: 0=Blinn-Phong (ADS), 1=PBR
+	// Route through the same path as the toolbar (ModelViewer::onRenderingModeSelected)
+	// so that PBR also enables environment mapping / IBL / HDRI sky, not just the equation.
+	const int renderIdx = settings.value("shaderModelComboBox", 0).toInt();
+	if (_viewer)
+		_viewer->onRenderingModeSelected(renderIdx == 1 ? QStringLiteral("PBR") : QStringLiteral("ADS"));
+	else
+		setRenderingMode(renderIdx == 1 ? RenderingMode::PHYSICALLY_BASED_RENDERING
+		                                 : RenderingMode::ADS_BLINN_PHONG);
+
+	// Shading normal: 0=Smooth, 1=Flat
+	const int shadingNormalIdx = settings.value("shadingNormalComboBox", 0).toInt();
+	setShadingNormalMode(shadingNormalIdx == 1 ? ShadingNormalMode::FLAT
+	                                            : ShadingNormalMode::SMOOTH);
+
+	_renderCtrl.fgShader()->bind();
+
+	// Lighting enable: maps to the default-lights flag
+	const bool lightingOn = settings.value("enableLightingCheckBox", true).toBool();
+	_renderCtrl.setUseDefaultLights(lightingOn);
+	_renderCtrl.fgShader()->setUniformValue("useDefaultLights", lightingOn);
+
+	// Ambient / diffuse / specular intensity sliders (0–100; 100 = full default colour)
+	const int ambientVal  = std::clamp(settings.value("ambientLightSlider",  20).toInt(), 0, 100);
+	const int diffuseVal  = std::clamp(settings.value("diffuseLightSlider",  80).toInt(), 0, 100);
+	const int specularVal = std::clamp(settings.value("specularLightSlider", 50).toInt(), 0, 100);
+	const QVector4D& dlc = _renderCtrl.defaultLightColor();
+	_ambientLight  = dlc * (ambientVal  / 100.0f);
+	_diffuseLight  = dlc * (diffuseVal  / 100.0f);
+	_specularLight = dlc * (specularVal / 100.0f);
+	_renderCtrl.fgShader()->setUniformValue("lightSource.ambient",  _ambientLight.toVector3D());
+	_renderCtrl.fgShader()->setUniformValue("lightSource.diffuse",  _diffuseLight.toVector3D());
+	_renderCtrl.fgShader()->setUniformValue("lightSource.specular", _specularLight.toVector3D());
+	_renderCtrl.fgShader()->release();
+
+	update();
 }
 
 ViewportWidget::CameraPose ViewportWidget::saveCameraPose() const
@@ -10126,7 +10174,7 @@ void ViewportWidget::renderToTransmissionBuffer(Camera* camera, const QColor& to
 	}
 
 	// --- RENDER 4: GROUND ---
-	if (_displayMode == DisplayMode::REALSHADED &&
+	if (_realismEnabled &&
 		_renderCtrl.groundMode() != GroundMode::None && !_renderCtrl.cappingEnabled() &&
 		!_sceneRuntime.meshStore().empty() &&
 		camera != _orthoViewsCamera)
@@ -12488,6 +12536,33 @@ void ViewportWidget::setDisplayMode(DisplayMode mode)
 	_renderCtrl.fgShader()->setUniformValue("displayMode", displayModeShaderInt(_displayMode));
 	_renderCtrl.fgShader()->release();
 	emit displayModeChanged(static_cast<int>(_displayMode));
+}
+
+void ViewportWidget::setRealismEnabled(bool enabled)
+{
+	_realismEnabled = enabled;
+	_renderCtrl.fgShader()->bind();
+	_renderCtrl.fgShader()->setUniformValue("realismEnabled", enabled);
+	_renderCtrl.fgShader()->release();
+	if (_viewToolbar)
+		_viewToolbar->setRealisticChecked(enabled);
+	emit displayModeChanged(static_cast<int>(_displayMode));
+	update();
+}
+
+void ViewportWidget::setShadingNormalMode(ShadingNormalMode mode)
+{
+	_shadingNormalMode = mode;
+	_renderCtrl.fgShader()->bind();
+	_renderCtrl.fgShader()->setUniformValue("shadingNormalMode", static_cast<int>(mode));
+	_renderCtrl.fgShader()->release();
+	if (_viewToolbar)
+		_viewToolbar->setDefaultShadingNormalModeAction(
+			mode == ShadingNormalMode::FLAT
+				? ShadingNormalModeActions::FLAT
+				: ShadingNormalModeActions::SMOOTH);
+	syncUniformsToFlatShader();
+	update();
 }
 
 void ViewportWidget::setTransmissionEnabled(const bool& enabled)

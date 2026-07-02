@@ -4795,8 +4795,28 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			viewerState[QStringLiteral("projection")].toInt(static_cast<int>(_viewportWidget->projection()))));
 		const int savedCameraMode =
 			viewerState[QStringLiteral("cameraMode")].toInt(static_cast<int>(_viewportWidget->cameraMode()));
-		_viewportWidget->setDisplayMode(static_cast<DisplayMode>(
-			viewerState[QStringLiteral("displayMode")].toInt(static_cast<int>(_viewportWidget->getDisplayMode()))));
+		{
+			// Migration: old REALSHADED=5, old FLATSHADED=6 (pre-refactor enum values)
+			const int savedMode = viewerState[QStringLiteral("displayMode")].toInt(
+				static_cast<int>(_viewportWidget->getDisplayMode()));
+			if (savedMode == 5)
+			{
+				_viewportWidget->setDisplayMode(DisplayMode::SHADED);
+				_viewportWidget->setRealismEnabled(true);
+			}
+			else if (savedMode == 6)
+			{
+				_viewportWidget->setDisplayMode(DisplayMode::SHADED);
+				_viewportWidget->setShadingNormalMode(ShadingNormalMode::FLAT);
+			}
+			else
+			{
+				_viewportWidget->setDisplayMode(static_cast<DisplayMode>(savedMode));
+			}
+			// New sessions store realismEnabled explicitly; old sessions rely on migration above.
+			if (viewerState.contains(QStringLiteral("realismEnabled")))
+				_viewportWidget->setRealismEnabled(viewerState[QStringLiteral("realismEnabled")].toBool());
+		}
 		_viewportWidget->setRenderingMode(static_cast<RenderingMode>(
 			viewerState[QStringLiteral("renderingMode")].toInt(static_cast<int>(_viewportWidget->getRenderingMode()))));
 		_viewportWidget->setGroundMode(static_cast<GroundMode>(
@@ -4977,6 +4997,7 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 	viewerState.insert(QStringLiteral("projection"), static_cast<int>(_viewportWidget->projection()));
 	viewerState.insert(QStringLiteral("cameraMode"), static_cast<int>(_viewportWidget->cameraMode()));
 	viewerState.insert(QStringLiteral("displayMode"), static_cast<int>(_viewportWidget->getDisplayMode()));
+	viewerState.insert(QStringLiteral("realismEnabled"), _viewportWidget->isRealismEnabled());
 	viewerState.insert(QStringLiteral("renderingMode"), static_cast<int>(_viewportWidget->getRenderingMode()));
 	viewerState.insert(QStringLiteral("groundMode"), static_cast<int>(_viewportWidget->groundMode()));
 	viewerState.insert(QStringLiteral("floorTextureShown"), _viewportWidget->isFloorTextureShown());
@@ -5197,9 +5218,7 @@ void ModelViewer::on_tabWidgetVizAttribs_currentChanged(int index)
 
 void ModelViewer::switchToRealisticRendering()
 {
-	if (_viewportWidget->getDisplayMode() == DisplayMode::REALSHADED)
-		return;
-	_viewportWidget->setDisplayMode(DisplayMode::REALSHADED);
+	_viewportWidget->setRealismEnabled(true);
 }
 
 void ModelViewer::onDisplayModeChanged(int mode)

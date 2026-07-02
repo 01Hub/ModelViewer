@@ -389,6 +389,8 @@ public:
     void         setBgStyleIndex(int s)             { _bgStyleIndex = s; }
     RenderingMode renderingMode()              const { return _renderingMode; }
     void         setRenderingMode(RenderingMode m)   { _renderingMode = m; }
+    bool         backfaceCulling()            const { return _backfaceCulling; }
+    void         setBackfaceCulling(bool v)          { _backfaceCulling = v; }
 
     // ---- Floor texture / offset --------------------------------------------
     float        floorTexRepeatS()             const { return _floorTexRepeatS; }
@@ -673,6 +675,7 @@ private:
     int           _gradientStyle                     = 0;
     int           _bgStyleIndex                      = 0; // 0=Gradient, 1=Solid
     RenderingMode _renderingMode                     = RenderingMode::ADS_BLINN_PHONG;
+    bool          _backfaceCulling                   = false;
 
     // ---- Floor texture / offset --------------------------------------------
     float         _floorTexRepeatS                   = 1.0f;

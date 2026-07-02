@@ -970,7 +970,7 @@ void VisualizationEnvironmentPanel::onDisplayModeChanged(int mode)
 	if (!_viewportWidget || !ui)
 		return;
 
-	bool realShaded = (mode == static_cast<int>(DisplayMode::REALSHADED));
+	bool realShaded = _viewportWidget->isRealismEnabled();
 	bool pbrLighting = (_viewportWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING);
 
 	// Block signals to prevent cascading updates

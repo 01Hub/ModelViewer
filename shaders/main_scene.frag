@@ -294,6 +294,8 @@ uniform mat4 inverseProjectionMatrix;  // precomputed on CPU — avoids per-frag
 uniform bool sectionActive;
 uniform int displayMode;
 uniform int renderingMode;
+uniform int shadingNormalMode; // 0=SMOOTH, 1=FLAT
+uniform bool realismEnabled;
 uniform bool isWireframePass;
 uniform bool selected;
 uniform bool selectionHighlighting;
@@ -584,7 +586,7 @@ vec3 safeNormalizeGeom(vec3 value, vec3 fallback)
 vec3 getUnsignedViewGeometryNormal()
 {
     vec3 baseN = safeNormalizeGeom(v_normal, vec3(0.0, 0.0, 1.0));
-    if (displayMode == 4)
+    if (shadingNormalMode == 1)
     {
         // v_flatNormal is set by main_scene_flat.geom to the true geometric face
         // normal (cross(edge0, edge1), view-space, same value for all 3 vertices).
@@ -604,7 +606,7 @@ vec3 getSignedViewGeometryNormal()
 vec3 getUnsignedWorldGeometryNormal()
 {
     vec3 baseN = safeNormalizeGeom(v_reflectionNormal, vec3(0.0, 0.0, 1.0));
-    if (displayMode == 4)
+    if (shadingNormalMode == 1)
     {
         // v_reflectionFlatNormal is set by the GS to the true world-space face normal.
         return safeNormalizeGeom(v_reflectionFlatNormal, baseN);
@@ -617,7 +619,7 @@ vec3 getUnsignedWorldGeometryNormal()
 // triangles at extreme zoom.
 vec3 getFragPosition()
 {
-    return (displayMode == 4) ? v_positionFlat : v_position;
+    return (shadingNormalMode == 1) ? v_positionFlat : v_position;
 }
 
 // ---- Texture & Normal utilities --------------------------------------------
@@ -1030,11 +1032,11 @@ void main()
 		{
 			vec3 shadingN;
 			if (renderingMode == 0) // ADS
-				shadingN = (displayMode != 4 && hasNormalTexture)
+				shadingN = (shadingNormalMode != 1 && hasNormalTexture)
 				    ? calcBumpedNormal(texture_normal, getNormalTextureUV())
 				    : getSignedViewGeometryNormal();
 			else // PBR
-				shadingN = (displayMode != 4 && hasNormalMap)
+				shadingN = (shadingNormalMode != 1 && hasNormalMap)
 				    ? calcBumpedNormal(normalMap, getNormalUV())
 				    : getSignedViewGeometryNormal();
 			iso = shadingN * 0.5 + 0.5;
@@ -3662,10 +3664,10 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	}
 
 	// --- Normal / Parallax (same as before) ---
-	if (displayMode != 4 && hasNormalTexture)
+	if (shadingNormalMode != 1 && hasNormalTexture)
 		normal = calcBumpedNormal(texture_normal, getNormalTextureUV());
 
-	if (displayMode != 4 && hasHeightTexture)
+	if (shadingNormalMode != 1 && hasHeightTexture)
 	{
 		clippedTexCoord = applyParallaxMapping(getHeightUV(), texture_height, heightScale, hasHeightTexture);
 		normal = calcBumpedNormal(normalMap, clippedTexCoord);
@@ -3751,7 +3753,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	vec3 baseNoSpec, specOnly;
 	vec3 sceneColor = matEmissive + ambient;
 
-	if (useDefaultLights && shadowsEnabled && displayMode == 3 &&
+	if (useDefaultLights && shadowsEnabled && realismEnabled &&
 		(selfShadowsEnabled || floorRendering || hasVolumeScattering))
 	{
 		float shadowFactor = calculateShadowVariableKernel(
@@ -3908,7 +3910,7 @@ vec4 calculatePBRLightingKHR(int renderMode, float side)
 	}
 
 	float lightShadowFactor = 0.0;
-	if (useDefaultLights && shadowsEnabled && displayMode == 3 &&
+	if (useDefaultLights && shadowsEnabled && realismEnabled &&
 		(selfShadowsEnabled || floorRendering || hasVolumeScattering))
 	{
 		float s = calculateShadowVariableKernel(

@@ -39,6 +39,7 @@
 #include <QUrl>
 #include <QUuid>
 #include <QCheckBox>
+#include <QSettings>
 #include <QStandardPaths>
 #include <QRegularExpression>
 #include <QSignalBlocker>
@@ -1963,6 +1964,11 @@ QString MaterialPropertiesPanel::currentPresetMetadataPath() const
 void MaterialPropertiesPanel::onTextureButtonClicked(Material::TextureType type)
 {
 	QString texFolder = _lastUsedTextureFolder;
+	if (texFolder.isEmpty())
+	{
+		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+		texFolder = settings.value("lineEditTextureDir", QString()).toString();
+	}
 	if (texFolder.isEmpty())
 		texFolder = PathUtils::getDataDirectory() + "/textures/materials";
 

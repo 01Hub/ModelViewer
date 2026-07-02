@@ -60,7 +60,7 @@ class ModelViewer;
 
 // ViewMode, ViewProjection, CornerAxisPosition, RenderingMode,
 // ClippingPlaneHatchMode, HatchPattern → RenderEnums.h (Phase 11/12)
-enum class DisplayMode { SHADED, HOLLOW_MESH, MESH_EDGES, WIREFRAME, SHADED_WITH_EDGES, REALSHADED, FLATSHADED };
+enum class DisplayMode { SHADED, HOLLOW_MESH, MESH_EDGES, WIREFRAME, SHADED_WITH_EDGES };
 
 // ---------------------------------------------------------------------------
 // TextureSlotInfo
@@ -267,6 +267,10 @@ public:
 	bool isShaded() const;
 	DisplayMode getDisplayMode() const;
 	void setDisplayMode(DisplayMode mode);
+	bool isRealismEnabled() const { return _realismEnabled; }
+	void setRealismEnabled(bool enabled);
+	ShadingNormalMode shadingNormalMode() const { return _shadingNormalMode; }
+	void setShadingNormalMode(ShadingNormalMode mode);
 
 	bool isVertexNormalsShown() const { return _renderCtrl.debugOverlayEnabled() && _renderCtrl.debugOverlayMode() == DebugOverlayMode::VertexNormals; }
 	void setShowVertexNormals(bool showVertexNormals);
@@ -300,6 +304,7 @@ public:
 	void setBgGradientStyle(int style) { _renderCtrl.setGradientStyle(style); }
 	void loadBgColorSettings();
 	void loadNavigationSettings();
+	void loadRenderSettings();
 
 	struct CameraPose
 	{
@@ -868,6 +873,8 @@ private:
 
 	QSet<int> _keys;
 	DisplayMode _displayMode;
+	bool _realismEnabled = false;
+	ShadingNormalMode _shadingNormalMode = ShadingNormalMode::SMOOTH;
 	// _renderingMode, _bgTopColor, _bgBotColor, _gradientStyle → SceneRenderController (Phase 12)
 	int _modelNum;
 	QImage _texImage, _texBuffer;

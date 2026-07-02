@@ -911,7 +911,7 @@
        <item row="0" column="0">
         <widget class="QLabel" name="label_6">
          <property name="text">
-          <string>Default Mode</string>
+          <string>Display Mode</string>
          </property>
         </widget>
        </item>
@@ -924,12 +924,22 @@
          </item>
          <item>
           <property name="text">
+           <string>Hollow Mesh</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Mesh Edges</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
            <string>Wireframe</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>Wireshaded</string>
+           <string>Shaded with Edges</string>
           </property>
          </item>
         </widget>
@@ -942,13 +952,6 @@
         </widget>
        </item>
        <item row="2" column="0" colspan="2">
-        <widget class="QCheckBox" name="checkNormalMap">
-         <property name="text">
-          <string>Enable Normal Map Support</string>
-         </property>
-        </widget>
-       </item>
-       <item row="3" column="0" colspan="2">
         <widget class="QGroupBox" name="shaderGroupBox">
          <property name="title">
           <string>Shader Settings</string>
@@ -957,7 +960,7 @@
           <item row="0" column="0">
            <widget class="QLabel" name="shaderModelLabel">
             <property name="text">
-             <string>Shading Model:</string>
+             <string>Rendering Model:</string>
             </property>
            </widget>
           </item>
@@ -965,17 +968,28 @@
            <widget class="QComboBox" name="shaderModelComboBox">
             <item>
              <property name="text">
-              <string>Blinn-Phong</string>
+              <string>Blinn-Phong (ADS)</string>
              </property>
             </item>
             <item>
              <property name="text">
-              <string>Phong</string>
+              <string>Physically Based (PBR)</string>
              </property>
             </item>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="shadingNormalLabel">
+            <property name="text">
+             <string>Shading Normal:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QComboBox" name="shadingNormalComboBox">
             <item>
              <property name="text">
-              <string>PBR (Physically Based)</string>
+              <string>Smooth</string>
              </property>
             </item>
             <item>
@@ -983,21 +997,16 @@
               <string>Flat</string>
              </property>
             </item>
-            <item>
-             <property name="text">
-              <string>Wireframe</string>
-             </property>
-            </item>
            </widget>
           </item>
-          <item row="1" column="0">
+          <item row="2" column="0">
            <widget class="QLabel" name="msaaLabel">
             <property name="text">
              <string>MSAA Samples:</string>
             </property>
            </widget>
           </item>
-          <item row="1" column="1">
+          <item row="2" column="1">
            <widget class="QComboBox" name="msaaComboBox">
             <item>
              <property name="text">
@@ -1026,14 +1035,14 @@
             </item>
            </widget>
           </item>
-          <item row="2" column="0">
+          <item row="3" column="0">
            <widget class="QLabel" name="anisotropyLabel">
             <property name="text">
              <string>Anisotropic Filtering:</string>
             </property>
            </widget>
           </item>
-          <item row="2" column="1">
+          <item row="3" column="1">
            <widget class="QComboBox" name="anisotropyComboBox">
             <item>
              <property name="text">
@@ -1182,12 +1191,17 @@
              <widget class="QComboBox" name="comboBoxDefaultMaterial">
               <item>
                <property name="text">
-                <string>Plastic</string>
+                <string>Default (Neutral)</string>
                </property>
               </item>
               <item>
                <property name="text">
-                <string>Metal</string>
+                <string>Plastic (White)</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Metal (Aluminum)</string>
                </property>
               </item>
               <item>
@@ -1197,7 +1211,12 @@
               </item>
               <item>
                <property name="text">
-                <string>Custom</string>
+                <string>Rubber (Black)</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Wood</string>
                </property>
               </item>
              </widget>
@@ -2156,8 +2175,8 @@
   <tabstop>smoothNavigationCheckBox</tabstop>
   <tabstop>comboShadingMode</tabstop>
   <tabstop>checkBackfaceCulling</tabstop>
-  <tabstop>checkNormalMap</tabstop>
   <tabstop>shaderModelComboBox</tabstop>
+  <tabstop>shadingNormalComboBox</tabstop>
   <tabstop>msaaComboBox</tabstop>
   <tabstop>anisotropyComboBox</tabstop>
   <tabstop>enableLightingCheckBox</tabstop>

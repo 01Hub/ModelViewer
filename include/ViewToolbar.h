@@ -13,8 +13,9 @@ enum class CameraModeActions { ORBIT, FLY, FIRST_PERSON };
 enum class NavigationActions { ROTATE, PAN, ZOOM };
 enum class StandardViewActions { TOP, FRONT, LEFT, BOTTOM, REAR, RIGHT };
 enum class ViewModeActions { ISOMETRIC, DIMETRIC, TRIMETRIC };
-enum class DisplayModeActions { SHADED, HOLLOW_MESH, MESH_EDGES, WIREFRAME, SHADED_WITH_EDGES, REALSHADED, FLATSHADED };
+enum class DisplayModeActions { SHADED, HOLLOW_MESH, MESH_EDGES, WIREFRAME, SHADED_WITH_EDGES };
 enum class RenderingModeActions { ADS, PBR };
+enum class ShadingNormalModeActions { SMOOTH, FLAT };
 enum class DebugOverlayActions { BOUNDING_BOX, VERTEX_NORMALS, FACE_NORMALS };
 
 class ViewToolbar : public QWidget
@@ -42,6 +43,8 @@ public:
     void updateRenderingModeButton(const QString& mode);
     void deactivateAllNavigationModes();
 
+    void setRealisticChecked(bool checked); // syncs _realisticBtn checked state
+    void setDefaultShadingNormalModeAction(ShadingNormalModeActions mode);
     void setSwapVisibleChecked(bool checked);
     void setSectionViewChecked(bool checked);
     void setExplodedViewChecked(bool checked);
@@ -55,6 +58,7 @@ signals:
     void axonometricSelected(const QString& type);
     void displayModeSelected(const QString& type);
     void renderingModeSelected(const QString& mode);
+    void shadingNormalModeSelected(const QString& mode);
     void projectionToggled(bool isOrtho);
     void fitToViewRequested();
     void zoomViewRequested();
@@ -136,6 +140,9 @@ private:
     // Multi view
     QToolButton* _multiBtn;
 
+    // Standalone realism toggle (not part of the display mode group)
+    QToolButton* _realisticBtn;
+
     // Display mode actions
     QAction* _realistic;
     QAction* _shaded;
@@ -169,6 +176,9 @@ private:
 
     FlyOutViewButton* _toolButtonRenderingMode;
     QMap<RenderingModeActions, QAction*> _renderingModeActions;
+
+    FlyOutViewButton* _toolButtonShadingNormal;
+    QMap<ShadingNormalModeActions, QAction*> _shadingNormalActions;
 
     FlyOutViewButton* _toolButtonViewModes;
     QMap<ViewModeActions, QAction*> _viewModeActions;

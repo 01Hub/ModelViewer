@@ -1632,7 +1632,8 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	}
 
 	// Process materials
-	Material mat = Material::DEFAULT_MAT();
+	Material mat;
+	_materialProcessor.setDefaultMaterial(mat);
 	//if (mesh->mMaterialIndex != 0)
 
 	// DEBUG: Log the material index assignment

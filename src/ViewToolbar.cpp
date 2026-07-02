@@ -535,14 +535,24 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _toolButtonDisplayModes->setAutoRaise(true);
     _mainLayout->addWidget(_toolButtonDisplayModes);
 
+    // Realistic: standalone checkable toggle button (orthogonal to display mode)
+    _realisticBtn = new QToolButton(this);
+    _realisticBtn->setStyleSheet(buttonStyleSheet);
+    _realisticBtn->setIcon(QIcon(":/icons/res/realshaded.png"));
+    _realisticBtn->setIconSize(QSize(48, 48));
+    _realisticBtn->setToolTip(tr("Realistic Rendering (Shift+R)"));
+    _realisticBtn->setCheckable(true);
+    _realisticBtn->setAutoRaise(true);
+    _realisticBtn->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_R));
+    _mainLayout->addWidget(_realisticBtn);
+    connect(_realisticBtn, &QToolButton::clicked, this,
+        [this]() { emit displayModeSelected("Realistic"); });
+    _realistic = nullptr; // no longer a menu action; _realisticBtn is the sole owner
+
     QMenu* dispModeMenu = new QMenu;
     dispModeMenu->setStyleSheet(flyoutStyleSheet);
-    _realistic = dispModeMenu->addAction(QIcon(":/icons/res/realshaded.png"), tr("Realistic"));
-    _realistic->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_R));
     _shaded = dispModeMenu->addAction(QIcon(":/icons/res/shaded.png"), tr("Shaded"));
     _shaded->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_S));
-    _flatshaded = dispModeMenu->addAction(QIcon(":/icons/res/flat_shaded.png"), tr("Flat Shaded"));
-    _flatshaded->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_F));
     _hollowMesh = dispModeMenu->addAction(QIcon(":/icons/res/hollow_mesh.png"), tr("Hollow Mesh"));
     _hollowMesh->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_H));
     _meshEdges = dispModeMenu->addAction(QIcon(":/icons/res/mesh_edges.png"), tr("Mesh Edges"));
@@ -552,24 +562,10 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _shadedWithEdges = dispModeMenu->addAction(QIcon(":/icons/res/wireshaded.png"), tr("Shaded with Edges"));
     _shadedWithEdges->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_E));
 
-    connect(_realistic, &QAction::triggered, this,
-        [this]() {
-            _toolButtonDisplayModes->setDefaultAction(_realistic);
-            emit displayModeSelected("Realistic");
-        }
-    );
-
     connect(_shaded, &QAction::triggered, this,
         [this]() {
             _toolButtonDisplayModes->setDefaultAction(_shaded);
             emit displayModeSelected("Shaded");
-        }
-    );
-
-    connect(_flatshaded, &QAction::triggered, this,
-        [this]() {
-            _toolButtonDisplayModes->setDefaultAction(_flatshaded);
-            emit displayModeSelected("FlatShaded");
         }
     );
 
@@ -601,9 +597,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
         }
     );
 
-    _displayModeActions[DisplayModeActions::REALSHADED]       = _realistic;
     _displayModeActions[DisplayModeActions::SHADED]           = _shaded;
-    _displayModeActions[DisplayModeActions::FLATSHADED]       = _flatshaded;
     _displayModeActions[DisplayModeActions::HOLLOW_MESH]      = _hollowMesh;
     _displayModeActions[DisplayModeActions::MESH_EDGES]       = _meshEdges;
     _displayModeActions[DisplayModeActions::WIREFRAME]        = _wireframe;
@@ -645,6 +639,39 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 
     _toolButtonRenderingMode->setMenu(renderingModeMenu);
     _toolButtonRenderingMode->setDefaultAction(_adsAction);  // Default to ADS
+
+    // Shading Normal Mode (Smooth / Flat)
+    _toolButtonShadingNormal = new FlyOutViewButton(this);
+    _toolButtonShadingNormal->setIcon(QIcon(":/icons/res/smooth_shaded.png"));
+    _toolButtonShadingNormal->setIconSize(QSize(48, 48));
+    _toolButtonShadingNormal->setToolTip(tr("Shading Normal"));
+    _toolButtonShadingNormal->setPopupMode(QToolButton::DelayedPopup);
+    _toolButtonShadingNormal->setAutoRaise(true);
+    _mainLayout->addWidget(_toolButtonShadingNormal);
+
+    QMenu* shadingNormalMenu = new QMenu;
+    shadingNormalMenu->setStyleSheet(flyoutStyleSheet);
+    _flatshaded = shadingNormalMenu->addAction(QIcon(":/icons/res/flat_shaded.png"), tr("Flat Shaded"));
+    _flatshaded->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_F));
+    QAction* _smoothShaded = shadingNormalMenu->addAction(QIcon(":/icons/res/smooth_shaded.png"), tr("Smooth Shaded"));
+    _smoothShaded->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_G));
+
+    connect(_flatshaded, &QAction::triggered, this,
+        [this]() {
+            _toolButtonShadingNormal->setDefaultAction(_flatshaded);
+            emit shadingNormalModeSelected("Flat");
+        });
+    connect(_smoothShaded, &QAction::triggered, this,
+        [this, _smoothShaded]() {
+            _toolButtonShadingNormal->setDefaultAction(_smoothShaded);
+            emit shadingNormalModeSelected("Smooth");
+        });
+
+    _shadingNormalActions[ShadingNormalModeActions::FLAT]   = _flatshaded;
+    _shadingNormalActions[ShadingNormalModeActions::SMOOTH] = _smoothShaded;
+
+    _toolButtonShadingNormal->setMenu(shadingNormalMenu);
+    _toolButtonShadingNormal->setDefaultAction(_smoothShaded);
 
     // Section View
     _sectionBtn = new QToolButton(this);
@@ -908,6 +935,20 @@ void ViewToolbar::setDefaultDisplayModeAction(DisplayModeActions mode)
 		_toolButtonDisplayModes->setDefaultAction(_displayModeActions[mode]);
 }
 
+void ViewToolbar::setRealisticChecked(bool checked)
+{
+	if (_realisticBtn)
+		_realisticBtn->setChecked(checked);
+	if (_realistic)
+		_realistic->setChecked(checked);
+}
+
+void ViewToolbar::setDefaultShadingNormalModeAction(ShadingNormalModeActions mode)
+{
+	if (_shadingNormalActions.contains(mode))
+		_toolButtonShadingNormal->setDefaultAction(_shadingNormalActions[mode]);
+}
+
 void ViewToolbar::setFeatureEdgeModesVisible(bool visible)
 {
 	if (_wireframe)
@@ -1131,9 +1172,11 @@ void ViewToolbar::retranslateUI()
 
 	// Display Modes
 	_toolButtonDisplayModes->setToolTip(tr("Display Modes"));
-	_realistic->setText(tr("Realistic"));
+	if (_realisticBtn) _realisticBtn->setToolTip(tr("Realistic Rendering (Shift+R)"));
 	_shaded->setText(tr("Shaded"));
-	_flatshaded->setText(tr("Flat Shaded"));
+	// Shading Normal
+	_toolButtonShadingNormal->setToolTip(tr("Shading Normal"));
+	if (_flatshaded) _flatshaded->setText(tr("Flat Shaded"));
 	_hollowMesh->setText(tr("Hollow Mesh"));
 	_meshEdges->setText(tr("Mesh Edges"));
 	_wireframe->setText(tr("Wireframe"));

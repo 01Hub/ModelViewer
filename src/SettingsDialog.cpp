@@ -67,6 +67,21 @@ SettingsDialog::SettingsDialog(QWidget *parent) :
     ui->setupUi(this);
     configureCornerTrihedronPositionCombo(ui->comboBoxCornerTrihedronPosition);
 
+    // Attach the stable preset key to each Default Material entry (see
+    // MaterialProcessor::setDefaultMaterial for the matching lookup).
+    static const QString kDefaultMaterialKeys[] = {
+        QString(),          // "Default (Neutral)"
+        "WHITE_PLASTIC",     // "Plastic (White)"
+        "METAL_ALUMINUM",    // "Metal (Aluminum)"
+        "GLASS",             // "Glass"
+        "BLACK_RUBBER",      // "Rubber (Black)"
+        "WOOD"                // "Wood"
+    };
+    const int kDefaultMaterialKeyCount =
+        static_cast<int>(sizeof(kDefaultMaterialKeys) / sizeof(kDefaultMaterialKeys[0]));
+    for (int i = 0; i < ui->comboBoxDefaultMaterial->count() && i < kDefaultMaterialKeyCount; ++i)
+        ui->comboBoxDefaultMaterial->setItemData(i, kDefaultMaterialKeys[i]);
+
     retranslateUI();
 
     // Connect to specific buttons
@@ -299,8 +314,8 @@ void SettingsDialog::applySettings()
     // Rendering tab
     settings.setValue("comboShadingMode", rendering_shadingModeIndex);
     settings.setValue("checkBackfaceCulling", rendering_backfaceCulling);
-    settings.setValue("checkNormalMap", rendering_normalMap);
     settings.setValue("shaderModelComboBox", rendering_shaderModelIndex);
+    settings.setValue("shadingNormalComboBox", rendering_shadingNormalIndex);
     settings.setValue("msaaComboBox", rendering_msaaIndex);
     settings.setValue("anisotropyComboBox", rendering_anisotropyIndex);
 
@@ -312,7 +327,7 @@ void SettingsDialog::applySettings()
     settings.setValue("specularLightSlider", lighting_specular);
 
     // Materials
-    settings.setValue("comboBoxDefaultMaterial", materials_defaultMaterialIndex);
+    settings.setValue("comboBoxDefaultMaterial", materials_defaultMaterialKey);
     settings.setValue("lineEditTextureDir", materials_textureDir);
 
     // UV Generation Tab
@@ -468,8 +483,8 @@ void SettingsDialog::setDefaultValues()
     // Rendering tab
     ui->comboShadingMode->setCurrentIndex(0);                // "Shaded"
     ui->checkBackfaceCulling->setChecked(false);             // Not set
-    ui->checkNormalMap->setChecked(false);                   // Not set
-    ui->shaderModelComboBox->setCurrentIndex(0);             // "Blinn-Phong"
+    ui->shaderModelComboBox->setCurrentIndex(0);             // "Blinn-Phong (ADS)"
+    ui->shadingNormalComboBox->setCurrentIndex(0);           // "Smooth"
     	
 	int maxSamples = ModelViewerApplication::supportedMSAASamples();
 	if(maxSamples >= 4)
@@ -491,7 +506,7 @@ void SettingsDialog::setDefaultValues()
     ui->specularLightSlider->setValue(50);
 
     // Materials
-    ui->comboBoxDefaultMaterial->setCurrentIndex(0);     // "Plastic"
+    ui->comboBoxDefaultMaterial->setCurrentIndex(0);     // "Default (Neutral)"
     ui->lineEditTextureDir->clear();                     // Default: empty
 
     // --- UV Generation Tab ---
@@ -671,8 +686,8 @@ void SettingsDialog::syncStateFromUi()
     // Rendering tab
     rendering_shadingModeIndex = ui->comboShadingMode->currentIndex();
     rendering_backfaceCulling = ui->checkBackfaceCulling->isChecked();
-    rendering_normalMap = ui->checkNormalMap->isChecked();
     rendering_shaderModelIndex = ui->shaderModelComboBox->currentIndex();
+    rendering_shadingNormalIndex = ui->shadingNormalComboBox->currentIndex();
     rendering_msaaIndex = ui->msaaComboBox->currentIndex();
     rendering_anisotropyIndex = ui->anisotropyComboBox->currentIndex();
 
@@ -684,7 +699,7 @@ void SettingsDialog::syncStateFromUi()
     lighting_specular = ui->specularLightSlider->value();
 
     // Materials
-    materials_defaultMaterialIndex = ui->comboBoxDefaultMaterial->currentIndex();
+    materials_defaultMaterialKey = ui->comboBoxDefaultMaterial->currentData().toString();
     materials_textureDir = ui->lineEditTextureDir->text();
 
     // UV Generation Tab
@@ -838,10 +853,10 @@ void SettingsDialog::loadSettings()
     ui->comboShadingMode->setCurrentIndex(iVal);
     bVal = settings.value("checkBackfaceCulling", ui->checkBackfaceCulling->isChecked()).toBool();
     ui->checkBackfaceCulling->setChecked(bVal);
-    bVal = settings.value("checkNormalMap", ui->checkNormalMap->isChecked()).toBool();
-    ui->checkNormalMap->setChecked(bVal);
     iVal = settings.value("shaderModelComboBox", ui->shaderModelComboBox->currentIndex()).toInt();
     ui->shaderModelComboBox->setCurrentIndex(iVal);
+    iVal = settings.value("shadingNormalComboBox", ui->shadingNormalComboBox->currentIndex()).toInt();
+    ui->shadingNormalComboBox->setCurrentIndex(iVal);
     iVal = settings.value("msaaComboBox", ui->msaaComboBox->currentIndex()).toInt();
     ui->msaaComboBox->setCurrentIndex(iVal);
     iVal = settings.value("anisotropyComboBox", ui->anisotropyComboBox->currentIndex()).toInt();
@@ -858,8 +873,11 @@ void SettingsDialog::loadSettings()
     ui->specularLightSlider->setValue(iVal);
     QString sval = settings.value("lineEditTextureDir", ui->lineEditTextureDir->text()).toString();
     ui->lineEditTextureDir->setText(sval);
-    iVal = settings.value("comboBoxDefaultMaterial", ui->comboBoxDefaultMaterial->currentIndex()).toInt();
-    ui->comboBoxDefaultMaterial->setCurrentIndex(iVal);
+    sval = settings.value("comboBoxDefaultMaterial", ui->comboBoxDefaultMaterial->currentData().toString()).toString();
+    {
+        const int idx = ui->comboBoxDefaultMaterial->findData(sval);
+        ui->comboBoxDefaultMaterial->setCurrentIndex(idx >= 0 ? idx : 0);
+    }
     iVal = settings.value("UVMethod", ui->comboUVMethod->currentIndex()).toInt();
     ui->comboUVMethod->setCurrentIndex(iVal);
     double dVal = settings.value("spinAngleThreshold", ui->spinAngleThreshold->value()).toDouble();
@@ -1042,7 +1060,8 @@ void SettingsDialog::restoreDefaults()
         ui->showWireframeCheckBox, ui->showCenterTrihedronCheckBox,
         ui->navigationModeComboBox, ui->mouseSensitivitySlider, ui->zoomSensitivitySlider,
         ui->invertYAxisCheckBox, ui->smoothNavigationCheckBox, ui->comboShadingMode,
-        ui->checkBackfaceCulling, ui->checkNormalMap, ui->shaderModelComboBox,
+        ui->checkBackfaceCulling, ui->shaderModelComboBox,
+        ui->shadingNormalComboBox,
         ui->msaaComboBox, ui->anisotropyComboBox, ui->enableLightingCheckBox,
         ui->enableShadowsCheckBox, ui->ambientLightSlider, ui->diffuseLightSlider,
         ui->specularLightSlider, ui->lineEditTextureDir, ui->comboBoxDefaultMaterial,
@@ -1278,14 +1297,14 @@ void SettingsDialog::on_checkBackfaceCulling_stateChanged()
     rendering_backfaceCulling = ui->checkBackfaceCulling->isChecked();
 }
 
-void SettingsDialog::on_checkNormalMap_stateChanged()
-{
-    rendering_normalMap = ui->checkNormalMap->isChecked();
-}
-
 void SettingsDialog::on_shaderModelComboBox_currentIndexChanged()
 {
     rendering_shaderModelIndex = ui->shaderModelComboBox->currentIndex();
+}
+
+void SettingsDialog::on_shadingNormalComboBox_currentIndexChanged()
+{
+    rendering_shadingNormalIndex = ui->shadingNormalComboBox->currentIndex();
 }
 
 void SettingsDialog::on_msaaComboBox_currentIndexChanged()
@@ -1328,7 +1347,7 @@ void SettingsDialog::on_specularLightSlider_valueChanged()
 // Materials
 void SettingsDialog::on_comboBoxDefaultMaterial_currentIndexChanged()
 {
-    materials_defaultMaterialIndex = ui->comboBoxDefaultMaterial->currentIndex();
+    materials_defaultMaterialKey = ui->comboBoxDefaultMaterial->currentData().toString();
 }
 
 void SettingsDialog::on_lineEditTextureDir_textChanged()

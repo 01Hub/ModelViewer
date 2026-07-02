@@ -10,6 +10,7 @@
 // ---------------------------------------------------------------------------
 
 enum class RenderingMode          { ADS_BLINN_PHONG, PHYSICALLY_BASED_RENDERING };
+enum class ShadingNormalMode      { SMOOTH, FLAT };
 enum class ClippingPlaneHatchMode { PROCEDURAL, TEXTURE };
 enum class HatchPattern           { DIAGONAL_45 = 0, DIAGONAL_135 = 1, HORIZONTAL = 2, VERTICAL = 3, GRID = 4, DIAGONAL_CROSS = 5 };
 

@@ -71,8 +71,8 @@ public:
     // Rendering tab
     int renderingShadingModeIndex() const { return rendering_shadingModeIndex; }
     bool renderingBackfaceCulling() const { return rendering_backfaceCulling; }
-    bool renderingNormalMap() const { return rendering_normalMap; }
     int renderingShaderModelIndex() const { return rendering_shaderModelIndex; }
+    int renderingShadingNormalIndex() const { return rendering_shadingNormalIndex; }
     int renderingMsaaIndex() const { return rendering_msaaIndex; }
     int renderingAnisotropyIndex() const { return rendering_anisotropyIndex; }
 
@@ -84,7 +84,7 @@ public:
     int lightingSpecular() const { return lighting_specular; }
 
     // Materials
-    int materialsDefaultMaterialIndex() const { return materials_defaultMaterialIndex; }
+    QString materialsDefaultMaterialKey() const { return materials_defaultMaterialKey; }
     QString materialsTextureDir() const { return materials_textureDir; }
 
     // UV Generation Tab
@@ -201,8 +201,8 @@ private slots:
     void on_smoothNavigationCheckBox_stateChanged();
     void on_comboShadingMode_currentIndexChanged();
     void on_checkBackfaceCulling_stateChanged();
-    void on_checkNormalMap_stateChanged();
     void on_shaderModelComboBox_currentIndexChanged();
+    void on_shadingNormalComboBox_currentIndexChanged();
     void on_msaaComboBox_currentIndexChanged();
     void on_anisotropyComboBox_currentIndexChanged();
     void on_enableLightingCheckBox_stateChanged();
@@ -331,8 +331,8 @@ private:
     // Rendering tab
     int rendering_shadingModeIndex = 0;
     bool rendering_backfaceCulling = false;
-    bool rendering_normalMap = false;
     int rendering_shaderModelIndex = 0;
+    int rendering_shadingNormalIndex = 0;
     int rendering_msaaIndex = 0;
     int rendering_anisotropyIndex = 0;
 
@@ -344,7 +344,7 @@ private:
     int lighting_specular = 50;
 
     // Materials
-    int materials_defaultMaterialIndex = 0;
+    QString materials_defaultMaterialKey; // "" = Default (Neutral); see MaterialProcessor::setDefaultMaterial
     QString materials_textureDir;
 
     // UV Generation Tab

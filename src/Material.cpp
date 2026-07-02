@@ -49,7 +49,7 @@ Material::Material(QVector3D ambient, QVector3D diffuse, QVector3D specular, QVe
 	_transmission = 0.0f; // Default transmission
 	_shadingModel = ShadingModel::BlinnPhong; // Default shading model
 	_blendMode = BlendMode::Opaque; // Default blend mode
-	_twoSided = false; // Default two-sided rendering
+	_twoSided = true; // Default two-sided rendering
 	_wireframe = false; // Default wireframe rendering
 	_alphaThreshold = 0.5f; // Default alpha threshold for masked blend mode
 
@@ -93,7 +93,7 @@ Material::Material(QVector3D albedo, float metalness, float roughness, float opa
 	_transmission = 0.0f; // Default transmission
 	_shadingModel = ShadingModel::PBR; // Default shading model
 	_blendMode = BlendMode::Opaque; // Default blend mode
-	_twoSided = false; // Default two-sided rendering
+	_twoSided = true; // Default two-sided rendering
 	_wireframe = false; // Default wireframe rendering
 
 	// Sensible defaults (e.g., glTF ORM: O=R, R=G, M=B)
