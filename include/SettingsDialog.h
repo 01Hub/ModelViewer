@@ -41,7 +41,6 @@ public:
     int cameraDefaultUpAxisIndex() const { return camera_defaultUpAxisIndex; }
     bool cameraTrackball() const { return camera_trackball; }
     bool cameraInvertZoom() const { return camera_invertZoom; }
-    double cameraZoomFactor() const { return camera_zoomFactor; }
 
     // Background tab
     int backgroundStyleIndex() const { return background_styleIndex; }
@@ -59,15 +58,13 @@ public:
     bool displayShowFaceNormals() const { return display_showFaceNormals; }
     bool displayShowWireframe() const { return display_showWireframe; }
     int displayFieldOfView() const { return display_fieldOfView; }
-    double displayNearPlane() const { return display_nearPlane; }
-    double displayFarPlane() const { return display_farPlane; }
     bool displayShowCenterTrihedron() const { return display_showCenterTrihedron; }
     HoverHighlightMode displayHoverHighlightMode() const { return display_hoverHighlightMode; }
 
     // Navigation group
     int navigationModeIndex() const { return navigation_modeIndex; }
     int navigationMouseSensitivity() const { return navigation_mouseSensitivity; }
-    int navigationZoomSensitivity() const { return navigation_zoomSensitivity; }
+    int navigationWheelSensitivity() const { return navigation_wheelSensitivity; }
     bool navigationInvertYAxis() const { return navigation_invertYAxis; }
     bool navigationSmoothNavigation() const { return navigation_smoothNavigation; }
 
@@ -183,7 +180,6 @@ private slots:
     void on_comboCameraUpAxis_currentIndexChanged();
     void on_checkTrackball_stateChanged();
     void on_checkInvertZoom_stateChanged();
-    void on_spinZoomFactor_valueChanged();
     void on_comboBoxBackgroundStyle_currentIndexChanged();
     void on_pushButtonTopColor_clicked();
     void on_pushButtonBottomColor_clicked();
@@ -192,12 +188,10 @@ private slots:
     void on_showCornerTrihedronCheckBox_stateChanged();
     void on_showViewCubeCheckBox_stateChanged();
     void on_comboBoxCornerTrihedronPosition_currentIndexChanged();
-    void on_farPlaneSpinBox_valueChanged();
     void on_fieldOfViewSpinBox_valueChanged();
     void on_showGridCheckBox_stateChanged();
     void on_showVertexNormalsCheckBox_stateChanged();
     void on_showFaceNormalsCheckBox_stateChanged();
-    void on_nearPlaneSpinBox_valueChanged();
     void on_showWireframeCheckBox_stateChanged();
     void on_showCenterTrihedronCheckBox_stateChanged();
     void on_navigationModeComboBox_currentIndexChanged();
@@ -306,7 +300,6 @@ private:
     int camera_defaultUpAxisIndex = 0;
     bool camera_trackball = false;
     bool camera_invertZoom = false;
-    double camera_zoomFactor = 1.0;
 
     // Background tab
     int background_styleIndex = 0;
@@ -325,15 +318,13 @@ private:
     bool display_showFaceNormals = true;
     bool display_showWireframe = true;
     int display_fieldOfView = 60;
-    double display_nearPlane = 0.1;
-    double display_farPlane = 1000.0;
     bool display_showCenterTrihedron = false;
     HoverHighlightMode display_hoverHighlightMode = HoverHighlightMode::RaycastOnly;
 
     // Navigation group
     int navigation_modeIndex = 0;
     int navigation_mouseSensitivity = 5;
-    int navigation_zoomSensitivity = 5;
+    int navigation_wheelSensitivity = 5;
     bool navigation_invertYAxis = false;
     bool navigation_smoothNavigation = true;
 

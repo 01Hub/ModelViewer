@@ -19,6 +19,9 @@ BackgroundColor::BackgroundColor(QWidget* parent) :
 		_bottomColor = viewportWidget->getBgBotColor();
 		_gradientStyle = viewportWidget->getBgGradientStyle();
 		ui->comboBoxGradientStyle->setCurrentIndex(_gradientStyle);
+		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+		int styleIndex = settings.value("Background/StyleIndex", 0).toInt();
+		ui->checkBoxGrad->setChecked(styleIndex != 1); // 0=Gradient → checked, 1=Solid → unchecked
 		setPreviewColor();
 	}
 }
@@ -44,8 +47,13 @@ void BackgroundColor::applyBgColors()
 		else
 			viewportWidget->setBgBotColor(_topColor);
 		viewportWidget->setBgGradientStyle(_gradientStyle);
+		saveSettings();
+		viewportWidget->loadBgColorSettings(); // sync bgStyleIndex on render controller
 	}
-	saveSettings();
+	else
+	{
+		saveSettings();
+	}
 }
 
 void BackgroundColor::on_okButton_clicked()
@@ -77,6 +85,9 @@ void BackgroundColor::saveSettings()
 
 	// Store gradient style
 	settings.setValue("Background/GradientStyle", _gradientStyle);
+
+	// Store style mode (0=Gradient, 1=Solid) to stay in sync with SettingsDialog
+	settings.setValue("Background/StyleIndex", hasGradient() ? 0 : 1);
 }
 
 void BackgroundColor::on_cancelButton_clicked()

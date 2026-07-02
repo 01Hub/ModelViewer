@@ -420,30 +420,6 @@
         </widget>
        </item>
        <item row="5" column="0">
-        <layout class="QHBoxLayout" name="horizontalLayout_5">
-         <item>
-          <widget class="QLabel" name="label_4">
-           <property name="text">
-            <string>Zoom Factor</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QDoubleSpinBox" name="spinZoomFactor">
-           <property name="suffix">
-            <string>x</string>
-           </property>
-           <property name="maximum">
-            <double>10.000000000000000</double>
-           </property>
-           <property name="value">
-            <double>1.000000000000000</double>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </item>
-       <item row="6" column="0">
         <layout class="QHBoxLayout" name="horizontalLayout_cameraUpAxis">
          <item>
           <widget class="QLabel" name="label_cameraUpAxis">
@@ -621,29 +597,6 @@
           <string>Viewport</string>
          </property>
          <layout class="QGridLayout" name="gridLayout_12">
-          <item row="7" column="1">
-           <widget class="QLabel" name="nearPlaneLabel">
-            <property name="text">
-             <string>Near Plane:</string>
-            </property>
-           </widget>
-          </item>
-          <item row="8" column="2">
-           <widget class="QDoubleSpinBox" name="farPlaneSpinBox">
-            <property name="minimum">
-             <double>10.000000000000000</double>
-            </property>
-            <property name="maximum">
-             <double>10000.000000000000000</double>
-            </property>
-            <property name="singleStep">
-             <double>10.000000000000000</double>
-            </property>
-            <property name="value">
-             <double>1000.000000000000000</double>
-            </property>
-           </widget>
-          </item>
           <item row="6" column="1">
            <widget class="QLabel" name="fieldOfViewLabel">
             <property name="text">
@@ -658,13 +611,6 @@
             </property>
             <property name="checked">
              <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="8" column="1">
-           <widget class="QLabel" name="farPlaneLabel">
-            <property name="text">
-             <string>Far Plane:</string>
             </property>
            </widget>
           </item>
@@ -797,22 +743,6 @@
             </property>
            </widget>
           </item>
-          <item row="7" column="2">
-           <widget class="QDoubleSpinBox" name="nearPlaneSpinBox">
-            <property name="minimum">
-             <double>0.000000000000000</double>
-            </property>
-            <property name="maximum">
-             <double>10.000000000000000</double>
-            </property>
-            <property name="singleStep">
-             <double>0.001000000000000</double>
-            </property>
-            <property name="value">
-             <double>0.100000000000000</double>
-            </property>
-           </widget>
-          </item>
           <item row="2" column="1">
            <widget class="QLabel" name="label_7">
             <property name="text">
@@ -918,7 +848,7 @@
           <item row="2" column="0">
            <widget class="QLabel" name="zoomSensitivityLabel">
             <property name="text">
-             <string>Zoom Sensitivity:</string>
+             <string>Wheel Sensitivity:</string>
             </property>
            </widget>
           </item>
@@ -2205,7 +2135,6 @@
   <tabstop>comboCameraUpAxis</tabstop>
   <tabstop>checkTrackball</tabstop>
   <tabstop>checkInvertZoom</tabstop>
-  <tabstop>spinZoomFactor</tabstop>
   <tabstop>comboBoxBackgroundStyle</tabstop>
   <tabstop>pushButtonTopColor</tabstop>
   <tabstop>pushButtonBottomColor</tabstop>
@@ -2220,8 +2149,6 @@
   <tabstop>showFaceNormalsCheckBox</tabstop>
   <tabstop>showWireframeCheckBox</tabstop>
   <tabstop>fieldOfViewSpinBox</tabstop>
-  <tabstop>nearPlaneSpinBox</tabstop>
-  <tabstop>farPlaneSpinBox</tabstop>
   <tabstop>navigationModeComboBox</tabstop>
   <tabstop>mouseSensitivitySlider</tabstop>
   <tabstop>zoomSensitivitySlider</tabstop>

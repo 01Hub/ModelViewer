@@ -298,6 +298,19 @@ public:
 
 	int getBgGradientStyle() const { return _renderCtrl.gradientStyle(); }
 	void setBgGradientStyle(int style) { _renderCtrl.setGradientStyle(style); }
+	void loadBgColorSettings();
+	void loadNavigationSettings();
+
+	struct CameraPose
+	{
+		QVector3D position;
+		QVector3D viewDir;
+		QVector3D upVector;
+		QVector3D rightVector;
+		float     viewRange;
+	};
+	CameraPose saveCameraPose() const;
+	void       restoreCameraPose(const CameraPose& pose);
 
 	RenderingMode getRenderingMode() const { return _renderCtrl.renderingMode(); }
 	void setRenderingMode(const RenderingMode& renderingMode);
@@ -682,7 +695,6 @@ private:
 	void applyAutoOrientCameraConvention(SceneUpAxis sceneUpAxis);
 	void warnOnConflictingImportedSceneUpAxis(const QString& fileName, SceneUpAxis sceneUpAxis);
 
-	void loadBgColorSettings();
 	QRect viewCubeRect() const;
 	QRect viewCubeScreenRect() const;
 	void initializeViewCubeLabels();
@@ -946,6 +958,13 @@ private:
 	AdaptiveShadowMapper shadowMapper;
 
 	float _originalBoundingRadius = 1.0f;
+
+	// Navigation settings (from SettingsDialog / QSettings)
+	bool  _invertZoom           = false;
+	bool  _invertYAxis          = false;
+	bool  _smoothNavigation     = true;
+	float _mouseSensitivity     = 1.0f; // 1.0 = default (slider 5/10)
+	float _wheelSensitivity     = 1.0f; // 1.0 = default (slider 5/10)
 
 	// Derive the user model transform for one file directly from its meshes'
 	// TRS state.  Returns true (and fills outTransform) only when every mesh

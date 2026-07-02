@@ -231,6 +231,7 @@ _floorPlane(nullptr),
 	_orthoViewsCamera = new Camera(width(), height(), _viewCtrl.viewRange(), _viewCtrl.FOV());
 	_orthoViewsCamera->setView(Camera::ViewProjection::SE_ISOMETRIC_VIEW);
 
+	loadNavigationSettings();
 	{
 		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 		setCameraUpAxisZUp(settings.value("comboCameraUpAxis", 0).toInt() == 0);
@@ -984,8 +985,12 @@ void ViewportWidget::paintGL()
 	{
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-		gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
-			botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _renderCtrl.gradientStyle());
+		if (_renderCtrl.bgStyleIndex() == 1) // Solid
+			gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
+				topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(), 0);
+		else // Gradient
+			gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
+				botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _renderCtrl.gradientStyle());
 
 		_renderCtrl.fgShader()->bind();
 		_renderCtrl.punctualLights()->bind(_renderCtrl.fgShader()->programId());
@@ -8570,6 +8575,48 @@ void ViewportWidget::loadBgColorSettings()
 	{
 		_renderCtrl.setGradientStyle(0); // Default to vertical gradient
 	}
+
+	// Background style mode: 0=Gradient, 1=Solid
+	QVariant bgStyleValue = settings.value("Background/StyleIndex");
+	_renderCtrl.setBgStyleIndex(
+		bgStyleValue.isValid() && bgStyleValue.canConvert<int>() ? bgStyleValue.toInt() : 0);
+}
+
+void ViewportWidget::loadNavigationSettings()
+{
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+
+	_invertZoom        = settings.value("checkInvertZoom", false).toBool();
+	_invertYAxis       = settings.value("invertYAxisCheckBox", false).toBool();
+	_smoothNavigation  = settings.value("smoothNavigationCheckBox", true).toBool();
+
+	// Sliders run 1–10; 5 = neutral (1.0×). Map linearly: value/5.0.
+	int mouseSens = settings.value("mouseSensitivitySlider", 5).toInt();
+	_mouseSensitivity = std::clamp(mouseSens, 1, 10) / 5.0f;
+
+	int wheelSens = settings.value("wheelSensitivitySlider", 5).toInt();
+	_wheelSensitivity = std::clamp(wheelSens, 1, 10) / 5.0f;
+}
+
+ViewportWidget::CameraPose ViewportWidget::saveCameraPose() const
+{
+	return {
+		_primaryCamera->getPosition(),
+		_primaryCamera->getViewDir(),
+		_primaryCamera->getUpVector(),
+		_primaryCamera->getRightVector(),
+		_viewCtrl.viewRange()
+	};
+}
+
+void ViewportWidget::restoreCameraPose(const CameraPose& pose)
+{
+	_viewCtrl.setViewRange(pose.viewRange);
+	_viewCtrl.setCurrentViewRange(pose.viewRange);
+	_primaryCamera->setViewRange(pose.viewRange);
+	_primaryCamera->setView(pose.position, pose.viewDir, pose.upVector, pose.rightVector);
+	_viewCtrl.syncPoseFromCamera(*_primaryCamera);
+	update();
 }
 
 
@@ -10469,17 +10516,19 @@ void ViewportWidget::mouseReleaseEvent(QMouseEvent* e)
 	const qint64 maxIdleMs = 50; // adjust as needed
 	bool recentMove = (_viewCtrl.lastMouseMoveTime() > 0) && ((now - _viewCtrl.lastMouseMoveTime()) < maxIdleMs);
 
-	// Start inertia if velocity is significant
-	if (_viewCtrl.mouseMovedSincePress() && recentMove &&
+	// Start inertia if velocity is significant and smooth navigation is enabled
+	if (_smoothNavigation && _viewCtrl.mouseMovedSincePress() && recentMove &&
 		(_viewCtrl.inertiaPanVelocity().lengthSquared() > 1.0f ||
 			std::abs(_viewCtrl.inertiaZoomVelocity()) > 0.01f ||
 			_viewCtrl.inertiaRotateVelocity().lengthSquared() > 1.0f))
 	{
 		if (_inertiaTimer) _inertiaTimer->start();
 	}
-	else if (_renderCtrl.sectionCapsSuppressedDuringInteraction())
+	else
 	{
-		QTimer::singleShot(100, this, &ViewportWidget::disableSectionCapsInteractionSuppression);
+		_viewCtrl.clearInertiaState();
+		if (_renderCtrl.sectionCapsSuppressedDuringInteraction())
+			QTimer::singleShot(100, this, &ViewportWidget::disableSectionCapsInteractionSuppression);
 	}
 
 	if (e->buttons() == Qt::NoButton)
@@ -10541,13 +10590,14 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 
 			if (_primaryCamera->getMode() == Camera::CameraMode::Orbit)
 			{
-				_primaryCamera->rotateX(rotate.y() / 2.0);
-				_primaryCamera->rotateY(rotate.x() / 2.0);
+				const float yDelta = (_invertYAxis ? -rotate.y() : rotate.y()) * _mouseSensitivity;
+				_primaryCamera->rotateX(yDelta / 2.0);
+				_primaryCamera->rotateY(rotate.x() * _mouseSensitivity / 2.0);
 			}
 			else if (_primaryCamera->getMode() == Camera::CameraMode::Fly || _primaryCamera->getMode() == Camera::CameraMode::FirstPerson)
 			{
-				_primaryCamera->getYaw() += rotate.x() * 0.2f;
-				_primaryCamera->getPitch() += rotate.y() * 0.2f;
+				_primaryCamera->getYaw() += rotate.x() * 0.2f * _mouseSensitivity;
+				_primaryCamera->getPitch() += rotate.y() * 0.2f * (_invertYAxis ? -1.0f : 1.0f) * _mouseSensitivity;
 
 				if (_primaryCamera->getMode() == Camera::CameraMode::FirstPerson)
 					_primaryCamera->getPitch() = std::clamp(_primaryCamera->getPitch(), -60.0f, 60.0f);
@@ -10580,8 +10630,8 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 	{
 		// Free-look in Fly/FP mode: RMB drag rotates the view via yaw/pitch
 		QPoint look = _viewCtrl.rightButtonPoint() - downPoint;
-		_primaryCamera->getYaw()   += look.x() * 0.2f;
-		_primaryCamera->getPitch() += look.y() * 0.2f;
+		_primaryCamera->getYaw()   += look.x() * 0.2f * _mouseSensitivity;
+		_primaryCamera->getPitch() += look.y() * 0.2f * _mouseSensitivity;
 
 		if (_primaryCamera->getMode() == Camera::CameraMode::FirstPerson)
 			_primaryCamera->getPitch() = std::clamp(_primaryCamera->getPitch(), -60.0f, 60.0f);
@@ -10607,7 +10657,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 			_renderCtrl.setLowResEnabled(true);
 		setSectionCapsInteractionSuppressed(true);
-		QVector3D OP = get3dTranslationVectorFromMousePoints(downPoint, _viewCtrl.rightButtonPoint());
+		QVector3D OP = get3dTranslationVectorFromMousePoints(downPoint, _viewCtrl.rightButtonPoint()) * _mouseSensitivity;
 		_primaryCamera->move(OP.x(), OP.y(), OP.z());
 		_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
 
@@ -10631,14 +10681,23 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 			_renderCtrl.setLowResEnabled(true);
 		setSectionCapsInteractionSuppressed(true);
-		// Zoom
-		if (downPoint.x() > _viewCtrl.middleButtonPoint().x() || downPoint.y() < _viewCtrl.middleButtonPoint().y()) {
-			_viewCtrl.setViewRange(_viewCtrl.viewRange() / 1.05f);
-			_viewCtrl.setLastZoomDirection(1);
-		}
-		else {
-			_viewCtrl.setViewRange(_viewCtrl.viewRange() * 1.05f);
-			_viewCtrl.setLastZoomDirection(-1);
+		// Zoom — scale by actual pixel delta so slow drag = slow zoom
+		const QPoint frameDelta = downPoint - _viewCtrl.middleButtonPoint();
+		// Right/up = zoom in; left/down = zoom out (horizontal dominates if larger)
+		const float pixelDelta = std::abs(frameDelta.x()) >= std::abs(frameDelta.y())
+		    ? static_cast<float>(frameDelta.x())
+		    : static_cast<float>(-frameDelta.y());
+		if (std::abs(pixelDelta) > 0.5f)
+		{
+			// 0.005 coefficient: 10 px/frame ≈ 5% step at default sensitivity
+			const float dragZoomFactor = std::max(1.0f + std::abs(pixelDelta) * 0.005f * _mouseSensitivity, 1.0001f);
+			if (pixelDelta > 0) {
+				_viewCtrl.setViewRange(_viewCtrl.viewRange() / dragZoomFactor);
+				_viewCtrl.setLastZoomDirection(1);
+			} else {
+				_viewCtrl.setViewRange(_viewCtrl.viewRange() * dragZoomFactor);
+				_viewCtrl.setLastZoomDirection(-1);
+			}
 		}
 		
 		// Perspective: floor is the focused sub-mesh radius × 0.5 so the orbit
@@ -10660,9 +10719,9 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 
 		// Translate to focus on mouse center
 		QPoint cen = PickingHelper::clientRectForPoint(downPoint, width(), height(), _viewCtrl.multiViewActive()).center();
-		float sign = (downPoint.x() > _viewCtrl.middleButtonPoint().x() || downPoint.y() < _viewCtrl.middleButtonPoint().y()) ? 1.0f : -1.0f;
+		float sign = (pixelDelta > 0) ? 1.0f : -1.0f;
 		QVector3D OP = get3dTranslationVectorFromMousePoints(cen, _viewCtrl.middleButtonPoint());
-		OP *= sign * 0.05f;
+		OP *= sign * 0.05f * _mouseSensitivity;
 		_primaryCamera->move(OP.x(), OP.y(), OP.z());
 		_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
 		_viewCtrl.setLastZoomPanVector(OP); // Store for inertia
@@ -10818,7 +10877,10 @@ void ViewportWidget::wheelEvent(QWheelEvent* e)
 	QPoint numDegrees = e->angleDelta() / 8;
 	QPoint numSteps = numDegrees / 30;
 	float zoomStep = numSteps.y();
-	float zoomFactor = abs(zoomStep) + 0.05;
+	if (_invertZoom)
+		zoomStep = -zoomStep;
+	const float rawFactor = std::abs(zoomStep) + 0.05f;
+	const float zoomFactor = std::max(1.0f + (rawFactor - 1.0f) * _wheelSensitivity, 1.001f);
 	const float oldViewRange = _viewCtrl.viewRange();
 
 	if (zoomStep < 0)
@@ -10849,8 +10911,15 @@ void ViewportWidget::wheelEvent(QWheelEvent* e)
 	_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
 
 	// Add inertia for wheel zoom
-	_viewCtrl.setInertiaZoomVelocity((e->angleDelta().y() / 120.0f) * 0.05f); // scale as needed
-	if (_inertiaTimer) _inertiaTimer->start();
+	if (_smoothNavigation)
+	{
+		_viewCtrl.setInertiaZoomVelocity((e->angleDelta().y() / 120.0f) * 0.05f); // scale as needed
+		if (_inertiaTimer) _inertiaTimer->start();
+	}
+	else
+	{
+		_viewCtrl.setInertiaZoomVelocity(0.0f);
+	}
 
 	_viewCtrl.addInertiaZoomPanVelocity(OP);
 

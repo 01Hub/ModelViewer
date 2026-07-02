@@ -4,6 +4,7 @@
 #include "ModelViewerApplication.h"
 #include "ui_SettingsDialog.h"
 #include <algorithm>
+#include <QColorDialog>
 #include <QMessageBox>
 #include <QTimer>
 
@@ -268,13 +269,12 @@ void SettingsDialog::applySettings()
     settings.setValue("comboCameraUpAxis", camera_defaultUpAxisIndex);
     settings.setValue("checkTrackball", camera_trackball);
     settings.setValue("checkInvertZoom", camera_invertZoom);
-    settings.setValue("spinZoomFactor", camera_zoomFactor);
 
     // Background tab
-    settings.setValue("comboBoxBackgroundStyle", background_styleIndex);
-    settings.setValue("comboBoxGradientStyle", background_gradientStyleIndex);
-    settings.setValue("backgroundTopColor", background_topColor);
-    settings.setValue("backgroundBottomColor", background_bottomColor);
+    settings.setValue("Background/StyleIndex", background_styleIndex);
+    settings.setValue("Background/GradientStyle", background_gradientStyleIndex);
+    settings.setValue("Background/TopColor", background_topColor);
+    settings.setValue("Background/BottomColor", background_bottomColor);
 
     // Display tab
     settings.setValue("showBoundingBoxCheckBox", display_showBoundingBox);
@@ -286,15 +286,13 @@ void SettingsDialog::applySettings()
     settings.setValue("showFaceNormalsCheckBox", display_showFaceNormals);
     settings.setValue("showWireframeCheckBox", display_showWireframe);
     settings.setValue("fieldOfViewSpinBox", display_fieldOfView);
-    settings.setValue("nearPlaneSpinBox", display_nearPlane);
-    settings.setValue("farPlaneSpinBox", display_farPlane);
     settings.setValue("showCenterTrihedronCheckBox", display_showCenterTrihedron);
     settings.setValue("comboBoxHoverHighlightMode", static_cast<int>(display_hoverHighlightMode));
 
     // Navigation group
     settings.setValue("navigationModeComboBox", navigation_modeIndex);
     settings.setValue("mouseSensitivitySlider", navigation_mouseSensitivity);
-    settings.setValue("zoomSensitivitySlider", navigation_zoomSensitivity);
+    settings.setValue("wheelSensitivitySlider", navigation_wheelSensitivity);
     settings.setValue("invertYAxisCheckBox", navigation_invertYAxis);
     settings.setValue("smoothNavigationCheckBox", navigation_smoothNavigation);
 
@@ -318,14 +316,14 @@ void SettingsDialog::applySettings()
     settings.setValue("lineEditTextureDir", materials_textureDir);
 
     // UV Generation Tab
-    settings.setValue("comboUVMethod", uv_methodIndex);
+    settings.setValue("UVMethod", uv_methodIndex);
     settings.setValue("spinAngleThreshold", uv_angleThreshold);
     settings.setValue("checkPreserveUVs", uv_preserveUVs);
     settings.setValue("checkAutoPackUVs", uv_autoPackUVs);
     settings.setValue("checkRelaxUVs", uv_relaxUVs);
     settings.setValue("checkPCAProjection", uv_pcaProjection);
     settings.setValue("checkXatlasPackingOnly", uv_xatlasPackingOnly);
-    settings.setValue("checkRememberUV", uv_rememberUV);
+    settings.setValue("RememberUVMethod", uv_rememberUV);
 
     // Import/Export Tab - OpenCascade
     settings.setValue("tessellationQualitySlider", import_tessellationQuality);
@@ -347,7 +345,7 @@ void SettingsDialog::applySettings()
 
 	// Import/Export Tab - Export
 	settings.setValue("radioButtonExportScene", export_exportScene);
-	settings.setValue("radioButtonExportMeshs", export_exportMeshes);
+	settings.setValue("radioButtonExportMeshes", export_exportMeshes);
 
     // Performance Tab
     settings.setValue("checkMultithreadedLoad", perf_multithreadedLoad);
@@ -432,12 +430,18 @@ void SettingsDialog::setDefaultValues()
     ui->comboCameraUpAxis->setCurrentIndex(0);         // "Z-Up"
     ui->checkTrackball->setChecked(false);             // No 'checked' property found
     ui->checkInvertZoom->setChecked(false);            // No 'checked' property found
-    ui->spinZoomFactor->setValue(1.0);                 // Explicitly set to 1.0
 
     // Background tab
     ui->comboBoxBackgroundStyle->setCurrentIndex(0);   // "Gradient"
     ui->comboBoxGradientStyle->setCurrentIndex(0);     // "Vertical"
-    // pushButtonTopColor and pushButtonBottomColor do not store actual color values - handled elsewhere.
+    {
+        const QColor topDefault(128, 128, 128);
+        ui->pushButtonTopColor->setProperty("color", topDefault);
+        ui->pushButtonTopColor->setStyleSheet(QString("background-color: %1").arg(topDefault.name()));
+        const QColor bottomDefault(64, 64, 64);
+        ui->pushButtonBottomColor->setProperty("color", bottomDefault);
+        ui->pushButtonBottomColor->setStyleSheet(QString("background-color: %1").arg(bottomDefault.name()));
+    }
 
     // Display tab
     ui->showBoundingBoxCheckBox->setChecked(true);     // Explicitly set to true
@@ -451,8 +455,6 @@ void SettingsDialog::setDefaultValues()
     ui->showFaceNormalsCheckBox->setChecked(true);     // Explicitly set to true
     ui->showWireframeCheckBox->setChecked(true);       // Explicitly set to true
     ui->fieldOfViewSpinBox->setValue(45);              // Explicitly set
-    ui->nearPlaneSpinBox->setValue(0.1);               // Explicitly set
-    ui->farPlaneSpinBox->setValue(1000.0);             // Explicitly set
     if (ui->comboBoxHoverHighlightMode)
         ui->comboBoxHoverHighlightMode->setCurrentIndex(0); // Default: Disabled
 
@@ -636,7 +638,6 @@ void SettingsDialog::syncStateFromUi()
     camera_defaultUpAxisIndex = ui->comboCameraUpAxis->currentIndex();
     camera_trackball = ui->checkTrackball->isChecked();
     camera_invertZoom = ui->checkInvertZoom->isChecked();
-    camera_zoomFactor = ui->spinZoomFactor->value();
 
     // Background tab
     background_styleIndex = ui->comboBoxBackgroundStyle->currentIndex();
@@ -655,8 +656,6 @@ void SettingsDialog::syncStateFromUi()
     display_showFaceNormals = ui->showFaceNormalsCheckBox->isChecked();
     display_showWireframe = ui->showWireframeCheckBox->isChecked();
     display_fieldOfView = ui->fieldOfViewSpinBox->value();
-    display_nearPlane = ui->nearPlaneSpinBox->value();
-    display_farPlane = ui->farPlaneSpinBox->value();
     display_showCenterTrihedron = ui->showCenterTrihedronCheckBox->isChecked();
     if (ui->comboBoxHoverHighlightMode) {
         display_hoverHighlightMode = static_cast<HoverHighlightMode>(ui->comboBoxHoverHighlightMode->currentIndex());
@@ -665,7 +664,7 @@ void SettingsDialog::syncStateFromUi()
     // Navigation group
     navigation_modeIndex = ui->navigationModeComboBox->currentIndex();
     navigation_mouseSensitivity = ui->mouseSensitivitySlider->value();
-    navigation_zoomSensitivity = ui->zoomSensitivitySlider->value();
+    navigation_wheelSensitivity = ui->zoomSensitivitySlider->value();
     navigation_invertYAxis = ui->invertYAxisCheckBox->isChecked();
     navigation_smoothNavigation = ui->smoothNavigationCheckBox->isChecked();
 
@@ -788,12 +787,18 @@ void SettingsDialog::loadSettings()
     ui->checkTrackball->setChecked(bVal);
     bVal = settings.value("checkInvertZoom", ui->checkInvertZoom->isChecked()).toBool();
     ui->checkInvertZoom->setChecked(bVal);
-    double dVal = settings.value("spinZoomFactor", ui->spinZoomFactor->value()).toDouble();
-    ui->spinZoomFactor->setValue(dVal);
-    iVal = settings.value("comboBoxBackgroundStyle", ui->comboBoxBackgroundStyle->currentIndex()).toInt();
+    iVal = settings.value("Background/StyleIndex", ui->comboBoxBackgroundStyle->currentIndex()).toInt();
     ui->comboBoxBackgroundStyle->setCurrentIndex(iVal);
-    iVal = settings.value("comboBoxGradientStyle", ui->comboBoxGradientStyle->currentIndex()).toInt();
+    iVal = settings.value("Background/GradientStyle", ui->comboBoxGradientStyle->currentIndex()).toInt();
     ui->comboBoxGradientStyle->setCurrentIndex(iVal);
+    {
+        QColor topColor = settings.value("Background/TopColor", QColor(128, 128, 128)).value<QColor>();
+        ui->pushButtonTopColor->setProperty("color", topColor);
+        ui->pushButtonTopColor->setStyleSheet(QString("background-color: %1").arg(topColor.name()));
+        QColor bottomColor = settings.value("Background/BottomColor", QColor(64, 64, 64)).value<QColor>();
+        ui->pushButtonBottomColor->setProperty("color", bottomColor);
+        ui->pushButtonBottomColor->setStyleSheet(QString("background-color: %1").arg(bottomColor.name()));
+    }
     bVal = settings.value("showBoundingBoxCheckBox", ui->showBoundingBoxCheckBox->isChecked()).toBool();
     ui->showBoundingBoxCheckBox->setChecked(bVal);
     bVal = settings.value("showVertexNormalsCheckBox", ui->showVertexNormalsCheckBox->isChecked()).toBool();
@@ -807,14 +812,10 @@ void SettingsDialog::loadSettings()
     iVal = settings.value("comboBoxCornerTrihedronPosition", kCornerTrihedronTopRight).toInt();
     setCornerTrihedronPositionSelection(ui->comboBoxCornerTrihedronPosition, iVal);
     refreshViewCubeAvailability();
-    dVal = settings.value("farPlaneSpinBox", ui->farPlaneSpinBox->value()).toDouble();
-    ui->farPlaneSpinBox->setValue(dVal);
     iVal = settings.value("fieldOfViewSpinBox", ui->fieldOfViewSpinBox->value()).toInt();
     ui->fieldOfViewSpinBox->setValue(iVal);
     bVal = settings.value("showGridCheckBox", ui->showGridCheckBox->isChecked()).toBool();
     ui->showGridCheckBox->setChecked(bVal);
-    dVal = settings.value("nearPlaneSpinBox", ui->nearPlaneSpinBox->value()).toDouble();
-    ui->nearPlaneSpinBox->setValue(dVal);
     bVal = settings.value("showWireframeCheckBox", ui->showWireframeCheckBox->isChecked()).toBool();
     ui->showWireframeCheckBox->setChecked(bVal);
     bVal = settings.value("showCenterTrihedronCheckBox", ui->showCenterTrihedronCheckBox->isChecked()).toBool();
@@ -827,7 +828,7 @@ void SettingsDialog::loadSettings()
     ui->navigationModeComboBox->setCurrentIndex(iVal);
     iVal = settings.value("mouseSensitivitySlider", ui->mouseSensitivitySlider->value()).toInt();
     ui->mouseSensitivitySlider->setValue(iVal);
-    iVal = settings.value("zoomSensitivitySlider", ui->zoomSensitivitySlider->value()).toInt();
+    iVal = settings.value("wheelSensitivitySlider", ui->zoomSensitivitySlider->value()).toInt();
     ui->zoomSensitivitySlider->setValue(iVal);
     bVal = settings.value("invertYAxisCheckBox", ui->invertYAxisCheckBox->isChecked()).toBool();
     ui->invertYAxisCheckBox->setChecked(bVal);
@@ -859,9 +860,9 @@ void SettingsDialog::loadSettings()
     ui->lineEditTextureDir->setText(sval);
     iVal = settings.value("comboBoxDefaultMaterial", ui->comboBoxDefaultMaterial->currentIndex()).toInt();
     ui->comboBoxDefaultMaterial->setCurrentIndex(iVal);
-    iVal = settings.value("comboUVMethod", ui->comboUVMethod->currentIndex()).toInt();
+    iVal = settings.value("UVMethod", ui->comboUVMethod->currentIndex()).toInt();
     ui->comboUVMethod->setCurrentIndex(iVal);
-    dVal = settings.value("spinAngleThreshold", ui->spinAngleThreshold->value()).toDouble();
+    double dVal = settings.value("spinAngleThreshold", ui->spinAngleThreshold->value()).toDouble();
     ui->spinAngleThreshold->setValue(dVal);
     bVal = settings.value("checkPreserveUVs", ui->checkPreserveUVs->isChecked()).toBool();
     ui->checkPreserveUVs->setChecked(bVal);
@@ -873,7 +874,7 @@ void SettingsDialog::loadSettings()
     ui->checkPCAProjection->setChecked(bVal);
     bVal = settings.value("checkXatlasPackingOnly", ui->checkXatlasPackingOnly->isChecked()).toBool();
     ui->checkXatlasPackingOnly->setChecked(bVal);
-    bVal = settings.value("checkRememberUV", ui->checkRememberUV->isChecked()).toBool();
+    bVal = settings.value("RememberUVMethod", ui->checkRememberUV->isChecked()).toBool();
     ui->checkRememberUV->setChecked(bVal);
     iVal = settings.value("tessellationQualitySlider", ui->tessellationQualitySlider->value()).toInt();
     ui->tessellationQualitySlider->setValue(iVal);
@@ -1032,13 +1033,13 @@ void SettingsDialog::restoreDefaults()
 		ui->checkRestoreLastFile, ui->checkTooltips, ui->checkConfirmExit, ui->checkTutorialLaunch, ui->spinBoxUndoLimit,
         ui->comboProjectionMode, ui->comboDefaultView, ui->comboDefaultProjection,
         ui->comboCameraUpAxis,
-        ui->checkTrackball, ui->checkInvertZoom, ui->spinZoomFactor,
+        ui->checkTrackball, ui->checkInvertZoom,
         ui->comboBoxBackgroundStyle, ui->pushButtonTopColor, ui->pushButtonBottomColor,
         ui->comboBoxGradientStyle, ui->showBoundingBoxCheckBox, ui->showVertexNormalsCheckBox,
         ui->showFaceNormalsCheckBox, ui->showCornerTrihedronCheckBox,
         ui->showViewCubeCheckBox,
-        ui->comboBoxCornerTrihedronPosition, ui->farPlaneSpinBox, ui->fieldOfViewSpinBox, ui->showGridCheckBox,
-        ui->nearPlaneSpinBox, ui->showWireframeCheckBox, ui->showCenterTrihedronCheckBox,
+        ui->comboBoxCornerTrihedronPosition, ui->fieldOfViewSpinBox, ui->showGridCheckBox,
+        ui->showWireframeCheckBox, ui->showCenterTrihedronCheckBox,
         ui->navigationModeComboBox, ui->mouseSensitivitySlider, ui->zoomSensitivitySlider,
         ui->invertYAxisCheckBox, ui->smoothNavigationCheckBox, ui->comboShadingMode,
         ui->checkBackfaceCulling, ui->checkNormalMap, ui->shaderModelComboBox,
@@ -1152,11 +1153,6 @@ void SettingsDialog::on_checkInvertZoom_stateChanged()
     camera_invertZoom = ui->checkInvertZoom->isChecked();
 }
 
-void SettingsDialog::on_spinZoomFactor_valueChanged()
-{
-    camera_zoomFactor = ui->spinZoomFactor->value();
-}
-
 // Background tab
 void SettingsDialog::on_comboBoxBackgroundStyle_currentIndexChanged()
 {
@@ -1165,16 +1161,26 @@ void SettingsDialog::on_comboBoxBackgroundStyle_currentIndexChanged()
 
 void SettingsDialog::on_pushButtonTopColor_clicked()
 {
-    // Example: open color dialog and assign
-    // background_topColor = QColorDialog::getColor(background_topColor, this);
-    // For now, just keep as placeholder
+    QColor current = ui->pushButtonTopColor->property("color").value<QColor>();
+    QColor chosen = QColorDialog::getColor(current.isValid() ? current : QColor(128, 128, 128), this, tr("Select Top Color"));
+    if (chosen.isValid())
+    {
+        ui->pushButtonTopColor->setProperty("color", chosen);
+        ui->pushButtonTopColor->setStyleSheet(QString("background-color: %1").arg(chosen.name()));
+        background_topColor = chosen;
+    }
 }
 
 void SettingsDialog::on_pushButtonBottomColor_clicked()
 {
-    // Example: open color dialog and assign
-    // background_bottomColor = QColorDialog::getColor(background_bottomColor, this);
-    // For now, just keep as placeholder
+    QColor current = ui->pushButtonBottomColor->property("color").value<QColor>();
+    QColor chosen = QColorDialog::getColor(current.isValid() ? current : QColor(64, 64, 64), this, tr("Select Bottom Color"));
+    if (chosen.isValid())
+    {
+        ui->pushButtonBottomColor->setProperty("color", chosen);
+        ui->pushButtonBottomColor->setStyleSheet(QString("background-color: %1").arg(chosen.name()));
+        background_bottomColor = chosen;
+    }
 }
 
 void SettingsDialog::on_comboBoxGradientStyle_currentIndexChanged()
@@ -1205,11 +1211,6 @@ void SettingsDialog::on_comboBoxCornerTrihedronPosition_currentIndexChanged()
     display_showViewCube = ui->showViewCubeCheckBox->isChecked();
 }
 
-void SettingsDialog::on_farPlaneSpinBox_valueChanged()
-{
-    display_farPlane = ui->farPlaneSpinBox->value();
-}
-
 void SettingsDialog::on_fieldOfViewSpinBox_valueChanged()
 {
     display_fieldOfView = ui->fieldOfViewSpinBox->value();
@@ -1228,11 +1229,6 @@ void SettingsDialog::on_showVertexNormalsCheckBox_stateChanged()
 void SettingsDialog::on_showFaceNormalsCheckBox_stateChanged()
 {
     display_showFaceNormals = ui->showFaceNormalsCheckBox->isChecked();
-}
-
-void SettingsDialog::on_nearPlaneSpinBox_valueChanged()
-{
-    display_nearPlane = ui->nearPlaneSpinBox->value();
 }
 
 void SettingsDialog::on_showWireframeCheckBox_stateChanged()
@@ -1258,7 +1254,7 @@ void SettingsDialog::on_mouseSensitivitySlider_valueChanged()
 
 void SettingsDialog::on_zoomSensitivitySlider_valueChanged()
 {
-    navigation_zoomSensitivity = ui->zoomSensitivitySlider->value();
+    navigation_wheelSensitivity = ui->zoomSensitivitySlider->value();
 }
 
 void SettingsDialog::on_invertYAxisCheckBox_stateChanged()

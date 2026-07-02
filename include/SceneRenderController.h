@@ -385,6 +385,8 @@ public:
     void         setBgBotColor(const QColor& c)      { _bgBotColor = c; }
     int          gradientStyle()               const { return _gradientStyle; }
     void         setGradientStyle(int s)             { _gradientStyle = s; }
+    int          bgStyleIndex()               const { return _bgStyleIndex; }
+    void         setBgStyleIndex(int s)             { _bgStyleIndex = s; }
     RenderingMode renderingMode()              const { return _renderingMode; }
     void         setRenderingMode(RenderingMode m)   { _renderingMode = m; }
 
@@ -669,6 +671,7 @@ private:
     QColor        _bgTopColor;
     QColor        _bgBotColor;
     int           _gradientStyle                     = 0;
+    int           _bgStyleIndex                      = 0; // 0=Gradient, 1=Solid
     RenderingMode _renderingMode                     = RenderingMode::ADS_BLINN_PHONG;
 
     // ---- Floor texture / offset --------------------------------------------

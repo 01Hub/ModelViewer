@@ -828,6 +828,9 @@ void MainWindow::on_actionSettings_triggered()
 			{
 				ViewportWidget* vp = viewer ? viewer->getViewportWidget() : nullptr;
 				if (!vp) continue;
+
+				const ViewportWidget::CameraPose pose = vp->saveCameraPose();
+
 				vp->setAnisotropicFilteringLevel(anIsoVals[idx]);
 				vp->setShowCenterAxisOverride(settingsDialog->displayShowCenterTrihedron());
 				vp->setShowCornerAxisOverride(settingsDialog->displayShowCornerTrihedron());
@@ -842,6 +845,10 @@ void MainWindow::on_actionSettings_triggered()
 					settingsDialog->displayShowBoundingBox(),
 					settingsDialog->displayShowVertexNormals(),
 					settingsDialog->displayShowFaceNormals());
+				vp->loadBgColorSettings();
+				vp->loadNavigationSettings();
+
+				vp->restoreCameraPose(pose);
 			}
 		}
 		// Re-read QSettings now that they have been committed (OK / Apply).
