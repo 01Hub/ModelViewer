@@ -1,10 +1,12 @@
 #include "LanguageManager.h"
 #include "Logger.h"
+#include "PathUtils.h"
 #include "SettingsDialog.h"
 #include "ModelViewerApplication.h"
 #include "ui_SettingsDialog.h"
 #include <algorithm>
 #include <QColorDialog>
+#include <QDir>
 #include <QMessageBox>
 #include <QTimer>
 
@@ -81,6 +83,19 @@ SettingsDialog::SettingsDialog(QWidget *parent) :
         static_cast<int>(sizeof(kDefaultMaterialKeys) / sizeof(kDefaultMaterialKeys[0]));
     for (int i = 0; i < ui->comboBoxDefaultMaterial->count() && i < kDefaultMaterialKeyCount; ++i)
         ui->comboBoxDefaultMaterial->setItemData(i, kDefaultMaterialKeys[i]);
+
+    // Populate the Default Skybox combos by scanning the same preset folders
+    // VisualizationEnvironmentPanel::reloadSkyBoxPresets() uses. Folder name is used
+    // as both display text and itemData so the setting persists by name, not index.
+    {
+        const QString envmapRoot = PathUtils::getDataDirectory() + "/textures/envmap/skyboxes";
+        QDir hdriDir(envmapRoot + "/HDRI");
+        for (const QString& folderName : hdriDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot))
+            ui->comboBoxDefaultSkyboxHDRI->addItem(folderName, folderName);
+        QDir ldriDir(envmapRoot + "/LDRI");
+        for (const QString& folderName : ldriDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot))
+            ui->comboBoxDefaultSkyboxLDRI->addItem(folderName, folderName);
+    }
 
     retranslateUI();
 
@@ -270,19 +285,18 @@ void SettingsDialog::applySettings()
         });
     }
 
-    settings.setValue("checkPromptOverwrite", general_promptOverwrite);
     settings.setValue("checkRestoreLastFile", general_restoreLastFile);
     settings.setValue("checkTooltips", general_showTooltips);
     settings.setValue("checkConfirmExit", general_confirmExit);
 	settings.setValue("checkTutorialLaunch", general_showTutorialLauncher);
 	settings.setValue("spinBoxUndoLimit", general_undoLimit);
+    settings.setValue("checkProgressiveLoading", general_progressiveLoading);
 
     // Camera tab
     settings.setValue("comboProjectionMode", camera_projectionModeIndex);
     settings.setValue("comboDefaultView", camera_defaultViewIndex);
     settings.setValue("comboDefaultProjection", camera_defaultProjectionIndex);
     settings.setValue("comboCameraUpAxis", camera_defaultUpAxisIndex);
-    settings.setValue("checkTrackball", camera_trackball);
     settings.setValue("checkInvertZoom", camera_invertZoom);
 
     // Background tab
@@ -296,13 +310,15 @@ void SettingsDialog::applySettings()
     settings.setValue("showCornerTrihedronCheckBox", display_showCornerTrihedron);
     settings.setValue("showViewCubeCheckBox", display_showViewCube);
     settings.setValue("comboBoxCornerTrihedronPosition", display_cornerTrihedronPosition);
-    settings.setValue("showGridCheckBox", display_showGrid);
     settings.setValue("showVertexNormalsCheckBox", display_showVertexNormals);
     settings.setValue("showFaceNormalsCheckBox", display_showFaceNormals);
     settings.setValue("showWireframeCheckBox", display_showWireframe);
     settings.setValue("fieldOfViewSpinBox", display_fieldOfView);
     settings.setValue("showCenterTrihedronCheckBox", display_showCenterTrihedron);
     settings.setValue("comboBoxHoverHighlightMode", static_cast<int>(display_hoverHighlightMode));
+    settings.setValue("vsyncCheckBox", display_vsync);
+    settings.setValue("comboBoxDefaultSkyboxHDRI", display_defaultSkyboxHDRI);
+    settings.setValue("comboBoxDefaultSkyboxLDRI", display_defaultSkyboxLDRI);
 
     // Navigation group
     settings.setValue("navigationModeComboBox", navigation_modeIndex);
@@ -331,13 +347,13 @@ void SettingsDialog::applySettings()
     settings.setValue("lineEditTextureDir", materials_textureDir);
 
     // UV Generation Tab
+    // angleThreshold/preserveAspectRatio/enableRelaxation/enablePacking are the exact
+    // keys UVGenerationDialog itself reads/writes — this tab edits its defaults directly.
     settings.setValue("UVMethod", uv_methodIndex);
-    settings.setValue("spinAngleThreshold", uv_angleThreshold);
-    settings.setValue("checkPreserveUVs", uv_preserveUVs);
-    settings.setValue("checkAutoPackUVs", uv_autoPackUVs);
-    settings.setValue("checkRelaxUVs", uv_relaxUVs);
-    settings.setValue("checkPCAProjection", uv_pcaProjection);
-    settings.setValue("checkXatlasPackingOnly", uv_xatlasPackingOnly);
+    settings.setValue("angleThreshold", static_cast<float>(uv_angleThreshold));
+    settings.setValue("preserveAspectRatio", uv_preserveUVs);
+    settings.setValue("enablePacking", uv_autoPackUVs);
+    settings.setValue("enableRelaxation", uv_relaxUVs);
     settings.setValue("RememberUVMethod", uv_rememberUV);
 
     // Import/Export Tab - OpenCascade
@@ -356,42 +372,10 @@ void SettingsDialog::applySettings()
 	settings.setValue("radioButtonExportScene", export_exportScene);
 	settings.setValue("radioButtonExportMeshes", export_exportMeshes);
 
-    // Performance Tab
-    settings.setValue("checkMultithreadedLoad", perf_multithreadedLoad);
-    settings.setValue("spinThreadLimit", perf_threadLimit);
-    settings.setValue("checkSkyboxBlending", perf_skyboxBlending);
-    settings.setValue("checkProgressiveLoading", perf_progressiveLoading);
-    settings.setValue("maxFpsSpinBox", perf_maxFps);
-    settings.setValue("vsyncCheckBox", perf_vsync);
-    settings.setValue("frustumCullingCheckBox", perf_frustumCulling);
-    settings.setValue("backfaceCullingCheckBox", perf_backfaceCulling);
-    settings.setValue("levelOfDetailCheckBox", perf_levelOfDetail);
-    settings.setValue("maxVerticesSpinBox", perf_maxVertices);
-
-    // Memory management
-    settings.setValue("textureCacheSizeSpinBox", perf_textureCacheSize);
-    settings.setValue("geometryCacheSizeSpinBox", perf_geometryCacheSize);
-    settings.setValue("compressTexturesCheckBox", perf_compressTextures);
-    settings.setValue("generateMipmapsCheckBox", perf_generateMipmaps);
-
-    // Advanced Tab
-    settings.setValue("comboBoxOpenGLVersion", advanced_openGLVersionIndex);
-    settings.setValue("checkBoxVSync", advanced_vsync);
-    settings.setValue("spinBoxThreads", advanced_threads);
-    settings.setValue("checkShaderHotReload", advanced_shaderHotReload);
-    settings.setValue("checkShowFPS", advanced_showFPS);
-    settings.setValue("checkLegacyOpenGL", advanced_legacyOpenGL);
-
     // Debug Tab
-    settings.setValue("showFpsCheckBox", debug_showFps);
-    settings.setValue("showMemoryUsageCheckBox", debug_showMemoryUsage);
-    settings.setValue("showRenderStatsCheckBox", debug_showRenderStats);
-    settings.setValue("showOpenGLInfoCheckBox", debug_showOpenGLInfo);
     settings.setValue("enableLoggingCheckBox", debug_enableLogging);
 	settings.setValue("enableConsoleCheckBox", debug_enableConsoleOutput);
     settings.setValue("logLevelComboBox", debug_logLevelIndex);
-    settings.setValue("checkOpenGLErrorsCheckBox", debug_checkOpenGLErrors);
-    settings.setValue("validateShadersCheckBox", debug_validateShaders);
     settings.setValue("profileRenderingCheckBox", debug_profileRendering);
     settings.setValue("showTextureDebugPanelCheckBox", debug_showTextureDebugPanel);
 
@@ -427,17 +411,16 @@ void SettingsDialog::setDefaultValues()
     ui->checkTooltips->setChecked(true);          // Explicitly set to true
     ui->comboBoxTheme->setCurrentIndex(0);        // Default: "System Default"
     ui->comboBoxLanguage->setCurrentIndex(0);     // Default: "English"
-    ui->checkPromptOverwrite->setChecked(true);   // Explicitly set to true
     ui->checkConfirmExit->setChecked(false);      // No 'checked' property found
 	ui->checkTutorialLaunch->setChecked(true);    // Explicitly set to true
 	ui->spinBoxUndoLimit->setValue(50);           // Explicitly set
+    ui->checkProgressiveLoading->setChecked(false);
 
     // Camera tab
     ui->comboProjectionMode->setCurrentIndex(0);       // "Orthographic"
     ui->comboDefaultView->setCurrentIndex(0);          // "Isometric"
     ui->comboDefaultProjection->setCurrentIndex(0);    // "Isometric"
     ui->comboCameraUpAxis->setCurrentIndex(0);         // "Z-Up"
-    ui->checkTrackball->setChecked(false);             // No 'checked' property found
     ui->checkInvertZoom->setChecked(false);            // No 'checked' property found
 
     // Background tab
@@ -459,13 +442,17 @@ void SettingsDialog::setDefaultValues()
 	ui->showCenterTrihedronCheckBox->setChecked(true); // Explicitly set to true
     setCornerTrihedronPositionSelection(ui->comboBoxCornerTrihedronPosition, kCornerTrihedronTopRight);
     refreshViewCubeAvailability();
-    ui->showGridCheckBox->setChecked(true);            // Explicitly set to true
     ui->showVertexNormalsCheckBox->setChecked(true);   // Explicitly set to true
     ui->showFaceNormalsCheckBox->setChecked(true);     // Explicitly set to true
     ui->showWireframeCheckBox->setChecked(true);       // Explicitly set to true
     ui->fieldOfViewSpinBox->setValue(45);              // Explicitly set
     if (ui->comboBoxHoverHighlightMode)
         ui->comboBoxHoverHighlightMode->setCurrentIndex(0); // Default: Disabled
+    ui->vsyncCheckBox->setChecked(true);
+    if (ui->comboBoxDefaultSkyboxHDRI->count() > 0)
+        ui->comboBoxDefaultSkyboxHDRI->setCurrentIndex(0);
+    if (ui->comboBoxDefaultSkyboxLDRI->count() > 0)
+        ui->comboBoxDefaultSkyboxLDRI->setCurrentIndex(0);
 
     // Navigation group
     ui->navigationModeComboBox->setCurrentIndex(0);          // "Orbit"
@@ -505,12 +492,10 @@ void SettingsDialog::setDefaultValues()
 
     // --- UV Generation Tab ---
     ui->comboUVMethod->setCurrentIndex(0);               // "Angle-Based Smart UV"
-    ui->spinAngleThreshold->setValue(66.0);
-    ui->checkPreserveUVs->setChecked(false);
-    ui->checkAutoPackUVs->setChecked(false);
+    ui->spinAngleThreshold->setValue(60.0);
+    ui->checkPreserveUVs->setChecked(true);
+    ui->checkAutoPackUVs->setChecked(true);
     ui->checkRelaxUVs->setChecked(false);
-    ui->checkPCAProjection->setChecked(false);
-    ui->checkXatlasPackingOnly->setChecked(false);
     ui->checkRememberUV->setChecked(false);
 
     // --- Import/Export Tab ---
@@ -530,45 +515,10 @@ void SettingsDialog::setDefaultValues()
     ui->radioButtonExportScene->setChecked(true);
     ui->radioButtonExportMeshes->setChecked(false);
 
-    // --- Performance Tab ---
-    ui->checkMultithreadedLoad->setChecked(false);
-    ui->spinThreadLimit->setValue(4);
-    ui->checkSkyboxBlending->setChecked(false);
-    ui->checkProgressiveLoading->setChecked(false);
-
-    // Rendering performance
-    ui->maxFpsSpinBox->setValue(60);
-    ui->vsyncCheckBox->setChecked(true);
-    ui->frustumCullingCheckBox->setChecked(true);
-    ui->backfaceCullingCheckBox->setChecked(true);
-    ui->levelOfDetailCheckBox->setChecked(false);
-    ui->maxVerticesSpinBox->setValue(1000000);
-
-    // Memory management
-    ui->textureCacheSizeSpinBox->setValue(512);
-    ui->geometryCacheSizeSpinBox->setValue(256);
-    ui->compressTexturesCheckBox->setChecked(true);
-    ui->generateMipmapsCheckBox->setChecked(true);
-
-    // --- Advanced Tab ---
-    ui->comboBoxOpenGLVersion->setCurrentText("4.5 Core");
-    ui->checkBoxVSync->setChecked(false);
-    ui->spinBoxThreads->setValue(4);
-    ui->checkShaderHotReload->setChecked(false);
-    ui->checkShowFPS->setChecked(false);
-    ui->checkLegacyOpenGL->setChecked(false);
-
     // --- Debug Tab ---
-    ui->showFpsCheckBox->setChecked(false);
-    ui->showMemoryUsageCheckBox->setChecked(false);
-    ui->showRenderStatsCheckBox->setChecked(false);
-    ui->showOpenGLInfoCheckBox->setChecked(false);
-    ui->enableLoggingCheckBox->setChecked(false);    
+    ui->enableLoggingCheckBox->setChecked(false);
 	ui->enableConsoleCheckBox->setChecked(false);
     ui->logLevelComboBox->setCurrentText("Warning");
-
-    ui->checkOpenGLErrorsCheckBox->setChecked(false);
-    ui->validateShadersCheckBox->setChecked(false);
     ui->profileRenderingCheckBox->setChecked(false);
     ui->showTextureDebugPanelCheckBox->setChecked(false);
 }
@@ -596,15 +546,10 @@ void SettingsDialog::updateSettingsHint()
         hint = QCoreApplication::translate("SettingsDialog",
             "Most settings on this tab apply immediately. MSAA and some graphics options may still require restarting the application.");
     }
-    else if (currentTab == ui->tabImportExport || currentTab == ui->tabPerformance)
+    else if (currentTab == ui->tabImportExport)
     {
         hint = QCoreApplication::translate("SettingsDialog",
             "These settings are primarily used for newly opened documents and future imports/exports. They may not affect models that are already loaded.");
-    }
-    else if (currentTab == ui->tabAdvanced)
-    {
-        hint = QCoreApplication::translate("SettingsDialog",
-            "Advanced graphics settings often require restarting the application to take full effect.");
     }
     else if (currentTab == ui->tabCamera || currentTab == ui->tabUVGeneration)
     {
@@ -627,19 +572,18 @@ void SettingsDialog::syncStateFromUi()
     // General tab
     general_themeIndex = ui->comboBoxTheme->currentIndex();
     general_languageIndex = ui->comboBoxLanguage->currentIndex();
-    general_promptOverwrite = ui->checkPromptOverwrite->isChecked();
     general_restoreLastFile = ui->checkRestoreLastFile->isChecked();
     general_showTooltips = ui->checkTooltips->isChecked();
     general_confirmExit = ui->checkConfirmExit->isChecked();
     general_showTutorialLauncher = ui->checkTutorialLaunch->isChecked();
     general_undoLimit = ui->spinBoxUndoLimit->value();
+    general_progressiveLoading = ui->checkProgressiveLoading->isChecked();
 
     // Camera tab
     camera_projectionModeIndex = ui->comboProjectionMode->currentIndex();
     camera_defaultViewIndex = ui->comboDefaultView->currentIndex();
     camera_defaultProjectionIndex = ui->comboDefaultProjection->currentIndex();
     camera_defaultUpAxisIndex = ui->comboCameraUpAxis->currentIndex();
-    camera_trackball = ui->checkTrackball->isChecked();
     camera_invertZoom = ui->checkInvertZoom->isChecked();
 
     // Background tab
@@ -654,7 +598,6 @@ void SettingsDialog::syncStateFromUi()
     display_cornerTrihedronPosition = currentCornerTrihedronPositionValue(ui->comboBoxCornerTrihedronPosition);
     display_showViewCube = isViewCubeAvailableForCornerPosition(display_cornerTrihedronPosition)
         && ui->showViewCubeCheckBox->isChecked();
-    display_showGrid = ui->showGridCheckBox->isChecked();
     display_showVertexNormals = ui->showVertexNormalsCheckBox->isChecked();
     display_showFaceNormals = ui->showFaceNormalsCheckBox->isChecked();
     display_showWireframe = ui->showWireframeCheckBox->isChecked();
@@ -663,6 +606,9 @@ void SettingsDialog::syncStateFromUi()
     if (ui->comboBoxHoverHighlightMode) {
         display_hoverHighlightMode = static_cast<HoverHighlightMode>(ui->comboBoxHoverHighlightMode->currentIndex());
     }
+    display_vsync = ui->vsyncCheckBox->isChecked();
+    display_defaultSkyboxHDRI = ui->comboBoxDefaultSkyboxHDRI->currentData().toString();
+    display_defaultSkyboxLDRI = ui->comboBoxDefaultSkyboxLDRI->currentData().toString();
 
     // Navigation group
     navigation_modeIndex = ui->navigationModeComboBox->currentIndex();
@@ -696,8 +642,6 @@ void SettingsDialog::syncStateFromUi()
     uv_preserveUVs = ui->checkPreserveUVs->isChecked();
     uv_autoPackUVs = ui->checkAutoPackUVs->isChecked();
     uv_relaxUVs = ui->checkRelaxUVs->isChecked();
-    uv_pcaProjection = ui->checkPCAProjection->isChecked();
-    uv_xatlasPackingOnly = ui->checkXatlasPackingOnly->isChecked();
     uv_rememberUV = ui->checkRememberUV->isChecked();
 
     // Import/Export Tab
@@ -712,40 +656,10 @@ void SettingsDialog::syncStateFromUi()
     export_exportScene = ui->radioButtonExportScene->isChecked();
     export_exportMeshes = ui->radioButtonExportMeshes->isChecked();
 
-    // Performance Tab
-    perf_multithreadedLoad = ui->checkMultithreadedLoad->isChecked();
-    perf_threadLimit = ui->spinThreadLimit->value();
-    perf_skyboxBlending = ui->checkSkyboxBlending->isChecked();
-    perf_progressiveLoading = ui->checkProgressiveLoading->isChecked();
-    perf_maxFps = ui->maxFpsSpinBox->value();
-    perf_vsync = ui->vsyncCheckBox->isChecked();
-    perf_frustumCulling = ui->frustumCullingCheckBox->isChecked();
-    perf_backfaceCulling = ui->backfaceCullingCheckBox->isChecked();
-    perf_levelOfDetail = ui->levelOfDetailCheckBox->isChecked();
-    perf_maxVertices = ui->maxVerticesSpinBox->value();
-    perf_textureCacheSize = ui->textureCacheSizeSpinBox->value();
-    perf_geometryCacheSize = ui->geometryCacheSizeSpinBox->value();
-    perf_compressTextures = ui->compressTexturesCheckBox->isChecked();
-    perf_generateMipmaps = ui->generateMipmapsCheckBox->isChecked();
-
-    // Advanced Tab
-    advanced_openGLVersionIndex = ui->comboBoxOpenGLVersion->currentIndex();
-    advanced_vsync = ui->checkBoxVSync->isChecked();
-    advanced_threads = ui->spinBoxThreads->value();
-    advanced_shaderHotReload = ui->checkShaderHotReload->isChecked();
-    advanced_showFPS = ui->checkShowFPS->isChecked();
-    advanced_legacyOpenGL = ui->checkLegacyOpenGL->isChecked();
-
     // Debug Tab
-    debug_showFps = ui->showFpsCheckBox->isChecked();
-    debug_showMemoryUsage = ui->showMemoryUsageCheckBox->isChecked();
-    debug_showRenderStats = ui->showRenderStatsCheckBox->isChecked();
-    debug_showOpenGLInfo = ui->showOpenGLInfoCheckBox->isChecked();
     debug_enableLogging = ui->enableLoggingCheckBox->isChecked();
     debug_enableConsoleOutput = ui->enableConsoleCheckBox->isChecked();
     debug_logLevelIndex = ui->logLevelComboBox->currentIndex();
-    debug_checkOpenGLErrors = ui->checkOpenGLErrorsCheckBox->isChecked();
-    debug_validateShaders = ui->validateShadersCheckBox->isChecked();
     debug_profileRendering = ui->profileRenderingCheckBox->isChecked();
     debug_showTextureDebugPanel = ui->showTextureDebugPanelCheckBox->isChecked();
 }
@@ -760,9 +674,7 @@ void SettingsDialog::loadSettings()
     ui->comboBoxTheme->setCurrentIndex(iVal);
     iVal = settings.value("comboBoxLanguage", ui->comboBoxLanguage->currentIndex()).toInt();
     ui->comboBoxLanguage->setCurrentIndex(iVal);
-    bool bVal = settings.value("checkPromptOverwrite", ui->checkPromptOverwrite->isChecked()).toBool();
-    ui->checkPromptOverwrite->setChecked(bVal);
-    bVal = settings.value("checkRestoreLastFile", ui->checkRestoreLastFile->isChecked()).toBool();
+    bool bVal = settings.value("checkRestoreLastFile", ui->checkRestoreLastFile->isChecked()).toBool();
     ui->checkRestoreLastFile->setChecked(bVal);
     bVal = settings.value("checkTooltips", ui->checkTooltips->isChecked()).toBool();
     ui->checkTooltips->setChecked(bVal);
@@ -772,6 +684,8 @@ void SettingsDialog::loadSettings()
 	ui->checkTutorialLaunch->setChecked(bVal);
 	iVal = settings.value("spinBoxUndoLimit", ui->spinBoxUndoLimit->value()).toInt();
 	ui->spinBoxUndoLimit->setValue(iVal);
+    bVal = settings.value("checkProgressiveLoading", ui->checkProgressiveLoading->isChecked()).toBool();
+    ui->checkProgressiveLoading->setChecked(bVal);
     iVal = settings.value("comboProjectionMode", ui->comboProjectionMode->currentIndex()).toInt();
     ui->comboProjectionMode->setCurrentIndex(iVal);
     iVal = settings.value("comboDefaultView", ui->comboDefaultView->currentIndex()).toInt();
@@ -780,8 +694,6 @@ void SettingsDialog::loadSettings()
     ui->comboDefaultProjection->setCurrentIndex(iVal);
     iVal = settings.value("comboCameraUpAxis", ui->comboCameraUpAxis->currentIndex()).toInt();
     ui->comboCameraUpAxis->setCurrentIndex(iVal);
-    bVal = settings.value("checkTrackball", ui->checkTrackball->isChecked()).toBool();
-    ui->checkTrackball->setChecked(bVal);
     bVal = settings.value("checkInvertZoom", ui->checkInvertZoom->isChecked()).toBool();
     ui->checkInvertZoom->setChecked(bVal);
     iVal = settings.value("Background/StyleIndex", ui->comboBoxBackgroundStyle->currentIndex()).toInt();
@@ -811,8 +723,6 @@ void SettingsDialog::loadSettings()
     refreshViewCubeAvailability();
     iVal = settings.value("fieldOfViewSpinBox", ui->fieldOfViewSpinBox->value()).toInt();
     ui->fieldOfViewSpinBox->setValue(iVal);
-    bVal = settings.value("showGridCheckBox", ui->showGridCheckBox->isChecked()).toBool();
-    ui->showGridCheckBox->setChecked(bVal);
     bVal = settings.value("showWireframeCheckBox", ui->showWireframeCheckBox->isChecked()).toBool();
     ui->showWireframeCheckBox->setChecked(bVal);
     bVal = settings.value("showCenterTrihedronCheckBox", ui->showCenterTrihedronCheckBox->isChecked()).toBool();
@@ -820,6 +730,19 @@ void SettingsDialog::loadSettings()
     if (ui->comboBoxHoverHighlightMode) {
         iVal = settings.value("comboBoxHoverHighlightMode", ui->comboBoxHoverHighlightMode->currentIndex()).toInt();
         ui->comboBoxHoverHighlightMode->setCurrentIndex(iVal);
+    }
+    bVal = settings.value("vsyncCheckBox", ui->vsyncCheckBox->isChecked()).toBool();
+    ui->vsyncCheckBox->setChecked(bVal);
+    {
+        const QString hdriName = settings.value("comboBoxDefaultSkyboxHDRI", QString()).toString();
+        const int hdriIdx = ui->comboBoxDefaultSkyboxHDRI->findData(hdriName);
+        if (hdriIdx >= 0)
+            ui->comboBoxDefaultSkyboxHDRI->setCurrentIndex(hdriIdx);
+
+        const QString ldriName = settings.value("comboBoxDefaultSkyboxLDRI", QString()).toString();
+        const int ldriIdx = ui->comboBoxDefaultSkyboxLDRI->findData(ldriName);
+        if (ldriIdx >= 0)
+            ui->comboBoxDefaultSkyboxLDRI->setCurrentIndex(ldriIdx);
     }
     iVal = settings.value("navigationModeComboBox", ui->navigationModeComboBox->currentIndex()).toInt();
     ui->navigationModeComboBox->setCurrentIndex(iVal);
@@ -862,18 +785,14 @@ void SettingsDialog::loadSettings()
     }
     iVal = settings.value("UVMethod", ui->comboUVMethod->currentIndex()).toInt();
     ui->comboUVMethod->setCurrentIndex(iVal);
-    double dVal = settings.value("spinAngleThreshold", ui->spinAngleThreshold->value()).toDouble();
+    double dVal = settings.value("angleThreshold", ui->spinAngleThreshold->value()).toDouble();
     ui->spinAngleThreshold->setValue(dVal);
-    bVal = settings.value("checkPreserveUVs", ui->checkPreserveUVs->isChecked()).toBool();
+    bVal = settings.value("preserveAspectRatio", ui->checkPreserveUVs->isChecked()).toBool();
     ui->checkPreserveUVs->setChecked(bVal);
-    bVal = settings.value("checkAutoPackUVs", ui->checkAutoPackUVs->isChecked()).toBool();
+    bVal = settings.value("enablePacking", ui->checkAutoPackUVs->isChecked()).toBool();
     ui->checkAutoPackUVs->setChecked(bVal);
-    bVal = settings.value("checkRelaxUVs", ui->checkRelaxUVs->isChecked()).toBool();
+    bVal = settings.value("enableRelaxation", ui->checkRelaxUVs->isChecked()).toBool();
     ui->checkRelaxUVs->setChecked(bVal);
-    bVal = settings.value("checkPCAProjection", ui->checkPCAProjection->isChecked()).toBool();
-    ui->checkPCAProjection->setChecked(bVal);
-    bVal = settings.value("checkXatlasPackingOnly", ui->checkXatlasPackingOnly->isChecked()).toBool();
-    ui->checkXatlasPackingOnly->setChecked(bVal);
     bVal = settings.value("RememberUVMethod", ui->checkRememberUV->isChecked()).toBool();
     ui->checkRememberUV->setChecked(bVal);
     dVal = settings.value("linearDeflectionSpinBox", ui->linearDeflectionSpinBox->value()).toDouble();
@@ -896,64 +815,12 @@ void SettingsDialog::loadSettings()
 	ui->radioButtonExportScene->setChecked(bVal);
 	bVal = settings.value("radioButtonExportMeshes", ui->radioButtonExportMeshes->isChecked()).toBool();
 	ui->radioButtonExportMeshes->setChecked(bVal);
-    bVal = settings.value("checkMultithreadedLoad", ui->checkMultithreadedLoad->isChecked()).toBool();
-    ui->checkMultithreadedLoad->setChecked(bVal);
-    iVal = settings.value("spinThreadLimit", ui->spinThreadLimit->value()).toInt();
-    ui->spinThreadLimit->setValue(iVal);
-    bVal = settings.value("checkSkyboxBlending", ui->checkSkyboxBlending->isChecked()).toBool();
-    ui->checkSkyboxBlending->setChecked(bVal);
-    bVal = settings.value("checkProgressiveLoading", ui->checkProgressiveLoading->isChecked()).toBool();
-    ui->checkProgressiveLoading->setChecked(bVal);
-    iVal = settings.value("maxFpsSpinBox", ui->maxFpsSpinBox->value()).toInt();
-    ui->maxFpsSpinBox->setValue(iVal);
-    bVal = settings.value("vsyncCheckBox", ui->vsyncCheckBox->isChecked()).toBool();
-    ui->vsyncCheckBox->setChecked(bVal);
-    bVal = settings.value("frustumCullingCheckBox", ui->frustumCullingCheckBox->isChecked()).toBool();
-    ui->frustumCullingCheckBox->setChecked(bVal);
-    bVal = settings.value("backfaceCullingCheckBox", ui->backfaceCullingCheckBox->isChecked()).toBool();
-    ui->backfaceCullingCheckBox->setChecked(bVal);
-    bVal = settings.value("levelOfDetailCheckBox", ui->levelOfDetailCheckBox->isChecked()).toBool();
-    ui->levelOfDetailCheckBox->setChecked(bVal);
-    iVal = settings.value("maxVerticesSpinBox", ui->maxVerticesSpinBox->value()).toInt();
-    ui->maxVerticesSpinBox->setValue(iVal);
-    iVal = settings.value("textureCacheSizeSpinBox", ui->textureCacheSizeSpinBox->value()).toInt();
-    ui->textureCacheSizeSpinBox->setValue(iVal);
-    iVal = settings.value("geometryCacheSizeSpinBox", ui->geometryCacheSizeSpinBox->value()).toInt();
-    ui->geometryCacheSizeSpinBox->setValue(iVal);
-    bVal = settings.value("compressTexturesCheckBox", ui->compressTexturesCheckBox->isChecked()).toBool();
-    ui->compressTexturesCheckBox->setChecked(bVal);
-    bVal = settings.value("generateMipmapsCheckBox", ui->generateMipmapsCheckBox->isChecked()).toBool();
-    ui->generateMipmapsCheckBox->setChecked(bVal);
-    iVal = settings.value("comboBoxOpenGLVersion", ui->comboBoxOpenGLVersion->currentIndex()).toInt();
-    ui->comboBoxOpenGLVersion->setCurrentIndex(iVal);
-    bVal = settings.value("checkBoxVSync", ui->checkBoxVSync->isChecked()).toBool();
-    ui->checkBoxVSync->setChecked(bVal);
-    bVal = settings.value("checkShaderHotReload", ui->checkShaderHotReload->isChecked()).toBool();
-    ui->checkShaderHotReload->setChecked(bVal);
-    bVal = settings.value("checkShowFPS", ui->checkShowFPS->isChecked()).toBool();
-    ui->checkShowFPS->setChecked(bVal);
-    bVal = settings.value("checkLegacyOpenGL", ui->checkLegacyOpenGL->isChecked()).toBool();
-    ui->checkLegacyOpenGL->setChecked(bVal);
-    iVal = settings.value("spinBoxThreads", ui->spinBoxThreads->value()).toInt();
-    ui->spinBoxThreads->setValue(iVal);
-    bVal = settings.value("showFpsCheckBox", ui->showFpsCheckBox->isChecked()).toBool();
-    ui->showFpsCheckBox->setChecked(bVal);
-    bVal = settings.value("showMemoryUsageCheckBox", ui->showMemoryUsageCheckBox->isChecked()).toBool();
-    ui->showMemoryUsageCheckBox->setChecked(bVal);
-    bVal = settings.value("showRenderStatsCheckBox", ui->showRenderStatsCheckBox->isChecked()).toBool();
-    ui->showRenderStatsCheckBox->setChecked(bVal);
-    bVal = settings.value("showOpenGLInfoCheckBox", ui->showOpenGLInfoCheckBox->isChecked()).toBool();
-    ui->showOpenGLInfoCheckBox->setChecked(bVal);
     bVal = settings.value("enableLoggingCheckBox", ui->enableLoggingCheckBox->isChecked()).toBool();
     ui->enableLoggingCheckBox->setChecked(bVal);
 	bVal = settings.value("enableConsoleCheckBox", ui->enableConsoleCheckBox->isChecked()).toBool();
 	ui->enableConsoleCheckBox->setChecked(bVal);
     iVal = settings.value("logLevelComboBox", ui->logLevelComboBox->currentIndex()).toInt();
     ui->logLevelComboBox->setCurrentIndex(iVal);
-    bVal = settings.value("checkOpenGLErrorsCheckBox", ui->checkOpenGLErrorsCheckBox->isChecked()).toBool();
-    ui->checkOpenGLErrorsCheckBox->setChecked(bVal);
-    bVal = settings.value("validateShadersCheckBox", ui->validateShadersCheckBox->isChecked()).toBool();
-    ui->validateShadersCheckBox->setChecked(bVal);
     bVal = settings.value("profileRenderingCheckBox", ui->profileRenderingCheckBox->isChecked()).toBool();
     ui->profileRenderingCheckBox->setChecked(bVal);
     bVal = settings.value("showTextureDebugPanelCheckBox", ui->showTextureDebugPanelCheckBox->isChecked()).toBool();
@@ -1017,16 +884,18 @@ void SettingsDialog::restoreDefaults()
 
     // List of all widgets that need to be restored
     QList<QWidget*> widgetsToRestore = {
-        ui->comboBoxTheme, ui->comboBoxLanguage, ui->checkPromptOverwrite,
+        ui->comboBoxTheme, ui->comboBoxLanguage,
 		ui->checkRestoreLastFile, ui->checkTooltips, ui->checkConfirmExit, ui->checkTutorialLaunch, ui->spinBoxUndoLimit,
+		ui->checkProgressiveLoading,
         ui->comboProjectionMode, ui->comboDefaultView, ui->comboDefaultProjection,
         ui->comboCameraUpAxis,
-        ui->checkTrackball, ui->checkInvertZoom,
+        ui->checkInvertZoom,
         ui->comboBoxBackgroundStyle, ui->pushButtonTopColor, ui->pushButtonBottomColor,
-        ui->comboBoxGradientStyle, ui->showBoundingBoxCheckBox, ui->showVertexNormalsCheckBox,
+        ui->comboBoxGradientStyle, ui->comboBoxDefaultSkyboxHDRI, ui->comboBoxDefaultSkyboxLDRI, ui->vsyncCheckBox,
+        ui->showBoundingBoxCheckBox, ui->showVertexNormalsCheckBox,
         ui->showFaceNormalsCheckBox, ui->showCornerTrihedronCheckBox,
         ui->showViewCubeCheckBox,
-        ui->comboBoxCornerTrihedronPosition, ui->fieldOfViewSpinBox, ui->showGridCheckBox,
+        ui->comboBoxCornerTrihedronPosition, ui->fieldOfViewSpinBox,
         ui->showWireframeCheckBox, ui->showCenterTrihedronCheckBox,
         ui->navigationModeComboBox, ui->mouseSensitivitySlider, ui->zoomSensitivitySlider,
         ui->invertYAxisCheckBox, ui->smoothNavigationCheckBox, ui->comboShadingMode,
@@ -1036,25 +905,17 @@ void SettingsDialog::restoreDefaults()
         ui->enableShadowsCheckBox, ui->ambientLightSlider, ui->diffuseLightSlider,
         ui->specularLightSlider, ui->lineEditTextureDir, ui->comboBoxDefaultMaterial,
         ui->comboUVMethod, ui->spinAngleThreshold, ui->checkPreserveUVs,
-        ui->checkAutoPackUVs, ui->checkRelaxUVs, ui->checkPCAProjection,
-        ui->checkXatlasPackingOnly, ui->checkRememberUV, ui->buttonResetUVPrompt,
+        ui->checkAutoPackUVs, ui->checkRelaxUVs,
+        ui->checkRememberUV, ui->buttonResetUVPrompt,
         ui->linearDeflectionSpinBox, ui->angularDeflectionSpinBox,
         ui->assimpGenNormalsCheckBox, ui->assimpSmoothNormalsCheckBox,
         ui->assimpCalcTangentsCheckBox, ui->assimpOptimizeMeshCheckBox, ui->assimpRemoveDuplicatesCheckBox,
 		ui->assimpAutoOrientCheckBox,
         ui->radioButtonExportScene, ui->radioButtonExportMeshes,
-        ui->checkMultithreadedLoad, ui->spinThreadLimit,
-        ui->checkSkyboxBlending, ui->checkProgressiveLoading, ui->maxFpsSpinBox,
-        ui->vsyncCheckBox, ui->frustumCullingCheckBox, ui->backfaceCullingCheckBox,
-        ui->levelOfDetailCheckBox, ui->maxVerticesSpinBox, ui->textureCacheSizeSpinBox,
-        ui->geometryCacheSizeSpinBox, ui->compressTexturesCheckBox, ui->generateMipmapsCheckBox,
-        ui->comboBoxOpenGLVersion, ui->checkBoxVSync, ui->checkShaderHotReload,
-        ui->checkShowFPS, ui->checkLegacyOpenGL, ui->spinBoxThreads,
-        ui->showFpsCheckBox, ui->showMemoryUsageCheckBox, ui->showRenderStatsCheckBox,
-        ui->showOpenGLInfoCheckBox, ui->enableLoggingCheckBox, ui->enableConsoleCheckBox, ui->logLevelComboBox,
-        ui->checkOpenGLErrorsCheckBox, ui->validateShadersCheckBox, ui->profileRenderingCheckBox,
+        ui->enableLoggingCheckBox, ui->enableConsoleCheckBox, ui->logLevelComboBox,
+        ui->profileRenderingCheckBox,
         ui->showTextureDebugPanelCheckBox,
-        ui->clearCacheButton, ui->resetSettingsButton
+        ui->clearCacheButton
     };
 
     // Restore all widgets using the helper function
@@ -1078,11 +939,6 @@ void SettingsDialog::on_comboBoxTheme_currentIndexChanged()
 void SettingsDialog::on_comboBoxLanguage_currentIndexChanged()
 {
     general_languageIndex = ui->comboBoxLanguage->currentIndex();    
-}
-
-void SettingsDialog::on_checkPromptOverwrite_stateChanged()
-{
-    general_promptOverwrite = ui->checkPromptOverwrite->isChecked();
 }
 
 void SettingsDialog::on_checkRestoreLastFile_stateChanged()
@@ -1129,11 +985,6 @@ void SettingsDialog::on_comboDefaultProjection_currentIndexChanged()
 void SettingsDialog::on_comboCameraUpAxis_currentIndexChanged()
 {
     camera_defaultUpAxisIndex = ui->comboCameraUpAxis->currentIndex();
-}
-
-void SettingsDialog::on_checkTrackball_stateChanged()
-{
-    camera_trackball = ui->checkTrackball->isChecked();
 }
 
 void SettingsDialog::on_checkInvertZoom_stateChanged()
@@ -1202,11 +1053,6 @@ void SettingsDialog::on_comboBoxCornerTrihedronPosition_currentIndexChanged()
 void SettingsDialog::on_fieldOfViewSpinBox_valueChanged()
 {
     display_fieldOfView = ui->fieldOfViewSpinBox->value();
-}
-
-void SettingsDialog::on_showGridCheckBox_stateChanged()
-{
-    display_showGrid = ui->showGridCheckBox->isChecked();
 }
 
 void SettingsDialog::on_showVertexNormalsCheckBox_stateChanged()
@@ -1350,16 +1196,6 @@ void SettingsDialog::on_checkRelaxUVs_stateChanged()
     uv_relaxUVs = ui->checkRelaxUVs->isChecked();
 }
 
-void SettingsDialog::on_checkPCAProjection_stateChanged()
-{
-    uv_pcaProjection = ui->checkPCAProjection->isChecked();
-}
-
-void SettingsDialog::on_checkXatlasPackingOnly_stateChanged()
-{
-    uv_xatlasPackingOnly = ui->checkXatlasPackingOnly->isChecked();
-}
-
 void SettingsDialog::on_checkRememberUV_stateChanged()
 {
     uv_rememberUV = ui->checkRememberUV->isChecked();
@@ -1427,130 +1263,27 @@ void SettingsDialog::on_radioButtonExportMeshes_toggled(bool checked)
 	export_exportMeshes = checked;
 }
 
-// Performance Tab
-void SettingsDialog::on_checkMultithreadedLoad_stateChanged()
-{
-    perf_multithreadedLoad = ui->checkMultithreadedLoad->isChecked();
-}
-
-void SettingsDialog::on_spinThreadLimit_valueChanged()
-{
-    perf_threadLimit = ui->spinThreadLimit->value();
-}
-
-void SettingsDialog::on_checkSkyboxBlending_stateChanged()
-{
-    perf_skyboxBlending = ui->checkSkyboxBlending->isChecked();
-}
-
 void SettingsDialog::on_checkProgressiveLoading_stateChanged()
 {
-    perf_progressiveLoading = ui->checkProgressiveLoading->isChecked();
-}
-
-void SettingsDialog::on_maxFpsSpinBox_valueChanged()
-{
-    perf_maxFps = ui->maxFpsSpinBox->value();
+    general_progressiveLoading = ui->checkProgressiveLoading->isChecked();
 }
 
 void SettingsDialog::on_vsyncCheckBox_stateChanged()
 {
-    perf_vsync = ui->vsyncCheckBox->isChecked();
+    display_vsync = ui->vsyncCheckBox->isChecked();
 }
 
-void SettingsDialog::on_frustumCullingCheckBox_stateChanged()
+void SettingsDialog::on_comboBoxDefaultSkyboxHDRI_currentIndexChanged()
 {
-    perf_frustumCulling = ui->frustumCullingCheckBox->isChecked();
+    display_defaultSkyboxHDRI = ui->comboBoxDefaultSkyboxHDRI->currentData().toString();
 }
 
-void SettingsDialog::on_backfaceCullingCheckBox_stateChanged()
+void SettingsDialog::on_comboBoxDefaultSkyboxLDRI_currentIndexChanged()
 {
-    perf_backfaceCulling = ui->backfaceCullingCheckBox->isChecked();
-}
-
-void SettingsDialog::on_levelOfDetailCheckBox_stateChanged()
-{
-    perf_levelOfDetail = ui->levelOfDetailCheckBox->isChecked();
-}
-
-void SettingsDialog::on_maxVerticesSpinBox_valueChanged()
-{
-    perf_maxVertices = ui->maxVerticesSpinBox->value();
-}
-
-// Memory management
-void SettingsDialog::on_textureCacheSizeSpinBox_valueChanged()
-{
-    perf_textureCacheSize = ui->textureCacheSizeSpinBox->value();
-}
-
-void SettingsDialog::on_geometryCacheSizeSpinBox_valueChanged()
-{
-    perf_geometryCacheSize = ui->geometryCacheSizeSpinBox->value();
-}
-
-void SettingsDialog::on_compressTexturesCheckBox_stateChanged()
-{
-    perf_compressTextures = ui->compressTexturesCheckBox->isChecked();
-}
-
-void SettingsDialog::on_generateMipmapsCheckBox_stateChanged()
-{
-    perf_generateMipmaps = ui->generateMipmapsCheckBox->isChecked();
-}
-
-// Advanced Tab
-void SettingsDialog::on_comboBoxOpenGLVersion_currentIndexChanged()
-{
-    advanced_openGLVersionIndex = ui->comboBoxOpenGLVersion->currentIndex();
-}
-
-void SettingsDialog::on_checkBoxVSync_stateChanged()
-{
-    advanced_vsync = ui->checkBoxVSync->isChecked();
-}
-
-void SettingsDialog::on_spinBoxThreads_valueChanged()
-{
-    advanced_threads = ui->spinBoxThreads->value();
-}
-
-void SettingsDialog::on_checkShaderHotReload_stateChanged()
-{
-    advanced_shaderHotReload = ui->checkShaderHotReload->isChecked();
-}
-
-void SettingsDialog::on_checkShowFPS_stateChanged()
-{
-    advanced_showFPS = ui->checkShowFPS->isChecked();
-}
-
-void SettingsDialog::on_checkLegacyOpenGL_stateChanged()
-{
-    advanced_legacyOpenGL = ui->checkLegacyOpenGL->isChecked();
+    display_defaultSkyboxLDRI = ui->comboBoxDefaultSkyboxLDRI->currentData().toString();
 }
 
 // Debug Tab
-void SettingsDialog::on_showFpsCheckBox_stateChanged()
-{
-    debug_showFps = ui->showFpsCheckBox->isChecked();
-}
-
-void SettingsDialog::on_showMemoryUsageCheckBox_stateChanged()
-{
-    debug_showMemoryUsage = ui->showMemoryUsageCheckBox->isChecked();
-}
-
-void SettingsDialog::on_showRenderStatsCheckBox_stateChanged()
-{
-    debug_showRenderStats = ui->showRenderStatsCheckBox->isChecked();
-}
-
-void SettingsDialog::on_showOpenGLInfoCheckBox_stateChanged()
-{
-    debug_showOpenGLInfo = ui->showOpenGLInfoCheckBox->isChecked();
-}
-
 void SettingsDialog::on_enableLoggingCheckBox_stateChanged()
 {
     debug_enableLogging = ui->enableLoggingCheckBox->isChecked();
@@ -1566,16 +1299,6 @@ void SettingsDialog::on_logLevelComboBox_currentIndexChanged()
     debug_logLevelIndex = ui->logLevelComboBox->currentIndex();
 }
 
-void SettingsDialog::on_checkOpenGLErrorsCheckBox_stateChanged()
-{
-    debug_checkOpenGLErrors = ui->checkOpenGLErrorsCheckBox->isChecked();
-}
-
-void SettingsDialog::on_validateShadersCheckBox_stateChanged()
-{
-    debug_validateShaders = ui->validateShadersCheckBox->isChecked();
-}
-
 void SettingsDialog::on_profileRenderingCheckBox_stateChanged()
 {
     debug_profileRendering = ui->profileRenderingCheckBox->isChecked();
@@ -1589,11 +1312,6 @@ void SettingsDialog::on_showTextureDebugPanelCheckBox_stateChanged()
 
 void SettingsDialog::on_clearCacheButton_clicked()
 {
-    // TODO: Handle clearCacheButton::clicked()
-}
-
-void SettingsDialog::on_resetSettingsButton_clicked()
-{
-    // TODO: Handle resetSettingsButton::clicked()
+    emit clearCachesRequested();
 }
 

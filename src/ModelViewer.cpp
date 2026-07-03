@@ -34,6 +34,7 @@
 #include <QCheckBox>
 #include <QColorDialog>
 #include <QDataStream>
+#include <QDir>
 #include <QEventLoop>
 #include <QFile>
 #include <QFileDialog>
@@ -314,6 +315,32 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	int maxUndo = settings.value("spinBoxUndoLimit", 50).toInt(); // Keep last 50 operations as default
 	_undoStack->setUndoLimit(maxUndo);
 
+	// Seed the default HDRI/LDRI skybox indices from the configured Settings presets
+	// (if any). Presets are matched by folder name rather than index, since the
+	// scanned folder list (and therefore index order) can change if presets are
+	// added/removed.
+	{
+		const QString envmapRoot = PathUtils::getDataDirectory() + "/textures/envmap/skyboxes";
+
+		const QString hdriPresetName = settings.value("comboBoxDefaultSkyboxHDRI", QString()).toString();
+		if (!hdriPresetName.isEmpty())
+		{
+			QDir hdriDir(envmapRoot + "/HDRI");
+			const int idx = hdriDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot).indexOf(hdriPresetName);
+			if (idx >= 0)
+				_skyBoxHDRIIndex = idx;
+		}
+
+		const QString ldriPresetName = settings.value("comboBoxDefaultSkyboxLDRI", QString()).toString();
+		if (!ldriPresetName.isEmpty())
+		{
+			QDir ldriDir(envmapRoot + "/LDRI");
+			const int idx = ldriDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot).indexOf(ldriPresetName);
+			if (idx >= 0)
+				_skyBoxLDRIIndex = idx;
+		}
+	}
+
 	// Detect when undo becomes unavailable
 	connect(_undoStack, &QUndoStack::canUndoChanged,
 		this, [this](bool canUndo) {
@@ -340,13 +367,14 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		
 	int values[] = { 0, 2, 4, 8, 16, 32 };
 	int samples = values[settings.value("msaaComboBox", 4).toInt()];
+	bool vsyncEnabled = settings.value("vsyncCheckBox", true).toBool();
 
 	QSurfaceFormat format;
 	format.setVersion(4, 5); // OpenGL version 4.5
 	format.setProfile(QSurfaceFormat::CoreProfile);
 	format.setDepthBufferSize(24);
 	format.setStencilBufferSize(8);
-	format.setSwapInterval(0);
+	format.setSwapInterval(vsyncEnabled ? 1 : 0);
 	format.setStereo(true);
 	format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
 	format.setRenderableType(QSurfaceFormat::OpenGL);

@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>992</width>
-    <height>784</height>
+    <width>946</width>
+    <height>664</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -77,16 +77,6 @@
           <widget class="QCheckBox" name="checkConfirmExit">
            <property name="text">
             <string>Confirm on Exit</string>
-           </property>
-           <property name="checked">
-            <bool>true</bool>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="0" colspan="2">
-          <widget class="QCheckBox" name="checkPromptOverwrite">
-           <property name="text">
-            <string>Prompt Before Overwriting Model</string>
            </property>
            <property name="checked">
             <bool>true</bool>
@@ -261,11 +251,21 @@
          </item>
          <item row="6" column="0">
           <widget class="QCheckBox" name="checkTutorialLaunch">
+           <property name="toolTip">
+            <string>When checked, applying Settings resets the tutorial's &quot;remember my choice&quot; preference, so the launch-method prompt (Dialog Window / Web Browser) is asked again next time.</string>
+           </property>
            <property name="text">
             <string>Show Tutorial Launch Options</string>
            </property>
            <property name="checked">
             <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="8" column="0" colspan="2">
+          <widget class="QCheckBox" name="checkProgressiveLoading">
+           <property name="text">
+            <string>Enable Progressive Loading</string>
            </property>
           </widget>
          </item>
@@ -405,13 +405,6 @@
          </item>
         </layout>
        </item>
-       <item row="3" column="0">
-        <widget class="QCheckBox" name="checkTrackball">
-         <property name="text">
-          <string>Enable Trackball Rotation</string>
-         </property>
-        </widget>
-       </item>
        <item row="4" column="0">
         <widget class="QCheckBox" name="checkInvertZoom">
          <property name="text">
@@ -447,6 +440,104 @@
          </item>
         </layout>
        </item>
+       <item row="6" column="0">
+        <widget class="QGroupBox" name="navigationGroupBox">
+         <property name="title">
+          <string>Navigation</string>
+         </property>
+         <layout class="QGridLayout" name="gridLayout_8">
+          <item row="0" column="0">
+           <widget class="QLabel" name="navigationModeLabel">
+            <property name="text">
+             <string>Navigation Mode:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QComboBox" name="navigationModeComboBox">
+            <item>
+             <property name="text">
+              <string>Orbit</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Fly</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>First Person</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="mouseSensitivityLabel">
+            <property name="text">
+             <string>Mouse Sensitivity:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QSlider" name="mouseSensitivitySlider">
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>10</number>
+            </property>
+            <property name="value">
+             <number>5</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Orientation::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="zoomSensitivityLabel">
+            <property name="text">
+             <string>Wheel Sensitivity:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QSlider" name="zoomSensitivitySlider">
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>10</number>
+            </property>
+            <property name="value">
+             <number>5</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Orientation::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QCheckBox" name="invertYAxisCheckBox">
+            <property name="text">
+             <string>Invert Y-Axis</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="0">
+           <widget class="QCheckBox" name="smoothNavigationCheckBox">
+            <property name="text">
+             <string>Smooth Navigation</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
        <item row="7" column="0">
         <spacer name="verticalSpacer_3">
          <property name="orientation">
@@ -456,130 +547,6 @@
           <size>
            <width>947</width>
            <height>448</height>
-          </size>
-         </property>
-        </spacer>
-       </item>
-      </layout>
-     </widget>
-     <widget class="QWidget" name="tabBackground">
-      <attribute name="title">
-       <string>Background</string>
-      </attribute>
-      <layout class="QGridLayout" name="gridLayout">
-       <item row="0" column="0">
-        <widget class="QLabel" name="labelBackground">
-         <property name="text">
-          <string>Background Style</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="1">
-        <widget class="QComboBox" name="comboBoxBackgroundStyle">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <item>
-          <property name="text">
-           <string>Gradient</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Solid</string>
-          </property>
-         </item>
-        </widget>
-       </item>
-       <item row="1" column="0">
-        <widget class="QLabel" name="labelTopColor">
-         <property name="text">
-          <string>Top Color</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="1">
-        <widget class="QPushButton" name="pushButtonTopColor">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="text">
-          <string>Choose...</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="0">
-        <widget class="QLabel" name="labelBottomColor">
-         <property name="text">
-          <string>Bottom Color</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="1">
-        <widget class="QPushButton" name="pushButtonBottomColor">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="text">
-          <string>Choose...</string>
-         </property>
-        </widget>
-       </item>
-       <item row="3" column="0">
-        <widget class="QLabel" name="labelDefaultView">
-         <property name="text">
-          <string>Gradient Style</string>
-         </property>
-        </widget>
-       </item>
-       <item row="3" column="1">
-        <widget class="QComboBox" name="comboBoxGradientStyle">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <item>
-          <property name="text">
-           <string>Vertical</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Horizontal</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Top Left to Bottom Right</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Top Rightto Bottom Left</string>
-          </property>
-         </item>
-        </widget>
-       </item>
-       <item row="4" column="1">
-        <spacer name="verticalSpacer_4">
-         <property name="orientation">
-          <enum>Qt::Orientation::Vertical</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>20</width>
-           <height>517</height>
           </size>
          </property>
         </spacer>
@@ -601,16 +568,6 @@
            <widget class="QLabel" name="fieldOfViewLabel">
             <property name="text">
              <string>Field of View:</string>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="0">
-           <widget class="QCheckBox" name="showGridCheckBox">
-            <property name="text">
-             <string>Show Grid</string>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
             </property>
            </widget>
           </item>
@@ -782,108 +739,173 @@
             </item>
            </widget>
           </item>
-         </layout>
-        </widget>
-       </item>
-       <item row="1" column="0">
-        <widget class="QGroupBox" name="navigationGroupBox">
-         <property name="title">
-          <string>Navigation</string>
-         </property>
-         <layout class="QGridLayout" name="gridLayout_8">
-          <item row="0" column="0">
-           <widget class="QLabel" name="navigationModeLabel">
+          <item row="10" column="0">
+           <widget class="QCheckBox" name="vsyncCheckBox">
             <property name="text">
-             <string>Navigation Mode:</string>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="1">
-           <widget class="QComboBox" name="navigationModeComboBox">
-            <item>
-             <property name="text">
-              <string>Orbit</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Fly</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>First Person</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Walk</string>
-             </property>
-            </item>
-           </widget>
-          </item>
-          <item row="1" column="0">
-           <widget class="QLabel" name="mouseSensitivityLabel">
-            <property name="text">
-             <string>Mouse Sensitivity:</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="1">
-           <widget class="QSlider" name="mouseSensitivitySlider">
-            <property name="minimum">
-             <number>1</number>
-            </property>
-            <property name="maximum">
-             <number>10</number>
-            </property>
-            <property name="value">
-             <number>5</number>
-            </property>
-            <property name="orientation">
-             <enum>Qt::Orientation::Horizontal</enum>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="0">
-           <widget class="QLabel" name="zoomSensitivityLabel">
-            <property name="text">
-             <string>Wheel Sensitivity:</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="1">
-           <widget class="QSlider" name="zoomSensitivitySlider">
-            <property name="minimum">
-             <number>1</number>
-            </property>
-            <property name="maximum">
-             <number>10</number>
-            </property>
-            <property name="value">
-             <number>5</number>
-            </property>
-            <property name="orientation">
-             <enum>Qt::Orientation::Horizontal</enum>
-            </property>
-           </widget>
-          </item>
-          <item row="3" column="0">
-           <widget class="QCheckBox" name="invertYAxisCheckBox">
-            <property name="text">
-             <string>Invert Y-Axis</string>
-            </property>
-           </widget>
-          </item>
-          <item row="4" column="0">
-           <widget class="QCheckBox" name="smoothNavigationCheckBox">
-            <property name="text">
-             <string>Smooth Navigation</string>
+             <string>Enable V-Sync</string>
             </property>
             <property name="checked">
              <bool>true</bool>
             </property>
            </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QGroupBox" name="backgroundGroupBox">
+         <property name="title">
+          <string>Background</string>
+         </property>
+         <layout class="QGridLayout" name="gridLayout">
+          <item row="0" column="0">
+           <widget class="QLabel" name="labelBackground">
+            <property name="text">
+             <string>Background Style</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QComboBox" name="comboBoxBackgroundStyle">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <item>
+             <property name="text">
+              <string>Gradient</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Solid</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="labelTopColor">
+            <property name="text">
+             <string>Top Color</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QPushButton" name="pushButtonTopColor">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>Choose...</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="labelBottomColor">
+            <property name="text">
+             <string>Bottom Color</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QPushButton" name="pushButtonBottomColor">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="text">
+             <string>Choose...</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="labelDefaultView">
+            <property name="text">
+             <string>Gradient Style</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QComboBox" name="comboBoxGradientStyle">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <item>
+             <property name="text">
+              <string>Vertical</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Horizontal</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Top Left to Bottom Right</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Top Rightto Bottom Left</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="4" column="0">
+           <widget class="QLabel" name="labelDefaultSkybox">
+            <property name="text">
+             <string>Default Skybox</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1">
+           <layout class="QHBoxLayout" name="horizontalLayoutDefaultSkybox">
+            <item>
+             <widget class="QLabel" name="labelDefaultSkyboxHDRI">
+              <property name="text">
+               <string>HDRI:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="comboBoxDefaultSkyboxHDRI">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="labelDefaultSkyboxLDRI">
+              <property name="text">
+               <string>LDRI:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="comboBoxDefaultSkyboxLDRI">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+             </widget>
+            </item>
+           </layout>
           </item>
          </layout>
         </widget>
@@ -1299,7 +1321,7 @@
           <double>180.000000000000000</double>
          </property>
          <property name="value">
-          <double>66.000000000000000</double>
+          <double>60.000000000000000</double>
          </property>
         </widget>
        </item>
@@ -1308,12 +1330,18 @@
          <property name="text">
           <string>Preserve Existing UVs</string>
          </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
         </widget>
        </item>
        <item row="3" column="0">
         <widget class="QCheckBox" name="checkAutoPackUVs">
          <property name="text">
           <string>Auto Pack UVs</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
          </property>
         </widget>
        </item>
@@ -1325,34 +1353,20 @@
         </widget>
        </item>
        <item row="5" column="0">
-        <widget class="QCheckBox" name="checkPCAProjection">
-         <property name="text">
-          <string>Use PCA Projection</string>
-         </property>
-        </widget>
-       </item>
-       <item row="6" column="0">
-        <widget class="QCheckBox" name="checkXatlasPackingOnly">
-         <property name="text">
-          <string>Use xatlas only for Packing</string>
-         </property>
-        </widget>
-       </item>
-       <item row="7" column="0">
         <widget class="QCheckBox" name="checkRememberUV">
          <property name="text">
           <string>Remember Last Used UV Method</string>
          </property>
         </widget>
        </item>
-       <item row="8" column="0">
+       <item row="6" column="0">
         <widget class="QPushButton" name="buttonResetUVPrompt">
          <property name="text">
           <string>Reset UV Prompt Setting</string>
          </property>
         </widget>
        </item>
-       <item row="9" column="0">
+       <item row="7" column="0">
         <spacer name="verticalSpacer_6">
          <property name="orientation">
           <enum>Qt::Orientation::Vertical</enum>
@@ -1382,7 +1396,7 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>936</width>
+            <width>890</width>
             <height>656</height>
            </rect>
           </property>
@@ -1603,318 +1617,6 @@
        </item>
       </layout>
      </widget>
-     <widget class="QWidget" name="tabPerformance">
-      <attribute name="title">
-       <string>Performance</string>
-      </attribute>
-      <layout class="QGridLayout" name="gridLayout_11">
-       <item row="0" column="0">
-        <widget class="QCheckBox" name="checkMultithreadedLoad">
-         <property name="text">
-          <string>Enable Multithreaded Loading</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="0">
-        <widget class="QSpinBox" name="spinThreadLimit">
-         <property name="suffix">
-          <string> Threads</string>
-         </property>
-         <property name="maximum">
-          <number>32</number>
-         </property>
-         <property name="value">
-          <number>4</number>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="0">
-        <widget class="QCheckBox" name="checkSkyboxBlending">
-         <property name="text">
-          <string>Enable Background Skybox Blending</string>
-         </property>
-        </widget>
-       </item>
-       <item row="3" column="0">
-        <widget class="QCheckBox" name="checkProgressiveLoading">
-         <property name="text">
-          <string>Enable Progressive Loading</string>
-         </property>
-        </widget>
-       </item>
-       <item row="4" column="0" colspan="2">
-        <widget class="QGroupBox" name="renderingPerformanceGroupBox">
-         <property name="title">
-          <string>Rendering Performance</string>
-         </property>
-         <layout class="QFormLayout" name="renderingPerformanceFormLayout_3">
-          <item row="0" column="0">
-           <widget class="QLabel" name="maxFpsLabel">
-            <property name="text">
-             <string>Max FPS:</string>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="1">
-           <widget class="QSpinBox" name="maxFpsSpinBox">
-            <property name="minimum">
-             <number>30</number>
-            </property>
-            <property name="maximum">
-             <number>120</number>
-            </property>
-            <property name="value">
-             <number>60</number>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="0">
-           <widget class="QCheckBox" name="vsyncCheckBox">
-            <property name="text">
-             <string>Enable V-Sync</string>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="0">
-           <widget class="QCheckBox" name="frustumCullingCheckBox">
-            <property name="text">
-             <string>Frustum Culling</string>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="3" column="0">
-           <widget class="QCheckBox" name="backfaceCullingCheckBox">
-            <property name="text">
-             <string>Backface Culling</string>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="4" column="0">
-           <widget class="QCheckBox" name="levelOfDetailCheckBox">
-            <property name="text">
-             <string>Level of Detail (LOD)</string>
-            </property>
-           </widget>
-          </item>
-          <item row="5" column="0">
-           <widget class="QLabel" name="maxVerticesLabel">
-            <property name="text">
-             <string>Max Vertices per Frame:</string>
-            </property>
-           </widget>
-          </item>
-          <item row="5" column="1">
-           <widget class="QSpinBox" name="maxVerticesSpinBox">
-            <property name="minimum">
-             <number>100000</number>
-            </property>
-            <property name="maximum">
-             <number>10000000</number>
-            </property>
-            <property name="singleStep">
-             <number>100000</number>
-            </property>
-            <property name="value">
-             <number>1000000</number>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </widget>
-       </item>
-       <item row="5" column="0" colspan="2">
-        <widget class="QGroupBox" name="memoryGroupBox">
-         <property name="title">
-          <string>Memory Management</string>
-         </property>
-         <layout class="QFormLayout" name="memoryFormLayout_3">
-          <item row="0" column="0">
-           <widget class="QLabel" name="textureCacheSizeLabel">
-            <property name="text">
-             <string>Texture Cache Size (MB):</string>
-            </property>
-           </widget>
-          </item>
-          <item row="0" column="1">
-           <widget class="QSpinBox" name="textureCacheSizeSpinBox">
-            <property name="minimum">
-             <number>32</number>
-            </property>
-            <property name="maximum">
-             <number>8192</number>
-            </property>
-            <property name="singleStep">
-             <number>32</number>
-            </property>
-            <property name="value">
-             <number>512</number>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="0">
-           <widget class="QLabel" name="geometryCacheSizeLabel">
-            <property name="text">
-             <string>Geometry Cache Size (MB):</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="1">
-           <widget class="QSpinBox" name="geometryCacheSizeSpinBox">
-            <property name="minimum">
-             <number>32</number>
-            </property>
-            <property name="maximum">
-             <number>2048</number>
-            </property>
-            <property name="singleStep">
-             <number>32</number>
-            </property>
-            <property name="value">
-             <number>256</number>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="0">
-           <widget class="QCheckBox" name="compressTexturesCheckBox">
-            <property name="text">
-             <string>Compress Textures</string>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="3" column="0">
-           <widget class="QCheckBox" name="generateMipmapsCheckBox">
-            <property name="text">
-             <string>Generate Mipmaps</string>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </widget>
-       </item>
-       <item row="6" column="1">
-        <spacer name="verticalSpacer_8">
-         <property name="orientation">
-          <enum>Qt::Orientation::Vertical</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>20</width>
-           <height>14</height>
-          </size>
-         </property>
-        </spacer>
-       </item>
-      </layout>
-     </widget>
-     <widget class="QWidget" name="tabAdvanced">
-      <attribute name="title">
-       <string>Advanced</string>
-      </attribute>
-      <layout class="QGridLayout" name="gridLayout_5">
-       <item row="0" column="0">
-        <widget class="QLabel" name="labelOpenGLVersion">
-         <property name="text">
-          <string>OpenGL Version</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="1" colspan="2">
-        <widget class="QComboBox" name="comboBoxOpenGLVersion">
-         <item>
-          <property name="text">
-           <string>4.5 Core</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>4.1 Core</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>3.3 Core</string>
-          </property>
-         </item>
-        </widget>
-       </item>
-       <item row="1" column="0">
-        <widget class="QCheckBox" name="checkBoxVSync">
-         <property name="text">
-          <string>Enable VSync</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="0">
-        <widget class="QLabel" name="labelThreads">
-         <property name="text">
-          <string>Loader Threads</string>
-         </property>
-        </widget>
-       </item>
-       <item row="3" column="0" colspan="3">
-        <widget class="QCheckBox" name="checkShaderHotReload">
-         <property name="text">
-          <string>Reload Shaders on File Change</string>
-         </property>
-        </widget>
-       </item>
-       <item row="4" column="0" colspan="2">
-        <widget class="QCheckBox" name="checkShowFPS">
-         <property name="text">
-          <string>Show FPS Counter</string>
-         </property>
-        </widget>
-       </item>
-       <item row="5" column="0" colspan="3">
-        <widget class="QCheckBox" name="checkLegacyOpenGL">
-         <property name="text">
-          <string>Force Legacy OpenGL Compatibility Mode</string>
-         </property>
-        </widget>
-       </item>
-       <item row="6" column="1">
-        <spacer name="verticalSpacer_9">
-         <property name="orientation">
-          <enum>Qt::Orientation::Vertical</enum>
-         </property>
-         <property name="sizeHint" stdset="0">
-          <size>
-           <width>20</width>
-           <height>40</height>
-          </size>
-         </property>
-        </spacer>
-       </item>
-       <item row="2" column="1" colspan="2">
-        <widget class="QSpinBox" name="spinBoxThreads">
-         <property name="minimum">
-          <number>1</number>
-         </property>
-         <property name="maximum">
-          <number>16</number>
-         </property>
-         <property name="value">
-          <number>4</number>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </widget>
      <widget class="QWidget" name="tabDebug">
       <attribute name="title">
        <string>Debug</string>
@@ -1927,48 +1629,27 @@
          </property>
          <layout class="QFormLayout" name="debugInfoFormLayout_3">
           <item row="0" column="0">
-           <widget class="QCheckBox" name="showFpsCheckBox">
-            <property name="text">
-             <string>Show FPS Counter</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="0">
-           <widget class="QCheckBox" name="showMemoryUsageCheckBox">
-            <property name="text">
-             <string>Show Memory Usage</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="0">
-           <widget class="QCheckBox" name="showRenderStatsCheckBox">
-            <property name="text">
-             <string>Show Render Statistics</string>
-            </property>
-           </widget>
-          </item>
-          <item row="3" column="0">
-           <widget class="QCheckBox" name="showOpenGLInfoCheckBox">
-            <property name="text">
-             <string>Show OpenGL Info</string>
-            </property>
-           </widget>
-          </item>
-          <item row="4" column="0">
            <widget class="QCheckBox" name="enableLoggingCheckBox">
             <property name="text">
              <string>Enable Debug Logging</string>
             </property>
            </widget>
           </item>
-          <item row="6" column="0">
+          <item row="1" column="0">
+           <widget class="QCheckBox" name="enableConsoleCheckBox">
+            <property name="text">
+             <string>Enable Console Output</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0">
            <widget class="QLabel" name="logLevelLabel">
             <property name="text">
              <string>Log Level:</string>
             </property>
            </widget>
           </item>
-          <item row="6" column="1">
+          <item row="2" column="1">
            <widget class="QComboBox" name="logLevelComboBox">
             <item>
              <property name="text">
@@ -1992,13 +1673,6 @@
             </item>
            </widget>
           </item>
-          <item row="5" column="0">
-           <widget class="QCheckBox" name="enableConsoleCheckBox">
-            <property name="text">
-             <string>Enable Console Output</string>
-            </property>
-           </widget>
-          </item>
          </layout>
         </widget>
        </item>
@@ -2009,27 +1683,13 @@
          </property>
          <layout class="QFormLayout" name="diagnosticsFormLayout_3">
           <item row="0" column="0">
-           <widget class="QCheckBox" name="checkOpenGLErrorsCheckBox">
-            <property name="text">
-             <string>Check OpenGL Errors</string>
-            </property>
-           </widget>
-          </item>
-          <item row="1" column="0">
-           <widget class="QCheckBox" name="validateShadersCheckBox">
-            <property name="text">
-             <string>Validate Shaders</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="0">
            <widget class="QCheckBox" name="profileRenderingCheckBox">
             <property name="text">
              <string>Profile Rendering</string>
             </property>
            </widget>
           </item>
-          <item row="3" column="0">
+          <item row="1" column="0">
            <widget class="QCheckBox" name="showTextureDebugPanelCheckBox">
             <property name="toolTip">
              <string>Adds a Texture Debugger entry to the Tools menu. The panel shows GPU-side texture bindings for the selected mesh.</string>
@@ -2039,17 +1699,10 @@
             </property>
            </widget>
           </item>
-          <item row="5" column="0">
+          <item row="2" column="0">
            <widget class="QPushButton" name="clearCacheButton">
             <property name="text">
              <string>Clear All Caches</string>
-            </property>
-           </widget>
-          </item>
-          <item row="6" column="0">
-           <widget class="QPushButton" name="resetSettingsButton">
-            <property name="text">
-             <string>Reset to Defaults</string>
             </property>
            </widget>
           </item>
@@ -2079,7 +1732,6 @@
   <tabstop>tabWidget</tabstop>
   <tabstop>comboBoxTheme</tabstop>
   <tabstop>comboBoxLanguage</tabstop>
-  <tabstop>checkPromptOverwrite</tabstop>
   <tabstop>checkRestoreLastFile</tabstop>
   <tabstop>checkTooltips</tabstop>
   <tabstop>checkConfirmExit</tabstop>
@@ -2087,13 +1739,13 @@
   <tabstop>comboDefaultView</tabstop>
   <tabstop>comboDefaultProjection</tabstop>
   <tabstop>comboCameraUpAxis</tabstop>
-  <tabstop>checkTrackball</tabstop>
   <tabstop>checkInvertZoom</tabstop>
   <tabstop>comboBoxBackgroundStyle</tabstop>
   <tabstop>pushButtonTopColor</tabstop>
   <tabstop>pushButtonBottomColor</tabstop>
   <tabstop>comboBoxGradientStyle</tabstop>
-  <tabstop>showGridCheckBox</tabstop>
+  <tabstop>comboBoxDefaultSkyboxHDRI</tabstop>
+  <tabstop>comboBoxDefaultSkyboxLDRI</tabstop>
   <tabstop>showCenterTrihedronCheckBox</tabstop>
   <tabstop>showCornerTrihedronCheckBox</tabstop>
   <tabstop>comboBoxCornerTrihedronPosition</tabstop>
@@ -2126,41 +1778,14 @@
   <tabstop>checkPreserveUVs</tabstop>
   <tabstop>checkAutoPackUVs</tabstop>
   <tabstop>checkRelaxUVs</tabstop>
-  <tabstop>checkPCAProjection</tabstop>
-  <tabstop>checkXatlasPackingOnly</tabstop>
   <tabstop>checkRememberUV</tabstop>
   <tabstop>buttonResetUVPrompt</tabstop>
-  <tabstop>checkMultithreadedLoad</tabstop>
-  <tabstop>spinThreadLimit</tabstop>
-  <tabstop>checkSkyboxBlending</tabstop>
   <tabstop>checkProgressiveLoading</tabstop>
-  <tabstop>maxFpsSpinBox</tabstop>
   <tabstop>vsyncCheckBox</tabstop>
-  <tabstop>frustumCullingCheckBox</tabstop>
-  <tabstop>backfaceCullingCheckBox</tabstop>
-  <tabstop>levelOfDetailCheckBox</tabstop>
-  <tabstop>maxVerticesSpinBox</tabstop>
-  <tabstop>textureCacheSizeSpinBox</tabstop>
-  <tabstop>geometryCacheSizeSpinBox</tabstop>
-  <tabstop>compressTexturesCheckBox</tabstop>
-  <tabstop>generateMipmapsCheckBox</tabstop>
-  <tabstop>comboBoxOpenGLVersion</tabstop>
-  <tabstop>checkBoxVSync</tabstop>
-  <tabstop>spinBoxThreads</tabstop>
-  <tabstop>checkShaderHotReload</tabstop>
-  <tabstop>checkShowFPS</tabstop>
-  <tabstop>checkLegacyOpenGL</tabstop>
-  <tabstop>showFpsCheckBox</tabstop>
-  <tabstop>showMemoryUsageCheckBox</tabstop>
-  <tabstop>showRenderStatsCheckBox</tabstop>
-  <tabstop>showOpenGLInfoCheckBox</tabstop>
   <tabstop>enableLoggingCheckBox</tabstop>
   <tabstop>logLevelComboBox</tabstop>
-  <tabstop>checkOpenGLErrorsCheckBox</tabstop>
-  <tabstop>validateShadersCheckBox</tabstop>
   <tabstop>profileRenderingCheckBox</tabstop>
   <tabstop>clearCacheButton</tabstop>
-  <tabstop>resetSettingsButton</tabstop>
  </tabstops>
  <resources/>
  <connections/>

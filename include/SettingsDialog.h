@@ -29,17 +29,16 @@ public:
     // General tab
     int generalThemeIndex() const { return general_themeIndex; }
     int generalLanguageIndex() const { return general_languageIndex; }
-    bool generalPromptOverwrite() const { return general_promptOverwrite; }
     bool generalRestoreLastFile() const { return general_restoreLastFile; }
     bool generalShowTooltips() const { return general_showTooltips; }
     bool generalConfirmExit() const { return general_confirmExit; }
+    bool generalProgressiveLoading() const { return general_progressiveLoading; }
 
     // Camera tab
     int cameraProjectionModeIndex() const { return camera_projectionModeIndex; }
     int cameraDefaultViewIndex() const { return camera_defaultViewIndex; }
     int cameraDefaultProjectionIndex() const { return camera_defaultProjectionIndex; }
     int cameraDefaultUpAxisIndex() const { return camera_defaultUpAxisIndex; }
-    bool cameraTrackball() const { return camera_trackball; }
     bool cameraInvertZoom() const { return camera_invertZoom; }
 
     // Background tab
@@ -53,13 +52,15 @@ public:
     bool displayShowCornerTrihedron() const { return display_showCornerTrihedron; }
     bool displayShowViewCube() const { return display_showViewCube; }
     int  displayCornerTrihedronPosition() const { return display_cornerTrihedronPosition; }
-    bool displayShowGrid() const { return display_showGrid; }
     bool displayShowVertexNormals() const { return display_showVertexNormals; }
     bool displayShowFaceNormals() const { return display_showFaceNormals; }
     bool displayShowWireframe() const { return display_showWireframe; }
     int displayFieldOfView() const { return display_fieldOfView; }
     bool displayShowCenterTrihedron() const { return display_showCenterTrihedron; }
     HoverHighlightMode displayHoverHighlightMode() const { return display_hoverHighlightMode; }
+    bool displayVsync() const { return display_vsync; }
+    QString displayDefaultSkyboxHDRI() const { return display_defaultSkyboxHDRI; }
+    QString displayDefaultSkyboxLDRI() const { return display_defaultSkyboxLDRI; }
 
     // Navigation group
     int navigationModeIndex() const { return navigation_modeIndex; }
@@ -93,8 +94,6 @@ public:
     bool uvPreserveUVs() const { return uv_preserveUVs; }
     bool uvAutoPackUVs() const { return uv_autoPackUVs; }
     bool uvRelaxUVs() const { return uv_relaxUVs; }
-    bool uvPcaProjection() const { return uv_pcaProjection; }
-    bool uvXatlasPackingOnly() const { return uv_xatlasPackingOnly; }
     bool uvRememberUV() const { return uv_rememberUV; }
 
     // Import/Export Tab
@@ -109,41 +108,9 @@ public:
     bool importAssimpOptimizeMesh() const { return import_assimpOptimizeMesh; }
     bool importAssimpRemoveDuplicates() const { return import_assimpRemoveDuplicates; }
 
-    // Performance Tab
-    bool perfMultithreadedLoad() const { return perf_multithreadedLoad; }
-    int perfThreadLimit() const { return perf_threadLimit; }
-    bool perfSkyboxBlending() const { return perf_skyboxBlending; }
-    bool perfProgressiveLoading() const { return perf_progressiveLoading; }
-    int perfMaxFps() const { return perf_maxFps; }
-    bool perfVsync() const { return perf_vsync; }
-    bool perfFrustumCulling() const { return perf_frustumCulling; }
-    bool perfBackfaceCulling() const { return perf_backfaceCulling; }
-    bool perfLevelOfDetail() const { return perf_levelOfDetail; }
-    int perfMaxVertices() const { return perf_maxVertices; }
-
-    // Memory management
-    int perfTextureCacheSize() const { return perf_textureCacheSize; }
-    int perfGeometryCacheSize() const { return perf_geometryCacheSize; }
-    bool perfCompressTextures() const { return perf_compressTextures; }
-    bool perfGenerateMipmaps() const { return perf_generateMipmaps; }
-
-    // Advanced Tab
-    int advancedOpenGLVersionIndex() const { return advanced_openGLVersionIndex; }
-    bool advancedVsync() const { return advanced_vsync; }
-    int advancedThreads() const { return advanced_threads; }
-    bool advancedShaderHotReload() const { return advanced_shaderHotReload; }
-    bool advancedShowFPS() const { return advanced_showFPS; }
-    bool advancedLegacyOpenGL() const { return advanced_legacyOpenGL; }
-
     // Debug Tab
-    bool debugShowFps() const { return debug_showFps; }
-    bool debugShowMemoryUsage() const { return debug_showMemoryUsage; }
-    bool debugShowRenderStats() const { return debug_showRenderStats; }
-    bool debugShowOpenGLInfo() const { return debug_showOpenGLInfo; }
     bool debugEnableLogging() const { return debug_enableLogging; }
     int debugLogLevelIndex() const { return debug_logLevelIndex; }
-    bool debugCheckOpenGLErrors() const { return debug_checkOpenGLErrors; }
-    bool debugValidateShaders() const { return debug_validateShaders; }
     bool debugProfileRendering() const { return debug_profileRendering; }
     bool debugShowTextureDebugPanel() const { return debug_showTextureDebugPanel; }
 
@@ -153,6 +120,7 @@ public:
 signals:
 	void settingsChanged(); // Signal to notify that settings have changed
 	void textureDebugPanelVisibilityChanged(bool enabled);
+	void clearCachesRequested();
 
 private slots:   
     void onOkClicked();
@@ -162,7 +130,6 @@ private slots:
 
     void on_comboBoxTheme_currentIndexChanged();
     void on_comboBoxLanguage_currentIndexChanged();
-    void on_checkPromptOverwrite_stateChanged();
     void on_checkRestoreLastFile_stateChanged();
     void on_checkTooltips_stateChanged();
     void on_checkConfirmExit_stateChanged();
@@ -172,18 +139,18 @@ private slots:
     void on_comboDefaultView_currentIndexChanged();
     void on_comboDefaultProjection_currentIndexChanged();
     void on_comboCameraUpAxis_currentIndexChanged();
-    void on_checkTrackball_stateChanged();
     void on_checkInvertZoom_stateChanged();
     void on_comboBoxBackgroundStyle_currentIndexChanged();
     void on_pushButtonTopColor_clicked();
     void on_pushButtonBottomColor_clicked();
     void on_comboBoxGradientStyle_currentIndexChanged();
+    void on_comboBoxDefaultSkyboxHDRI_currentIndexChanged();
+    void on_comboBoxDefaultSkyboxLDRI_currentIndexChanged();
     void on_showBoundingBoxCheckBox_stateChanged();
     void on_showCornerTrihedronCheckBox_stateChanged();
     void on_showViewCubeCheckBox_stateChanged();
     void on_comboBoxCornerTrihedronPosition_currentIndexChanged();
     void on_fieldOfViewSpinBox_valueChanged();
-    void on_showGridCheckBox_stateChanged();
     void on_showVertexNormalsCheckBox_stateChanged();
     void on_showFaceNormalsCheckBox_stateChanged();
     void on_showWireframeCheckBox_stateChanged();
@@ -211,8 +178,6 @@ private slots:
     void on_checkPreserveUVs_stateChanged();
     void on_checkAutoPackUVs_stateChanged();
     void on_checkRelaxUVs_stateChanged();
-    void on_checkPCAProjection_stateChanged();
-    void on_checkXatlasPackingOnly_stateChanged();
     void on_checkRememberUV_stateChanged();
     void on_buttonResetUVPrompt_clicked();
     void on_linearDeflectionSpinBox_valueChanged();
@@ -225,40 +190,15 @@ private slots:
 	void on_assimpAutoOrientCheckBox_stateChanged();
 	void on_radioButtonExportScene_toggled(bool checked);
 	void on_radioButtonExportMeshes_toggled(bool checked);
-    void on_checkMultithreadedLoad_stateChanged();
-    void on_spinThreadLimit_valueChanged();
-    void on_checkSkyboxBlending_stateChanged();
     void on_checkProgressiveLoading_stateChanged();
-    void on_maxFpsSpinBox_valueChanged();
     void on_vsyncCheckBox_stateChanged();
-    void on_frustumCullingCheckBox_stateChanged();
-    void on_backfaceCullingCheckBox_stateChanged();
-    void on_levelOfDetailCheckBox_stateChanged();
-    void on_maxVerticesSpinBox_valueChanged();
-    void on_textureCacheSizeSpinBox_valueChanged();
-    void on_geometryCacheSizeSpinBox_valueChanged();
-    void on_compressTexturesCheckBox_stateChanged();
-    void on_generateMipmapsCheckBox_stateChanged();
-    void on_comboBoxOpenGLVersion_currentIndexChanged();
-    void on_checkBoxVSync_stateChanged();
-    void on_checkShaderHotReload_stateChanged();
-    void on_checkShowFPS_stateChanged();
-    void on_checkLegacyOpenGL_stateChanged();
-    void on_spinBoxThreads_valueChanged();
-    void on_showFpsCheckBox_stateChanged();
-    void on_showMemoryUsageCheckBox_stateChanged();
-    void on_showRenderStatsCheckBox_stateChanged();
-    void on_showOpenGLInfoCheckBox_stateChanged();
     void on_enableLoggingCheckBox_stateChanged();
 	void on_enableConsoleCheckBox_stateChanged();
     void on_logLevelComboBox_currentIndexChanged();
-    void on_checkOpenGLErrorsCheckBox_stateChanged();
-    void on_validateShadersCheckBox_stateChanged();
     void on_profileRenderingCheckBox_stateChanged();
     void on_showTextureDebugPanelCheckBox_stateChanged();
     void on_clearCacheButton_clicked();
-    void on_resetSettingsButton_clicked();
-    void restoreDefaults();	
+    void restoreDefaults();
 
 private:
     void captureAppliedState();
@@ -274,19 +214,18 @@ private:
     // General tab
     int general_themeIndex = 0;
     int general_languageIndex = 0;
-    bool general_promptOverwrite = true;
     bool general_restoreLastFile = false;
     bool general_showTooltips = true;
     bool general_confirmExit = false;
 	bool general_showTutorialLauncher = true;
 	int general_undoLimit = 50;
+    bool general_progressiveLoading = false;
 
     // Camera tab
     int camera_projectionModeIndex = 0;
     int camera_defaultViewIndex = 0;
     int camera_defaultProjectionIndex = 0;
     int camera_defaultUpAxisIndex = 0;
-    bool camera_trackball = false;
     bool camera_invertZoom = false;
 
     // Background tab
@@ -301,13 +240,15 @@ private:
     bool display_showCornerTrihedron = true;
     bool display_showViewCube = true;
     int display_cornerTrihedronPosition = 1;
-    bool display_showGrid = true;
     bool display_showVertexNormals = true;
     bool display_showFaceNormals = true;
     bool display_showWireframe = true;
     int display_fieldOfView = 60;
     bool display_showCenterTrihedron = false;
     HoverHighlightMode display_hoverHighlightMode = HoverHighlightMode::RaycastOnly;
+    bool display_vsync = true;
+    QString display_defaultSkyboxHDRI; // "" = no preference; matched by preset folder name
+    QString display_defaultSkyboxLDRI; // "" = no preference; matched by preset folder name
 
     // Navigation group
     int navigation_modeIndex = 0;
@@ -337,12 +278,10 @@ private:
 
     // UV Generation Tab
     int uv_methodIndex = 0;
-    double uv_angleThreshold = 66.0;
-    bool uv_preserveUVs = false;
-    bool uv_autoPackUVs = false;
+    double uv_angleThreshold = 60.0;
+    bool uv_preserveUVs = true;
+    bool uv_autoPackUVs = true;
     bool uv_relaxUVs = false;
-    bool uv_pcaProjection = false;
-    bool uv_xatlasPackingOnly = false;
     bool uv_rememberUV = false;
 
     // Import/Export Tab
@@ -361,43 +300,10 @@ private:
     bool export_exportScene = true;
     bool export_exportMeshes = false;
 
-
-    // Performance Tab
-    bool perf_multithreadedLoad = false;
-    int perf_threadLimit = 4;
-    bool perf_skyboxBlending = false;
-    bool perf_progressiveLoading = false;
-    int perf_maxFps = 60;
-    bool perf_vsync = true;
-    bool perf_frustumCulling = true;
-    bool perf_backfaceCulling = true;
-    bool perf_levelOfDetail = false;
-    int perf_maxVertices = 1000000;
-
-    // Memory management
-    int perf_textureCacheSize = 512;
-    int perf_geometryCacheSize = 256;
-    bool perf_compressTextures = true;
-    bool perf_generateMipmaps = true;
-
-    // Advanced Tab
-    int advanced_openGLVersionIndex = 0;
-    bool advanced_vsync = false;
-    int advanced_threads = 4;
-    bool advanced_shaderHotReload = false;
-    bool advanced_showFPS = false;
-    bool advanced_legacyOpenGL = false;
-
     // Debug Tab
-    bool debug_showFps = false;
-    bool debug_showMemoryUsage = false;
-    bool debug_showRenderStats = false;
-    bool debug_showOpenGLInfo = false;
     bool debug_enableLogging = false;
 	bool debug_enableConsoleOutput = false;
     int debug_logLevelIndex = 0;
-    bool debug_checkOpenGLErrors = false;
-    bool debug_validateShaders = false;
     bool debug_profileRendering = false;
     bool debug_showTextureDebugPanel = false;
 

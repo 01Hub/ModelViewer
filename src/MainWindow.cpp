@@ -865,6 +865,20 @@ void MainWindow::on_actionSettings_triggered()
 		ui->menuTools->menuAction()->setVisible(enabled && hasMdiChild);
 		ui->actionTextureDebugger->setVisible(enabled && hasMdiChild);
 	});
+
+	connect(settingsDialog, &SettingsDialog::clearCachesRequested, this, [this]() {
+		for (ModelViewer* viewer : _viewers)
+		{
+			ViewportWidget* vp = viewer ? viewer->getViewportWidget() : nullptr;
+			if (!vp)
+				continue;
+			// Each MDI document owns its own GL context; the cache-clearing
+			// glDeleteTextures calls require that context current.
+			vp->makeCurrent();
+			vp->clearTextureCache();
+			vp->doneCurrent();
+		}
+	});
 }
 
 void MainWindow::on_actionTile_Horizontally_triggered()

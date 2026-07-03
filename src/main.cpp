@@ -6,6 +6,7 @@
 #include <iostream>
 #include <QApplication>
 #include <QDebug>
+#include <QEvent>
 #include <QFileInfo>
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
@@ -16,6 +17,19 @@
 #include <sstream>
 #include <string>
 
+namespace
+{
+// Installed on qApp when the "Enable Tooltips" setting is off. Qt has no built-in
+// global tooltip toggle, so this suppresses every QEvent::ToolTip app-wide instead.
+class TooltipSuppressor : public QObject
+{
+protected:
+    bool eventFilter(QObject* /*watched*/, QEvent* event) override
+    {
+        return event->type() == QEvent::ToolTip;
+    }
+};
+}
 
 int main(int argc, char** argv)
 {
@@ -86,6 +100,15 @@ int main(int argc, char** argv)
 	Logger::instance().setFileEnabled(fileLogging);
 	int logLevel = settings.value("logLevelComboBox", 1).toInt();
 	Logger::instance().setMinimumLevel(static_cast<Logger::LogLevel>(logLevel));
+
+	// Qt has no built-in global tooltip toggle; install an app-wide filter to suppress
+	// them when disabled. Read once at startup — like MSAA/V-Sync, takes effect on restart.
+	bool tooltipsEnabled = settings.value("checkTooltips", true).toBool();
+	if (!tooltipsEnabled)
+	{
+		static TooltipSuppressor tooltipSuppressor;
+		app.installEventFilter(&tooltipSuppressor);
+	}
 
 	showSplashMessage(QObject::tr("Creating main window..."));
 	MainWindow* mw = MainWindow::mainWindow();		

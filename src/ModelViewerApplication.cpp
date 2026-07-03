@@ -47,13 +47,15 @@ ModelViewerApplication::ModelViewerApplication(int& argc, char** argv)
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 	int values[] = {0, 2, 4, 8, 16, 32};
 	int samples = values[settings.value("msaaComboBox", 4).toInt()];
-	
+	bool vsyncEnabled = settings.value("vsyncCheckBox", true).toBool();
+
 	QSurfaceFormat format;
 	format.setDepthBufferSize(24);
 	format.setStencilBufferSize(8);
 	format.setVersion(4, 5); // OpenGL version 4.5
 	format.setProfile(QSurfaceFormat::CoreProfile);
 	format.setOption(QSurfaceFormat::DebugContext);
+	format.setSwapInterval(vsyncEnabled ? 1 : 0);
 	format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
 	format.setRenderableType(QSurfaceFormat::OpenGL);
 	format.setSamples(samples); // Set MSAA samples

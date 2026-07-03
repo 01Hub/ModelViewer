@@ -65,6 +65,36 @@ static SceneNode* findSceneNodeByAiChildPath(SceneNode* root, const QVector<int>
     return current;
 }
 
+// Maps the Settings dialog's "Default View" / "Axonometric Mode" combo selections to
+// the initial ViewMode + Camera::ViewProjection pair used to seed a brand-new viewport.
+// "Default View" chooses the starting orientation; when it resolves to Isometric,
+// "Axonometric Mode" additionally picks the isometric/dimetric/trimetric flavor.
+namespace
+{
+struct InitialView { ViewMode mode; Camera::ViewProjection cameraView; };
+
+InitialView resolveInitialView(int defaultViewIndex, int axonometricModeIndex)
+{
+    switch (defaultViewIndex)
+    {
+        case 1: return { ViewMode::TOP,    Camera::ViewProjection::TOP_VIEW };
+        case 2: return { ViewMode::FRONT,  Camera::ViewProjection::FRONT_VIEW };
+        case 3: return { ViewMode::LEFT,   Camera::ViewProjection::LEFT_VIEW };
+        case 4: return { ViewMode::BOTTOM, Camera::ViewProjection::BOTTOM_VIEW };
+        case 5: return { ViewMode::BACK,   Camera::ViewProjection::REAR_VIEW };
+        case 6: return { ViewMode::RIGHT,  Camera::ViewProjection::RIGHT_VIEW };
+        case 0: // Isometric — refine using the Axonometric Mode default
+        default:
+            switch (axonometricModeIndex)
+            {
+                case 1: return { ViewMode::DIMETRIC, Camera::ViewProjection::DIMETRIC_VIEW };
+                case 2: return { ViewMode::TRIMETRIC, Camera::ViewProjection::TRIMETRIC_VIEW };
+                default: return { ViewMode::ISOMETRIC, Camera::ViewProjection::SE_ISOMETRIC_VIEW };
+            }
+    }
+}
+}
+
 ViewportWidget::ViewportWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent),
 _textRenderer(nullptr),
 _axisTextRenderer(nullptr),
@@ -217,22 +247,31 @@ _floorPlane(nullptr),
 	loadBgColorSettings();
 
 
+	QSettings initialViewSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	const InitialView initialView = resolveInitialView(
+		initialViewSettings.value("comboDefaultView", 0).toInt(),
+		initialViewSettings.value("comboDefaultProjection", 0).toInt());
+	const ViewProjection initialProjection = initialViewSettings.value("comboProjectionMode", 0).toInt() == 1
+		? ViewProjection::PERSPECTIVE : ViewProjection::ORTHOGRAPHIC;
+	const Camera::ProjectionType initialCameraProjection = (initialProjection == ViewProjection::PERSPECTIVE)
+		? Camera::ProjectionType::PERSPECTIVE : Camera::ProjectionType::ORTHOGRAPHIC;
+
 	_viewCtrl.setViewBoundingSphereDia(200.0f);
 	_viewCtrl.setViewRange(_viewCtrl.viewBoundingSphereDia());
 	_viewCtrl.setFOV(45.0f);
 	_viewCtrl.setCurrentViewRange(1.0f);
-	_viewCtrl.setViewMode(ViewMode::ISOMETRIC);
-	_viewCtrl.setProjection(ViewProjection::ORTHOGRAPHIC);
-	_viewCtrl.setPreviousProjection(Camera::ProjectionType::ORTHOGRAPHIC);
+	_viewCtrl.setViewMode(initialView.mode);
+	_viewCtrl.setProjection(initialProjection);
+	_viewCtrl.setPreviousProjection(initialCameraProjection);
 
 	_viewCtrl.setAutoFitViewOnUpdate(true);
 	_selectionHighlighting = true;
 
 	_primaryCamera = new Camera(width(), height(), _viewCtrl.viewRange(), _viewCtrl.FOV());
-	_primaryCamera->setView(Camera::ViewProjection::SE_ISOMETRIC_VIEW);
+	_primaryCamera->setView(initialView.cameraView);
 
 	_orthoViewsCamera = new Camera(width(), height(), _viewCtrl.viewRange(), _viewCtrl.FOV());
-	_orthoViewsCamera->setView(Camera::ViewProjection::SE_ISOMETRIC_VIEW);
+	_orthoViewsCamera->setView(initialView.cameraView);
 
 	loadNavigationSettings();
 	{
@@ -914,6 +953,18 @@ void ViewportWidget::initializeGL()
 
 	_renderCtrl.setOpenGLInitialized(true);
 	loadRenderSettings();
+
+	// Seed the default navigation/camera mode. setCameraMode() calls setProjection()
+	// internally for Fly/FirstPerson, which touches shader state — must run after GL init.
+	{
+		QSettings navModeSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+		const int navModeIdx = navModeSettings.value("navigationModeComboBox", 0).toInt();
+		if (navModeIdx == 1)
+			setCameraMode(Camera::CameraMode::Fly);
+		else if (navModeIdx == 2)
+			setCameraMode(Camera::CameraMode::FirstPerson);
+		// index 0 (Orbit) needs no call — it is already the Camera's default mode.
+	}
 
 	// Keep SceneRuntime's parsed-light baseline in sync with SceneGraph whenever
 	// a file's light data is added or removed (multi-model scene support).
