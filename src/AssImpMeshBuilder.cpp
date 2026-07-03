@@ -194,7 +194,7 @@ SceneMesh* AssImpMeshBuilder::build(const AssImpMeshData& meshData,
     mesh->setSkinJoints(meshData.skinJoints);
     mesh->setMorphTargets(meshData.morphTargets, meshData.defaultMorphWeights);
     if (meshData.preserveNodeTransform)
-        mesh->setSceneRenderTransformFast(meshData.nodeWorldTransform);
+        mesh->setSceneRenderTransform(meshData.nodeWorldTransform);
     if (!meshData.precomputedOccEdges.empty())
         mesh->setPrecomputedOccEdges(meshData.precomputedOccEdges,
                                      meshData.precomputedOccEdgeBoundaries);

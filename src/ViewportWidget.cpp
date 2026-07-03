@@ -1669,6 +1669,38 @@ void ViewportWidget::fitAll()
 	}
 }
 
+void ViewportWidget::fitAllImmediate()
+{
+	const std::vector<int>& visibleIds = _sceneRuntime.currentVisibleObjectIds();
+	if (_sceneRuntime.meshStore().empty() || visibleIds.empty())
+		return;
+
+	checkAndStopTimers();
+	_keyboardNavTimer->stop();
+	if (_animateFitAllTimer->isActive())
+		_animateFitAllTimer->stop();
+	_viewCtrl.resetSlerpStep();
+
+	if (_primaryCamera->getMode() == Camera::CameraMode::Fly ||
+		_primaryCamera->getMode() == Camera::CameraMode::FirstPerson)
+	{
+		fitAll();
+		return;
+	}
+
+	QVector3D projCenter;
+	_viewCtrl.setViewBoundingSphereDia(computeFitViewRange(&projCenter));
+	_viewCtrl.setBoundingSphereCenter(projCenter);
+	_viewCtrl.setViewRange(_viewCtrl.viewBoundingSphereDia());
+	_primaryCamera->setViewRange(_viewCtrl.viewRange());
+	_primaryCamera->setPosition(projCenter);
+	_viewCtrl.syncPoseAndRangeFromCamera(*_primaryCamera);
+
+	resizeGL(width(), height());
+	update();
+	emit zoomAndPanSet();
+}
+
 
 void ViewportWidget::setSelectionHighlighting(bool highlight)
 {
@@ -13101,7 +13133,7 @@ bool ViewportWidget::uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& mes
         mesh->setVariantMappings(pm.variantMappings);
         mesh->setAllVariantMaterials(pm.allVariantMaterials);
         if (pm.hasSceneRenderTransform)
-            mesh->setSceneRenderTransformFast(pm.sceneRenderTransform);
+            mesh->setSceneRenderTransform(pm.sceneRenderTransform);
 
         // Restore skeletal skinning data so bone animations work after MVF reload.
         if (!pm.skinJoints.isEmpty())
@@ -13211,7 +13243,7 @@ void ViewportWidget::uploadOneMvfMesh(const PreparedMvfMesh& pm)
     mesh->invertOpacityADSMap(resolved.isOpacityMapInverted());
     mesh->invertOpacityPBRMap(resolved.isOpacityMapInverted());
     if (pm.hasSceneRenderTransform)
-        mesh->setSceneRenderTransformFast(pm.sceneRenderTransform);
+        mesh->setSceneRenderTransform(pm.sceneRenderTransform);
 
     // Restore per-mesh user transform (gizmo TRS) saved in the MVF file.
     {

@@ -269,6 +269,16 @@
            </property>
           </widget>
          </item>
+         <item row="9" column="0" colspan="2">
+          <widget class="QCheckBox" name="checkAnimateProgressiveFit">
+           <property name="text">
+            <string>Animate Progressive Fit</string>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
         </layout>
        </item>
        <item row="1" column="0">
@@ -1781,6 +1791,7 @@
   <tabstop>checkRememberUV</tabstop>
   <tabstop>buttonResetUVPrompt</tabstop>
   <tabstop>checkProgressiveLoading</tabstop>
+  <tabstop>checkAnimateProgressiveFit</tabstop>
   <tabstop>vsyncCheckBox</tabstop>
   <tabstop>enableLoggingCheckBox</tabstop>
   <tabstop>logLevelComboBox</tabstop>

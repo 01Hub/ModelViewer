@@ -300,6 +300,7 @@ private:
 	bool _documentModified;
 
 	bool _progressiveLoadingEnabled = false;
+	bool _animateProgressiveFitEnabled = true;
 
 	static QString _lastOpenedDir;
 	static QString _lastSelectedFilter;

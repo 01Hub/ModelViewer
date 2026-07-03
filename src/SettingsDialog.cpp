@@ -288,9 +288,10 @@ void SettingsDialog::applySettings()
     settings.setValue("checkRestoreLastFile", general_restoreLastFile);
     settings.setValue("checkTooltips", general_showTooltips);
     settings.setValue("checkConfirmExit", general_confirmExit);
-	settings.setValue("checkTutorialLaunch", general_showTutorialLauncher);
+    settings.setValue("checkTutorialLaunch", general_showTutorialLauncher);
 	settings.setValue("spinBoxUndoLimit", general_undoLimit);
     settings.setValue("checkProgressiveLoading", general_progressiveLoading);
+    settings.setValue("checkAnimateProgressiveFit", general_animateProgressiveFit);
 
     // Camera tab
     settings.setValue("comboProjectionMode", camera_projectionModeIndex);
@@ -415,6 +416,7 @@ void SettingsDialog::setDefaultValues()
 	ui->checkTutorialLaunch->setChecked(true);    // Explicitly set to true
 	ui->spinBoxUndoLimit->setValue(50);           // Explicitly set
     ui->checkProgressiveLoading->setChecked(false);
+    ui->checkAnimateProgressiveFit->setChecked(true);
 
     // Camera tab
     ui->comboProjectionMode->setCurrentIndex(0);       // "Orthographic"
@@ -578,6 +580,7 @@ void SettingsDialog::syncStateFromUi()
     general_showTutorialLauncher = ui->checkTutorialLaunch->isChecked();
     general_undoLimit = ui->spinBoxUndoLimit->value();
     general_progressiveLoading = ui->checkProgressiveLoading->isChecked();
+    general_animateProgressiveFit = ui->checkAnimateProgressiveFit->isChecked();
 
     // Camera tab
     camera_projectionModeIndex = ui->comboProjectionMode->currentIndex();
@@ -686,6 +689,8 @@ void SettingsDialog::loadSettings()
 	ui->spinBoxUndoLimit->setValue(iVal);
     bVal = settings.value("checkProgressiveLoading", ui->checkProgressiveLoading->isChecked()).toBool();
     ui->checkProgressiveLoading->setChecked(bVal);
+    bVal = settings.value("checkAnimateProgressiveFit", ui->checkAnimateProgressiveFit->isChecked()).toBool();
+    ui->checkAnimateProgressiveFit->setChecked(bVal);
     iVal = settings.value("comboProjectionMode", ui->comboProjectionMode->currentIndex()).toInt();
     ui->comboProjectionMode->setCurrentIndex(iVal);
     iVal = settings.value("comboDefaultView", ui->comboDefaultView->currentIndex()).toInt();
@@ -1266,6 +1271,11 @@ void SettingsDialog::on_radioButtonExportMeshes_toggled(bool checked)
 void SettingsDialog::on_checkProgressiveLoading_stateChanged()
 {
     general_progressiveLoading = ui->checkProgressiveLoading->isChecked();
+}
+
+void SettingsDialog::on_checkAnimateProgressiveFit_stateChanged()
+{
+    general_animateProgressiveFit = ui->checkAnimateProgressiveFit->isChecked();
 }
 
 void SettingsDialog::on_vsyncCheckBox_stateChanged()

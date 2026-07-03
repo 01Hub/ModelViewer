@@ -694,6 +694,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	_heightPBRTexScale = 0.02f;
 
 	_progressiveLoadingEnabled = QSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName()).value("checkProgressiveLoading", true).toBool();
+	_animateProgressiveFitEnabled = QSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName()).value("checkAnimateProgressiveFit", true).toBool();
 
 	updateControls();
 
@@ -2128,7 +2129,10 @@ void ModelViewer::updateDisplayList()
 	{
 		if (!_viewportWidget->isGltfCameraActive())
 		{
-			_viewportWidget->fitAll();
+			if (!_viewportWidget->getPendingSceneUuids().isEmpty() && !_animateProgressiveFitEnabled)
+				_viewportWidget->fitAllImmediate();
+			else
+				_viewportWidget->fitAll();
 		}
 	}
 
@@ -2303,6 +2307,7 @@ void ModelViewer::dropEvent(QDropEvent* event)
 					method = askUserForUVMethod(this).method;
 				QString errMsg;
 				_progressiveLoadingEnabled = settings.value("checkProgressiveLoading", true).toBool();
+				_animateProgressiveFitEnabled = settings.value("checkAnimateProgressiveFit", true).toBool();
 				bool success = _viewportWidget->loadAssImpModel(fileName, method, errMsg, _progressiveLoadingEnabled);
 				if (!success)
 				{
@@ -4032,6 +4037,7 @@ bool ModelViewer::loadFile(const QString& fileName)
 			method = askUserForUVMethod(this).method;
 
 		_progressiveLoadingEnabled = settings.value("checkProgressiveLoading", true).toBool();
+		_animateProgressiveFitEnabled = settings.value("checkAnimateProgressiveFit", true).toBool();
 		success = _viewportWidget->loadAssImpModel(fileName, method, errMsg, _progressiveLoadingEnabled);
 	}
 

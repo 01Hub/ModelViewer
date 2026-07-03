@@ -33,6 +33,7 @@ public:
     bool generalShowTooltips() const { return general_showTooltips; }
     bool generalConfirmExit() const { return general_confirmExit; }
     bool generalProgressiveLoading() const { return general_progressiveLoading; }
+    bool generalAnimateProgressiveFit() const { return general_animateProgressiveFit; }
 
     // Camera tab
     int cameraProjectionModeIndex() const { return camera_projectionModeIndex; }
@@ -189,8 +190,9 @@ private slots:
     void on_assimpRemoveDuplicatesCheckBox_stateChanged();
 	void on_assimpAutoOrientCheckBox_stateChanged();
 	void on_radioButtonExportScene_toggled(bool checked);
-	void on_radioButtonExportMeshes_toggled(bool checked);
+    void on_radioButtonExportMeshes_toggled(bool checked);
     void on_checkProgressiveLoading_stateChanged();
+    void on_checkAnimateProgressiveFit_stateChanged();
     void on_vsyncCheckBox_stateChanged();
     void on_enableLoggingCheckBox_stateChanged();
 	void on_enableConsoleCheckBox_stateChanged();
@@ -217,9 +219,10 @@ private:
     bool general_restoreLastFile = false;
     bool general_showTooltips = true;
     bool general_confirmExit = false;
-	bool general_showTutorialLauncher = true;
+    bool general_showTutorialLauncher = true;
 	int general_undoLimit = 50;
     bool general_progressiveLoading = false;
+    bool general_animateProgressiveFit = true;
 
     // Camera tab
     int camera_projectionModeIndex = 0;

@@ -469,6 +469,7 @@ public slots:
 	void stopAnimations();
 	void checkAndStopTimers();
 	void fitAll();
+	void fitAllImmediate();
 	void setAutoFitViewOnUpdate(bool update) { _viewCtrl.setAutoFitViewOnUpdate(update); }
 	void setSelectionHighlighting(bool highlight);
 	void performKeyboardNav();
