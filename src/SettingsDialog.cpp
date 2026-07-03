@@ -341,22 +341,16 @@ void SettingsDialog::applySettings()
     settings.setValue("RememberUVMethod", uv_rememberUV);
 
     // Import/Export Tab - OpenCascade
-    settings.setValue("tessellationQualitySlider", import_tessellationQuality);
     settings.setValue("linearDeflectionSpinBox", import_linearDeflection);
     settings.setValue("angularDeflectionSpinBox", import_angularDeflection);
-    settings.setValue("occtUnifyFacesCheckBox", import_occtUnifyFaces);
-    settings.setValue("occtUnifyEdgesCheckBox", import_occtUnifyEdges);
-    settings.setValue("occtBuildCurvesCheckBox", import_occtBuildCurves);
 
     // Import/Export Tab - Assimp
-    settings.setValue("assimpTriangulateCheckBox", import_assimpTriangulate);
     settings.setValue("assimpGenNormalsCheckBox", import_assimpGenNormals);
     settings.setValue("assimpSmoothNormalsCheckBox", import_assimpSmoothNormals);
     settings.setValue("assimpCalcTangentsCheckBox", import_assimpCalcTangents);
     settings.setValue("assimpOptimizeMeshCheckBox", import_assimpOptimizeMesh);
     settings.setValue("assimpRemoveDuplicatesCheckBox", import_assimpRemoveDuplicates);
     settings.setValue("assimpAutoOrientCheckBox", import_assimpAutoOrientModel);
-    settings.setValue("assimpMaxFaceVerticesSpinBox", import_assimpMaxFaceVertices);
 
 	// Import/Export Tab - Export
 	settings.setValue("radioButtonExportScene", export_exportScene);
@@ -519,24 +513,18 @@ void SettingsDialog::setDefaultValues()
     ui->checkXatlasPackingOnly->setChecked(false);
     ui->checkRememberUV->setChecked(false);
 
-    // --- Import/Export Tab ---    
+    // --- Import/Export Tab ---
     // OpenCascade settings
-    ui->tessellationQualitySlider->setValue(5);
     ui->linearDeflectionSpinBox->setValue(0.1);
-    ui->angularDeflectionSpinBox->setValue(0.1);
-    ui->occtUnifyFacesCheckBox->setChecked(false);
-    ui->occtUnifyEdgesCheckBox->setChecked(false);
-    ui->occtBuildCurvesCheckBox->setChecked(false);
+    ui->angularDeflectionSpinBox->setValue(0.3);
 
     // Assimp settings
-    ui->assimpTriangulateCheckBox->setChecked(true);
     ui->assimpGenNormalsCheckBox->setChecked(true);
     ui->assimpSmoothNormalsCheckBox->setChecked(true);
     ui->assimpCalcTangentsCheckBox->setChecked(true);
     ui->assimpOptimizeMeshCheckBox->setChecked(true);
     ui->assimpRemoveDuplicatesCheckBox->setChecked(true);
 	ui->assimpAutoOrientCheckBox->setChecked(true);
-    ui->assimpMaxFaceVerticesSpinBox->setValue(3);
 
     // Import/Export Tab - Export
     ui->radioButtonExportScene->setChecked(true);
@@ -713,20 +701,14 @@ void SettingsDialog::syncStateFromUi()
     uv_rememberUV = ui->checkRememberUV->isChecked();
 
     // Import/Export Tab
-    import_tessellationQuality = ui->tessellationQualitySlider->value();
     import_linearDeflection = ui->linearDeflectionSpinBox->value();
     import_angularDeflection = ui->angularDeflectionSpinBox->value();
-    import_occtUnifyFaces = ui->occtUnifyFacesCheckBox->isChecked();
-    import_occtUnifyEdges = ui->occtUnifyEdgesCheckBox->isChecked();
-    import_occtBuildCurves = ui->occtBuildCurvesCheckBox->isChecked();
-    import_assimpTriangulate = ui->assimpTriangulateCheckBox->isChecked();
     import_assimpGenNormals = ui->assimpGenNormalsCheckBox->isChecked();
     import_assimpSmoothNormals = ui->assimpSmoothNormalsCheckBox->isChecked();
     import_assimpCalcTangents = ui->assimpCalcTangentsCheckBox->isChecked();
     import_assimpOptimizeMesh = ui->assimpOptimizeMeshCheckBox->isChecked();
     import_assimpRemoveDuplicates = ui->assimpRemoveDuplicatesCheckBox->isChecked();
     import_assimpAutoOrientModel = ui->assimpAutoOrientCheckBox->isChecked();
-    import_assimpMaxFaceVertices = ui->assimpMaxFaceVerticesSpinBox->value();
     export_exportScene = ui->radioButtonExportScene->isChecked();
     export_exportMeshes = ui->radioButtonExportMeshes->isChecked();
 
@@ -894,20 +876,10 @@ void SettingsDialog::loadSettings()
     ui->checkXatlasPackingOnly->setChecked(bVal);
     bVal = settings.value("RememberUVMethod", ui->checkRememberUV->isChecked()).toBool();
     ui->checkRememberUV->setChecked(bVal);
-    iVal = settings.value("tessellationQualitySlider", ui->tessellationQualitySlider->value()).toInt();
-    ui->tessellationQualitySlider->setValue(iVal);
     dVal = settings.value("linearDeflectionSpinBox", ui->linearDeflectionSpinBox->value()).toDouble();
     ui->linearDeflectionSpinBox->setValue(dVal);
     dVal = settings.value("angularDeflectionSpinBox", ui->angularDeflectionSpinBox->value()).toDouble();
     ui->angularDeflectionSpinBox->setValue(dVal);
-    bVal = settings.value("occtUnifyFacesCheckBox", ui->occtUnifyFacesCheckBox->isChecked()).toBool();
-    ui->occtUnifyFacesCheckBox->setChecked(bVal);
-    bVal = settings.value("occtUnifyEdgesCheckBox", ui->occtUnifyEdgesCheckBox->isChecked()).toBool();
-    ui->occtUnifyEdgesCheckBox->setChecked(bVal);
-    bVal = settings.value("occtBuildCurvesCheckBox", ui->occtBuildCurvesCheckBox->isChecked()).toBool();
-    ui->occtBuildCurvesCheckBox->setChecked(bVal);
-    bVal = settings.value("assimpTriangulateCheckBox", ui->assimpTriangulateCheckBox->isChecked()).toBool();
-    ui->assimpTriangulateCheckBox->setChecked(bVal);
     bVal = settings.value("assimpGenNormalsCheckBox", ui->assimpGenNormalsCheckBox->isChecked()).toBool();
     ui->assimpGenNormalsCheckBox->setChecked(bVal);
     bVal = settings.value("assimpSmoothNormalsCheckBox", ui->assimpSmoothNormalsCheckBox->isChecked()).toBool();
@@ -920,8 +892,6 @@ void SettingsDialog::loadSettings()
     ui->assimpRemoveDuplicatesCheckBox->setChecked(bVal);
     bVal = settings.value("assimpAutoOrientCheckBox", ui->assimpAutoOrientCheckBox->isChecked()).toBool();
     ui->assimpAutoOrientCheckBox->setChecked(bVal);
-    iVal = settings.value("assimpMaxFaceVerticesSpinBox", ui->assimpMaxFaceVerticesSpinBox->value()).toInt();
-    ui->assimpMaxFaceVerticesSpinBox->setValue(iVal);
 	bVal = settings.value("radioButtonExportScene", ui->radioButtonExportScene->isChecked()).toBool();
 	ui->radioButtonExportScene->setChecked(bVal);
 	bVal = settings.value("radioButtonExportMeshes", ui->radioButtonExportMeshes->isChecked()).toBool();
@@ -1068,12 +1038,11 @@ void SettingsDialog::restoreDefaults()
         ui->comboUVMethod, ui->spinAngleThreshold, ui->checkPreserveUVs,
         ui->checkAutoPackUVs, ui->checkRelaxUVs, ui->checkPCAProjection,
         ui->checkXatlasPackingOnly, ui->checkRememberUV, ui->buttonResetUVPrompt,
-        ui->tessellationQualitySlider, ui->linearDeflectionSpinBox, ui->angularDeflectionSpinBox,
-        ui->occtUnifyFacesCheckBox, ui->occtUnifyEdgesCheckBox, ui->occtBuildCurvesCheckBox,
-        ui->assimpTriangulateCheckBox, ui->assimpGenNormalsCheckBox, ui->assimpSmoothNormalsCheckBox,
+        ui->linearDeflectionSpinBox, ui->angularDeflectionSpinBox,
+        ui->assimpGenNormalsCheckBox, ui->assimpSmoothNormalsCheckBox,
         ui->assimpCalcTangentsCheckBox, ui->assimpOptimizeMeshCheckBox, ui->assimpRemoveDuplicatesCheckBox,
 		ui->assimpAutoOrientCheckBox,
-        ui->assimpMaxFaceVerticesSpinBox, ui->radioButtonExportScene, ui->radioButtonExportMeshes,
+        ui->radioButtonExportScene, ui->radioButtonExportMeshes,
         ui->checkMultithreadedLoad, ui->spinThreadLimit,
         ui->checkSkyboxBlending, ui->checkProgressiveLoading, ui->maxFpsSpinBox,
         ui->vsyncCheckBox, ui->frustumCullingCheckBox, ui->backfaceCullingCheckBox,
@@ -1407,11 +1376,6 @@ void SettingsDialog::on_buttonResetUVPrompt_clicked()
 }
 
 // Import/Export Tab - OpenCascade
-void SettingsDialog::on_tessellationQualitySlider_valueChanged()
-{
-    import_tessellationQuality = ui->tessellationQualitySlider->value();
-}
-
 void SettingsDialog::on_linearDeflectionSpinBox_valueChanged()
 {
     import_linearDeflection = ui->linearDeflectionSpinBox->value();
@@ -1422,27 +1386,7 @@ void SettingsDialog::on_angularDeflectionSpinBox_valueChanged()
     import_angularDeflection = ui->angularDeflectionSpinBox->value();
 }
 
-void SettingsDialog::on_occtUnifyFacesCheckBox_stateChanged()
-{
-    import_occtUnifyFaces = ui->occtUnifyFacesCheckBox->isChecked();
-}
-
-void SettingsDialog::on_occtUnifyEdgesCheckBox_stateChanged()
-{
-    import_occtUnifyEdges = ui->occtUnifyEdgesCheckBox->isChecked();
-}
-
-void SettingsDialog::on_occtBuildCurvesCheckBox_stateChanged()
-{
-    import_occtBuildCurves = ui->occtBuildCurvesCheckBox->isChecked();
-}
-
 // Import/Export Tab - Assimp
-void SettingsDialog::on_assimpTriangulateCheckBox_stateChanged()
-{
-    import_assimpTriangulate = ui->assimpTriangulateCheckBox->isChecked();
-}
-
 void SettingsDialog::on_assimpGenNormalsCheckBox_stateChanged()
 {
     import_assimpGenNormals = ui->assimpGenNormalsCheckBox->isChecked();
@@ -1471,11 +1415,6 @@ void SettingsDialog::on_assimpRemoveDuplicatesCheckBox_stateChanged()
 void SettingsDialog::on_assimpAutoOrientCheckBox_stateChanged()
 {
 	import_assimpAutoOrientModel = ui->assimpAutoOrientCheckBox->isChecked();
-}
-
-void SettingsDialog::on_assimpMaxFaceVerticesSpinBox_valueChanged()
-{
-    import_assimpMaxFaceVertices = ui->assimpMaxFaceVerticesSpinBox->value();
 }
 
 void SettingsDialog::on_radioButtonExportScene_toggled(bool checked)

@@ -105,11 +105,14 @@ public:
 	static void setStepColorMap(const StepColorMap& map);
 
 	// Returns the deflection fraction (0.0–1.0) to use for STEP tessellation.
-	// Reads the "tessellationQualitySlider" QSettings key (integer 1–10) written
-	// by SettingsDialog and maps it logarithmically: 1 → 20 %, 5 → ~5 %, 10 → 0.5 %.
+	// Reads the "linearDeflectionSpinBox" QSettings key written by SettingsDialog.
 	// Used by both the parallel pre-tessellation pass (XCAFSTEPProcessor) and the
 	// per-face fallback in convertFaceGroupToMesh().
 	static Standard_Real resolveDeflectionFraction();
+
+	// Returns the angular deflection (radians) to use for STEP tessellation.
+	// Reads the "angularDeflectionSpinBox" QSettings key written by SettingsDialog.
+	static Standard_Real resolveAngularDeflection();
 
 
 private:

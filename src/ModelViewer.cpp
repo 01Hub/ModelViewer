@@ -3761,8 +3761,37 @@ void ModelViewer::onFileExport()
 	if (!selectedSourceFile.isEmpty())
 		allowedSourceFiles << selectedSourceFile;
 
-	auto resolver = [this](const QUuid& uuid) -> SceneMesh* {
-		return _viewportWidget->getMeshByUuid(uuid);
+	QSettings exportModeSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	const bool exportSelectedOnly = !exportModeSettings.value("radioButtonExportScene", true).toBool();
+
+	QSet<QUuid> selectedMeshUuidSet;
+	if (exportSelectedOnly)
+	{
+		const QList<QUuid> selected = treeWidgetModel->selectedMeshUuids();
+		if (selected.isEmpty())
+		{
+			QMessageBox::warning(this, tr("Nothing Selected"),
+				tr("Select one or more meshes in the scene tree before exporting selected meshes."));
+			return;
+		}
+		selectedMeshUuidSet = QSet<QUuid>(selected.begin(), selected.end());
+	}
+
+	// Collected as a side effect of the resolver, in the exact order buildExportScene()
+	// embeds meshes into copyScene, so triMeshes always stays in 1:1 correspondence with
+	// copyScene->mNumMeshes. That correspondence is required for
+	// AssImpMeshExporter::exportScene() to take the hierarchy-aware (transform-preserving)
+	// path instead of silently falling back to its flat, sceneIndex-based pruning path,
+	// which assumes mesh-array positions match the ORIGINAL import scene and would
+	// mis-associate meshes/materials for a freshly rebuilt, selection-filtered export scene.
+	std::vector<SceneMesh*> triMeshes;
+	auto resolver = [this, exportSelectedOnly, &selectedMeshUuidSet, &triMeshes](const QUuid& uuid) -> SceneMesh* {
+		if (exportSelectedOnly && !selectedMeshUuidSet.contains(uuid))
+			return nullptr;
+		SceneMesh* mesh = _viewportWidget->getMeshByUuid(uuid);
+		if (mesh)
+			triMeshes.push_back(mesh);
+		return mesh;
 	};
 
 	const QString exportExt = QFileInfo(fileName).suffix().toLower();
@@ -3778,17 +3807,12 @@ void ModelViewer::onFileExport()
 		return;
 	}
 
-	// Filter the runtime mesh list to match the exported scene.
-	// Keeping ALL meshes when only a subset was exported causes a count mismatch in
-	// AssImpMeshExporter::exportScene(), which triggers an incorrect fallback path
-	// and can produce malformed texture image entries in GLB output.
-	std::vector<SceneMesh*> allMeshes = _viewportWidget->getMeshStore();
-	std::vector<SceneMesh*> triMeshes;
-	triMeshes.reserve(allMeshes.size());
-	for (SceneMesh* m : allMeshes)
+	if (exportSelectedOnly && copyScene->mNumMeshes == 0)
 	{
-		if (allowedSourceFiles.isEmpty() || allowedSourceFiles.contains(m->getSourceFile()))
-			triMeshes.push_back(m);
+		delete copyScene;
+		QMessageBox::warning(this, tr("Nothing Selected"),
+			tr("None of the selected items are exportable meshes."));
+		return;
 	}
 	// ------------------------------------------------------------------------------
 
@@ -3937,22 +3961,14 @@ void ModelViewer::onFileExport()
 		}
 	}
 
-	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-	bool useScenePath = settings.value("radioButtonExportScene", true).toBool();
-
+	// Both "Export Whole Scene" and "Export Selected Meshes" use the same
+	// hierarchy-aware path — copyScene/triMeshes were already built above with the
+	// selection filter (if any) applied via the resolver, preserving node transforms
+	// and tree structure for both modes.
 	AssImpMeshExporter meshExporter(this);
-	aiReturn res = aiReturn_FAILURE;
-	if (useScenePath)
-	{
-		res = meshExporter.exportScene(copyScene, triMeshes, fileName.toStdString(), expSettings);
-		qDebug() << "Exporting scene result:" << res;
-		delete copyScene;
-	}
-	else
-	{
-		res = meshExporter.exportMeshes(copyScene, triMeshes, fileName, expSettings);
-		qDebug() << "Exporting meshes result:" << res;
-	}
+	aiReturn res = meshExporter.exportScene(copyScene, triMeshes, fileName.toStdString(), expSettings);
+	qDebug() << "Exporting scene result:" << res;
+	delete copyScene;
 
 	if (res == aiReturn_SUCCESS)
 		QMessageBox::information(this, tr("Information"), tr("Exported %1").arg(QFileInfo(fileName).fileName()));

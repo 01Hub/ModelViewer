@@ -908,21 +908,42 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		bool isGltfFile = qPathCheck.endsWith(".gltf", Qt::CaseInsensitive) ||
 		                  qPathCheck.endsWith(".glb",  Qt::CaseInsensitive);
 
-		unsigned int importFlags = aiProcess_CalcTangentSpace |
-			aiProcess_JoinIdenticalVertices |
-			aiProcess_OptimizeMeshes |
-			aiProcess_ImproveCacheLocality |
+		QSettings importSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+		const bool wantGenNormals       = importSettings.value("assimpGenNormalsCheckBox", true).toBool();
+		const bool wantSmoothNormals    = importSettings.value("assimpSmoothNormalsCheckBox", true).toBool();
+		const bool wantCalcTangents     = importSettings.value("assimpCalcTangentsCheckBox", true).toBool();
+		const bool wantOptimizeMesh     = importSettings.value("assimpOptimizeMeshCheckBox", true).toBool();
+		const bool wantRemoveDuplicates = importSettings.value("assimpRemoveDuplicatesCheckBox", true).toBool();
+
+		unsigned int importFlags = aiProcess_ImproveCacheLocality |
 			aiProcess_Triangulate |
 			aiProcess_GenUVCoords |
 			aiProcess_SortByPType;
+
+		if (wantCalcTangents)
+			importFlags |= aiProcess_CalcTangentSpace;
+		if (wantOptimizeMesh)
+			importFlags |= aiProcess_OptimizeMeshes;
+		if (wantRemoveDuplicates)
+			importFlags |= aiProcess_JoinIdenticalVertices;
 
 		if (!isGltfFile)
 		{
 			// glTF models have correct normals by design; FixInfacingNormals would flip
 			// inward-facing normals on interior geometry (e.g. sky domes) and break them.
 			importFlags |= aiProcess_FixInfacingNormals;
-			_importer.SetPropertyFloat("PP_GSN_MAX_SMOOTHING_ANGLE", 15);
-			importFlags |= aiProcess_GenSmoothNormals;
+			if (wantGenNormals)
+			{
+				if (wantSmoothNormals)
+				{
+					_importer.SetPropertyFloat("PP_GSN_MAX_SMOOTHING_ANGLE", 15);
+					importFlags |= aiProcess_GenSmoothNormals;
+				}
+				else
+				{
+					importFlags |= aiProcess_GenNormals;
+				}
+			}
 		}
 
 		_scene = _importer.ReadFile(path, importFlags);

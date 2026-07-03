@@ -50,41 +50,37 @@ bool wireframeFeaturesEnabled()
 }
 
 /**
- * Returns the deflection fraction to use for STEP/XCAF tessellation.
- *
- * Reads the "Tessellation Quality" slider value (1–10) from QSettings key
- * "tessellationQualitySlider" — the same key written by SettingsDialog.
- * The integer slider position is mapped linearly to a deflection percentage:
- *
- *   Slider 1  (coarsest) → 20 %   (fast load, visibly faceted curves)
- *   Slider 5  (default)  →  5 %   (good balance for mechanical CAD)
- *   Slider 10 (finest)   →  0.5 % (high fidelity, more triangles)
- *
- * Formula:  percent = 20 % / (2 ^ ((value-1) * log2(40) / 9))
- * simplified to a lerp on a log scale between 20 and 0.5.
+ * Returns the deflection fraction (0.0–1.0, relative to model bounding box) to use
+ * for STEP/XCAF tessellation. Reads the "Linear Deflection" spinbox value from
+ * QSettings key "linearDeflectionSpinBox" — the same key written by SettingsDialog.
  */
 Standard_Real BRepToAssimpConverter::resolveDeflectionFraction()
 {
-	constexpr double coarsestPercent = 20.0;   // slider = 1
-	constexpr double finestPercent   =  0.5;   // slider = 10
-	constexpr int    sliderMin       =  1;
-	constexpr int    sliderMax       = 10;
-	constexpr int    sliderDefault   =  5;
+	constexpr double defaultFraction = 0.1;
 
-	const int sliderValue = QSettings(QCoreApplication::organizationName(),
+	const double fraction = QSettings(QCoreApplication::organizationName(),
 	                                  QCoreApplication::applicationName())
-	                            .value("tessellationQualitySlider", sliderDefault)
-	                            .toInt();
+	                            .value("linearDeflectionSpinBox", defaultFraction)
+	                            .toDouble();
 
-	const int   clamped = std::clamp(sliderValue, sliderMin, sliderMax);
-	// Logarithmic interpolation so each step feels perceptually equal
-	const double t       = static_cast<double>(clamped - sliderMin) /
-	                       static_cast<double>(sliderMax - sliderMin);
-	const double logCoarse = std::log(coarsestPercent);
-	const double logFine   = std::log(finestPercent);
-	const double percent   = std::exp(logCoarse + t * (logFine - logCoarse));
+	return std::clamp(fraction, 0.0, 1.0);
+}
 
-	return percent / 100.0;
+/**
+ * Returns the angular deflection (radians) to use for STEP/XCAF tessellation.
+ * Reads the "Angular Deflection" spinbox value from QSettings key
+ * "angularDeflectionSpinBox" — the same key written by SettingsDialog.
+ */
+Standard_Real BRepToAssimpConverter::resolveAngularDeflection()
+{
+	constexpr double defaultAngularDeflection = 0.3;
+
+	const double angular = QSettings(QCoreApplication::organizationName(),
+	                                 QCoreApplication::applicationName())
+	                            .value("angularDeflectionSpinBox", defaultAngularDeflection)
+	                            .toDouble();
+
+	return std::clamp(angular, 0.0, 1.0);
 }
 
 /**
@@ -927,7 +923,7 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 	}
 
 	Standard_Real deflection = computeDeflectionFromBBox(faceGroup, resolveDeflectionFraction());
-	const Standard_Real angularDeflection = 0.3;
+	const Standard_Real angularDeflection = resolveAngularDeflection();
 
 	// Statistics (only if enabled to avoid overhead)
 	int totalTriangles = 0;

@@ -1383,7 +1383,7 @@
             <x>0</x>
             <y>0</y>
             <width>936</width>
-            <height>822</height>
+            <height>656</height>
            </rect>
           </property>
           <layout class="QGridLayout" name="gridLayout_16">
@@ -1403,101 +1403,66 @@
               <item row="0" column="1">
                <widget class="QLabel" name="occtFormatsListLabel">
                 <property name="text">
-                 <string>STEP, IGES, BREP, STL, OBJ, PLY, OFF, XBF, IFC, GLTF, VRML, 3MF</string>
+                 <string>STEP, IGES, BREP</string>
                 </property>
                 <property name="wordWrap">
                  <bool>true</bool>
                 </property>
                </widget>
               </item>
-              <item row="1" column="0">
-               <widget class="QLabel" name="tessellationQualityLabel">
-                <property name="text">
-                 <string>Tessellation Quality:</string>
+              <item row="1" column="0" colspan="2">
+               <widget class="QGroupBox" name="tessellationQualityGroupBox">
+                <property name="title">
+                 <string>Tessellation Quality</string>
                 </property>
-               </widget>
-              </item>
-              <item row="1" column="1">
-               <widget class="QSlider" name="tessellationQualitySlider">
-                <property name="minimum">
-                 <number>1</number>
-                </property>
-                <property name="maximum">
-                 <number>10</number>
-                </property>
-                <property name="value">
-                 <number>5</number>
-                </property>
-                <property name="orientation">
-                 <enum>Qt::Orientation::Horizontal</enum>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="0">
-               <widget class="QLabel" name="linearDeflectionLabel">
-                <property name="text">
-                 <string>Linear Deflection:</string>
-                </property>
-               </widget>
-              </item>
-              <item row="2" column="1">
-               <widget class="QDoubleSpinBox" name="linearDeflectionSpinBox">
-                <property name="minimum">
-                 <double>0.000000000000000</double>
-                </property>
-                <property name="maximum">
-                 <double>1.000000000000000</double>
-                </property>
-                <property name="singleStep">
-                 <double>0.001000000000000</double>
-                </property>
-                <property name="value">
-                 <double>0.100000000000000</double>
-                </property>
-               </widget>
-              </item>
-              <item row="3" column="0">
-               <widget class="QLabel" name="angularDeflectionLabel">
-                <property name="text">
-                 <string>Angular Deflection:</string>
-                </property>
-               </widget>
-              </item>
-              <item row="3" column="1">
-               <widget class="QDoubleSpinBox" name="angularDeflectionSpinBox">
-                <property name="minimum">
-                 <double>0.000000000000000</double>
-                </property>
-                <property name="maximum">
-                 <double>1.000000000000000</double>
-                </property>
-                <property name="singleStep">
-                 <double>0.001000000000000</double>
-                </property>
-                <property name="value">
-                 <double>0.100000000000000</double>
-                </property>
-               </widget>
-              </item>
-              <item row="4" column="0">
-               <widget class="QCheckBox" name="occtUnifyFacesCheckBox">
-                <property name="text">
-                 <string>Unify Faces</string>
-                </property>
-               </widget>
-              </item>
-              <item row="5" column="0">
-               <widget class="QCheckBox" name="occtUnifyEdgesCheckBox">
-                <property name="text">
-                 <string>Unify Edges</string>
-                </property>
-               </widget>
-              </item>
-              <item row="6" column="0">
-               <widget class="QCheckBox" name="occtBuildCurvesCheckBox">
-                <property name="text">
-                 <string>Build Curves</string>
-                </property>
+                <layout class="QFormLayout" name="tessellationQualityFormLayout">
+                 <item row="0" column="0">
+                  <widget class="QLabel" name="linearDeflectionLabel">
+                   <property name="text">
+                    <string>Linear Deflection:</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="0" column="1">
+                  <widget class="QDoubleSpinBox" name="linearDeflectionSpinBox">
+                   <property name="minimum">
+                    <double>0.000000000000000</double>
+                   </property>
+                   <property name="maximum">
+                    <double>1.000000000000000</double>
+                   </property>
+                   <property name="singleStep">
+                    <double>0.001000000000000</double>
+                   </property>
+                   <property name="value">
+                    <double>0.100000000000000</double>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="1" column="0">
+                  <widget class="QLabel" name="angularDeflectionLabel">
+                   <property name="text">
+                    <string>Angular Deflection:</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item row="1" column="1">
+                  <widget class="QDoubleSpinBox" name="angularDeflectionSpinBox">
+                   <property name="minimum">
+                    <double>0.000000000000000</double>
+                   </property>
+                   <property name="maximum">
+                    <double>1.000000000000000</double>
+                   </property>
+                   <property name="singleStep">
+                    <double>0.001000000000000</double>
+                   </property>
+                   <property name="value">
+                    <double>0.300000000000000</double>
+                   </property>
+                  </widget>
+                 </item>
+                </layout>
                </widget>
               </item>
              </layout>
@@ -1522,16 +1487,6 @@
                  <string>3DS, BLEND, DAE, FBX, IFC, X3D, MD2, MD3, MD5, MDC, MDL, NFF, PLY, STL, VRML, 3MF, AMF, X</string>
                 </property>
                 <property name="wordWrap">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-              <item row="1" column="0">
-               <widget class="QCheckBox" name="assimpTriangulateCheckBox">
-                <property name="text">
-                 <string>Triangulate Faces</string>
-                </property>
-                <property name="checked">
                  <bool>true</bool>
                 </property>
                </widget>
@@ -1586,26 +1541,6 @@
                 </property>
                </widget>
               </item>
-              <item row="9" column="0">
-               <widget class="QLabel" name="assimpMaxFaceVerticesLabel">
-                <property name="text">
-                 <string>Max Face Vertices:</string>
-                </property>
-               </widget>
-              </item>
-              <item row="9" column="1">
-               <widget class="QSpinBox" name="assimpMaxFaceVerticesSpinBox">
-                <property name="minimum">
-                 <number>3</number>
-                </property>
-                <property name="maximum">
-                 <number>10</number>
-                </property>
-                <property name="value">
-                 <number>3</number>
-                </property>
-               </widget>
-              </item>
               <item row="7" column="0">
                <widget class="QCheckBox" name="assimpAutoOrientCheckBox">
                 <property name="text">
@@ -1630,7 +1565,7 @@
                 <item>
                  <widget class="QRadioButton" name="radioButtonExportScene">
                   <property name="text">
-                   <string>Export Original Scene</string>
+                   <string>Export Whole Scene</string>
                   </property>
                   <property name="checked">
                    <bool>true</bool>
@@ -1640,7 +1575,7 @@
                 <item>
                  <widget class="QRadioButton" name="radioButtonExportMeshes">
                   <property name="text">
-                   <string>Export Loaded Meshes</string>
+                   <string>Export Selected Meshes</string>
                   </property>
                  </widget>
                 </item>

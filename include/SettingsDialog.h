@@ -99,21 +99,15 @@ public:
 
     // Import/Export Tab
     // OpenCascade
-    int importTessellationQuality() const { return import_tessellationQuality; }
     double importLinearDeflection() const { return import_linearDeflection; }
     double importAngularDeflection() const { return import_angularDeflection; }
-    bool importOcctUnifyFaces() const { return import_occtUnifyFaces; }
-    bool importOcctUnifyEdges() const { return import_occtUnifyEdges; }
-    bool importOcctBuildCurves() const { return import_occtBuildCurves; }
 
     // Assimp
-    bool importAssimpTriangulate() const { return import_assimpTriangulate; }
     bool importAssimpGenNormals() const { return import_assimpGenNormals; }
     bool importAssimpSmoothNormals() const { return import_assimpSmoothNormals; }
     bool importAssimpCalcTangents() const { return import_assimpCalcTangents; }
     bool importAssimpOptimizeMesh() const { return import_assimpOptimizeMesh; }
     bool importAssimpRemoveDuplicates() const { return import_assimpRemoveDuplicates; }
-    int importAssimpMaxFaceVertices() const { return import_assimpMaxFaceVertices; }
 
     // Performance Tab
     bool perfMultithreadedLoad() const { return perf_multithreadedLoad; }
@@ -221,20 +215,14 @@ private slots:
     void on_checkXatlasPackingOnly_stateChanged();
     void on_checkRememberUV_stateChanged();
     void on_buttonResetUVPrompt_clicked();
-    void on_tessellationQualitySlider_valueChanged();
     void on_linearDeflectionSpinBox_valueChanged();
     void on_angularDeflectionSpinBox_valueChanged();
-    void on_occtUnifyFacesCheckBox_stateChanged();
-    void on_occtUnifyEdgesCheckBox_stateChanged();
-    void on_occtBuildCurvesCheckBox_stateChanged();
-    void on_assimpTriangulateCheckBox_stateChanged();
     void on_assimpGenNormalsCheckBox_stateChanged();
     void on_assimpSmoothNormalsCheckBox_stateChanged();
     void on_assimpCalcTangentsCheckBox_stateChanged();
     void on_assimpOptimizeMeshCheckBox_stateChanged();
     void on_assimpRemoveDuplicatesCheckBox_stateChanged();
 	void on_assimpAutoOrientCheckBox_stateChanged();
-    void on_assimpMaxFaceVerticesSpinBox_valueChanged();
 	void on_radioButtonExportScene_toggled(bool checked);
 	void on_radioButtonExportMeshes_toggled(bool checked);
     void on_checkMultithreadedLoad_stateChanged();
@@ -359,22 +347,16 @@ private:
 
     // Import/Export Tab
     // OpenCascade
-    int import_tessellationQuality = 5;
     double import_linearDeflection = 0.1;
-    double import_angularDeflection = 0.1;
-    bool import_occtUnifyFaces = false;
-    bool import_occtUnifyEdges = false;
-    bool import_occtBuildCurves = false;
+    double import_angularDeflection = 0.3;
 
     // Assimp
-    bool import_assimpTriangulate = true;
     bool import_assimpGenNormals = true;
-    bool import_assimpSmoothNormals = false;
-    bool import_assimpCalcTangents = false;
-    bool import_assimpOptimizeMesh = false;
-    bool import_assimpRemoveDuplicates = false;
+    bool import_assimpSmoothNormals = true;
+    bool import_assimpCalcTangents = true;
+    bool import_assimpOptimizeMesh = true;
+    bool import_assimpRemoveDuplicates = true;
 	bool import_assimpAutoOrientModel = true;
-    int import_assimpMaxFaceVertices = 3;
 
     bool export_exportScene = true;
     bool export_exportMeshes = false;
