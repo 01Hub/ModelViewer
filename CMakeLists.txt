@@ -240,25 +240,9 @@ endif()
 # ============================================================================
 # Link libraries - NOW the target exists
 # ============================================================================
-# On Linux, force the linker (GNU ld) to keep rescanning assimp::assimp until
-# no new undefined references remain, instead of a single left-to-right pass.
-# Needed because Assimp's aiMatrix4x4t<float> default constructor is an extern
-# template instantiation living in the compiled archive rather than inline in
-# headers, and static-archive member selection depends on which object files
-# reference it - which can differ between Debug/Release inlining, causing an
-# intermittent "undefined reference to aiMatrix4x4t<float>::aiMatrix4x4t()"
-# link failure without this. $<LINK_GROUP:RESCAN,...> is a GNU ld-specific
-# feature (CMake 3.24+) that MSVC's linker does not support, so it's scoped to
-# Linux only here.
-if(UNIX AND NOT APPLE)
-    set(_assimp_link_item "$<LINK_GROUP:RESCAN,assimp::assimp>")
-else()
-    set(_assimp_link_item "assimp::assimp")
-endif()
-
 target_link_libraries(ModelViewer
     PRIVATE
-        ${_assimp_link_item}
+        assimp::assimp
         Freetype::Freetype
         glm::glm
         meshoptimizer::meshoptimizer

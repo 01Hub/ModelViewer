@@ -3,9 +3,10 @@
 #include "SceneGraph.h"
 
 #include <algorithm>
-#include <assimp/matrix4x4.h>
-#include <assimp/quaternion.h>
-#include <assimp/vector3.h>
+// types.h (not the individual component headers alone) is needed for
+// aiMatrix4x4t/aiQuaterniont/aiVector3t's inline constructor definitions
+// (the individual headers only declare them).
+#include <assimp/types.h>
 
 namespace
 {

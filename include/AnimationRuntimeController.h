@@ -9,7 +9,9 @@
 class SceneGraph;
 struct SceneNode;
 
-#include <assimp/matrix4x4.h>
+// types.h (not matrix4x4.h alone) is needed for aiMatrix4x4t's inline
+// constructor definitions (matrix4x4.h only declares them).
+#include <assimp/types.h>
 
 #include <QElapsedTimer>
 #include <QHash>

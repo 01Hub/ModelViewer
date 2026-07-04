@@ -10,7 +10,14 @@
 #include <QVector2D>
 #include <QVector3D>
 #include <QVector4D>
-#include <assimp/matrix4x4.h>
+// types.h (not just matrix4x4.h) is required: matrix4x4.h only *declares*
+// aiMatrix4x4t<float>'s constructors, while their actual inline definitions
+// live in matrix4x4.inl, which only types.h pulls in. Without it, this header
+// compiles fine (relying on some other translation unit to have included
+// types.h and emit the weak inline symbols this one's undefined references
+// bind to at link time) but is fragile - whether the link actually succeeds
+// depends on unrelated Debug/Release inlining choices elsewhere in the binary.
+#include <assimp/types.h>
 
 enum class GltfAnimationTargetPath
 {

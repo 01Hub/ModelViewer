@@ -6,13 +6,31 @@ on:
     tags: [ 'Release-*' ]
   pull_request:
     branches: [ master, dev ]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      os:
+        description: 'Limit to one OS (leave as "all" to run the full matrix)'
+        type: choice
+        default: 'all'
+        options: [ all, ubuntu-latest, windows-latest, macos-latest ]
+      build_type:
+        description: 'Limit to one build type (leave as "all" to run both)'
+        type: choice
+        default: 'all'
+        options: [ all, Release, Debug ]
 
 env:
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
 
 jobs:
   build:
+    # On workflow_dispatch, skip matrix legs that don't match the chosen
+    # os/build_type inputs (both default to "all", running the full matrix).
+    # Push/PR-triggered runs have no such inputs, so this is always true then.
+    if: |
+      github.event_name != 'workflow_dispatch' ||
+      ((github.event.inputs.os == 'all' || github.event.inputs.os == matrix.os) &&
+       (github.event.inputs.build_type == 'all' || github.event.inputs.build_type == matrix.build_type))
     strategy:
       fail-fast: false
       matrix:
