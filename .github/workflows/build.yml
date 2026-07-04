@@ -3,8 +3,10 @@ name: CI Build
 on:
   push:
     branches: [ master, dev ]
+    tags: [ 'Release-*' ]
   pull_request:
     branches: [ master, dev ]
+  workflow_dispatch: {}
 
 env:
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
@@ -81,7 +83,8 @@ jobs:
           tk8.6-dev \
           autoconf \
           automake \
-          libtool
+          libtool \
+          imagemagick
 
     - name: Install system dependencies (macOS)
       if: runner.os == 'macOS'
@@ -152,6 +155,96 @@ jobs:
         cmake --build build --target install --config ${{ matrix.build_type }}
         # Qt deployment script will be run automatically during install
 
+    - name: Build Windows installer (Inno Setup)
+      if: runner.os == 'Windows' && matrix.build_type == 'Release' && (startsWith(github.ref, 'refs/tags/Release-') || github.event_name == 'workflow_dispatch')
+      shell: pwsh
+      run: |
+        choco install innosetup -y --no-progress
+        & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" `
+          /DMyAppInstallDir="${{ github.workspace }}\install" `
+          "${{ github.workspace }}\packaging\windows\mvinstaller.iss"
+
+    - name: Upload Windows installer
+      if: runner.os == 'Windows' && matrix.build_type == 'Release' && (startsWith(github.ref, 'refs/tags/Release-') || github.event_name == 'workflow_dispatch')
+      uses: actions/upload-artifact@v4
+      with:
+        name: modelviewer-windows-installer
+        path: dist/*.exe
+        retention-days: 30
+
+    - name: Build Linux AppImage
+      if: runner.os == 'Linux' && matrix.build_type == 'Release' && (startsWith(github.ref, 'refs/tags/Release-') || github.event_name == 'workflow_dispatch')
+      run: |
+        set -e
+
+        # --- Locate qmake from the vcpkg-built Qt6, so linuxdeploy-plugin-qt
+        # can find Qt's plugins/translations/lib dir to bundle. ---
+        QMAKE_PATH=$(find "${{ github.workspace }}/build/vcpkg_installed" -maxdepth 4 -type f -name qmake6 | head -n1)
+        if [ -z "$QMAKE_PATH" ]; then
+          QMAKE_PATH=$(find "${{ github.workspace }}/build/vcpkg_installed" -maxdepth 4 -type f -name qmake | head -n1)
+        fi
+        echo "Using qmake: $QMAKE_PATH"
+        export QMAKE="$QMAKE_PATH"
+
+        # --- Assemble an AppDir from the CMake install output. ---
+        APPDIR="${{ github.workspace }}/AppDir"
+        mkdir -p "$APPDIR/usr"
+        cp -r "${{ github.workspace }}/install/"* "$APPDIR/usr/"
+
+        # Convert the existing 42x42 .ico to a PNG for the AppImage/.desktop icon.
+        mkdir -p "$APPDIR/usr/share/icons/hicolor/256x256/apps"
+        convert "${{ github.workspace }}/res/ModelViewer.ico[0]" \
+          "$APPDIR/usr/share/icons/hicolor/256x256/apps/modelviewer.png"
+
+        # --- Download linuxdeploy, its Qt plugin, and appimagetool, then
+        # pre-extract each (--appimage-extract) so none of them need FUSE to
+        # run on the CI runner. Extracted AppRun entrypoints are exposed on
+        # PATH under the exact names linuxdeploy's plugin discovery expects. ---
+        TOOLS_DIR="${{ github.workspace }}/appimage-tools"
+        mkdir -p "$TOOLS_DIR"
+        cd "$TOOLS_DIR"
+
+        curl -L -o linuxdeploy-x86_64.AppImage \
+          https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+        curl -L -o linuxdeploy-plugin-qt-x86_64.AppImage \
+          https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+        curl -L -o appimagetool-x86_64.AppImage \
+          https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+        chmod +x ./*.AppImage
+
+        ./linuxdeploy-x86_64.AppImage --appimage-extract >/dev/null
+        mv squashfs-root linuxdeploy-extracted
+
+        ./linuxdeploy-plugin-qt-x86_64.AppImage --appimage-extract >/dev/null
+        mv squashfs-root linuxdeploy-plugin-qt-extracted
+        ln -s "$TOOLS_DIR/linuxdeploy-plugin-qt-extracted/AppRun" \
+              "$TOOLS_DIR/linuxdeploy-plugin-qt-extracted/linuxdeploy-plugin-qt"
+
+        ./appimagetool-x86_64.AppImage --appimage-extract >/dev/null
+        mv squashfs-root appimagetool-extracted
+        ln -s "$TOOLS_DIR/appimagetool-extracted/AppRun" \
+              "$TOOLS_DIR/appimagetool-extracted/appimagetool"
+
+        export PATH="$TOOLS_DIR/linuxdeploy-plugin-qt-extracted:$TOOLS_DIR/appimagetool-extracted:$PATH"
+
+        mkdir -p "${{ github.workspace }}/dist"
+        cd "${{ github.workspace }}/dist"
+        "$TOOLS_DIR/linuxdeploy-extracted/AppRun" \
+          --appdir "$APPDIR" \
+          --executable "$APPDIR/usr/bin/ModelViewer" \
+          --desktop-file "${{ github.workspace }}/ModelViewer.desktop" \
+          --icon-file "$APPDIR/usr/share/icons/hicolor/256x256/apps/modelviewer.png" \
+          --plugin qt \
+          --output appimage
+
+    - name: Upload Linux AppImage
+      if: runner.os == 'Linux' && matrix.build_type == 'Release' && (startsWith(github.ref, 'refs/tags/Release-') || github.event_name == 'workflow_dispatch')
+      uses: actions/upload-artifact@v4
+      with:
+        name: modelviewer-linux-appimage
+        path: dist/*.AppImage
+        retention-days: 30
+
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -171,3 +264,33 @@ jobs:
           translations/*.ts
           build/translations/*.qm
         retention-days: 30
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/Release-')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Download Windows installer
+      uses: actions/download-artifact@v4
+      with:
+        name: modelviewer-windows-installer
+        path: release-assets
+
+    - name: Download Linux AppImage
+      uses: actions/download-artifact@v4
+      with:
+        name: modelviewer-linux-appimage
+        path: release-assets
+
+    - name: Create/update GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        body_path: CHANGELOG.md
+        files: release-assets/*

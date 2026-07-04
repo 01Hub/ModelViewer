@@ -3,4 +3,5 @@ Type=Application
 Name=ModelViewer
 Exec=ModelViewer
 StartupNotify=true
-Icon=res/ModelViewer.ico
+Icon=modelviewer
+Categories=Graphics;3DGraphics;Viewer;

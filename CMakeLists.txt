@@ -377,9 +377,94 @@ else()
     message(STATUS "No QM files to install")
 endif()
 
-install(DIRECTORY fonts shaders textures themes test-models data
+install(DIRECTORY fonts shaders themes test-models data
         DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}"
 )
+
+# textures/envmap/skyboxes/HDRI contains ~65 optional, browsable environment-map
+# packs (~1.3GB) in addition to the 3 default presets (studio/outdoor/office.hdr)
+# referenced directly by ViewportWidget. textures/materials contains ~129
+# optional, browsable PBR material presets (~2.2GB) with no code-level
+# defaults. Debug installs (local dev/testing) get the full libraries so you
+# can browse/test everything; Release installs (used to build the
+# installer/AppImage) ship only a curated minimum of each, to keep package
+# size reasonable. CONFIGURATIONS is used rather than a configure-time
+# if(CMAKE_BUILD_TYPE...) check because multi-config generators (e.g. Visual
+# Studio) only know the configuration at build/install time, not configure time.
+install(DIRECTORY textures
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}"
+        CONFIGURATIONS Debug
+)
+
+# Release installs: rather than relying on install(DIRECTORY)'s REGEX/PATTERN
+# EXCLUDE (whose path-matching semantics proved ambiguous/unreliable in
+# practice), explicitly install every part of textures/ EXCEPT HDRI and
+# materials by name, with no exclude patterns involved at all. The curated
+# HDRI/materials subsets are installed individually just below.
+install(DIRECTORY textures/khronos
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/textures"
+        CONFIGURATIONS Release
+)
+install(DIRECTORY textures/patterns
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/textures"
+        CONFIGURATIONS Release
+)
+install(DIRECTORY textures/envmap/floor
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/textures/envmap"
+        CONFIGURATIONS Release
+)
+install(DIRECTORY textures/envmap/skyboxes/LDRI
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/textures/envmap/skyboxes"
+        CONFIGURATIONS Release
+)
+
+# The 3 loose default .hdr files (not inside a named pack subfolder) are
+# referenced directly by ViewportWidget's Studio/Outdoor/Office quick presets,
+# so they must ship regardless of which packs are curated below.
+install(FILES
+            "textures/envmap/skyboxes/HDRI/studio.hdr"
+            "textures/envmap/skyboxes/HDRI/outdoor.hdr"
+            "textures/envmap/skyboxes/HDRI/office.hdr"
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/textures/envmap/skyboxes/HDRI"
+        CONFIGURATIONS Release
+)
+
+set(_hdri_included_packs
+    "@Default" "Canary_Wharf" "Colorful_Studio" "Dancing_Hall"
+    "Evening_Museum_Courtyard" "Footprint_Court" "Frozenwaterfall"
+    "Newport_Loft" "Venice_Sunset"
+)
+foreach(_pack ${_hdri_included_packs})
+    install(DIRECTORY "textures/envmap/skyboxes/HDRI/${_pack}"
+            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/textures/envmap/skyboxes/HDRI"
+            CONFIGURATIONS Release
+    )
+endforeach()
+
+set(_material_included_presets
+    "ClearCoat_Metallic_Blue" "Fabric_Denim_02" "Fabric_Fabric050"
+    "Fabric_Leather026" "Fabric_Leather030" "Fabric_Leather038"
+    "Ground_Cobblestone_Floor_07" "Metal_Aluminium" "Metal_Bronze"
+    "Metal_Bronze-1" "Metal_Brushed-Metal" "Metal_Chrome" "Metal_Copper"
+    "Metal_Dull_Brass" "Metal_Dull_Copper" "Metal_Gold" "Metal_Iron"
+    "Metal_Lead" "Metal_Magnesium" "Metal_Nickel" "Metal_Ornate_Brass"
+    "Metal_Pewter" "Metal_Pirate_Gold" "Metal_Pitted_Metal" "Metal_Platinum"
+    "Metal_Rose_Gold" "Metal_Rusted_Iron" "Metal_Silver_Dull"
+    "Metal_Stainless_Steel" "Metal_Steel" "Metal_Titanium" "Metal_Zinc"
+    "Organic_Human_Skin-Freckled" "Organic_Human_Skin1" "Paper_Paper001"
+    "Paper_Paper005" "Plastic_ABS_Glossy" "Plastic_ABS_Matte"
+    "Plastic_Plastic007" "Plastic_Plastic012a" "Plastic_Plastic016a"
+    "Plastic_Scuffed-1" "Rubber_Rubber002" "Rubber_Tire" "Stone_Granite006a"
+    "Stone_Marble009" "Stone_Rock_06" "Synthetic_Sponge001" "Wall_Bricks"
+    "Wall_Bricks_Plaster" "Wall_Glass_Window" "Wood_Antique-Veneer1"
+    "Wood_Bark_Brown_02" "Wood_KitchenWood" "Wood_Plywood" "Wood_Wood051"
+)
+foreach(_preset ${_material_included_presets})
+    install(DIRECTORY "textures/materials/${_preset}"
+            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/textures/materials"
+            CONFIGURATIONS Release
+    )
+endforeach()
 
 # Install image format plugins deployed during build
 install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/plugins"
