@@ -5,7 +5,7 @@
 - **index.html** - Landing page with course overview
 - **lesson01.html to lesson14.html** - Individual lesson pages
 - **common-styles.css** - Shared stylesheet for all lessons
-- **screenshots/** - Directory for tutorial screenshots (empty, add your own)
+- **screenshots/** - Tutorial screenshots referenced by the lessons
 - **README.md** - This file
 
 ## 🚀 Quick Start
@@ -57,13 +57,11 @@ Add menu action with shortcut: **Ctrl+F1**
 ## 📖 Lesson Status
 
 ### ✅ Complete (Full Content)
-- Lesson 1: Getting Started
-- Lesson 2: Opening Models
-- Lesson 3: Basic Navigation
-- Lesson 4: Selecting Objects
-
-### 📝 Placeholders (Need Content)
-- Lessons 5-14 have basic structure but need detailed content added
+- Lessons 1-18 all have full content
+- Lessons 15-18 (Exploded Views, Morph Target Animation, Node Transform
+  Editing, Edge & Wireframe Rendering) still need their screenshots captured
+  — placeholders are in place with the `tutorial_NN_description.png` naming
+  convention already wired into each lesson's `<img>`/alt text
 
 ## 🖼️ Adding Screenshots
 
@@ -80,6 +78,8 @@ screenshots/
 ```
 
 Screenshots automatically display when present, show placeholders when missing.
+Lessons 15-18 additionally reference `tutorial_15_*.png` through `tutorial_18_*.png`
+(see each lesson's `<img>` alt text for the exact expected filenames).
 
 ## ✏️ Completing Lessons 5-14
 

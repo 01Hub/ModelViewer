@@ -74,6 +74,7 @@ void QuickHelpDialog::setupUI()
 	_menuBrowser = new QTextBrowser();
 	_cameraBrowser = new QTextBrowser();
 	_displayBrowser = new QTextBrowser();
+	_advancedBrowser = new QTextBrowser();
 	_tipsBrowser = new QTextBrowser();
 
 	// Set open external links for all browsers
@@ -83,6 +84,7 @@ void QuickHelpDialog::setupUI()
 	_menuBrowser->setOpenExternalLinks(false);
 	_cameraBrowser->setOpenExternalLinks(false);
 	_displayBrowser->setOpenExternalLinks(false);
+	_advancedBrowser->setOpenExternalLinks(false);
 	_tipsBrowser->setOpenExternalLinks(false);
 
 	// Add tabs
@@ -91,9 +93,10 @@ void QuickHelpDialog::setupUI()
 	_tabWidget->addTab(_keyboardBrowser, tr("Keyboard Shortcuts"));
 	_tabWidget->addTab(_toolbarBrowser, tr("View Toolbar"));
 	_tabWidget->addTab(_cameraBrowser, tr("Camera Modes"));
-	_tabWidget->addTab(_displayBrowser, tr("Display Modes"));
+	_tabWidget->addTab(_displayBrowser, tr("Rendering && Display Modes"));
+	_tabWidget->addTab(_advancedBrowser, tr("Advanced Features"));
 	_tabWidget->addTab(_menuBrowser, tr("Menu Shortcuts"));
-	_tabWidget->addTab(_tipsBrowser, tr("Tips & Tricks"));
+	_tabWidget->addTab(_tipsBrowser, tr("Tips && Tricks"));
 
 	// Setup content for each tab
 	setupHomeTab();
@@ -102,6 +105,7 @@ void QuickHelpDialog::setupUI()
 	setupViewToolbarTab();
 	setupCameraModesTab();
 	setupDisplayModesTab();
+	setupAdvancedFeaturesTab();
 	setupMenuShortcutsTab();
 	setupTipsAndTricksTab();
 
@@ -373,8 +377,8 @@ void QuickHelpDialog::setupKeyboardShortcutsTab()
 
 	// File Operations
 	QList<QStringList> fileRows = {
-		{tr("Ctrl + Shift + I"), tr("Import model into current scene")},
-		{tr("Ctrl + Shift + E"), tr("Export selected objects")}
+		{tr("Ctrl + I"), tr("Import model into current scene")},
+		{tr("Ctrl + E"), tr("Export selected objects")}
 	};
 	content += createSection(tr("File Operations"), "") + createTable(navHeaders, fileRows);
 
@@ -418,8 +422,17 @@ void QuickHelpDialog::setupViewToolbarTab()
 		 tr("Switch between orthographic and perspective projection")},
 		{tr("Multi-View"), tr("Four viewport layout"),
 		 tr("Show Top, Front, Right, and Isometric views simultaneously")},
-		{tr("Display Modes"), tr("Rendering style"),
-		 tr("Choose Realistic, Shaded, Wireframe, or WireShaded display")},
+		{tr("Realistic Rendering"), tr("Toggle full PBR look"),
+		 tr("Standalone toggle (Shortcut: Shift+R) that layers full material/lighting "
+			"detail on top of whichever Display Mode is active")},
+		{tr("Display Modes"), tr("Base rendering style"),
+		 tr("Choose Shaded (Shift+S), Hollow Mesh (Shift+H), Mesh Edges (Shift+M, shaded + every "
+			"triangle edge), Wireframe (Shift+W, feature edges only, no fill), or Shaded with Edges "
+			"(Shift+E, shaded + feature edges only)")},
+		{tr("Rendering Mode"), tr("Shading model"),
+		 tr("Choose ADS (Blinn-Phong) or PBR (Metallic-Roughness) as the underlying lighting model")},
+		{tr("Shading Normal Mode"), tr("Normal interpolation"),
+		 tr("Choose Flat Shaded (Shift+F) for faceted faces, or Smooth Shaded (Shift+G) for smoothed normals")},
 		{tr("Section View"), tr("Clipping planes"),
 		 tr("Enable interactive clipping planes for cross-sections")},
 		{tr("Swap Visible"), tr("Invert visibility"),
@@ -506,7 +519,8 @@ void QuickHelpDialog::setupDisplayModesTab()
 	QList<QStringList> rows = {
 		{tr("Realistic"),
 		 tr("Shift + R"),
-		 tr("Full PBR rendering with all material properties, textures, lighting, shadows, and reflections"),
+		 tr("Standalone toggle that layers full PBR material properties, textures, lighting, shadows, "
+			"and reflections on top of whichever display mode below is active"),
 		 tr("Final presentation, material evaluation, photorealistic visualization")},
 
 		{tr("Shaded"),
@@ -514,15 +528,25 @@ void QuickHelpDialog::setupDisplayModesTab()
 		 tr("Solid colored surfaces with basic lighting (Ambient-Diffuse-Specular model)"),
 		 tr("General modeling work, performance, shape evaluation")},
 
+		{tr("Hollow Mesh"),
+		 tr("Shift + H"),
+		 tr("Shows faces as translucent/hollow shells without solid shading"),
+		 tr("Seeing through outer surfaces to inspect internal structure")},
+
+		{tr("Mesh Edges"),
+		 tr("Shift + M"),
+		 tr("Shows solid filled surfaces with every triangle edge overlaid, revealing the full mesh tessellation"),
+		 tr("Inspecting tessellation density, triangle-level topology checking")},
+
 		{tr("Wireframe"),
 		 tr("Shift + W"),
-		 tr("Shows only edges of polygons, no filled surfaces"),
-		 tr("Topology inspection, vertex/edge checking, technical drawings")},
+		 tr("Shows only true feature edges (crease/boundary edges, or B-Rep edges for CAD formats), no filled surfaces"),
+		 tr("Clean edge-only inspection, technical drawings")},
 
-		{tr("WireShaded"),
+		{tr("Shaded with Edges"),
 		 tr("Shift + E"),
-		 tr("Combination of shaded surfaces with visible wireframe edges"),
-		 tr("Modeling work where you need to see both shape and topology")}
+		 tr("Combination of shaded surfaces with only true feature edges overlaid (not every triangle edge)"),
+		 tr("Modeling work where you need to see both shape and clean topology")}
 	};
 
 	content += createSection(tr("Available Display Modes"), "") + createTable(headers, rows);
@@ -547,7 +571,100 @@ void QuickHelpDialog::setupDisplayModesTab()
 			"<li>For large models (>50MB), low-resolution preview is automatically enabled during manipulation</li>"
 			"</ul>"));
 
-	_displayBrowser->setHtml(createStyledHtml(tr("Display Modes"), content));
+	QStringList renderingModeHeaders = { tr("Rendering Mode"), tr("Description"), tr("Use Case") };
+	QList<QStringList> renderingModeRows = {
+		{tr("ADS (Blinn-Phong)"),
+		 tr("Classic Ambient-Diffuse-Specular lighting model with a single specular highlight term"),
+		 tr("Lightweight shading, non-physical stylized looks, quick previews")},
+		{tr("PBR (Metallic-Roughness)"),
+		 tr("Physically Based Rendering using the metallic/roughness workflow, driven by material "
+			"metallic, roughness, and other PBR factors/textures"),
+		 tr("Photorealistic materials, glTF-authored assets, IBL-driven lighting")}
+	};
+	content += createSection(tr("Rendering Mode"),
+		tr("<p>Selected from the Rendering Mode flyout button on the View Toolbar. This chooses the "
+			"underlying lighting/shading model used to light every mesh, independent of Display Mode "
+			"and the Realistic toggle.</p>")) +
+		createTable(renderingModeHeaders, renderingModeRows);
+
+	QStringList shadingNormalHeaders = { tr("Shading Normal Mode"), tr("Shortcut Key"), tr("Description"), tr("Use Case") };
+	QList<QStringList> shadingNormalRows = {
+		{tr("Flat Shaded"),
+		 tr("Shift + F"),
+		 tr("Each triangle face uses a single face normal, producing a faceted look with visible edges between faces"),
+		 tr("Inspecting actual mesh facets, low-poly/faceted stylistic looks")},
+		{tr("Smooth Shaded"),
+		 tr("Shift + G"),
+		 tr("Interpolates vertex normals across each face, producing a smooth, continuous-looking surface"),
+		 tr("Most everyday viewing of organic or curved surfaces")}
+	};
+	content += createSection(tr("Shading Normal Mode"),
+		tr("<p>Selected from the Shading Normal Mode flyout button on the View Toolbar. This controls "
+			"how face normals are interpolated for lighting, independent of Display Mode and Rendering Mode.</p>")) +
+		createTable(shadingNormalHeaders, shadingNormalRows);
+
+	_displayBrowser->setHtml(createStyledHtml(tr("Rendering & Display Modes"), content));
+}
+
+void QuickHelpDialog::setupAdvancedFeaturesTab()
+{
+	QString content;
+
+	content += createSection(tr("Clipping Planes (Section View)"),
+		tr("<p>Cut through a model with up to three axis-aligned clipping planes to see internal "
+		   "structure, opened via the Section View button on the View Toolbar.</p>"
+		   "<ul>"
+		   "<li><b>XY / YZ / ZX:</b> Enable each plane independently; each has its own 'Flip' toggle "
+		   "to reverse which side is cut away</li>"
+		   "<li><b>Coefficient:</b> A numeric field per plane that positions it along its axis</li>"
+		   "<li><b>Capping:</b> Fills the cut cross-section with a solid cap instead of leaving it hollow</li>"
+		   "<li><b>Dynamic Capping:</b> Recomputes the cap as you move or animate the model, rather than "
+		   "only when you release the plane</li>"
+		   "<li><b>Hatch Pattern:</b> Choose Diagonal 45/135, Horizontal, Vertical, Grid, or Cross Hatch "
+		   "for the capped cross-section, with adjustable tiling, color, and an optional texture</li>"
+		   "<li><b>Reset Coefficients / Reset All:</b> Quickly return planes to their default position "
+		   "or clear all clipping state</li>"
+		   "</ul>"));
+
+	content += createSection(tr("Exploded Views"),
+		tr("<p>Pull an assembly's parts apart to inspect how components relate, without altering the "
+		   "real model. Opened from the Exploded View panel.</p>"
+		   "<ul>"
+		   "<li><b>Assembly / Anchor:</b> Choose which parts explode and which part stays fixed as the anchor</li>"
+		   "<li><b>Explosion Mode:</b> Auto (Radial), Axis X/Y/Z, or a Custom Vector direction</li>"
+		   "<li><b>Distance Slider:</b> Controls how far apart the parts spread, as a percentage</li>"
+		   "<li><b>Manual Placement:</b> Use the on-screen transform gizmo to hand-position specific parts "
+		   "into a staged exploded pose, without changing their real transform</li>"
+		   "<li><b>Capture Steps:</b> Record multiple exploded poses in sequence and reorder them to build "
+		   "a staged, multi-part reveal</li>"
+		   "<li><b>Presets:</b> Save a full exploded configuration by name and switch between layouts instantly</li>"
+		   "<li><b>Animation:</b> Play captured steps in parallel, sequentially, or as separate animation clips; "
+		   "exportable to glTF/GLB</li>"
+		   "</ul>"));
+
+	content += createSection(tr("Transform Gizmo"),
+		tr("<p>An interactive on-screen handle for translating, rotating, and scaling a selection directly "
+		   "in the viewport, shown via the right-click context menu or the Transformations panel.</p>"
+		   "<ul>"
+		   "<li><b>Translate:</b> Drag an axis arrow (X, Y, or Z) to move along that axis</li>"
+		   "<li><b>Rotate:</b> Drag a rotation ring (XY, YZ, or ZX) to rotate around that plane</li>"
+		   "<li><b>Scale:</b> Drag the center handle to resize uniformly</li>"
+		   "<li>The gizmo scales itself relative to camera distance so its handles stay usable at any zoom level</li>"
+		   "<li>The same gizmo is reused during Exploded View manual placement to stage poses non-destructively</li>"
+		   "</ul>"));
+
+	content += createSection(tr("Morph Target (Blend Shape) Animation"),
+		tr("<p>Models imported from glTF/GLB that include morph targets (blend shapes) can smoothly "
+		   "deform between vertex-position variants — commonly used for facial expressions or organic "
+		   "deformation that rigid transforms and skeletal rigs alone can't produce.</p>"
+		   "<ul>"
+		   "<li>Morph weights are driven by animation clips, played back through the Animations panel "
+		   "(Play/Pause, Loop, Speed) just like any other clip</li>"
+		   "<li>Morph target data is fully preserved when saving to <b>.mvf</b>, and re-injected on export "
+		   "back to glTF/GLB</li>"
+		   "</ul>"));
+
+	_advancedBrowser->setHtml(createStyledHtml(tr("Advanced Features"), content));
 }
 
 void QuickHelpDialog::setupMenuShortcutsTab()
@@ -560,26 +677,33 @@ void QuickHelpDialog::setupMenuShortcutsTab()
 	QList<QStringList> fileRows = {
 		{tr("File → New"), tr("Ctrl+N"), tr("Create new viewer session")},
 		{tr("File → Open"), tr("Ctrl+O"), tr("Open a 3D model file")},
-		{tr("File → Import"), tr("Ctrl+Shift+I"), tr("Import model into current scene")},
-		{tr("File → Export"), tr("Ctrl+Shift+E"), tr("Export selected objects")},
+		{tr("File → Import"), tr("Ctrl+I"), tr("Import model into current scene")},
+		{tr("File → Export"), tr("Ctrl+E"), tr("Export selected objects")},
 		{tr("File → Save"), tr("Ctrl+S"), tr("Save current scene")},
 		{tr("File → Save As"), tr("Ctrl+Shift+S"), tr("Save scene with new name")},
-		{tr("File → Close"), tr("Ctrl+W"), tr("Close current document")},
-		{tr("File → Exit"), tr("Ctrl+Q"), tr("Exit application")}
+		{tr("File → Close"), tr(""), tr("Close current document")},
+		{tr("File → Exit"), tr(""), tr("Exit application")}
 	};
 	content += createSection(tr("File Menu"), "") + createTable(headers, fileRows);
 
-	// Edit Menu  
+	// Edit Menu
 	QList<QStringList> editRows = {
 		{tr("Edit → Undo"), tr("Ctrl+Z"), tr("Undo last operation")},
-		{tr("Edit → Redo"), tr("Ctrl+Y"), tr("Redo previously undone operation")}
+		{tr("Edit → Redo"), tr("Ctrl+Y"), tr("Redo previously undone operation")},
+		{tr("Edit → Settings"), tr(""), tr("Open the settings dialog")}
 	};
 	content += createSection(tr("Edit Menu"), "") + createTable(headers, editRows);
 
+	// Tools Menu
+	QList<QStringList> toolsRows = {
+		{tr("Tools → Texture Debugger"), tr(""), tr("Open the texture debugger panel")}
+	};
+	content += createSection(tr("Tools Menu"), "") + createTable(headers, toolsRows);
+
 	// Window Menu
 	QList<QStringList> windowRows = {
-		{tr("Window → Next"), tr("Ctrl+Tab"), tr("Switch to next document window")},
-		{tr("Window → Previous"), tr("Ctrl+Shift+Tab"), tr("Switch to previous document window")}
+		{tr("Window → Next"), tr(""), tr("Switch to next document window")},
+		{tr("Window → Previous"), tr(""), tr("Switch to previous document window")}
 	};
 	content += createSection(tr("Window Menu"), "") + createTable(headers, windowRows);
 
@@ -692,7 +816,7 @@ void QuickHelpDialog::setupTipsAndTricksTab()
 
 	content += createSection(tr("Customization"),
 		tr("<ul>"
-			"<li><b>Settings:</b> File → Settings to configure MSAA, anisotropic filtering, and theme</li>"
+			"<li><b>Settings:</b> Edit → Settings to configure MSAA, anisotropic filtering, and theme</li>"
 			"<li><b>Background:</b> Right-click → Background Color to customize viewport background</li>"
 			"<li><b>Theme:</b> Choose between Light, Dark, or System theme in Settings</li>"
 			"<li><b>Language:</b> Change interface language in Settings dialog</li>"

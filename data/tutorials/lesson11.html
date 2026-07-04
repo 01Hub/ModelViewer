@@ -24,13 +24,17 @@
             <a href="lesson12.html">12. Advanced Features</a>
             <a href="lesson13.html">13. Performance Optimization</a>
             <a href="lesson14.html">14. Tips & Workflows</a>
+            <a href="lesson15.html">15. Exploded Views</a>
+            <a href="lesson16.html">16. Morph Target Animation</a>
+            <a href="lesson17.html">17. Node Transform Editing</a>
+            <a href="lesson18.html">18. Edge & Wireframe Rendering</a>
         </nav>
     </div>
 
     <div id="main-content">
-        <div class="progress-text">Lesson 11 of 14</div>
+        <div class="progress-text">Lesson 11 of 18</div>
         <div class="progress-bar">
-            <div class="progress-fill" style="width: 78.57%"></div>
+            <div class="progress-fill" style="width: 61.11%"></div>
         </div>
 
         <div class="lesson-header">
@@ -44,7 +48,7 @@
         <p>Control individual object visibility:</p>
         <div class="step">
             <div class="step-title">Step 1: Using Checkboxes</div>
-            <div class="step-content">In the Object List, each object has a checkbox. Check = visible, unchecked = hidden.</div>
+            <div class="step-content">In the Model Tree, each object has a checkbox. Check = visible, unchecked = hidden.</div>
         </div>
         <div class="step">
             <div class="step-title">Step 2: Using Keyboard</div>
@@ -56,9 +60,13 @@
         </div>
 
         <div class="screenshot-container">
-            <img src="screenshots/tutorial_11_checkboxes.png" alt="Object list with some checkboxes checked and some unchecked" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <img src="screenshots/tutorial_11_checkboxes.png" alt="Model tree with some checkboxes checked and some unchecked" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
             <div class="screenshot-placeholder" style="display:none; width:300px; height:400px;">Screenshot: tutorial_11_checkboxes.png (300x400)</div>
-            <span class="screenshot-caption">Object list with some checkboxes checked and some unchecked</span>
+            <span class="screenshot-caption">Model tree with some checkboxes checked and some unchecked</span>
+        </div>
+
+        <div class="note note-info">
+            Assembly nodes have <b>tri-state</b> checkboxes: checking or unchecking an assembly propagates that visibility to every child underneath it, and an assembly with a mix of visible/hidden children shows a partial (dash) check state.
         </div>
 
         <h2>Show Only Selected</h2>
@@ -125,7 +133,7 @@
         <h2>Visual Indicators</h2>
         <p>How to tell what's hidden:</p>
         <ul>
-            <li>Hidden objects appear grayed out in the Object List.</li>
+            <li>Hidden objects appear grayed out in the Model Tree.</li>
             <li>Hidden objects' checkboxes are unchecked.</li>
             <li>When 'Swap Visible' is active, the role of visible/hidden is reversed.</li>
         </ul>
@@ -133,7 +141,7 @@
         <h2>Working with Hidden Objects</h2>
         <p>Hidden objects are still in memory:</p>
         <ul>
-            <li>They can be selected from the Object List.</li>
+            <li>They can be selected from the Model Tree.</li>
             <li>You can apply materials, transformations, etc., to hidden objects.</li>
             <li>They count towards memory usage.</li>
             <li>They don't affect rendering performance (since they're not drawn).</li>

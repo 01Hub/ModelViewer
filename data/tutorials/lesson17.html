@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 17: Node Transform Editing - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials & Textures</a>
+            <a href="lesson10.html">10. Lighting & Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips & Workflows</a>
+            <a href="lesson15.html">15. Exploded Views</a>
+            <a href="lesson16.html">16. Morph Target Animation</a>
+            <a href="lesson17.html" class='active'>17. Node Transform Editing</a>
+            <a href="lesson18.html">18. Edge & Wireframe Rendering</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 17 of 18</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 94.44%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 17: Node Transform Editing</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Lesson 8 covered entering exact translate/rotate/scale numbers in the Transformations panel. This lesson covers the interactive <b>on-screen transform gizmo</b> — a 3D handle you drag directly in the viewport to reposition, reorient, or resize selected objects visually, with immediate feedback.</p>
+
+        <h2>Showing the Transform Gizmo</h2>
+        <div class="step">
+            <div class="step-title">Step 1: Select an Object</div>
+            <div class="step-content">Click an object in the viewport or Model Tree to select it.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Enable the Gizmo</div>
+            <div class="step-content">Show the transform gizmo for the current selection from the right-click context menu or the Transformations panel. The gizmo appears centered on the selection.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_17_gizmo_overview.png" alt="Transform gizmo with translate, rotate, and scale handles on a selected object" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_17_gizmo_overview.png (700x450)</div>
+            <span class="screenshot-caption">Transform gizmo with translate, rotate, and scale handles on a selected object</span>
+        </div>
+
+        <h2>Using the Gizmo Handles</h2>
+        <div class="step">
+            <div class="step-title">Translate</div>
+            <div class="step-content">Drag an axis arrow (X, Y, or Z) to move the object along that single axis.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Rotate</div>
+            <div class="step-content">Drag one of the rotation rings — XY, YZ, or ZX — to rotate the object around the corresponding plane.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Scale</div>
+            <div class="step-content">Drag the center scale handle to resize the object uniformly on all axes.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_17_gizmo_translate.png" alt="Dragging the gizmo's translate handle to move an object along an axis" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:400px;">Screenshot: tutorial_17_gizmo_translate.png (700x400)</div>
+            <span class="screenshot-caption">Dragging the gizmo's translate handle to move an object along an axis</span>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_17_gizmo_rotate.png" alt="Dragging one of the gizmo's rotation rings" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:400px;">Screenshot: tutorial_17_gizmo_rotate.png (700x400)</div>
+            <span class="screenshot-caption">Dragging one of the gizmo's rotation rings</span>
+        </div>
+
+        <div class="note note-tip">
+            The gizmo scales itself relative to the camera distance, so its handles stay a usable size whether you're zoomed in close or viewing the whole scene from far away.
+        </div>
+
+        <h2>Gizmo vs. Numeric Transformations</h2>
+        <p>Both approaches edit the same underlying transform and can be used interchangeably:</p>
+        <ul>
+            <li><b>Gizmo:</b> Fast, visual, best for rough positioning and quick adjustments while you can see the result.</li>
+            <li><b>Numeric panel (Lesson 8):</b> Precise, best for exact values or when reproducing an exact transform.</li>
+        </ul>
+
+        <h2>Node Transforms and Exploded View Manual Placement</h2>
+        <p>The same transform gizmo is reused during exploded view manual placement (Lesson 15) to stage parts into a custom exploded pose. The key difference: during manual placement, gizmo edits update the staged exploded pose only, not the object's real transform, so the underlying model geometry is never altered.</p>
+
+        <div class="note note-warning">
+            Outside of exploded view manual placement, gizmo edits change the object's real transform immediately — just like the numeric Transformations panel.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson16.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <a href='lesson18.html' class='nav-button'>Next Lesson →</a>
+        </div>
+    </div>
+</body>
+</html>

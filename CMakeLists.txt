@@ -126,9 +126,9 @@ qt6_wrap_ui(ui_wrapped ${ui_sources})
 # ============================================================================
 add_executable(ModelViewer)
 
-set(APP_VERSION_MAJOR 1)
-set(APP_VERSION_MINOR 2)
-set(APP_VERSION_PATCH 3)
+set(APP_VERSION_MAJOR 2026)
+set(APP_VERSION_MINOR 7)
+set(APP_VERSION_PATCH 0)
 
 
 if(WIN32)

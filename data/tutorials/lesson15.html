@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 15: Exploded Views - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials & Textures</a>
+            <a href="lesson10.html">10. Lighting & Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips & Workflows</a>
+            <a href="lesson15.html" class='active'>15. Exploded Views</a>
+            <a href="lesson16.html">16. Morph Target Animation</a>
+            <a href="lesson17.html">17. Node Transform Editing</a>
+            <a href="lesson18.html">18. Edge & Wireframe Rendering</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 15 of 18</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 83.33%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 15: Exploded Views</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Exploded views pull an assembly's parts apart along an axis or radially outward from a center point, so you can see how components relate to each other without cutting or hiding anything. This is a staged, non-destructive view — your model's real geometry and transforms are never permanently changed.</p>
+
+        <h2>Opening the Exploded View Panel</h2>
+        <div class="step">
+            <div class="step-title">Step 1: Open the Panel</div>
+            <div class="step-content">Open the Exploded View panel from the right-side panels.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_15_panel_overview.png" alt="Exploded View panel showing assembly, anchor, mode, and distance controls" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:500px;">Screenshot: tutorial_15_panel_overview.png (700x500)</div>
+            <span class="screenshot-caption">Exploded View panel showing assembly, anchor, mode, and distance controls</span>
+        </div>
+
+        <h2>Setting Up an Explosion</h2>
+        <div class="step">
+            <div class="step-title">Step 1: Select Assembly</div>
+            <div class="step-content">Use 'Select Assembly' to choose which group of objects will be exploded.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Select Anchor</div>
+            <div class="step-content">The anchor is the part that stays fixed in place while everything else moves away from it. Use 'Select Anchor' to choose it.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Choose Explosion Mode</div>
+            <div class="step-content">
+                • <b>Auto (Radial):</b> Parts move outward from the assembly center automatically<br/>
+                • <b>Axis X / Axis Y / Axis Z:</b> Parts move along a single world axis<br/>
+                • <b>Custom Vector:</b> Define your own direction using the X, Y, Z vector fields
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 4: Auto Strategy</div>
+            <div class="step-content">When using Auto mode, choose 'Assembly Aware' (respects sub-assembly grouping) or 'Classic' (treats every part independently).</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_15_mode_selection.png" alt="Explosion mode dropdown showing Auto, Axis, and Custom Vector options" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:500px; height:350px;">Screenshot: tutorial_15_mode_selection.png (500x350)</div>
+            <span class="screenshot-caption">Explosion mode dropdown showing Auto, Axis, and Custom Vector options</span>
+        </div>
+
+        <h2>Controlling the Explosion Distance</h2>
+        <div class="step">
+            <div class="step-title">Step 1: Distance Slider</div>
+            <div class="step-content">Drag the explosion slider to control how far apart the parts spread, shown as a percentage.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_15_distance_slider.png" alt="Assembly at 0%, 50%, and 100% explosion distance" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:400px;">Screenshot: tutorial_15_distance_slider.png (700x400)</div>
+            <span class="screenshot-caption">Assembly at 0%, 50%, and 100% explosion distance</span>
+        </div>
+
+        <div class="note note-tip">
+            Start with a small distance percentage and increase it gradually — this makes it easier to keep track of which part went where.
+        </div>
+
+        <h2>Manual Placement</h2>
+        <p>For assemblies that need a hand-crafted layout instead of a uniform automatic explosion:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Start Manual Placement</div>
+            <div class="step-content">Select the parts you want to reposition, then click 'Start Manual Placement'.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Reposition with the Transform Gizmo</div>
+            <div class="step-content">The on-screen transform gizmo appears on your selection. Drag its handles to translate or rotate the parts into their staged exploded pose — this does not touch the model's real transform.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Finish or Clear</div>
+            <div class="step-content">Click 'Finish Manual Placement' to keep the staged pose, or 'Clear Manual Placement' to discard it and start over.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_15_manual_placement.png" alt="Manual placement mode with transform gizmo active on a selected part" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_15_manual_placement.png (700x450)</div>
+            <span class="screenshot-caption">Manual placement mode with transform gizmo active on a selected part</span>
+        </div>
+
+        <h2>Capturing Steps and Presets</h2>
+        <div class="step">
+            <div class="step-title">Step 1: Capture</div>
+            <div class="step-content">Click 'Capture' to record the current exploded pose as a step in the sequence. Build up multiple steps to create a staged, multi-part reveal.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Reorder Steps</div>
+            <div class="step-content">Use the up/down arrows next to the captured steps list to change the playback order.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Presets</div>
+            <div class="step-content">Save a full exploded configuration as a named preset so you can switch between different exploded layouts instantly.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_15_captured_steps.png" alt="List of captured explosion steps with reorder controls" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:500px; height:400px;">Screenshot: tutorial_15_captured_steps.png (500x400)</div>
+            <span class="screenshot-caption">List of captured explosion steps with reorder controls</span>
+        </div>
+
+        <h2>Animating the Explosion</h2>
+        <div class="step">
+            <div class="step-title">Step 1: Animation Mode</div>
+            <div class="step-content">
+                • <b>Single Animation (Parallel):</b> All captured steps animate together at once<br/>
+                • <b>Single Animation (Sequential):</b> Steps play out one after another<br/>
+                • <b>Separate Animations:</b> Each step becomes its own independent animation clip
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Loop Back</div>
+            <div class="step-content">Enable 'Loop Back' to have the animation return the assembly to its original, un-exploded position at the end.</div>
+        </div>
+
+        <div class="note note-info">
+            Exploded view configurations, including presets and captured steps, are saved with your <b>.mvf</b> session file.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson14.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <a href='lesson16.html' class='nav-button'>Next Lesson →</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -24,13 +24,17 @@
             <a href="lesson12.html">12. Advanced Features</a>
             <a href="lesson13.html">13. Performance Optimization</a>
             <a href="lesson14.html">14. Tips & Workflows</a>
+            <a href="lesson15.html">15. Exploded Views</a>
+            <a href="lesson16.html">16. Morph Target Animation</a>
+            <a href="lesson17.html">17. Node Transform Editing</a>
+            <a href="lesson18.html">18. Edge & Wireframe Rendering</a>
         </nav>
     </div>
 
     <div id="main-content">
-        <div class="progress-text">Lesson 1 of 14</div>
+        <div class="progress-text">Lesson 1 of 18</div>
         <div class="progress-bar">
-            <div class="progress-fill" style="width: 7.14%"></div>
+            <div class="progress-fill" style="width: 5.56%"></div>
         </div>
 
         <div class="lesson-header">
@@ -44,9 +48,9 @@
         
 
         <div class="screenshot-container">
-            <img src="screenshots/tutorial_01_main_window.png" alt="The ModelViewer main window showing the 3D viewport, object list, and control panels" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <img src="screenshots/tutorial_01_main_window.png" alt="The ModelViewer main window showing the 3D viewport, model tree, and control panels" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
             <div class="screenshot-placeholder" style="display:none; width:800px; height:500px;">Screenshot: tutorial_01_main_window.png</div>
-            <span class="screenshot-caption">The ModelViewer main window showing the 3D viewport, object list, and control panels</span>
+            <span class="screenshot-caption">The ModelViewer main window showing the 3D viewport, model tree, and control panels</span>
         </div>
 
         <h2>Interface Overview</h2>
@@ -58,13 +62,13 @@
         </div>
 
         <div class="step">
-            <div class="step-title">Step 2: Object List Panel (Left)</div>
-            <div class="step-content">Shows all objects in your scene. Click to select objects, use checkboxes to control visibility, and right-click for context menu options.</div>
+            <div class="step-title">Step 2: Model Tree Panel (Right)</div>
+            <div class="step-content">Shows every object in your scene organized as a hierarchical tree that mirrors the model's assembly structure — not a flat list. Selecting an assembly node selects all of its child parts, and checkboxes are tri-state: checking/unchecking an assembly propagates visibility to all its children, while a partially-visible assembly shows a dash. Right-click for context menu options including expand/collapse (1st level, all children, or all-collapse), rename (double-click, undoable), and visibility actions.</div>
         </div>
 
         <div class="step">
-            <div class="step-title">Step 3: Properties Panel (Left)</div>
-            <div class="step-content">Below the object list, contains tabs for Materials, Textures, Transformations, and Environment settings.</div>
+            <div class="step-title">Step 3: Properties Panel (Right)</div>
+            <div class="step-content">Below the model tree, contains tabs for Materials, Textures, Transformations, and Environment settings.</div>
         </div>
 
         <div class="step">
@@ -74,13 +78,17 @@
 
         <div class="step">
             <div class="step-title">Step 5: Menu Bar (Top)</div>
-            <div class="step-content">Standard menu bar with File, Edit, View, Window, and Help menus for accessing all application features.</div>
+            <div class="step-content">Standard menu bar with File, Edit, Tools, Window, and Help menus for accessing all application features.</div>
+        </div>
+
+        <div class="note note-tip">
+            Most side panels — the Model Tree, Object Transformations, Predefined Materials, and Visualization Environment — can be detached into their own floating windows. Look for a detach icon in each panel's header.
         </div>
 
         <div class="screenshot-container">
-            <img src="screenshots/tutorial_01_interface_labeled.png" alt="Interface areas labeled: Viewport, Object List, Properties, Toolbar, Menu Bar" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <img src="screenshots/tutorial_01_interface_labeled.png" alt="Interface areas labeled: Viewport, Model Tree, Properties, Toolbar, Menu Bar" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
             <div class="screenshot-placeholder" style="display:none; width:800px; height:500px;">Screenshot: tutorial_01_interface_labeled.png (800x500)</div>
-            <span class="screenshot-caption">Interface areas labeled: Viewport, Object List, Properties, Toolbar, Menu Bar</span>
+            <span class="screenshot-caption">Interface areas labeled: Viewport, Model Tree, Properties, Toolbar, Menu Bar</span>
         </div>
 
         <div class="note note-tip">

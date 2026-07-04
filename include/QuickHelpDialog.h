@@ -26,6 +26,7 @@ private:
     void setupMenuShortcutsTab();
     void setupCameraModesTab();
     void setupDisplayModesTab();
+    void setupAdvancedFeaturesTab();
     void setupTipsAndTricksTab();
 
     QString createStyledHtml(const QString& title, const QString& content);
@@ -40,6 +41,7 @@ private:
     QTextBrowser* _menuBrowser;
     QTextBrowser* _cameraBrowser;
     QTextBrowser* _displayBrowser;
+    QTextBrowser* _advancedBrowser;
     QTextBrowser* _tipsBrowser;
     QPushButton* _closeButton;
 	QCheckBox* _showOnStartupCheckBox;

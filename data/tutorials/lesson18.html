@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 18: Edge & Wireframe Rendering - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials & Textures</a>
+            <a href="lesson10.html">10. Lighting & Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips & Workflows</a>
+            <a href="lesson15.html">15. Exploded Views</a>
+            <a href="lesson16.html">16. Morph Target Animation</a>
+            <a href="lesson17.html">17. Node Transform Editing</a>
+            <a href="lesson18.html" class='active'>18. Edge & Wireframe Rendering</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 18 of 18</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 100%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 18: Edge & Wireframe Rendering</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>For CAD formats like STEP, IGES, and BREP, ModelViewer can extract and render true B-Rep (boundary representation) edges — the sharp, precise curves that define a solid's faces — separately from the triangulated mesh used for shading. This gives you crisp edge lines that stay accurate regardless of the mesh's tessellation density.</p>
+
+        <h2>Display Modes with Edges</h2>
+        <p>Three display modes show edges (set from the display mode toolbar/menu, see Lesson 7):</p>
+        <ul>
+            <li><b>Wireframe:</b> Shows only true feature edges (crease/boundary edges, or B-Rep edges for CAD formats), with faces not shaded at all.</li>
+            <li><b>Mesh Edges:</b> Shows normally shaded faces with <i>every</i> triangle edge overlaid, revealing the full underlying tessellation density.</li>
+            <li><b>Shaded with Edges:</b> Shows normally shaded/lit faces with only the true feature edges overlaid — a cleaner look than Mesh Edges since it skips the dense per-triangle lines.</li>
+        </ul>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_18_wireframe_mode.png" alt="A STEP model in Wireframe display mode showing clean B-Rep edge lines with no fill" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_18_wireframe_mode.png (700x450)</div>
+            <span class="screenshot-caption">A STEP model in Wireframe display mode showing clean B-Rep edge lines with no fill</span>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_18_mesh_edges_mode.png" alt="The same model in Mesh Edges mode, showing shaded faces with every triangle edge" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_18_mesh_edges_mode.png (700x450)</div>
+            <span class="screenshot-caption">The same model in Mesh Edges mode, showing shaded faces with every triangle edge</span>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_18_shaded_with_edges_mode.png" alt="The same model in Shaded with Edges mode, combining shading and clean feature-edge lines" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_18_shaded_with_edges_mode.png (700x450)</div>
+            <span class="screenshot-caption">The same model in Shaded with Edges mode, combining shading and clean feature-edge lines</span>
+        </div>
+
+        <div class="note note-info">
+            True B-Rep edge extraction is only available for CAD formats (STEP, IGES, BREP) that carry boundary representation data. Mesh-only formats like OBJ, STL, and glTF fall back to triangle-boundary silhouette edges instead.
+        </div>
+
+        <h2>Controlling Tessellation Quality</h2>
+        <p>Edge and face precision for CAD imports is controlled by two deflection settings in <b>Edit → Settings → Import/Export</b>:</p>
+        <div class="step">
+            <div class="step-title">Linear Deflection</div>
+            <div class="step-content">Controls the maximum allowed distance between the tessellated mesh and the true CAD surface. Lower values produce smoother, more accurate geometry at the cost of more triangles.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Angular Deflection</div>
+            <div class="step-content">Controls the maximum allowed angle between adjacent tessellation facets. Lower values better preserve curved surfaces.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_18_deflection_settings.png" alt="Settings dialog showing Linear Deflection and Angular Deflection controls" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:500px; height:400px;">Screenshot: tutorial_18_deflection_settings.png (500x400)</div>
+            <span class="screenshot-caption">Settings dialog showing Linear Deflection and Angular Deflection controls</span>
+        </div>
+
+        <div class="note note-warning">
+            Very low deflection values produce much denser meshes and slower loading/rendering for complex CAD assemblies — balance visual accuracy against performance (see Lesson 13).
+        </div>
+
+        <h2>Saving Edge Data</h2>
+        <p>Extracted B-Rep edges are cached with the mesh once computed, and are preserved when saving to an <b>.mvf</b> session file — so reloading a saved session doesn't require re-extracting edges from the original CAD file.</p>
+
+        <p><b>You've completed the full tutorial!</b> You now have a comprehensive understanding of ModelViewer, from basic navigation through advanced CAD-specific rendering features.</p>
+
+        <div class="lesson-navigation">
+            <a href='lesson17.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <span class='nav-button disabled'>Tutorial Complete ✔</span>
+        </div>
+    </div>
+</body>
+</html>

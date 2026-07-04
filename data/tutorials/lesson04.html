@@ -24,13 +24,17 @@
             <a href="lesson12.html">12. Advanced Features</a>
             <a href="lesson13.html">13. Performance Optimization</a>
             <a href="lesson14.html">14. Tips & Workflows</a>
+            <a href="lesson15.html">15. Exploded Views</a>
+            <a href="lesson16.html">16. Morph Target Animation</a>
+            <a href="lesson17.html">17. Node Transform Editing</a>
+            <a href="lesson18.html">18. Edge & Wireframe Rendering</a>
         </nav>
     </div>
 
     <div id="main-content">
-        <div class="progress-text">Lesson 4 of 14</div>
+        <div class="progress-text">Lesson 4 of 18</div>
         <div class="progress-bar">
-            <div class="progress-fill" style="width: 28.57%"></div>
+            <div class="progress-fill" style="width: 22.22%"></div>
         </div>
 
         <div class="lesson-header">
@@ -48,15 +52,15 @@
         </div>
         <div class="step">
             <div class="step-title">Step 2: Visual Feedback</div>
-            <div class="step-content">Selected objects are highlighted with a glowing color in the viewport and their entry in the object list is also highlighted.</div>
+            <div class="step-content">Selected objects are highlighted with a glowing color in the viewport and their entry in the model tree is also highlighted.</div>
         </div>
 
         
 
         <div class="screenshot-container">
-            <img src="screenshots/tutorial_04_single_selection.png" alt="Object selected showing glowing highlight and selection in object list" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <img src="screenshots/tutorial_04_single_selection.png" alt="Object selected showing glowing highlight and selection in model tree" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
             <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_04_single_selection.png (700x450)</div>
-            <span class="screenshot-caption">Object selected showing glowing highlight color and selection in object list</span>
+            <span class="screenshot-caption">Object selected showing glowing highlight color and selection in model tree</span>
         </div>
 
         <div class="note note-info">
@@ -90,11 +94,11 @@
             The rubber band selection is great for selecting groups of objects quickly.
         </div>
 
-        <h2>Selecting from Object List</h2>
+        <h2>Selecting from the Model Tree</h2>
         <p>An alternative selection method using the side panel:</p>
         <div class="step">
             <div class="step-title">Step 1: Locate Object</div>
-            <div class="step-content">Find the object in the Object List panel on the left side.</div>
+            <div class="step-content">Find the object in the Model Tree panel on the right side. Objects are organized hierarchically by assembly/file, not as a flat list.</div>
         </div>
         <div class="step">
             <div class="step-title">Step 2: Click Name</div>
@@ -102,27 +106,30 @@
         </div>
 
         <div class="screenshot-container">
-            <img src="screenshots/tutorial_04_list_selection.png" alt="Object list showing selected item highlighted" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <img src="screenshots/tutorial_04_list_selection.png" alt="Model tree showing selected item highlighted" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
             <div class="screenshot-placeholder" style="display:none; width:300px; height:400px;">Screenshot: tutorial_04_list_selection.png (300x400)</div>
-            <span class="screenshot-caption">Object list showing selected item highlighted</span>
+            <span class="screenshot-caption">Model tree showing selected item highlighted</span>
         </div>
 
         <div class="step">
-            <div class="step-title">Step 3: Multi-Select in List</div>
+            <div class="step-title">Step 3: Multi-Select in Tree</div>
             <div class="step-content">Hold <kbd>Ctrl</kbd> and click multiple items to add to selection.<br/>Hold <kbd>Shift</kbd> and click to select a range of items.</div>
         </div>
 
-        
+        <div class="step">
+            <div class="step-title">Step 4: Selecting Assemblies</div>
+            <div class="step-content">Clicking an assembly (parent) node selects all of its child parts at once. Conversely, if you manually select every child under an assembly, the assembly node itself becomes selected too.</div>
+        </div>
 
         <h2>Search and Select</h2>
         <p>For scenes with many objects:</p>
         <div class="step">
             <div class="step-title">Step 1: Use Search Box</div>
-            <div class="step-content">Type in the search box above the object list to filter objects by name.</div>
+            <div class="step-content">Type in the search box above the model tree to filter objects. Matching works against assembly and root node names too, not just individual mesh/leaf names, so you can search for a whole sub-assembly by name.</div>
         </div>
         <div class="step">
             <div class="step-title">Step 2: Objects Appear/Hide</div>
-            <div class="step-content">Only objects matching your search will be highlighted in the list. If no match is found the search box will show a red silhouette</div>
+            <div class="step-content">Only objects matching your search will be highlighted in the tree. If no match is found, the search box shows a red border.</div>
         </div>
         <div class="step">
             <div class="step-title">Step 3: Select from Filtered List</div>
@@ -130,9 +137,9 @@
         </div>
 
         <div class="screenshot-container">
-            <img src="screenshots/tutorial_04_search_filter.png" alt="Search box with text and filtered object list showing matching results" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <img src="screenshots/tutorial_04_search_filter.png" alt="Search box with text and filtered model tree showing matching results" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
             <div class="screenshot-placeholder" style="display:none; width:300px; height:400px;">Screenshot: tutorial_04_search_filter.png (300x400)</div>
-            <span class="screenshot-caption">Search box with text and filtered object list showing matching results</span>
+            <span class="screenshot-caption">Search box with text and filtered model tree showing matching results</span>
         </div>
 
         <div class="note note-tip">
@@ -160,11 +167,11 @@
         <p>Control how selection is displayed:</p>
         <div class="step">
             <div class="step-title">Step 1: Toggle Highlighting</div>
-            <div class="step-content">Use the 'Selection Highlight' checkbox in the left panel to turn selection highlighting on or off.</div>
+            <div class="step-content">Use the 'Selection Highlight' checkbox in the right panel to turn selection highlighting on or off.</div>
         </div>
 
         <div class="note note-info">
-            Even with highlighting off, you can still see which objects are selected in the object list. 
+            Even with highlighting off, you can still see which objects are selected in the model tree. 
 			This helps to eliminate the selection visual to visualize the real-time change of visuals of the selected objects in case of color, material, or texture application.
         </div>
 
@@ -196,7 +203,7 @@
             <li>Practice clicking individual objects to select them</li>
             <li>Try rubber band selection to select multiple objects at once</li>
             <li>Use <kbd>Ctrl</kbd>+Click to add objects to your selection one by one</li>
-            <li>Select objects from the object list</li>
+            <li>Select objects from the model tree</li>
             <li>Use the search box to find specific objects by name</li>
             <li>Practice deselecting using different methods</li>
             <li>Right-click on a selection to see available actions</li>

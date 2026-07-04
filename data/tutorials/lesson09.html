@@ -24,13 +24,17 @@
             <a href="lesson12.html">12. Advanced Features</a>
             <a href="lesson13.html">13. Performance Optimization</a>
             <a href="lesson14.html">14. Tips & Workflows</a>
+            <a href="lesson15.html">15. Exploded Views</a>
+            <a href="lesson16.html">16. Morph Target Animation</a>
+            <a href="lesson17.html">17. Node Transform Editing</a>
+            <a href="lesson18.html">18. Edge & Wireframe Rendering</a>
         </nav>
     </div>
 
     <div id="main-content">
-        <div class="progress-text">Lesson 9 of 14</div>
+        <div class="progress-text">Lesson 9 of 18</div>
         <div class="progress-bar">
-            <div class="progress-fill" style="width: 64.28%"></div>
+            <div class="progress-fill" style="width: 50.00%"></div>
         </div>
 
         <div class="lesson-header">
@@ -38,52 +42,31 @@
         </div>
 
         <h2>Introduction</h2>
-        <p>Materials and textures control how objects appear. ModelViewer supports both traditional ADS materials and modern PBR (Physically Based Rendering) materials.</p>
+        <p>ModelViewer authors materials using a single, physically-based (PBR) model — base color, metallic, roughness, and related properties. There is no separate 'ADS material' authoring workflow to switch between; every material is a PBR material.</p>
+
+        <div class="note note-info">
+            You may still see 'ADS' elsewhere in ModelViewer — that's the <b>Rendering Mode</b> toggle (see Lesson 7 / the Quick Help dialog's Rendering &amp; Display Modes tab), which shades your PBR material data using a classic Ambient-Diffuse-Specular lighting model instead of full PBR lighting. It's an alternate way to light the same material, not a different kind of material to author.
+        </div>
 
         <h2>Material Editor</h2>
-        <p>Access the material editor from the left panel:</p>
+        <p>Access the material editor from the right panel:</p>
         <div class="step">
             <div class="step-title">Step 1: Select Objects</div>
             <div class="step-content">Select one or more objects to apply materials to.</div>
         </div>
         <div class="step">
-            <div class="step-title">Step 2: Open Material Tab</div>
-            <div class="step-content">Click the 'Material' tab in the left panel.</div>
+            <div class="step-title">Step 2: Open Materials Tab</div>
+            <div class="step-content">Click the 'Materials' tab in the right panel. Material and texture editing are combined in this one panel.</div>
         </div>
 
         <div class="screenshot-container">
-            <img src="screenshots/tutorial_09_material_panel.png" alt="Material editor panel showing ADS and PBR properties" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <img src="screenshots/tutorial_09_material_panel.png" alt="Materials panel showing PBR properties" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
             <div class="screenshot-placeholder" style="display:none; width:300px; height:500px;">Screenshot: tutorial_09_material_panel.png (300x500)</div>
-            <span class="screenshot-caption">Material editor panel showing ADS and PBR properties</span>
-        </div>
-
-        <h2>Basic Material Properties (ADS)</h2>
-        <p>Traditional Ambient-Diffuse-Specular material model:</p>
-        <div class="step">
-            <div class="step-title">Step 1: Diffuse Color</div>
-            <div class="step-content">The base color of the object. Click the color box to open the color picker.</div>
-        </div>
-        <div class="step">
-            <div class="step-title">Step 2: Ambient Color</div>
-            <div class="step-content">Color in shadowed areas. Usually same as diffuse but darker.</div>
-        </div>
-        <div class="step">
-            <div class="step-title">Step 3: Specular Color</div>
-            <div class="step-content">Color of highlights. Usually white or light gray.</div>
-        </div>
-        <div class="step">
-            <div class="step-title">Step 4: Shininess</div>
-            <div class="step-content">Controls specular highlight size. Higher = smaller, sharper highlights.</div>
-        </div>
-
-        <div class="screenshot-container">
-            <img src="screenshots/tutorial_09_ads_materials.png" alt="Objects with different ADS material properties" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
-            <div class="screenshot-placeholder" style="display:none; width:700px; height:400px;">Screenshot: tutorial_09_ads_materials.png (700x400)</div>
-            <span class="screenshot-caption">Objects with different ADS material properties</span>
+            <span class="screenshot-caption">Materials panel showing PBR properties</span>
         </div>
 
         <h2>PBR Material Properties</h2>
-        <p>Modern physically-based materials for realistic rendering:</p>
+        <p>Physically-based properties for realistic rendering:</p>
                 <div class="step">
             <div class="step-title">Step 1: Base Color/Albedo</div>
             <div class="step-content">The surface color without lighting effects.</div>
@@ -108,34 +91,24 @@
         </div>
 
         <h2>Applying Textures</h2>
-        <p>Add image-based detail to surfaces:</p>
+        <p>Add image-based detail to surfaces, from the same Materials panel used above:</p>
         <div class="step">
-            <div class="step-title">Step 1: Open Texture Tab</div>
-            <div class="step-content">Click the 'Textures' tab in the left panel.</div>
-        </div>
-        <div class="step">
-            <div class="step-title">Step 2: Load Texture Images</div>
+            <div class="step-title">Step 1: Load Texture Images</div>
             <div class="step-content">Click 'Browse' buttons to select texture files (PNG, JPG, TGA, etc.) for different maps.</div>
         </div>
         <div class="step">
-            <div class="step-title">Step 3: Texture Types</div>
+            <div class="step-title">Step 2: Texture Types</div>
             <div class="step-content">
-                <b>ADS Workflow:</b><br/>
-                • Diffuse map - Base color<br/>
-                • Normal map - Surface details<br/>
-                • Specular map - Highlight variation<br/>
-                • Height/Bump map - Surface displacement<br/><br/>
-                <b>PBR Workflow:</b><br/>
                 • Albedo/Base Color map<br/>
-                • Normal map<br/>
+                • Normal map - surface detail<br/>
                 • Metallic map<br/>
                 • Roughness map<br/>
-                • AO map<br/>
+                • Ambient Occlusion (AO) map<br/>
                 • Height map
             </div>
         </div>
         <div class="step">
-            <div class="step-title">Step 4: Apply Textures</div>
+            <div class="step-title">Step 3: Apply Textures</div>
             <div class="step-content">Click 'Apply' to apply loaded textures to selected objects.</div>
         </div>
 

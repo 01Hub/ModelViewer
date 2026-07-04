@@ -189,7 +189,11 @@ void TutorialDialog::populateLessonList()
         << tr("11. Working with Visibility")
         << tr("12. Advanced Features")
         << tr("13. Performance Optimization")
-        << tr("14. Tips & Workflows");
+        << tr("14. Tips & Workflows")
+        << tr("15. Exploded Views")
+        << tr("16. Morph Target Animation")
+        << tr("17. Node Transform Editing")
+        << tr("18. Edge & Wireframe Rendering");
 
     _lessonList->addItems(items);
 }
@@ -209,7 +213,7 @@ QString TutorialDialog::getLessonPath(int lessonIndex) const
         return basePath + "/index.html";
     }
 
-    // Regular lesson (1-14)
+    // Regular lesson (1-18)
     return basePath + QString("/lesson%1.html").arg(lessonIndex, 2, 10, QChar('0'));
 }
 
@@ -224,7 +228,9 @@ QString TutorialDialog::getLessonTitle(int lessonIndex) const
         "Getting Started", "Opening Models", "Basic Navigation", "Selecting Objects",
         "View Modes", "Camera Modes", "Display Modes", "Manipulating Objects",
         "Materials & Textures", "Lighting & Environment", "Working with Visibility",
-        "Advanced Features", "Performance Optimization", "Tips & Workflows"
+        "Advanced Features", "Performance Optimization", "Tips & Workflows",
+        "Exploded Views", "Morph Target Animation", "Node Transform Editing",
+        "Edge & Wireframe Rendering"
     };
 
     if (lessonIndex >= 1 && lessonIndex <= titles.size())
@@ -320,7 +326,7 @@ void TutorialDialog::loadLesson(int listIndex)
         return;
     }
 
-    // Convert list index to lesson number (1-14)
+    // Convert list index to lesson number (1-18)
     int lessonNumber = listIndex;  // listIndex 1 = lesson 1, listIndex 2 = lesson 2, etc.
 
     QString lessonPath = getLessonPath(lessonNumber);

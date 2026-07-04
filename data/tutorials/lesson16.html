@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 16: Morph Target Animation - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials & Textures</a>
+            <a href="lesson10.html">10. Lighting & Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips & Workflows</a>
+            <a href="lesson15.html">15. Exploded Views</a>
+            <a href="lesson16.html" class='active'>16. Morph Target Animation</a>
+            <a href="lesson17.html">17. Node Transform Editing</a>
+            <a href="lesson18.html">18. Edge & Wireframe Rendering</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 16 of 18</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 88.89%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 16: Morph Target Animation</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Morph targets (also called blend shapes) let a mesh smoothly deform between different vertex-position variants — commonly used for facial expressions, breathing cycles, and other organic deformation that can't be achieved with rigid transforms or skeletal rigging alone. ModelViewer supports morph targets imported from glTF/GLB files and preserves them when you save and reload a session.</p>
+
+        <div class="note note-info">
+            Morph targets are distinct from the object transforms covered in Lesson 8 — they deform the mesh's actual vertex positions rather than moving, rotating, or scaling a rigid object.
+        </div>
+
+        <h2>Loading a Model with Morph Targets</h2>
+        <div class="step">
+            <div class="step-title">Step 1: Import a glTF/GLB Model</div>
+            <div class="step-content">Import a glTF or GLB file that contains morph target (blend shape) data. Not all models include them — check the model's source if you're unsure.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Check for an Animation Clip</div>
+            <div class="step-content">If the file also includes an animation clip that drives the morph weights over time, it will appear in the Animations panel automatically.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_16_morph_model_loaded.png" alt="A model with morph targets loaded, ready for playback in the Animations panel" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_16_morph_model_loaded.png (700x450)</div>
+            <span class="screenshot-caption">A model with morph targets loaded, ready for playback in the Animations panel</span>
+        </div>
+
+        <h2>Playing Back Morph Animations</h2>
+        <p>Morph target weights are driven the same way as any other animation clip:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Open the Animations Panel</div>
+            <div class="step-content">Open the Animations panel from the right-side panels.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Select a Clip</div>
+            <div class="step-content">Choose the animation clip that drives the morph deformation from the clip list.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Play, Pause, Loop</div>
+            <div class="step-content">Use the 'Play'/'Pause' button to control playback, and enable 'Loop' to repeat the animation continuously.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 4: Adjust Speed</div>
+            <div class="step-content">Use the 'Speed' control to slow playback down for a closer look at the deformation, or speed it up for a quick preview.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_16_animations_panel.png" alt="Animations panel with a morph-driving clip selected and playback controls visible" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:600px; height:400px;">Screenshot: tutorial_16_animations_panel.png (600x400)</div>
+            <span class="screenshot-caption">Animations panel with a morph-driving clip selected and playback controls visible</span>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_16_morph_before_after.png" alt="The same mesh at two different points in a morph target animation" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:400px;">Screenshot: tutorial_16_morph_before_after.png (700x400)</div>
+            <span class="screenshot-caption">The same mesh at two different points in a morph target animation</span>
+        </div>
+
+        <h2>Saving and Reloading</h2>
+        <div class="step">
+            <div class="step-title">Step 1: Save as MVF</div>
+            <div class="step-content">Save your session as an <b>.mvf</b> file — morph target data and their driving clips are fully preserved.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Export to glTF/GLB</div>
+            <div class="step-content">Exporting back to glTF or GLB re-injects the morph target and animation data so the file remains compatible with other glTF viewers and tools.</div>
+        </div>
+
+        <div class="note note-tip">
+            If a model's morph deformation doesn't seem to move, first make sure you've selected and played the correct clip — a model can have multiple clips, and not all of them necessarily drive morph weights.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson15.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <a href='lesson17.html' class='nav-button'>Next Lesson →</a>
+        </div>
+    </div>
+</body>
+</html>

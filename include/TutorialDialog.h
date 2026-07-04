@@ -50,7 +50,7 @@ private:
     void updateNavigationButtons();
 
     QString getTutorialBasePath() const;
-    QString getLessonPath(int lessonIndex) const;  // lessonIndex is 1-14 for lessons, -1 for index
+    QString getLessonPath(int lessonIndex) const;  // lessonIndex is 1-18 for lessons, -1 for index
     QString getLessonTitle(int lessonIndex) const;
     QString loadHtmlFile(const QString& filename);
     void showError(const QString& title, const QString& message);
@@ -69,7 +69,7 @@ private:
     QPushButton* _closeButton;
     QSplitter* _splitter;
 
-    int _currentListIndex;  // Current position in list (0=index, 1-14=lessons)
-    static constexpr int TOTAL_LESSONS = 14;
+    int _currentListIndex;  // Current position in list (0=index, 1-18=lessons)
+    static constexpr int TOTAL_LESSONS = 18;
     static constexpr int TOTAL_LIST_ITEMS = TOTAL_LESSONS + 1;  // Include index page
 };

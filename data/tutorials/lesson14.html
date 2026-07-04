@@ -24,13 +24,17 @@
             <a href="lesson12.html">12. Advanced Features</a>
             <a href="lesson13.html">13. Performance Optimization</a>
             <a href="lesson14.html" class='active'>14. Tips & Workflows</a>
+            <a href="lesson15.html">15. Exploded Views</a>
+            <a href="lesson16.html">16. Morph Target Animation</a>
+            <a href="lesson17.html">17. Node Transform Editing</a>
+            <a href="lesson18.html">18. Edge & Wireframe Rendering</a>
         </nav>
     </div>
 
     <div id="main-content">
-        <div class="progress-text">Lesson 14 of 14</div>
+        <div class="progress-text">Lesson 14 of 18</div>
         <div class="progress-bar">
-            <div class="progress-fill" style="width: 100%"></div>
+            <div class="progress-fill" style="width: 77.78%"></div>
         </div>
 
         <div class="lesson-header">
@@ -52,9 +56,9 @@
         <h2>Selection Tricks</h2>
         <ul>
             <li><b>Deselect Fast:</b> Press <kbd>Esc</kbd> to clear all current selections.</li>
-            <li><b>Search Objects:</b> Use the search box above the Object List to filter items by name.</li>
+            <li><b>Search Objects:</b> Use the search box above the Model Tree to filter items by name — matches assembly and root node names too, not just leaf mesh names.</li>
             <li><b>Center on Selection:</b> Right-click → 'Center Screen' to frame only the selected objects.</li>
-            <li><b>Scroll to Selection:</b> Right-click → 'Center Object List' to automatically scroll the list to your selected item.</li>
+            <li><b>Scroll to Selection:</b> Right-click → 'Center Object List' to automatically scroll the tree to your selected item.</li>
         </ul>
 
         <h2>Visibility Workflows</h2>
@@ -99,8 +103,8 @@
                 <tr><td>Swap visible</td><td><kbd>Alt+S</kbd></td></tr>
                 <tr><td>Delete</td><td><kbd>Delete</kbd></td></tr>
                 <tr><td>Deselect all</td><td><kbd>Esc</kbd></td></tr>
-                <tr><td>Import</td><td><kbd>Ctrl+Shift+I</kbd></td></tr>
-                <tr><td>Export</td><td><kbd>Ctrl+Shift+E</kbd></td></tr>
+                <tr><td>Import</td><td><kbd>Ctrl+I</kbd></td></tr>
+                <tr><td>Export</td><td><kbd>Ctrl+E</kbd></td></tr>
                 <tr><td>Camera modes</td><td><kbd>1</kbd> / <kbd>2</kbd> / <kbd>3</kbd></td></tr>
             </tbody>
         </table>
@@ -134,7 +138,7 @@
 
         <h2>Troubleshooting Quick Fixes</h2>
         <ul>
-            <li><b>Black screen:</b> Check if the object is listed in the Object List; it may need lighting or be positioned far from the camera.</li>
+            <li><b>Black screen:</b> Check if the object is listed in the Model Tree; it may need lighting or be positioned far from the camera.</li>
             <li><b>Flashing textures:</b> Check if UVs exist; if not, try 'Generate UVs'.</li>
             <li><b>Weird shading:</b> Enable 'Show Normals' to diagnose reversed faces or normal issues.</li>
             <li><b>Can't select:</b> Press <kbd>Esc</kbd> to cancel any active special view mode.</li>
@@ -145,9 +149,9 @@
         <h2>Customization</h2>
         <ul>
             <li><b>Background Color:</b> Right-click → 'Background Color' to set a custom viewport color.</li>
-            <li><b>Theme:</b> Go to File → Settings to switch between Light, Dark, or System themes.</li>
-            <li><b>Language:</b> File → Settings to change the interface language.</li>
-            <li><b>Quality vs Performance:</b> Use File → Settings to adjust MSAA and anisotropic filtering.</li>
+            <li><b>Theme:</b> Go to Edit → Settings to switch between Light, Dark, or System themes.</li>
+            <li><b>Language:</b> Edit → Settings to change the interface language.</li>
+            <li><b>Quality vs Performance:</b> Use Edit → Settings to adjust MSAA and anisotropic filtering.</li>
         </ul>
 
         <h2>File Organization</h2>
@@ -155,14 +159,14 @@
             <li>Use the <b>Recent Files</b> menu (File → Recent) for quick access to your work.</li>
             <li>Save working sessions as <b>.mvf</b> files to preserve camera positions, visibility, and settings.</li>
             <li>Keep <b>texture files</b> in the same folder as your models for automatic path finding.</li>
-            <li>Use <b>descriptive names</b> in the object list (double-click to rename).</li>
+            <li>Use <b>descriptive names</b> in the model tree (double-click to rename).</li>
         </ul>
 
         <h2>Learning More</h2>
         <ul>
             <li><b>Help Menu:</b> Press <kbd>F1</kbd> or go to Help → Quick Help for an instant reference.</li>
             <li><b>Experiment:</b> Try all features with different test models to see how they behave.</li>
-            <li><b>Settings:</b> Explore File → Settings for additional hidden options.</li>
+            <li><b>Settings:</b> Explore Edit → Settings for additional hidden options.</li>
             <li><b>Context Menus:</b> Right-click everywhere to discover context-sensitive options.</li>
         </ul>
 
@@ -175,12 +179,12 @@
             <li>Experiment with materials and lighting.</li>
             <li>Discover your own workflows.</li>
         </ul>
-        <p><b>You've completed the tutorial!</b> You now have the knowledge to effectively use ModelViewer. Keep experimenting and discovering new techniques.</p>
+        <p><b>You've completed the core tutorial!</b> You now have the knowledge to effectively use ModelViewer day-to-day. The remaining lessons cover more advanced, specialized features.</p>
 
         <div class="lesson-navigation">
             <a href='lesson13.html' class='nav-button'>← Previous Lesson</a>
             <a href="index.html" class="back-to-index">↑ Back to Index</a>
-            <span class='nav-button disabled'>Tutorial Complete ✔</span>
+            <a href='lesson15.html' class='nav-button'>Next Lesson →</a>
         </div>
     </div>
 </body>
