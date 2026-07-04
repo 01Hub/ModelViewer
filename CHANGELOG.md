@@ -1,6 +1,6 @@
 # Changelog
 
-## [2026.7.0] - Unreleased
+## [2026.7.0] - 2026-07-04
 
 The largest release in the project's history — 410 commits since `1.2.3`/`Release-1.0`.
 Highlights are grouped by theme below; internal refactors are summarized rather than
@@ -86,9 +86,16 @@ listed commit-by-commit.
 - Four new tutorial lessons added: Exploded Views, Morph Target Animation,
   Node Transform Editing, and Edge & Wireframe Rendering.
 
+### Packaging
+
+- Windows installer (Inno Setup, `packaging/windows/mvinstaller.iss`) and a
+  Linux AppImage are now built in CI and attached to tagged releases.
+- Packaged (Release-configuration) installs ship a curated subset of the
+  optional HDRI environment and PBR material preset libraries to keep
+  installer/AppImage size reasonable; local Debug installs still get the
+  full libraries for development.
+
 ### Known Gaps
 
-- Tutorial screenshots for the four new lessons (15-18) are placeholders
-  pending capture.
 - Pawn UUID ordering issue in the ABeautifulGame chess scene (deferred,
   severity pending assessment).
