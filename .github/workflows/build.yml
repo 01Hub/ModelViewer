@@ -23,29 +23,50 @@ env:
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
 
 jobs:
+  compute-matrix:
+    # Computes the actual matrix to run. On push/PR (or workflow_dispatch with
+    # inputs left as "all"), this is the full 3-OS x 2-build_type cross
+    # product, same as before. On workflow_dispatch with a specific os/
+    # build_type chosen, it's narrowed to just that combination - job-level
+    # `if:` conditions can't reference `matrix.*` to filter legs after the
+    # fact, so the matrix itself has to be built with only what's wanted.
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+    - id: set
+      shell: bash
+      env:
+        INPUT_OS: ${{ github.event.inputs.os || 'all' }}
+        INPUT_BUILD_TYPE: ${{ github.event.inputs.build_type || 'all' }}
+      run: |
+        python3 - <<'PYEOF' >> "$GITHUB_OUTPUT"
+        import json, os
+
+        os_input = os.environ["INPUT_OS"]
+        bt_input = os.environ["INPUT_BUILD_TYPE"]
+
+        all_os = [
+            {"os": "ubuntu-latest", "triplet": "x64-linux", "mono": "mono"},
+            {"os": "windows-latest", "triplet": "x64-windows", "mono": ""},
+            {"os": "macos-latest", "triplet": "x64-osx", "mono": "mono"},
+        ]
+        all_build_types = ["Release", "Debug"]
+
+        oses = all_os if os_input == "all" else [o for o in all_os if o["os"] == os_input]
+        build_types = all_build_types if bt_input == "all" else [bt_input]
+
+        matrix = [dict(o, build_type=bt) for o in oses for bt in build_types]
+
+        print(f"matrix={json.dumps(matrix)}")
+        PYEOF
+
   build:
-    # On workflow_dispatch, skip matrix legs that don't match the chosen
-    # os/build_type inputs (both default to "all", running the full matrix).
-    # Push/PR-triggered runs have no such inputs, so this is always true then.
-    if: |
-      github.event_name != 'workflow_dispatch' ||
-      ((github.event.inputs.os == 'all' || github.event.inputs.os == matrix.os) &&
-       (github.event.inputs.build_type == 'all' || github.event.inputs.build_type == matrix.build_type))
+    needs: compute-matrix
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        build_type: [Release, Debug]
-        include:
-          - os: ubuntu-latest
-            triplet: x64-linux
-            mono: mono
-          - os: windows-latest
-            triplet: x64-windows
-            mono: ""
-          - os: macos-latest
-            triplet: x64-osx
-            mono: mono
+        include: ${{ fromJson(needs.compute-matrix.outputs.matrix) }}
 
     runs-on: ${{ matrix.os }}
 
