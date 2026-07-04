@@ -12,7 +12,7 @@ on:
         description: 'Limit to one OS (leave as "all" to run the full matrix)'
         type: choice
         default: 'all'
-        options: [ all, ubuntu-latest, windows-latest, macos-latest ]
+        options: [ all, ubuntu-latest, windows-latest ]
       build_type:
         description: 'Limit to one build type (leave as "all" to run both)'
         type: choice
@@ -46,10 +46,12 @@ jobs:
         os_input = os.environ["INPUT_OS"]
         bt_input = os.environ["INPUT_BUILD_TYPE"]
 
+        # macos-latest dropped: Apple deprecated OpenGL (this app's rendering
+        # backend) with no further investment, so macOS CI coverage isn't
+        # worth the vcpkg/toolchain flakiness it kept hitting.
         all_os = [
             {"os": "ubuntu-latest", "triplet": "x64-linux", "mono": "mono"},
             {"os": "windows-latest", "triplet": "x64-windows", "mono": ""},
-            {"os": "macos-latest", "triplet": "x64-osx", "mono": "mono"},
         ]
         all_build_types = ["Release", "Debug"]
 
@@ -124,11 +126,6 @@ jobs:
           automake \
           libtool \
           imagemagick
-
-    - name: Install system dependencies (macOS)
-      if: runner.os == 'macOS'
-      run: |
-        brew install cmake ninja pkg-config autoconf automake libtool
 
     - name: Setup MSVC (Windows)
       if: runner.os == 'Windows'
