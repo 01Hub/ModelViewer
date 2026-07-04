@@ -95,6 +95,10 @@ jobs:
       if: runner.os == 'Windows'
       uses: ilammy/msvc-dev-cmd@v1
 
+    - name: Install Ninja (Windows)
+      if: runner.os == 'Windows'
+      run: choco install ninja -y --no-progress
+
     - name: Setup environment for vcpkg
       run: |
         echo "VCPKG_OVERLAY_TRIPLETS=${{ github.workspace }}/vcpkg/triplets" >> $GITHUB_ENV
@@ -123,7 +127,7 @@ jobs:
     - name: Configure CMake (Windows)
       if: runner.os == 'Windows'
       run: |
-        cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} -DCMAKE_INSTALL_PREFIX=install -G "Visual Studio 17 2022" -A x64
+        cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} -DCMAKE_INSTALL_PREFIX=install -G Ninja
 
     - name: Configure CMake (Unix)
       if: runner.os != 'Windows'
