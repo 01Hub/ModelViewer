@@ -218,10 +218,15 @@ jobs:
         set -e
 
         # --- Locate qmake from the vcpkg-built Qt6, so linuxdeploy-plugin-qt
-        # can find Qt's plugins/translations/lib dir to bundle. ---
-        QMAKE_PATH=$(find "${{ github.workspace }}/build/vcpkg_installed" -maxdepth 4 -type f -name qmake6 | head -n1)
-        if [ -z "$QMAKE_PATH" ]; then
-          QMAKE_PATH=$(find "${{ github.workspace }}/build/vcpkg_installed" -maxdepth 4 -type f -name qmake | head -n1)
+        # can find Qt's plugins/translations/lib dir to bundle. vcpkg installs
+        # tool binaries under vcpkg_installed/<triplet>/tools/Qt6/bin/ - no
+        # maxdepth limit here so this doesn't silently miss it again if
+        # vcpkg's layout ever changes depth. ---
+        QMAKE_PATH=$(find "${{ github.workspace }}/build/vcpkg_installed" -type f \( -name qmake6 -o -name qmake \) 2>/dev/null | head -n1)
+        if [ -z "$QMAKE_PATH" ] || [ ! -f "$QMAKE_PATH" ]; then
+          echo "ERROR: qmake not found under build/vcpkg_installed. Contents searched:"
+          find "${{ github.workspace }}/build/vcpkg_installed" -type f -iname "*qmake*" 2>/dev/null || true
+          exit 1
         fi
         echo "Using qmake: $QMAKE_PATH"
         export QMAKE="$QMAKE_PATH"

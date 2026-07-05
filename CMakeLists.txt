@@ -173,16 +173,29 @@ foreach(_ts ${TS_FILES})
     endif()
 endforeach()
 
-# Generate/update translation files using lupdate
-add_custom_target(update_translations
-    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target ModelViewer --parallel 1 || true
-    COMMAND ${Qt6_LUPDATE_EXECUTABLE}
-        ${sources} ${ui_sources}
-        -ts ${TS_FILES}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    COMMENT "Updating .ts files"
-    DEPENDS ${ui_wrapped}
-)
+# Generate/update translation files using lupdate.
+# Qt6's LinguistTools component is requested without REQUIRED above, so on
+# platforms/vcpkg builds where it isn't available, Qt6_LUPDATE_EXECUTABLE is
+# silently empty - which would collapse the COMMAND below down to just
+# "${sources} ${ui_sources} -ts ...", making the shell try to *execute* the
+# first source/header file as if it were the lupdate binary. Guard against
+# that by only wiring up the real lupdate COMMAND when the executable exists.
+if(Qt6_LUPDATE_EXECUTABLE)
+    add_custom_target(update_translations
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target ModelViewer --parallel 1 || true
+        COMMAND ${Qt6_LUPDATE_EXECUTABLE}
+            ${sources} ${ui_sources}
+            -ts ${TS_FILES}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Updating .ts files"
+        DEPENDS ${ui_wrapped}
+    )
+else()
+    add_custom_target(update_translations
+        COMMAND ${CMAKE_COMMAND} -E echo "Skipping: Qt6 LinguistTools (lupdate) not found"
+        COMMENT "Updating .ts files (skipped - lupdate unavailable)"
+    )
+endif()
     
 # Compile .ts files to .qm files
 qt6_add_lrelease(ModelViewer
