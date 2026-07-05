@@ -221,21 +221,15 @@ jobs:
       run: |
         set -e
 
-        # --- Locate qmake from the vcpkg-built Qt6, so linuxdeploy-plugin-qt
-        # can find Qt's plugins/translations/lib dir to bundle. vcpkg installs
-        # tool binaries under vcpkg_installed/<triplet>/tools/Qt6/bin/ - no
-        # maxdepth limit here so this doesn't silently miss it again if
-        # vcpkg's layout ever changes depth. ---
-        QMAKE_PATH=$(find "${{ github.workspace }}/build/vcpkg_installed" -type f \( -name qmake6 -o -name qmake \) 2>/dev/null | head -n1)
-        if [ -z "$QMAKE_PATH" ] || [ ! -f "$QMAKE_PATH" ]; then
-          echo "ERROR: qmake not found under build/vcpkg_installed. Contents searched:"
-          find "${{ github.workspace }}/build/vcpkg_installed" -type f -iname "*qmake*" 2>/dev/null || true
-          exit 1
-        fi
-        echo "Using qmake: $QMAKE_PATH"
-        export QMAKE="$QMAKE_PATH"
-
-        # --- Assemble an AppDir from the CMake install output. ---
+        # --- Assemble an AppDir from the CMake install output. Qt's own
+        # qt_generate_deploy_app_script (now unconditional, not WIN32-only -
+        # see CMakeLists.txt) already bundled the runtime plugins (platform
+        # plugin, imageformats, etc.) into install/ during "cmake --install",
+        # so no separate Qt-deployment step is needed here at all: this
+        # project links Qt statically (vcpkg x64-linux triplet), so there are
+        # no Qt shared libraries for linuxdeploy's "qt" plugin to find -
+        # every earlier attempt using --plugin qt failed with "Could not
+        # find Qt modules to deploy" for exactly that reason. ---
         APPDIR="${{ github.workspace }}/AppDir"
         mkdir -p "$APPDIR/usr"
         cp -r "${{ github.workspace }}/install/"* "$APPDIR/usr/"
@@ -245,18 +239,14 @@ jobs:
         convert "${{ github.workspace }}/res/ModelViewer.ico[0]" \
           "$APPDIR/usr/share/icons/hicolor/256x256/apps/modelviewer.png"
 
-        # --- Download linuxdeploy, its Qt plugin, and appimagetool, then
-        # pre-extract each (--appimage-extract) so none of them need FUSE to
-        # run on the CI runner. Extracted AppRun entrypoints are exposed on
-        # PATH under the exact names linuxdeploy's plugin discovery expects. ---
+        # --- Download linuxdeploy and appimagetool, then pre-extract each
+        # (--appimage-extract) so neither needs FUSE to run on the CI runner. ---
         TOOLS_DIR="${{ github.workspace }}/appimage-tools"
         mkdir -p "$TOOLS_DIR"
         cd "$TOOLS_DIR"
 
         curl -L -o linuxdeploy-x86_64.AppImage \
           https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-        curl -L -o linuxdeploy-plugin-qt-x86_64.AppImage \
-          https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
         curl -L -o appimagetool-x86_64.AppImage \
           https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
         chmod +x ./*.AppImage
@@ -264,17 +254,12 @@ jobs:
         ./linuxdeploy-x86_64.AppImage --appimage-extract >/dev/null
         mv squashfs-root linuxdeploy-extracted
 
-        ./linuxdeploy-plugin-qt-x86_64.AppImage --appimage-extract >/dev/null
-        mv squashfs-root linuxdeploy-plugin-qt-extracted
-        ln -s "$TOOLS_DIR/linuxdeploy-plugin-qt-extracted/AppRun" \
-              "$TOOLS_DIR/linuxdeploy-plugin-qt-extracted/linuxdeploy-plugin-qt"
-
         ./appimagetool-x86_64.AppImage --appimage-extract >/dev/null
         mv squashfs-root appimagetool-extracted
         ln -s "$TOOLS_DIR/appimagetool-extracted/AppRun" \
               "$TOOLS_DIR/appimagetool-extracted/appimagetool"
 
-        export PATH="$TOOLS_DIR/linuxdeploy-plugin-qt-extracted:$TOOLS_DIR/appimagetool-extracted:$PATH"
+        export PATH="$TOOLS_DIR/appimagetool-extracted:$PATH"
 
         mkdir -p "${{ github.workspace }}/dist"
         cd "${{ github.workspace }}/dist"
@@ -283,7 +268,6 @@ jobs:
           --executable "$APPDIR/usr/bin/ModelViewer" \
           --desktop-file "${{ github.workspace }}/ModelViewer.desktop" \
           --icon-file "$APPDIR/usr/share/icons/hicolor/256x256/apps/modelviewer.png" \
-          --plugin qt \
           --output appimage
 
     - name: Upload Linux AppImage

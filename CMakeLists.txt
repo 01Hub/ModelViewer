@@ -516,15 +516,26 @@ if(WIN32)
             POST_EXCLUDE_REGEXES
                 [[.*system32.*.dll]]
     )
+endif()
 
-    if(QT_VERSION_MAJOR EQUAL 6)
-        qt_generate_deploy_app_script(
-            TARGET ModelViewer
-            OUTPUT_SCRIPT deploy_script
-            NO_UNSUPPORTED_PLATFORM_ERROR
-            NO_COMPILER_RUNTIME
-        )
+# qt_generate_deploy_app_script is Qt6's own cross-platform deployment
+# tooling - it deploys the runtime plugins Qt loads via dlopen at runtime
+# (platform plugin like libqxcb.so, imageformats, iconengines, etc.) and
+# sets up the rpath/qt.conf so the app finds them relative to itself. This
+# matters even where Qt itself is statically linked (e.g. this project's
+# vcpkg x64-linux triplet, VCPKG_LIBRARY_LINKAGE static): Qt's plugin
+# architecture always loads platform/imageformat plugins as separate
+# dynamically-loaded .so/.dll files regardless of how Qt's own core
+# libraries were linked, so without this a Linux build has no platform
+# plugin at all and can't create a window. Previously gated to WIN32 only,
+# which meant Linux installs/AppImages were missing these entirely.
+if(QT_VERSION_MAJOR EQUAL 6)
+    qt_generate_deploy_app_script(
+        TARGET ModelViewer
+        OUTPUT_SCRIPT deploy_script
+        NO_UNSUPPORTED_PLATFORM_ERROR
+        NO_COMPILER_RUNTIME
+    )
 
-        install(SCRIPT ${deploy_script})
-    endif()
+    install(SCRIPT ${deploy_script})
 endif()
