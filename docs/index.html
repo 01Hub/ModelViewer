@@ -19,7 +19,11 @@
         }
 
         header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background:
+                linear-gradient(135deg, rgba(102, 126, 234, 0.85) 0%, rgba(118, 75, 162, 0.85) 100%),
+                url('assets/splashscreen.png');
+            background-size: cover;
+            background-position: center;
             color: white;
             padding: 60px 20px;
             text-align: center;
@@ -365,7 +369,7 @@
         <p>OpenGL-based 3D Model Viewer with Advanced Rendering Capabilities</p>
         <div style="margin-top: 20px;">
             <a href="https://github.com/sharjith/ModelViewer-Qt" style="display: inline-block; background: white; color: #667eea; padding: 10px 20px; margin: 0 10px; border-radius: 4px; text-decoration: none; font-weight: 600; transition: all 0.3s;" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background='white'">📂 GitHub Repository</a>
-            <a href="https://github.com/sharjith/ModelViewer-Qt/releases/tag/Release-2026.7.0" style="display: inline-block; background: white; color: #667eea; padding: 10px 20px; margin: 0 10px; border-radius: 4px; text-decoration: none; font-weight: 600; transition: all 0.3s;" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background='white'">🚀 Latest Release</a>
+            <a href="https://github.com/sharjith/ModelViewer-Qt/releases/latest" style="display: inline-block; background: white; color: #667eea; padding: 10px 20px; margin: 0 10px; border-radius: 4px; text-decoration: none; font-weight: 600; transition: all 0.3s;" onmouseover="this.style.background='#f0f0f0'" onmouseout="this.style.background='white'">🚀 Latest Release</a>
         </div>
     </header>
 
@@ -377,11 +381,11 @@
         <div class="feature-showcase">
             <div class="showcase-item">
                 <h3>ADS Mode for CAD Visualization</h3>
-                <img src="https://github.com/user-attachments/assets/364c5cf4-34b5-4991-938c-d36ea05a8026" alt="Screenshot ADS Mode">
+                <img src="assets/screenshots/ads-mode.jpg" alt="Screenshot ADS Mode">
             </div>
             <div class="showcase-item">
                 <h3>PBR Mode for Advanced Visualization</h3>
-                <img width="1920" height="1032" src="https://github.com/user-attachments/assets/9b31b1fd-90ee-47c4-af3b-3cacae6f0f27" alt="Screenshot PBR Mode">
+                <img width="1920" height="1032" src="assets/screenshots/pbr-mode.jpg" alt="Screenshot PBR Mode">
             </div>
         </div>
 
@@ -391,7 +395,7 @@
 
             <h3>Rendering Modes & Visualization</h3>
             <p>ModelViewer supports a comprehensive range of visualization and rendering styles for different inspection and analysis needs:</p>
-            <img width="4402" height="2128" src="https://github.com/user-attachments/assets/ab09ef98-b2f2-4db9-8490-79505025c851" alt="Rendering Modes">
+            <img width="4402" height="2128" src="assets/screenshots/rendering-modes.jpg" alt="Rendering Modes">
             
             <ul>
                 <li><strong>Solid Shading:</strong> Standard surface rendering</li>
@@ -404,10 +408,10 @@
             <h3>Advanced Rendering Modes</h3>
             
             <h4>Metallic Roughness, Transmission, and Volume</h4>
-            <img width="4400" height="2430" src="https://github.com/user-attachments/assets/1c6b2c74-f7bd-4c86-a0fc-ee12b5da38af" alt="Advanced Rendering">
+            <img width="4400" height="2430" src="assets/screenshots/metallic-roughness-transmission-volume.jpg" alt="Advanced Rendering">
             
             <h4>Sheen, Alpha Coverage</h4>
-            <img width="4400" height="2430" src="https://github.com/user-attachments/assets/2c245b12-7071-483e-8b21-bac1613a9cfd" alt="Sheen and Alpha">
+            <img width="4400" height="2430" src="assets/screenshots/sheen-alpha-coverage.jpg" alt="Sheen and Alpha">
 
             <ul>
                 <li><strong>Physically-Based Rendering (PBR):</strong> Full Cook-Torrance BRDF implementation with metallic/roughness workflows</li>
@@ -419,7 +423,7 @@
 
             <h3>Material System & KHR Extensions</h3>
             <p>ModelViewer implements comprehensive support for Khronos KHR material extensions, enabling advanced material rendering capabilities:</p>
-            <img width="1920" height="1032" src="https://github.com/user-attachments/assets/f914735b-df56-4d31-99cc-444a3ddbc8fb" alt="Material System">
+            <img width="1920" height="1032" src="assets/screenshots/material-system.jpg" alt="Material System">
 
             <h4>Supported KHR Material Extensions:</h4>
             <ul>
@@ -439,33 +443,33 @@
             <h4>Visual Demonstrations of KHR Material Extensions:</h4>
             <div class="gallery">
                 <div class="gallery-item">
-                    <img width="1280" height="720" src="https://github.com/user-attachments/assets/8172c364-957d-4111-9004-824c833cee5e" alt="KHR 1">
+                    <img width="1280" height="720" src="assets/screenshots/khr-1.jpg" alt="KHR 1">
                 </div>
                 <div class="gallery-item">
-                    <img width="1280" height="720" src="https://github.com/user-attachments/assets/199321ed-c816-4f36-b6b2-d965cc31f47d" alt="KHR 2">
+                    <img width="1280" height="720" src="assets/screenshots/khr-2.jpg" alt="KHR 2">
                 </div>
                 <div class="gallery-item">
-                    <img width="1280" height="720" src="https://github.com/user-attachments/assets/49bf6b81-62b1-4b9f-b454-17e6c9492b2c" alt="KHR 3">
+                    <img width="1280" height="720" src="assets/screenshots/khr-3.jpg" alt="KHR 3">
                 </div>
                 <div class="gallery-item">
-                    <img width="1280" height="720" src="https://github.com/user-attachments/assets/46030044-20db-418a-9273-d7d9dc254369" alt="KHR 4">
+                    <img width="1280" height="720" src="assets/screenshots/khr-4.jpg" alt="KHR 4">
                 </div>
                 <div class="gallery-item">
-                    <img width="1280" height="720" src="https://github.com/user-attachments/assets/bccf4eeb-36f9-404d-bd2f-c3f9df33e21e" alt="KHR 5">
+                    <img width="1280" height="720" src="assets/screenshots/khr-5.jpg" alt="KHR 5">
                 </div>
                 <div class="gallery-item">
-                    <img width="1280" height="720" src="https://github.com/user-attachments/assets/d04d9ae3-ba64-4fd2-ab58-a56e37f496bc" alt="KHR 6">
+                    <img width="1280" height="720" src="assets/screenshots/khr-6.jpg" alt="KHR 6">
                 </div>
                 <div class="gallery-item">
-                    <img width="1280" height="720" src="https://github.com/user-attachments/assets/789f32bd-83ac-411f-8275-e26d914c84c4" alt="KHR 7">
+                    <img width="1280" height="720" src="assets/screenshots/khr-7.jpg" alt="KHR 7">
                 </div>
                 <div class="gallery-item">
-                    <img width="1280" height="720" src="https://github.com/user-attachments/assets/922d394e-204e-4d6c-866c-26ffe5790066" alt="KHR 8">
+                    <img width="1280" height="720" src="assets/screenshots/khr-8.jpg" alt="KHR 8">
                 </div>
             </div>
 
             <h4>KHR Punctual Lights Support:</h4>
-            <img width="1920" height="1032" src="https://github.com/user-attachments/assets/81bfdaab-9e52-47c9-8aa9-fc61b2b36ab4" alt="Punctual Lights">
+            <img width="1920" height="1032" src="assets/screenshots/punctual-lights.jpg" alt="Punctual Lights">
 
             <h4>Texture Transform Support:</h4>
             <ul>
@@ -478,7 +482,54 @@
                     </ul>
                 </li>
             </ul>
-            <img width="1920" height="1032" src="https://github.com/user-attachments/assets/636773f8-ba19-4d36-9572-c72fef2958cd" alt="Texture Transform">
+            <img width="1920" height="1032" src="assets/screenshots/texture-transform.jpg" alt="Texture Transform">
+
+            <h3>Exploded Views</h3>
+            <p>Automatic and manual assembly explosion for inspecting how a model's parts fit together:</p>
+            <ul>
+                <li><strong>Automatic Modes:</strong> Radial, per-axis, or custom-vector explosion driven by assembly hierarchy</li>
+                <li><strong>Manual Gizmo Placement:</strong> Non-destructive staging of individual parts via the interactive transform gizmo</li>
+                <li><strong>Capture Steps & Sequences:</strong> Reorderable explosion steps with presets for repeatable assembly walkthroughs</li>
+                <li><strong>Animation Export:</strong> Parallel, sequential, or separate-clip export of the explosion sequence</li>
+            </ul>
+            <img width="1920" height="1032" src="assets/screenshots/exploded-view.jpg" alt="Exploded View">
+
+            <h3>Interactive Transform Gizmo & View Cube</h3>
+            <ul>
+                <li><strong>On-Screen Transform Gizmo:</strong> Translate/rotate/scale handles for direct manipulation, shared by exploded-view manual placement</li>
+                <li><strong>Interactive View Cube:</strong> Click-to-orient navigation overlay with a switchable grid ground mode</li>
+            </ul>
+            <img width="1920" height="1032" src="assets/screenshots/transform-gizmo.jpg" alt="Transform Gizmo">
+            <img width="1920" height="1032" src="assets/screenshots/view-cube.jpg" alt="View Cube">
+
+            <h3>Animation System</h3>
+            <ul>
+                <li><strong>Morph Target (Blend Shape) Animation:</strong> Full glTF import/export round-trip, played back through the Animations panel alongside skeletal clips</li>
+                <li><strong>glTF Camera Support:</strong> Import/export of animated camera tracking data</li>
+                <li><strong>Material Variants (KHR_materials_variants):</strong> Switchable material sets per scene with full export round-trip</li>
+            </ul>
+            <img width="1920" height="1032" src="assets/screenshots/morph-target-animation.jpg" alt="Morph Target Animation">
+
+            <h4>glTF Camera Support:</h4>
+            <p>Import and export of glTF cameras, including animated camera tracking data driven by the same Animations panel used for skeletal and morph-target clips.</p>
+            <img width="1920" height="1032" src="assets/screenshots/gltf-camera.jpg" alt="glTF Camera Support">
+
+            <h4>Material Variants (KHR_materials_variants):</h4>
+            <p>Switchable material sets per scene — swap an object's entire material assignment at runtime (e.g. color/finish options for a product model), with full round-trip preservation on glTF/GLB export.</p>
+            <img width="1920" height="1032" src="assets/screenshots/material-variants.jpg" alt="glTF Material Variants">
+
+            <h3>Scene Graph & Unified Material Workflow</h3>
+            <ul>
+                <li><strong>Scene-Graph-Aware Tree Widget:</strong> Hierarchical object navigation replacing the flat object list, with assembly-correct multi-select propagation and a detachable navigation panel</li>
+                <li><strong>Threaded/Progressive Loading:</strong> GPU-safe finalization keeps the UI responsive while large scenes stream in</li>
+                <li><strong>Unified Material Panel:</strong> Single editor merging material and texture editing, UUID-based material keys, unsaved-change tracking, and a user material library</li>
+                <li><strong>Texture Debugger Panel:</strong> Live texture/extension overrides with Khronos-aligned channel isolation for geometry and texture channel inspection</li>
+            </ul>
+            <img width="543" height="974" src="assets/screenshots/tree-widget.jpg" alt="Scene Graph Tree Widget">
+
+            <h4>Texture Debugger Panel:</h4>
+            <p>Live texture and extension overrides with Khronos-aligned channel isolation, letting you inspect individual geometry and texture channels (albedo, normal, roughness, metallic, AO, and more) in isolation.</p>
+            <img width="1920" height="1032" src="assets/screenshots/texture-debugger.jpg" alt="Texture Debugger Panel">
 
             <h3>Material Editor & Library System</h3>
             <ul>
@@ -487,7 +538,7 @@
                 <li><strong>Material Deduplication:</strong> Intelligent identification and consolidation of duplicate materials</li>
                 <li><strong>Name-Based Material Matching:</strong> Preservation of original material names across the import/export pipeline</li>
             </ul>
-            <img width="543" height="974" src="https://github.com/user-attachments/assets/31754ea7-db59-44ba-abac-a3b0421a530c" alt="Material Editor">
+            <img width="543" height="974" src="assets/screenshots/material-editor.jpg" alt="Material Editor">
 
             <h3>Texture Management & Advanced Features</h3>
             <h4>Texture Processing:</h4>
@@ -504,17 +555,20 @@
                 <li><strong>Texture Transform:</strong> Per-texture UV transformation with full KHR_texture_transform support</li>
                 <li><strong>Multi-Channel Support:</strong> Independent handling of multiple texture sets and UV coordinates</li>
             </ul>
-            <img width="622" height="1003" src="https://github.com/user-attachments/assets/5c563020-d61a-4c2d-9261-434fc94d5120" alt="Texture Management">
+            <img width="622" height="1003" src="assets/screenshots/texture-management.jpg" alt="Texture Management">
 
             <h3>CAD Support & Assembly Visualization</h3>
             <h4>OpenCASCADE Integration:</h4>
             <ul>
                 <li><strong>Native STEP Support:</strong> Full parametric feature preservation</li>
                 <li><strong>IGES Files:</strong> Industry-standard CAD format support</li>
-                <li><strong>BRep Format:</strong> OpenCASCADE native boundary representation</li>                
+                <li><strong>BRep Format:</strong> OpenCASCADE native boundary representation</li>
+                <li><strong>True B-Rep Edge Wireframe:</strong> Extracted OCC edges (not silhouette approximations) for STEP/IGES/BREP, plus feature-edge wireframe modes for OBJ/glTF meshes, with dedicated Mesh Edges and Shaded with Edges display modes</li>
                 <li><strong>Color Inheritance:</strong> Smart color extraction from XCAF color attributes with intelligent inheritance chains</li>
                 <li><strong>Property Preservation:</strong> Metadata and naming preserved across the import pipeline</li>
             </ul>
+            <!-- TODO: screenshot - OCC true-edge wireframe -->            
+			<img width="1920" height="1032" src="assets/screenshots/true-edge-wireframe.jpg" alt="OCC True-Edge Wireframe">
 
             <h4>Assimp Integration:</h4>
             <ul>
@@ -522,6 +576,16 @@
                 <li><strong>Robust Loading:</strong> Handles malformed files gracefully with validation</li>
                 <li><strong>Mesh Post-Processing:</strong> Automatic tangent/bitangent computation with proper transformation math</li>
                 <li><strong>Negative Scale Handling:</strong> Correct detection and processing of flipped geometry via determinant-based matrix analysis</li>
+            </ul>
+
+            <h3>Session Storage (MVF)</h3>
+            <p>ModelViewer's native <strong>.mvf</strong> file is a session format, not just a
+            geometry export — it captures the full working state of a scene so you can pick up
+            exactly where you left off:</p>
+            <ul>
+                <li><strong>glTF-Spec-Based:</strong> MVF3 is a glTF-spec-compatible JSON document plus a binary geometry chunk, replacing the legacy binary <code>QDataStream</code> format</li>
+                <li><strong>Full Scene State:</strong> Materials, lights, cameras, exploded-view steps/presets, morph target and skeletal animation state, and node transforms are all persisted</li>
+                <li><strong>Progressive Load:</strong> Large scenes stream in with GPU-safe finalization rather than blocking the UI</li>
             </ul>
 
             <h3>Export Capabilities</h3>
@@ -547,8 +611,8 @@
                 <li><strong>Smart Capping:</strong> Automatic generation of capping geometry to close intersected surfaces</li>
                 <li><strong>Interactive Adjustment:</strong> Real-time plane manipulation for dynamic sectioning</li>
             </ul>
-            <img width="1920" height="1032" src="https://github.com/user-attachments/assets/3900171b-e33c-4033-8d2d-854c57c1eace" alt="Section View 1">
-            <img width="1920" height="1032" src="https://github.com/user-attachments/assets/9d8a876a-8748-434a-bc75-c7ae823050d6" alt="Section View 2">
+            <img width="1920" height="1032" src="assets/screenshots/section-view-1.jpg" alt="Section View 1">
+            <img width="1920" height="1032" src="assets/screenshots/section-view-2.jpg" alt="Section View 2">
 
             <h3>Multi-View Projection System</h3>
             <ul>
@@ -557,11 +621,11 @@
                 <li><strong>Anonometric Projections:</strong> Isometric, Dimetric, and Trimetric</li>
                 <li><strong>Orthographic and Perspective Projections</strong></li>
             </ul>
-            <img width="1920" height="1032" src="https://github.com/user-attachments/assets/3cb481c0-860d-4f99-a055-7b7aa11ceb1a" alt="Multi-View Projection">
+            <img width="1920" height="1032" src="assets/screenshots/multi-view-projection.jpg" alt="Multi-View Projection">
 
             <h3>Realistic PBR Rendering</h3>
             <h4>Realistic Automotive Paint Rendering (Clearcoat & Iridescence):</h4>
-            <img width="1920" height="1032" src="https://github.com/user-attachments/assets/58f6ae47-3e7d-41b6-aa56-362c037fcd4c" alt="Automotive Paint">
+            <img width="1920" height="1032" src="assets/screenshots/automotive-paint.jpg" alt="Automotive Paint">
 
             <h3>User Interface & Tools</h3>
             <h4>Detachable Panels:</h4>
@@ -577,10 +641,33 @@
                 <li><strong>Qt6 MDI Interface:</strong> Multiple document/model windows with tabbed organization</li>
                 <li><strong>Scrollable Toolbar:</strong> Customizable tool access with context-sensitive actions</li>
                 <li><strong>Theme Manager:</strong> Light and dark theme support with customizable color schemes</li>
-                <li><strong>Settings Dialog:</strong> Comprehensive application configuration and user preferences</li>
-                <li><strong>Tutorial System:</strong> Interactive guided introduction for new users</li>
                 <li><strong>Internationalization Support:</strong> English, Spanish, French, Italian, and German</li>
             </ul>
+
+            <h4>Logging System:</h4>
+            <p>A detachable Log Viewer panel provides real-time application logging with
+            syntax highlighting, full-text search, and filtering by log level (info, warning,
+            error, debug), useful for diagnosing import/export issues or tracking rendering
+            pipeline behavior during a session.</p>
+            <img width="1920" height="1032" src="assets/screenshots/log-viewer.jpg" alt="Logging System">
+
+            <h4>Settings Dialog:</h4>
+            <p>Fully wired end-to-end across every tab — General, Camera, Display, Rendering,
+            Materials, Import/Export, and Debug — with an "Animate Progressive Fit" option
+            among the newer additions.</p>
+            <img width="1920" height="1032" src="assets/screenshots/settings-dialog.jpg" alt="Settings Dialog">
+
+            <h4>Quick Help:</h4>
+            <p>An in-app reference dialog covering keyboard shortcuts and menu locations,
+            kept in sync with the current UI (corrected for stale shortcuts and menu paths
+            as part of the 2026.7.0 release).</p>
+            <img width="1920" height="1032" src="assets/screenshots/quick-help.jpg" alt="Quick Help">
+
+            <h4>Tutorial System:</h4>
+            <p>An interactive guided introduction for new users, covering 18 lessons from
+            basic navigation through exploded views, morph target animation, node transform
+            editing, and edge/wireframe rendering.</p>
+            <img width="1920" height="1032" src="assets/screenshots/tutorial-system.jpg" alt="Tutorial System">
 
             <h3>Advanced Camera & Navigation</h3>
             <ul>
@@ -589,7 +676,7 @@
                 <li><strong>Preset Views:</strong> Quick access to standard orthographic projections</li>
                 <li><strong>Light Manipulation:</strong> Independent light repositioning with delta-based targeting</li>
                 <li><strong>Perspective Correction:</strong> Proper NDC Z-clamping for accurate behavior at high zoom levels</li>
-                <li><strong>CAD Coordinate System:</strong> Native Z-up orientation matching industry CAD standards</li>
+                <li><strong>Dual-Camera Z-up/Y-up System:</strong> Native Z-up CAD coordinate convention alongside Y-up support, with camera/shading math aligned to the Khronos glTF reference viewer</li>
             </ul>
 
             <h3>Undo/Redo System</h3>
@@ -597,12 +684,20 @@
                 <li><strong>Full Command History:</strong> Complete undo/redo stack for all editing operations</li>
                 <li><strong>Live Preview Updates:</strong> Synchronized UI panel updates on undo/redo actions</li>
                 <li><strong>Material Operations:</strong> Support for complex material editing operations with full history</li>
+                <li><strong>Tree-Driven Copy/Cut/Paste:</strong> Scene-graph-aware copy/cut/paste with deferred-removal cut semantics, plus undo/redo for mesh rename, deselection, and metadata deletion</li>
             </ul>
         </section>
 
         <!-- Building Section -->
         <section id="building">
             <h2>Building the Code</h2>
+
+            <div class="note">
+                <strong>Just want to run ModelViewer?</strong> You don't need to build anything —
+                grab the prebuilt <strong>Windows installer</strong> or <strong>Linux AppImage</strong>
+                from the <a href="https://github.com/sharjith/ModelViewer-Qt/releases/latest">latest release</a>.
+                The steps below are only needed if you want to build from source.
+            </div>
 
             <h3>Prerequisites</h3>
             <div class="requirements">
@@ -620,22 +715,25 @@
             </div>
 
             <h3>Linux Build</h3>
+            <p>Linux builds now go through <strong>vcpkg</strong> (manifest mode) for dependency
+            management, using the bundled CMake presets.</p>
             <ol>
-                <li>Install the required dependencies using your package manager (e.g., apt, yum, etc.).</li>
-                <li>Clone the repository:
-                    <pre><code>git clone https://github.com/sharjith/ModelViewer-Qt.git
+                <li>Install base system packages (compiler, X11/OpenGL headers, etc. — see the
+                    <code>.github/workflows/build.yml</code> Linux job for the exact apt list).</li>
+                <li>Clone the repository (recursively, to pull in the vcpkg submodule):
+                    <pre><code>git clone --recursive https://github.com/sharjith/ModelViewer-Qt.git
 cd ModelViewer-Qt</code></pre>
                 </li>
-                <li>Create a build directory and configure the project using CMake:
-                    <pre><code>mkdir build
-cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release</code></pre>
+                <li>Configure with the vcpkg toolchain using the bundled CMake preset:
+                    <pre><code>cmake --preset ninja_release_vcpkg</code></pre>
+                    This triggers a vcpkg install of all manifest dependencies (Qt6, Assimp,
+                    OpenCASCADE, and others) on first run, which can take a while from scratch.
                 </li>
                 <li>Build the project:
-                    <pre><code>make -j$(nproc)</code></pre>
+                    <pre><code>cmake --build --preset ninja_release_vcpkg_build</code></pre>
                 </li>
                 <li>Run the application:
-                    <pre><code>./ModelViewer</code></pre>
+                    <pre><code>./out/build/ninja_release_vcpkg/ModelViewer</code></pre>
                 </li>
             </ol>
 
@@ -782,7 +880,7 @@ make -j$(sysctl -n hw.ncpu)
         <p>&copy; 2026 ModelViewer. Licensed under GPL-3.0.</p>
         <p>
             <a href="https://github.com/sharjith/ModelViewer-Qt">📂 GitHub Repository</a> | 
-            <a href="https://github.com/sharjith/ModelViewer-Qt/releases/tag/Release-2026.7.0">🚀 Release 2026.7.0</a> |
+            <a href="https://github.com/sharjith/ModelViewer-Qt/releases/latest">🚀 Latest Release</a> |
             <a href="https://www.khronos.org/gltf/">Khronos glTF</a>
         </p>
         <p>Professional 3D visualization with advanced rendering capabilities.</p>
