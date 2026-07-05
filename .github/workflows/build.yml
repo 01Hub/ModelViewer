@@ -18,6 +18,10 @@ on:
         type: choice
         default: 'all'
         options: [ all, Release, Debug ]
+      debug_ssh:
+        description: 'Open an SSH (tmate) session if this run fails, for live debugging'
+        type: boolean
+        default: false
 
 env:
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
@@ -309,6 +313,19 @@ jobs:
           translations/*.ts
           build/translations/*.qm
         retention-days: 30
+
+    # Opt-in live debugging: only activates when this run was manually
+    # dispatched with debug_ssh=true AND something earlier in this specific
+    # leg actually failed. Opens an SSH (tmate) session directly on the
+    # failed runner so you can inspect the exact failed state (paths,
+    # partial builds, vcpkg cache, etc.) instead of waiting through another
+    # full run to test a guessed fix.
+    - name: Debug via SSH on failure
+      if: failure() && github.event.inputs.debug_ssh == 'true'
+      uses: mxschmitt/action-tmate@v3
+      with:
+        limit-access-to-actor: true
+      timeout-minutes: 30
 
   publish-release:
     name: Publish GitHub Release
